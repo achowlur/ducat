@@ -171,6 +171,30 @@ describe('detectRecurringCharges', () => {
     );
     expect(detectRecurringCharges(txns).get('car wash club')?.cadence).toBe('WEEKLY');
   });
+
+  it('treats per-ride public transit fares as individual charges, but a monthly pass as recurring', () => {
+    // Weekday commuter: flat $7.52 fare, Mon-Fri rides across two months.
+    // Identical amounts, but ride gaps (1-3 days) sit below every cadence
+    // band, so this must NOT read as a subscription.
+    const rides: TxnData[] = [];
+    for (const month of [5, 6] as const) {
+      for (let day = 1; day <= 28; day++) {
+        const weekday = utc(2026, month, day).getUTCDay();
+        if (weekday === 0 || weekday === 6) continue;
+        rides.push(txn({ date: utc(2026, month, day), amount: -2.9, normalizedMerchant: 'trc metrocard' }));
+      }
+    }
+    expect(detectRecurringCharges(rides).size).toBe(0);
+
+    // The same commuter on a monthly pass IS a subscription: one fixed
+    // charge on the 1st of each month.
+    const pass = [1, 2, 3, 4, 5, 6].map((m) =>
+      txn({ date: utc(2026, m, 1), amount: -127, normalizedMerchant: 'trc monthly pass' }),
+    );
+    const detected = detectRecurringCharges(pass).get('trc monthly pass');
+    expect(detected?.cadence).toBe('MONTHLY');
+    expect(detected?.averageAmount).toBe(127);
+  });
 });
 
 describe('detectTransactionAnomalies', () => {
