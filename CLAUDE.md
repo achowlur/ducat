@@ -58,9 +58,16 @@ shape.
    trend, recurring charges, anomalies) producing typed `Insight` records at
    configurable period granularity; `BalanceSnapshot` model added; seeded
    fixture data via `npm run db:seed`; Vitest suite.
-3. **Session 3 — Connectors**: SimpleFin and CSV connectors implementing the
-   `Connector` interface, normalizing into `NormalizedAccount` /
-   `NormalizedTransaction`.
+3. **Session 3 — Connectors** (complete): SimpleFIN connector (access URL
+   from .env, setup-token claim flow, pending transactions skipped, account
+   type inferred from name keywords) and CSV connector (mapping configs for
+   chase-checking / chase-credit / wells-fargo / fidelity; deterministic
+   hashed externalIds; Fidelity trades pre-flagged TRANSFER). Full sync
+   pipeline in `src/lib/sync/`: upsert accounts → balance snapshots →
+   dedup import → category rules (priority asc, first match wins, MANUAL
+   never overridden) → cross-account transfer-pair detection (exact
+   opposite amounts, ≤4-day window) → insight regeneration. Commands:
+   `npm run sync:simplefin`, `npm run import:csv`, `npm run simplefin:claim`.
 4. **Session 4 — UI**: accounts, transactions, categorization, insights views,
    charts.
 5. **Session 5 — Security hardening + audit**: adversarial review of the

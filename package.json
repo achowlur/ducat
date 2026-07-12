@@ -9,7 +9,10 @@
     "lint": "eslint",
     "test": "vitest run",
     "db:seed": "tsx scripts/seed.ts",
-    "insights:generate": "tsx scripts/generate-insights.ts"
+    "insights:generate": "tsx scripts/generate-insights.ts",
+    "simplefin:claim": "tsx scripts/claim-simplefin.ts",
+    "sync:simplefin": "tsx scripts/sync-simplefin.ts",
+    "import:csv": "tsx scripts/import-csv.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
