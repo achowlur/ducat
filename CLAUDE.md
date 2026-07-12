@@ -68,8 +68,21 @@ shape.
    never overridden) → cross-account transfer-pair detection (exact
    opposite amounts, ≤4-day window) → insight regeneration. Commands:
    `npm run sync:simplefin`, `npm run import:csv`, `npm run simplefin:claim`.
-4. **Session 4 — UI**: accounts, transactions, categorization, insights views,
-   charts.
-5. **Session 5 — Security hardening + audit**: adversarial review of the
+4. **Session 4 — Provider health + subscription tracking (data layer)**:
+   `SyncLog` model persisting every sync outcome (ok/error, feed errors,
+   counts); health service deriving per-provider status from LOCAL signals
+   only (last sync outcome, feed error strings, stale balance dates,
+   transaction-volume gaps) — deliberately no network probes on launch;
+   provider registry with static trust cards (per-provider residual risks:
+   upstream-aggregator bugs, key-person risk, data residing on aggregator
+   servers); `TrackedSubscription` model (expected amount, cadence, billing
+   anchor) reconciled against imported transactions to flag price drift
+   immediately and compute next-payment countdown (user pays SimpleFIN
+   ~$15/yr — YEARLY cadence must work from a single registration, not
+   3-occurrence auto-detection).
+5. **Session 5 — UI**: accounts, transactions, categorization, insights views,
+   charts; launch screen shows the provider-health panel and subscription
+   status from Session 4.
+6. **Session 6 — Security hardening + audit**: adversarial review of the
    HARD RULES above (credential handling, secrets, localhost binding, no
-   outbound calls) across everything built in Sessions 2-4.
+   outbound calls) across everything built in Sessions 2-5.
