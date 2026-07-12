@@ -60,6 +60,17 @@ model Account {
   createdAt     DateTime @default(now())
 
   transactions Transaction[]
+  snapshots    BalanceSnapshot[]
+}
+
+model BalanceSnapshot {
+  id        String   @id @default(cuid())
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id])
+  date      DateTime
+  balance   Decimal
+
+  @@unique([accountId, date])
 }
 
 model Transaction {

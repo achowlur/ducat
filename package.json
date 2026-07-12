@@ -6,10 +6,14 @@
     "dev": "next dev -H 127.0.0.1",
     "build": "next build",
     "start": "next start -H 127.0.0.1",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "db:seed": "tsx scripts/seed.ts",
+    "insights:generate": "tsx scripts/generate-insights.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@prisma/adapter-better-sqlite3": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -32,12 +36,16 @@
     "eslint-config-next": "15.5.20",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.23.0",
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   },
   "allowScripts": {
     "prisma@7.8.0": true,
     "sharp@0.34.5": true,
     "unrs-resolver@1.12.2": true,
-    "@prisma/engines@7.8.0": true
+    "@prisma/engines@7.8.0": true,
+    "better-sqlite3@12.11.1": true,
+    "esbuild@0.28.1": true
   }
 }
