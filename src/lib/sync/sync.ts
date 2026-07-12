@@ -22,6 +22,7 @@ export interface SyncResult {
   transactionsSkipped: number;
   rulesApplied: number;
   transfersLinked: number;
+  feedWarnings: string[];
   insights: GenerateResult | null;
 }
 
@@ -34,12 +35,56 @@ function lastSyncKey(connectorType: string): string {
 /**
  * Full sync pipeline: fetch → upsert accounts → snapshot balances →
  * import new transactions → apply category rules → link transfer pairs →
- * regenerate insights → record sync time.
+ * regenerate insights → record sync time. Every run — success or failure —
+ * is persisted to SyncLog; the health panel reads that history.
  */
 export async function runSync(
   prisma: PrismaClient,
   connector: Connector,
   options: SyncOptions = {},
+): Promise<SyncResult> {
+  const startedAt = new Date();
+  try {
+    const result = await runPipeline(prisma, connector, options);
+    await prisma.syncLog.create({
+      data: {
+        connectorType: connector.type,
+        startedAt,
+        finishedAt: new Date(),
+        ok: true,
+        feedErrors: result.feedWarnings,
+        accountsSeen: result.accountsCreated + result.accountsUpdated,
+        transactionsImported: result.transactionsImported,
+        transactionsSkipped: result.transactionsSkipped,
+        rulesApplied: result.rulesApplied,
+        transfersLinked: result.transfersLinked,
+      },
+    });
+    return result;
+  } catch (e) {
+    await prisma.syncLog.create({
+      data: {
+        connectorType: connector.type,
+        startedAt,
+        finishedAt: new Date(),
+        ok: false,
+        errorText: e instanceof Error ? e.message : String(e),
+        feedErrors: connector.feedWarnings?.() ?? [],
+        accountsSeen: 0,
+        transactionsImported: 0,
+        transactionsSkipped: 0,
+        rulesApplied: 0,
+        transfersLinked: 0,
+      },
+    });
+    throw e;
+  }
+}
+
+async function runPipeline(
+  prisma: PrismaClient,
+  connector: Connector,
+  options: SyncOptions,
 ): Promise<SyncResult> {
   let since = options.since ?? null;
   if (since === null) {
@@ -225,6 +270,7 @@ export async function runSync(
     transactionsSkipped: mappable.length - fresh.length,
     rulesApplied,
     transfersLinked: pairs.length,
+    feedWarnings: connector.feedWarnings?.() ?? [],
     insights,
   };
 }

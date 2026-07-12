@@ -68,18 +68,17 @@ shape.
    never overridden) → cross-account transfer-pair detection (exact
    opposite amounts, ≤4-day window) → insight regeneration. Commands:
    `npm run sync:simplefin`, `npm run import:csv`, `npm run simplefin:claim`.
-4. **Session 4 — Provider health + subscription tracking (data layer)**:
-   `SyncLog` model persisting every sync outcome (ok/error, feed errors,
-   counts); health service deriving per-provider status from LOCAL signals
-   only (last sync outcome, feed error strings, stale balance dates,
-   transaction-volume gaps) — deliberately no network probes on launch;
-   provider registry with static trust cards (per-provider residual risks:
-   upstream-aggregator bugs, key-person risk, data residing on aggregator
-   servers); `TrackedSubscription` model (expected amount, cadence, billing
-   anchor) reconciled against imported transactions to flag price drift
-   immediately and compute next-payment countdown (user pays SimpleFIN
-   ~$15/yr — YEARLY cadence must work from a single registration, not
-   3-occurrence auto-detection).
+4. **Session 4 — Provider health + subscription tracking** (complete):
+   `SyncLog` persists every sync outcome (success and failure, feed
+   warnings via the optional `Connector.feedWarnings()` contract method);
+   `src/lib/health/` derives per-provider status (OK/WARN/ERROR/UNKNOWN)
+   from LOCAL signals only — last sync outcome, feed errors, stale balance
+   dates, transaction-volume gap detection — no network on launch, ever.
+   Provider trust cards in `providers.ts` (add one when adding a
+   connector). `TrackedSubscription` reconciles registered subscriptions
+   against imported charges: next-payment projection from last real charge
+   (falling back to anchor) and cent-exact price-drift flagging on the
+   first deviating charge. `npm run health` prints the panel headless.
 5. **Session 5 — UI**: accounts, transactions, categorization, insights views,
    charts; launch screen shows the provider-health panel and subscription
    status from Session 4.

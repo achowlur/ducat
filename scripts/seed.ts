@@ -39,6 +39,8 @@ async function main(): Promise<void> {
   await prisma.rule.deleteMany();
   await prisma.category.deleteMany();
   await prisma.account.deleteMany();
+  await prisma.syncLog.deleteMany();
+  await prisma.trackedSubscription.deleteMany();
 
   const categoryNames = [
     'Salary', 'Interest', 'Rent', 'Groceries', 'Dining', 'Utilities',
@@ -184,11 +186,51 @@ async function main(): Promise<void> {
     })),
   });
 
+  // Tracked subscriptions: SimpleFIN's own bill (yearly, no fixture charge
+  // yet — pure countdown), and Netflix registered at the OLD price so the
+  // fixture's June price hike exercises drift detection.
+  await prisma.trackedSubscription.createMany({
+    data: [
+      {
+        name: 'SimpleFIN Bridge',
+        merchantPattern: 'simplefin',
+        expectedAmount: 15,
+        cadence: 'YEARLY' as const,
+        anchorDate: utc(2026, 8, 1),
+        notes: 'Bank data feed subscription (~$15/yr).',
+      },
+      {
+        name: 'Netflix',
+        merchantPattern: 'netflix',
+        expectedAmount: 15.99,
+        cadence: 'MONTHLY' as const,
+        anchorDate: utc(2025, 11, 10),
+      },
+    ],
+  });
+
+  // A synthetic successful sync so the health panel has fixture history.
+  await prisma.syncLog.create({
+    data: {
+      connectorType: 'SIMPLEFIN',
+      startedAt: today,
+      finishedAt: today,
+      ok: true,
+      feedErrors: [],
+      accountsSeen: 5,
+      transactionsImported: txns.length,
+      transactionsSkipped: 0,
+      rulesApplied: 0,
+      transfersLinked: 0,
+    },
+  });
+
   const counts = {
     accounts: await prisma.account.count(),
     categories: await prisma.category.count(),
     transactions: await prisma.transaction.count(),
     snapshots: await prisma.balanceSnapshot.count(),
+    trackedSubscriptions: await prisma.trackedSubscription.count(),
   };
   console.log('Seeded fixture data:', counts);
 }

@@ -118,6 +118,41 @@ model Rule {
   enabled        Boolean
 }
 
+enum RecurringCadence {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+model SyncLog {
+  id                   String   @id @default(cuid())
+  connectorType        String
+  startedAt            DateTime
+  finishedAt           DateTime
+  ok                   Boolean
+  errorText            String?
+  feedErrors           Json // string[] of non-fatal provider warnings
+  accountsSeen         Int
+  transactionsImported Int
+  transactionsSkipped  Int
+  rulesApplied         Int
+  transfersLinked      Int
+}
+
+model TrackedSubscription {
+  id              String           @id @default(cuid())
+  name            String
+  merchantPattern String // case-insensitive substring matched against merchant/description
+  expectedAmount  Decimal
+  cadence         RecurringCadence
+  anchorDate      DateTime // a known billing date to project the next payment from
+  notes           String?
+  enabled         Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+}
+
 model Insight {
   id        String   @id @default(cuid())
   type      String

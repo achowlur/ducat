@@ -90,6 +90,7 @@ export class SimplefinConnector implements Connector {
   private readonly authHeader: string;
   private cached: SimplefinResponse | null = null;
   private cachedSince: number | null = null;
+  private warnings: string[] = [];
 
   constructor(accessUrl: string) {
     const url = new URL(accessUrl);
@@ -117,12 +118,18 @@ export class SimplefinConnector implements Connector {
     const data = (await res.json()) as SimplefinResponse;
     if (data.errors !== undefined && data.errors.length > 0) {
       // SimpleFIN uses errors for warnings too (e.g. "connect a bank");
-      // surface them without failing the sync.
+      // surface them without failing the sync. The sync pipeline persists
+      // them to SyncLog via feedWarnings().
+      this.warnings = [...new Set([...this.warnings, ...data.errors])];
       console.warn('SimpleFIN reported:', data.errors.join('; '));
     }
     this.cached = data;
     this.cachedSince = sinceUnix;
     return data;
+  }
+
+  feedWarnings(): string[] {
+    return [...this.warnings];
   }
 
   async listAccounts(): Promise<NormalizedAccount[]> {

@@ -184,6 +184,29 @@ describe('runSync integration', () => {
     expect(await prisma.setting.findUnique({ where: { key: 'lastSync:SIMPLEFIN' } })).not.toBeNull();
   });
 
+  it('persists a SyncLog on success and on failure', async () => {
+    const okLogs = await prisma.syncLog.findMany({ where: { ok: true } });
+    expect(okLogs.length).toBeGreaterThan(0);
+
+    class BrokenConnector implements Connector {
+      readonly type = 'SIMPLEFIN';
+      listAccounts(): Promise<NormalizedAccount[]> {
+        return Promise.reject(new Error('feed exploded'));
+      }
+      fetchTransactions(): Promise<NormalizedTransaction[]> {
+        return Promise.resolve([]);
+      }
+      feedWarnings(): string[] {
+        return ['Connection to Test Bank may need attention'];
+      }
+    }
+    await expect(runSync(prisma, new BrokenConnector())).rejects.toThrow('feed exploded');
+
+    const failed = await prisma.syncLog.findFirstOrThrow({ where: { ok: false } });
+    expect(failed.errorText).toBe('feed exploded');
+    expect(failed.feedErrors).toEqual(['Connection to Test Bank may need attention']);
+  });
+
   it('re-sync is idempotent: nothing duplicated, accounts updated in place', async () => {
     const result = await runSync(prisma, new FakeConnector(accounts, transactions), { since: utc(2026, 6, 1) });
     expect(result.accountsCreated).toBe(0);

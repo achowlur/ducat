@@ -12,7 +12,8 @@
     "insights:generate": "tsx scripts/generate-insights.ts",
     "simplefin:claim": "tsx scripts/claim-simplefin.ts",
     "sync:simplefin": "tsx scripts/sync-simplefin.ts",
-    "import:csv": "tsx scripts/import-csv.ts"
+    "import:csv": "tsx scripts/import-csv.ts",
+    "health": "tsx scripts/health.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

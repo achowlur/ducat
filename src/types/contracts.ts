@@ -151,4 +151,10 @@ export interface Connector {
   readonly type: ConnectorType;
   listAccounts(): Promise<NormalizedAccount[]>;
   fetchTransactions(since: Date): Promise<NormalizedTransaction[]>;
+  /**
+   * Non-fatal provider warnings observed during this session (e.g.
+   * SimpleFIN's errors array: "Connection to X needs attention").
+   * The sync pipeline persists them to SyncLog for the health panel.
+   */
+  feedWarnings?(): string[];
 }
