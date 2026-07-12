@@ -31,11 +31,19 @@ shape.
 
 ## Build order and status
 
-1. **Session 1 — Scaffold** (complete): Next.js/TS/Tailwind/shadcn project,
-   Prisma schema and initial migration, type contracts in
+1. **Session 1 — Foundation + contracts** (complete): Next.js/TS/Tailwind/shadcn
+   project, Prisma schema and initial migration, type contracts in
    `src/types/contracts.ts`.
-2. **Session 2 — Connectors**: SimpleFin and CSV connectors implementing the
-   `Connector` interface.
-3. **Session 3 — Insights engine**: reads normalized transactions, produces
-   `Insight` records.
-4. **Session 4 — UI**: accounts, transactions, categorization, insights views.
+2. **Session 2 — Insights engine**: reads normalized transactions from the
+   database and produces `Insight` records. Runs before the connectors exist,
+   so build/test it against seeded fixture data written directly through
+   Prisma (matching the `Account`/`Transaction`/`Category` schema) rather than
+   live connector output.
+3. **Session 3 — Connectors**: SimpleFin and CSV connectors implementing the
+   `Connector` interface, normalizing into `NormalizedAccount` /
+   `NormalizedTransaction`.
+4. **Session 4 — UI**: accounts, transactions, categorization, insights views,
+   charts.
+5. **Session 5 — Security hardening + audit**: adversarial review of the
+   HARD RULES above (credential handling, secrets, localhost binding, no
+   outbound calls) across everything built in Sessions 2-4.
