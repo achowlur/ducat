@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum AccountType {
+  DEPOSITORY
+  CREDIT
+  INVESTMENT
+  LOAN
+}
+
+enum TransactionFlow {
+  INFLOW
+  OUTFLOW
+  TRANSFER
+}
+
+enum CategorySource {
+  AGGREGATOR
+  RULE
+  MANUAL
+}
+
+enum TransactionSource {
+  SIMPLEFIN
+  CSV
+}
+
+enum RuleMatchField {
+  MERCHANT
+  DESCRIPTION
+  AMOUNT
+  ACCOUNT
+}
+
+enum RuleMatchOperator {
+  CONTAINS
+  EQUALS
+  REGEX
+  GT
+  LT
+}
+
+model Account {
+  id            String   @id @default(cuid())
+  externalId    String
+  connectorType String
+  institution   String
+  name          String
+  type          AccountType
+  currency      String
+  balance       Decimal
+  balanceDate   DateTime
+  isStale       Boolean
+  createdAt     DateTime @default(now())
+
+  transactions Transaction[]
+}
+
+model Transaction {
+  id                 String            @id @default(cuid())
+  accountId          String
+  account            Account           @relation(fields: [accountId], references: [id])
+  externalId         String
+  date               DateTime
+  amount             Decimal
+  description        String
+  normalizedMerchant String
+  flow               TransactionFlow
+  categoryId         String?
+  category           Category?         @relation(fields: [categoryId], references: [id])
+  categorySource     CategorySource
+  transferPairId     String?
+  transferPair       Transaction?      @relation("TransferPair", fields: [transferPairId], references: [id])
+  transferPairOf     Transaction[]     @relation("TransferPair")
+  source             TransactionSource
+  importedAt         DateTime          @default(now())
+
+  @@unique([accountId, externalId])
+}
+
+model Category {
+  id       String     @id @default(cuid())
+  name     String
+  parentId String?
+  parent   Category?  @relation("CategoryParent", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryParent")
+
+  transactions Transaction[]
+  rules        Rule[]
+}
+
+model Rule {
+  id             String            @id @default(cuid())
+  priority       Int
+  matchField     RuleMatchField
+  matchOperator  RuleMatchOperator
+  matchValue     String
+  setCategoryId  String
+  setCategory    Category          @relation(fields: [setCategoryId], references: [id])
+  setFlow        TransactionFlow?
+  enabled        Boolean
+}
+
+model Insight {
+  id        String   @id @default(cuid())
+  type      String
+  period    String
+  payload   Json
+  dismissed Boolean
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  key   String @id
+  value String
+}
