@@ -197,6 +197,46 @@ describe('detectRecurringCharges', () => {
   });
 });
 
+describe('investment purchases (Fidelity-style brokerage)', () => {
+  // The normalization contract: brokerage trades and contributions are
+  // TRANSFERs (cash changing form, not leaving net worth), so they must
+  // never appear in spending analytics.
+  const july = (d: number) => utc(2026, 7, d);
+  const base = [
+    txn({ date: july(1), amount: 5000, accountId: 'checking', normalizedMerchant: 'acme corp' }),
+    txn({ date: july(3), amount: -200, accountId: 'checking', ...groceries }),
+    // Contribution pair: checking -> Fidelity
+    txn({ date: july(5), amount: -1000, accountId: 'checking', flow: 'TRANSFER', normalizedMerchant: 'fidelity' }),
+    txn({ date: july(5), amount: 1000, accountId: 'fidelity', flow: 'TRANSFER', normalizedMerchant: 'fidelity' }),
+  ];
+
+  it('counts a stock buy normalized as TRANSFER as investing, not spending', () => {
+    const buy = txn({
+      date: july(6), amount: -950, accountId: 'fidelity', flow: 'TRANSFER',
+      description: 'BUY 5 AAPL', normalizedMerchant: 'fidelity',
+    });
+    const cashFlow = computeCashFlowTrend([...base, buy], ['2026-07'], 'MONTH').get('2026-07');
+    expect(cashFlow?.income).toBe(5000);
+    expect(cashFlow?.spending).toBe(200); // groceries only
+    expect(cashFlow?.net).toBe(4800);
+
+    const spending = computeSpendingByCategory([...base, buy], ['2026-07'], 'MONTH').get('2026-07');
+    expect(spending?.totalSpending).toBe(200);
+    expect(spending?.categories.map((c) => c.categoryName)).toEqual(['Groceries']);
+  });
+
+  it('shows why connectors must normalize trades: an OUTFLOW-mislabeled buy inflates spending', () => {
+    const mislabeled = txn({
+      date: july(6), amount: -950, accountId: 'fidelity', flow: 'OUTFLOW',
+      description: 'BUY 5 AAPL', normalizedMerchant: 'fidelity',
+    });
+    const cashFlow = computeCashFlowTrend([...base, mislabeled], ['2026-07'], 'MONTH').get('2026-07');
+    // The engine trusts flow labels — a mislabeled trade counts as spending.
+    // Correct classification is the connector layer's job (Session 3).
+    expect(cashFlow?.spending).toBe(1150);
+  });
+});
+
 describe('detectTransactionAnomalies', () => {
   const history = Array.from({ length: 8 }, (_, i) =>
     txn({ date: utc(2026, i + 1 <= 6 ? i + 1 : 6, (i % 27) + 1), amount: -(60 + i * 3), ...groceries }),
