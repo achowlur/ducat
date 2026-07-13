@@ -1,4 +1,8 @@
-import { SignJWT, jwtVerify } from "jose";
+// Import from jose's JWS subpaths, not the barrel: the barrel pulls in the JWE
+// decompression code (DecompressionStream), which the Edge runtime flags even
+// though HS256 sign/verify never touches it.
+import { SignJWT } from "jose/jwt/sign";
+import { jwtVerify } from "jose/jwt/verify";
 
 /**
  * Stateless signed-cookie session (Session 7). HS256 via `jose`, which runs on

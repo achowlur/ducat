@@ -1,18 +1,28 @@
 # Finance Project
 
-A local-only personal finance tracker with an insights engine. Runs entirely on
-localhost; no financial data ever leaves the machine.
+A personal finance tracker with an insights engine. Local-first by default (runs
+entirely on localhost; no financial data leaves the machine), with an OPTIONAL
+single-tenant self-hosted cloud deployment (Session 7 — see DEPLOY.md).
 
 ## HARD RULES
 
+Absolute (BOTH modes):
 - NEVER handle, request, or store bank credentials. Auth happens in the
   aggregator's hosted flow only.
-- NEVER hardcode a secret. All secrets via .env (gitignored) or OS keychain.
-- NEVER bind the server to anything but 127.0.0.1.
+- NEVER hardcode a secret. All secrets via .env (gitignored), the OS keychain,
+  or the deployment platform's env-var store.
 - NEVER add analytics, telemetry, third-party CDNs, or LLM/AI API calls.
-  Transaction data must never leave this machine.
 - NEVER write placeholder code or TODOs. Everything committed must run.
 - TRANSFER-flagged transactions are EXCLUDED from all spending analytics.
+
+Mode-scoped (amended Session 7 — `DATABASE_URL` scheme selects the mode):
+- Server binding: LOCAL (`file:` URL) binds ONLY to 127.0.0.1 (package.json
+  scripts + the middleware host-allowlist). CLOUD (`libsql://` URL) runs on the
+  platform host and MUST have the auth gate configured — it fails closed.
+- Data locality: LOCAL — transaction data never leaves the machine (the only
+  outbound call is the SimpleFIN feed). CLOUD — data lives with the operator's
+  OWN Turso + Vercel (single-tenant, self-hosted); no third party custodies it
+  as a shared service. Opt-in trade-off documented in DEPLOY.md; E2E is deferred.
 
 ## Architecture
 
@@ -156,18 +166,29 @@ shape.
    - README rewritten to document the local-only trust model.
    Go-live checklist for Session 7: auth + encryption become hard blockers,
    and the CSP/headers matter even more on a public origin (add HSTS there).
-7. **Session 7 — Single-tenant cloud deployment (Plan B, agreed 2026-07-13)**:
-   deliberately amends the localhost HARD RULE — the charter becomes
-   "local-first by default; OPTIONAL self-hosted cloud deployment with
-   auth + encryption; no third party ever custodies the data." Scope:
-   Prisma driver swap to libSQL/Turso (better-sqlite3 does not run on
-   serverless), single-user auth gate (password/passkey), managed
-   encryption at rest, Vercel hobby + Turso free tier, daily sync cron.
-   Explicitly deferred: end-to-end encryption (client-side keys +
-   analyzers running in the browser — viable because the analyzers are
-   pure functions over plain arrays; fetch ciphertext → decrypt in
-   browser → compute). E2E is the flagship feature if this becomes a
-   shared product.
+7. **Session 7 — Single-tenant cloud deployment** (code complete 2026-07-13;
+   the deploy itself is the operator's step — see [DEPLOY.md](DEPLOY.md)):
+   amended the localhost HARD RULE (see Mode-scoped rules above). Built and
+   verified locally:
+   - DB driver swapped better-sqlite3 → `@prisma/adapter-libsql` (one adapter:
+     `file:` local + `libsql://` Turso, by DATABASE_URL). `postinstall: prisma
+     generate` (the gitignored client must build on Vercel); better-sqlite3
+     kept as a devDep for the test harness. `serverExternalPackages` → libSQL.
+   - Single-user password auth: scrypt hash (Node crypto, no native dep) + a
+     jose HS256 signed-cookie session verified in Edge middleware; fail-closed
+     in cloud mode; `requireSession()` on every Server Action; login page +
+     `npm run auth:set-password`. GOTCHA: the stored hash uses a `:` delimiter,
+     NOT `$` — Next's `.env` loader expands `$name` and silently mangles a
+     `$`-delimited hash to "scrypt".
+   - `src/middleware.ts` host-allowlist is now cloud-aware (loopback enforced in
+     local mode only, else it 403s the deploy host).
+   - Daily sync cron: `src/app/api/cron/sync/route.ts` (nodejs, CRON_SECRET
+     Bearer) + `vercel.json` crons; reuses `runSync`. HSTS in production.
+     `npm run turso:baseline` emits the schema SQL for `turso db shell`.
+   - Encryption at rest = Turso's (managed; BYOK optional). Explicitly deferred:
+     end-to-end encryption (client-side keys + analyzers in the browser — viable
+     because the analyzers are pure functions over plain arrays). E2E is the
+     flagship feature if this becomes a shared product.
 
 ## Product direction (agreed 2026-07-13)
 

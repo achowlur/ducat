@@ -16,7 +16,8 @@
     "import:csv": "tsx scripts/import-csv.ts",
     "health": "tsx scripts/health.ts",
     "rules:install": "tsx scripts/install-rule-pack.ts",
-    "auth:set-password": "tsx scripts/set-password.ts"
+    "auth:set-password": "tsx scripts/set-password.ts",
+    "turso:baseline": "prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
