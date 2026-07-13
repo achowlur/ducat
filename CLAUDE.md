@@ -132,4 +132,28 @@ shape.
    **Providers** page (trust cards + health detail from Session 4).
 6. **Session 6 — Security hardening + audit**: adversarial review of the
    HARD RULES above (credential handling, secrets, localhost binding, no
-   outbound calls) across everything built in Sessions 2-5.
+   outbound calls) across everything built in Sessions 2-5. Doubles as the
+   deployment gate for Session 7 — its findings become the go-live checklist.
+7. **Session 7 — Single-tenant cloud deployment (Plan B, agreed 2026-07-13)**:
+   deliberately amends the localhost HARD RULE — the charter becomes
+   "local-first by default; OPTIONAL self-hosted cloud deployment with
+   auth + encryption; no third party ever custodies the data." Scope:
+   Prisma driver swap to libSQL/Turso (better-sqlite3 does not run on
+   serverless), single-user auth gate (password/passkey), managed
+   encryption at rest, Vercel hobby + Turso free tier, daily sync cron.
+   Explicitly deferred: end-to-end encryption (client-side keys +
+   analyzers running in the browser — viable because the analyzers are
+   pure functions over plain arrays; fetch ciphertext → decrypt in
+   browser → compute). E2E is the flagship feature if this becomes a
+   shared product.
+
+## Product direction (agreed 2026-07-13)
+
+Distributed software, NOT a hosted service (the Actual Budget model):
+each user deploys their own instance (their machine or their cloud) and
+brings their own SimpleFIN token (~$15/yr paid by the user to SimpleFIN),
+so the maintainer custodies no one's data and aggregator costs stay $0.
+CSV import is the zero-dependency fallback. Do NOT build an in-house
+aggregator — bank connectivity (not the protocol) is the hard 95% and
+there is no free path. "We can't read your data even if breached" (E2E)
+is the product's trust story when multi-user matters.
