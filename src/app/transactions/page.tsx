@@ -195,7 +195,7 @@ export default async function TransactionsPage({
           <input
             name="q"
             defaultValue={params.q ?? ""}
-            placeholder="merchant or description"
+            placeholder="Merchant or description"
             className="min-w-40 rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink"
           />
         </label>
