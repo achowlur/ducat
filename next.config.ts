@@ -40,9 +40,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Don't advertise the framework/version to any client.
   poweredByHeader: false,
-  // Native module (better-sqlite3) and the generated Prisma client must not
-  // be bundled by webpack — load them from node_modules at runtime.
-  serverExternalPackages: ["better-sqlite3", "@prisma/adapter-better-sqlite3"],
+  // Native DB driver (libSQL) and the generated Prisma client must not be
+  // bundled by webpack — load them from node_modules at runtime.
+  serverExternalPackages: ["@libsql/client", "@prisma/adapter-libsql"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
