@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "../../lib/prisma";
 import { generateInsights } from "../../lib/insights/engine";
 import { reapplyRules } from "../../lib/sync/rulePack";
+import { requireSession } from "../../lib/auth/requireSession";
 
 /**
  * Manually assign (or clear) a transaction's category. Manual assignments
@@ -14,6 +15,7 @@ export async function setTransactionCategory(
   transactionId: string,
   categoryId: string | null,
 ): Promise<void> {
+  await requireSession();
   await prisma.transaction.update({
     where: { id: transactionId },
     data: {
@@ -35,6 +37,7 @@ export async function createRuleFromMerchant(
   merchant: string,
   categoryId: string,
 ): Promise<{ recategorized: number }> {
+  await requireSession();
   const matchValue = merchant.trim().toLowerCase();
   if (matchValue === "") throw new Error("Merchant is empty — categorize this transaction manually instead.");
 
@@ -69,6 +72,7 @@ export async function createRuleFromMerchant(
  * inflow stops counting as income.
  */
 export async function linkReimbursement(inflowId: string, outflowId: string): Promise<void> {
+  await requireSession();
   const [inflow, outflow] = await Promise.all([
     prisma.transaction.findUniqueOrThrow({ where: { id: inflowId } }),
     prisma.transaction.findUniqueOrThrow({ where: { id: outflowId } }),
@@ -86,6 +90,7 @@ export async function linkReimbursement(inflowId: string, outflowId: string): Pr
 }
 
 export async function unlinkReimbursement(inflowId: string): Promise<void> {
+  await requireSession();
   await prisma.transaction.update({
     where: { id: inflowId },
     data: { reimbursesId: null },

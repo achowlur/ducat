@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "../../lib/prisma";
+import { requireSession } from "../../lib/auth/requireSession";
 
 /**
  * Dismiss or restore an insight. Dismissals survive regeneration: the
@@ -9,6 +10,7 @@ import { prisma } from "../../lib/prisma";
  * identity (see identityOf in src/lib/insights/engine.ts).
  */
 export async function setInsightDismissed(insightId: string, dismissed: boolean): Promise<void> {
+  await requireSession();
   await prisma.insight.update({
     where: { id: insightId },
     data: { dismissed },

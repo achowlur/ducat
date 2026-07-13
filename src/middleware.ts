@@ -1,23 +1,23 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isAuthConfigured, isCloudMode } from "./lib/auth/mode";
+import { SESSION_COOKIE, verifySessionToken } from "./lib/auth/session";
 
 /**
- * Anti-DNS-rebinding host allowlist (Session 6 hardening).
+ * Request gate (Session 6 host-allowlist + Session 7 auth). Runs on the Edge
+ * runtime, so it only does stateless work: env checks and a jose cookie verify
+ * (no DB, no Node crypto).
  *
- * The server binds to 127.0.0.1, so no network peer can reach it — but a
- * browser can. A malicious web page can rebind its own domain to 127.0.0.1
- * (DNS rebinding) and issue requests that arrive here carrying the attacker's
- * Host header, letting a remote site read this machine's financial data.
- * Rejecting any request whose Host isn't loopback closes that path.
- *
- * (State-changing Server Actions are already covered by Next's built-in Origin
- * check; this additionally protects reads — pages and RSC payloads.)
+ *   1. Local mode: reject any non-loopback Host (anti-DNS-rebinding). Skipped in
+ *      cloud mode, where the app is served from a real hostname.
+ *   2. `/api/cron/*` authorizes itself with CRON_SECRET → bypasses the session gate.
+ *   3. When auth is enabled, require a valid signed session cookie. Cloud mode
+ *      deployed without auth configured fails closed (never serves open).
  */
 const ALLOWED_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
 
 function hostnameOnly(host: string | null): string | null {
   if (host === null || host === "") return null;
-  // IPv6 literals are bracketed, e.g. "[::1]:3000".
   if (host.startsWith("[")) {
     const end = host.indexOf("]");
     return end === -1 ? host : host.slice(0, end + 1);
@@ -26,15 +26,66 @@ function hostnameOnly(host: string | null): string | null {
   return colon === -1 ? host : host.slice(0, colon);
 }
 
-export function middleware(request: NextRequest): NextResponse {
-  const host = hostnameOnly(request.headers.get("host"));
-  if (host === null || !ALLOWED_HOSTS.has(host)) {
-    return new NextResponse("Forbidden — this app serves localhost only.", {
-      status: 403,
-      headers: { "content-type": "text/plain" },
-    });
+function textResponse(message: string, status: number): NextResponse {
+  return new NextResponse(message, { status, headers: { "content-type": "text/plain" } });
+}
+
+// Pass the resolved path to the layout (via a request header it can't spoof —
+// we overwrite it) so it can hide the app chrome on /login.
+function passthrough(request: NextRequest, pathname: string): NextResponse {
+  const headers = new Headers(request.headers);
+  headers.set("x-app-path", pathname);
+  return NextResponse.next({ request: { headers } });
+}
+
+export async function middleware(request: NextRequest): Promise<NextResponse> {
+  const { pathname } = request.nextUrl;
+  const cloud = isCloudMode();
+
+  // 1. Anti-DNS-rebinding — local mode only.
+  if (!cloud) {
+    const host = hostnameOnly(request.headers.get("host"));
+    if (host === null || !ALLOWED_HOSTS.has(host)) {
+      return textResponse("Forbidden — this app serves localhost only.", 403);
+    }
   }
-  return NextResponse.next();
+
+  // 2. Cron endpoints self-authorize with CRON_SECRET.
+  if (pathname.startsWith("/api/cron/")) {
+    return passthrough(request, pathname);
+  }
+
+  // 3. Auth gate.
+  if (cloud || isAuthConfigured()) {
+    if (cloud && !isAuthConfigured()) {
+      return textResponse(
+        "Auth is not configured. Set AUTH_PASSWORD_HASH and SESSION_SECRET, then redeploy.",
+        503,
+      );
+    }
+    const onLogin = pathname === "/login";
+    const token = request.cookies.get(SESSION_COOKIE)?.value;
+    const valid = token !== undefined && (await verifySessionToken(token));
+
+    if (!valid && !onLogin) {
+      // Server Actions POST to page paths — reject rather than bounce.
+      if (request.method !== "GET" && request.method !== "HEAD") {
+        return textResponse("Unauthorized.", 401);
+      }
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    if (valid && onLogin) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  return passthrough(request, pathname);
 }
 
 // Guard pages, RSC, and Server Actions. Static chunks/images under _next carry

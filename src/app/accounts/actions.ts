@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "../../lib/prisma";
 import { generateInsights } from "../../lib/insights/engine";
+import { requireSession } from "../../lib/auth/requireSession";
 
 const ACCOUNT_TYPES = ["DEPOSITORY", "CREDIT", "INVESTMENT", "LOAN"] as const;
 type AccountType = (typeof ACCOUNT_TYPES)[number];
@@ -15,6 +16,7 @@ type AccountType = (typeof ACCOUNT_TYPES)[number];
  * correction means "it was always this type", so history recomputes.
  */
 export async function setAccountType(accountId: string, type: string): Promise<void> {
+  await requireSession();
   if (!ACCOUNT_TYPES.includes(type as AccountType)) {
     throw new Error(`Unknown account type: ${type}`);
   }
