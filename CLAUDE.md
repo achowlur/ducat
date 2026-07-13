@@ -109,11 +109,10 @@ shape.
    against imported charges: next-payment projection from last real charge
    (falling back to anchor) and cent-exact price-drift flagging on the
    first deviating charge. `npm run health` prints the panel headless.
-5. **Session 5 — UI** (in progress): App Router shell with tab nav
-   (Overview · Trends · Insights · Transactions · Accounts · Providers)
-   and a light/dark/sepia theme toggle (sepia default, tokens in
-   globals.css, no webfonts). Ledger visual system; charts hand-rolled
-   SVG (no chart lib). Done:
+5. **Session 5 — UI** (complete): App Router shell with tab nav and a
+   light/dark/sepia theme toggle (sepia default, tokens in globals.css,
+   no webfonts). Ledger visual system; charts hand-rolled SVG (no chart
+   lib). Six tabs:
    - **Overview** ([src/app/page.tsx](src/app/page.tsx)): uncategorized
      banner (highest-priority), provider-health status line, net worth
      with market-gains decomposition line, accounts table, spending
@@ -122,14 +121,23 @@ shape.
      spending donut with hover + drill-down to filtered Transactions,
      cash-flow bars, net-worth line with market-gains in the tooltip,
      month nav.
+   - **Insights** ([src/app/insights/page.tsx](src/app/insights/page.tsx)):
+     all five types rendered in plain language ("N× typical"), month nav,
+     dismiss/restore (survives regeneration via insight identity;
+     propagates to Overview signals; never silences TrackedSubscription
+     warnings).
    - **Transactions** ([src/app/transactions/page.tsx](src/app/transactions/page.tsx)):
      filter bar, P2P review queue, per-row category picker (MANUAL),
      one-click rule-from-merchant, reimbursement linking; starter rule
      pack (`npm run rules:install`), reimbursements (Category.isIncome,
      Transaction.reimbursesId).
-   Pending: **Insights** page (browse/dismiss all insight types),
-   **Accounts** page (per-account detail, edit type, stale flags),
-   **Providers** page (trust cards + health detail from Session 4).
+   - **Accounts** ([src/app/accounts/page.tsx](src/app/accounts/page.tsx)):
+     grouped by type, snapshot sparklines, stale chips, type correction
+     (regenerates insights, survives syncs), per-account drill-down.
+   - **Providers** ([src/app/providers/page.tsx](src/app/providers/page.tsx)):
+     trust cards (data path, residual risks, revocation), health signals,
+     last-20 sync history, setup hints for unconfigured providers; the
+     access URL credential is never displayed, only its presence.
 6. **Session 6 — Security hardening + audit**: adversarial review of the
    HARD RULES above (credential handling, secrets, localhost binding, no
    outbound calls) across everything built in Sessions 2-5. Doubles as the

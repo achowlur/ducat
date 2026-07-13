@@ -9,7 +9,7 @@ const TABS = [
   { label: "Insights", href: "/insights", built: true },
   { label: "Transactions", href: "/transactions", built: true },
   { label: "Accounts", href: "/accounts", built: true },
-  { label: "Providers", href: "/providers", built: false },
+  { label: "Providers", href: "/providers", built: true },
 ];
 
 export function AppNav() {
