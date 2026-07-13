@@ -128,3 +128,88 @@
     @apply font-sans;
   }
 }
+
+/* ============================================================
+   Ledger design system — three themes (sepia default).
+   All type maps to fonts shipped with Windows; no webfonts,
+   per the no-third-party-CDN hard rule.
+   ============================================================ */
+
+:root,
+:root[data-theme="sepia"] {
+  --paper: #f2e9d8;
+  --ink: #3b3227;
+  --faint: #857767;
+  --rule: #d9cbb0;
+  --acc: #6e4a2f;
+  --pos: #2f6b40;
+  --neg: #8f2318;
+  --chip: #eae0c8;
+  --grid: #e6dbc2;
+  --chart1: #2d74a6;
+  --chart2: #9c5a12;
+  --pie3: #0e9178;
+  --pie4: #b0421f;
+}
+
+:root[data-theme="light"] {
+  --paper: #fbfbf9;
+  --ink: #191d21;
+  --faint: #70757c;
+  --rule: #dcdcd6;
+  --acc: #23405f;
+  --pos: #2e6b4f;
+  --neg: #8a3030;
+  --chip: #eef1ee;
+  --grid: #e9e9e3;
+  --chart1: #3a6ea8;
+  --chart2: #a4762a;
+  --pie3: #0e9178;
+  --pie4: #b0421f;
+}
+
+:root[data-theme="dark"] {
+  --paper: #191b1e;
+  --ink: #d9d7d0;
+  --faint: #8b9097;
+  --rule: #35383d;
+  --acc: #8fb0d1;
+  --pos: #6fae8f;
+  --neg: #cf8f8f;
+  --chip: #26292d;
+  --grid: #26292d;
+  --chart1: #4d84c4;
+  --chart2: #bd7a26;
+  --pie3: #2aa88f;
+  --pie4: #cf5a33;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-faint: var(--faint);
+  --color-rule: var(--rule);
+  --color-acc: var(--acc);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+  --color-chip: var(--chip);
+  --color-grid: var(--grid);
+  --color-chart1: var(--chart1);
+  --color-chart2: var(--chart2);
+  --color-pie3: var(--pie3);
+  --color-pie4: var(--pie4);
+  --font-ledger: Bahnschrift, "Segoe UI", system-ui, sans-serif;
+  --font-money: "Cascadia Mono", Consolas, ui-monospace, monospace;
+}
+
+@layer base {
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Bahnschrift, "Segoe UI", system-ui, sans-serif;
+  }
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
