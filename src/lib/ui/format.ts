@@ -24,3 +24,13 @@ export function shortDate(d: Date): string {
 export function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
+
+/**
+ * Display-only title case for normalized merchant strings ("zelle payment
+ * to john smith" → "Zelle Payment To John Smith"). The lowercase original
+ * stays untouched in the DB — it's the rule-matching key. Known trade-off:
+ * acronyms render as words (CVS → Cvs).
+ */
+export function titleCase(s: string): string {
+  return s.replace(/(^|[\s/\-&.(])([a-z])/g, (_, sep: string, c: string) => sep + c.toUpperCase());
+}

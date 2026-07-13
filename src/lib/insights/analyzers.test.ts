@@ -19,6 +19,8 @@ function txn(partial: Partial<TxnData> & { date: Date; amount: number }): TxnDat
     normalizedMerchant: partial.normalizedMerchant ?? 'merchant',
     categoryId: partial.categoryId ?? null,
     categoryName: partial.categoryName ?? null,
+    categoryIsIncome: partial.categoryIsIncome ?? false,
+    reimbursesId: partial.reimbursesId ?? null,
     ...partial,
     flow,
   };
@@ -79,6 +81,60 @@ describe('computeNetWorthGrowth', () => {
     expect(july?.previousNetWorth).toBe(1000);
     expect(july?.growthRate).toBe(0.1);
     expect(july?.estimatedAccountIds).toEqual(['acc1']);
+  });
+});
+
+describe('market gains decomposition (buy → appreciate → sell lifecycle)', () => {
+  const checking: AccountData = {
+    id: 'checking', type: 'DEPOSITORY', balance: 5000, balanceDate: utc(2026, 8, 31),
+  };
+  const brokerage: AccountData = {
+    id: 'brokerage', type: 'INVESTMENT', balance: 10600, balanceDate: utc(2026, 8, 31),
+  };
+  // June: contribute 5,000 (transfer pair) and buy — account value set by
+  // snapshots. July: stock appreciates 600 with NO transaction anywhere.
+  // August: sell — still no external movement, value already accrued.
+  const snapshots: SnapshotData[] = [
+    { accountId: 'brokerage', date: utc(2026, 5, 31), balance: 5000 },
+    { accountId: 'brokerage', date: utc(2026, 6, 30), balance: 10000 },
+    { accountId: 'brokerage', date: utc(2026, 7, 31), balance: 10600 },
+    { accountId: 'brokerage', date: utc(2026, 8, 31), balance: 10600 },
+  ];
+  const txns = [
+    txn({ date: utc(2026, 6, 5), amount: -5000, accountId: 'checking', flow: 'TRANSFER' }),
+    txn({ date: utc(2026, 6, 5), amount: 5000, accountId: 'brokerage', flow: 'TRANSFER' }),
+    // The buy and the sell inside the brokerage: value-neutral transfers.
+    txn({ date: utc(2026, 6, 6), amount: -4800, accountId: 'brokerage', flow: 'TRANSFER' }),
+    txn({ date: utc(2026, 6, 6), amount: 4800, accountId: 'brokerage', flow: 'TRANSFER' }),
+    txn({ date: utc(2026, 8, 10), amount: -5400, accountId: 'brokerage', flow: 'TRANSFER' }),
+    txn({ date: utc(2026, 8, 10), amount: 5400, accountId: 'brokerage', flow: 'TRANSFER' }),
+  ];
+  const periods = ['2026-05', '2026-06', '2026-07', '2026-08'];
+  const result = computeNetWorthGrowth([checking, brokerage], snapshots, txns, periods, 'MONTH');
+
+  it('contribution month: value change fully explained by flows — zero market gain', () => {
+    const june = result.get('2026-06');
+    expect(june?.investmentNetFlows).toBe(5000);
+    expect(june?.marketGains).toBe(0);
+  });
+
+  it('appreciation month: +600 with no transactions = pure market gain, and NOT income', () => {
+    const july = result.get('2026-07');
+    expect(july?.investmentNetFlows).toBe(0);
+    expect(july?.marketGains).toBe(600);
+    // The same months produce zero income in cash flow — market moves never leak there.
+    const flow = computeCashFlowTrend(txns, periods, 'MONTH').get('2026-07');
+    expect(flow?.income).toBe(0);
+  });
+
+  it('sale month: internal sale moves nothing — gain already accrued, market gain 0', () => {
+    const august = result.get('2026-08');
+    expect(august?.investmentNetFlows).toBe(0);
+    expect(august?.marketGains).toBe(0);
+  });
+
+  it('first period in scope has null marketGains (no baseline to compare)', () => {
+    expect(result.get('2026-05')?.marketGains).toBeNull();
   });
 });
 
@@ -194,6 +250,69 @@ describe('detectRecurringCharges', () => {
     const detected = detectRecurringCharges(pass).get('trc monthly pass');
     expect(detected?.cadence).toBe('MONTHLY');
     expect(detected?.averageAmount).toBe(127);
+  });
+});
+
+describe('reimbursements (fronted dinner, Zelled back)', () => {
+  const dining = { categoryId: 'cat-dining', categoryName: 'Dining' };
+  const salary = { categoryId: 'cat-salary', categoryName: 'Salary', categoryIsIncome: true };
+
+  it('nets a categorized (unlinked) repayment against the category in its own period', () => {
+    const txns = [
+      txn({ date: utc(2026, 7, 3), amount: -200, ...dining }), // I paid for dinner
+      txn({ date: utc(2026, 7, 5), amount: 150, ...dining, normalizedMerchant: 'zelle from friends' }),
+      txn({ date: utc(2026, 7, 1), amount: 5000, ...salary }),
+    ];
+    const spending = computeSpendingByCategory(txns, ['2026-07'], 'MONTH').get('2026-07');
+    expect(spending?.totalSpending).toBe(50);
+    expect(spending?.categories.find((c) => c.categoryId === 'cat-dining')?.spending).toBe(50);
+
+    const cashFlow = computeCashFlowTrend(txns, ['2026-07'], 'MONTH').get('2026-07');
+    expect(cashFlow?.income).toBe(5000); // repayment is NOT income
+    expect(cashFlow?.spending).toBe(50);
+    expect(cashFlow?.net).toBe(4950);
+  });
+
+  it('attributes a LINKED repayment to the original expense period and category, cross-month', () => {
+    const txns = [
+      txn({ id: 'dinner', date: utc(2026, 6, 28), amount: -200, ...dining }),
+      // Repaid in July, uncategorized, linked to the June dinner:
+      txn({ date: utc(2026, 7, 2), amount: 150, reimbursesId: 'dinner', normalizedMerchant: 'zelle from friends' }),
+    ];
+    const june = computeSpendingByCategory(txns, ['2026-06', '2026-07'], 'MONTH').get('2026-06');
+    const july = computeSpendingByCategory(txns, ['2026-06', '2026-07'], 'MONTH').get('2026-07');
+    expect(june?.totalSpending).toBe(50); // credit lands where the expense was
+    expect(july?.totalSpending).toBe(0);
+
+    const juneFlow = computeCashFlowTrend(txns, ['2026-06', '2026-07'], 'MONTH').get('2026-06');
+    const julyFlow = computeCashFlowTrend(txns, ['2026-06', '2026-07'], 'MONTH').get('2026-07');
+    expect(juneFlow?.spending).toBe(50);
+    expect(julyFlow?.income).toBe(0); // linked repayment is not July income either
+  });
+
+  it('a linked repayment overrides its own category, and true income is never netted', () => {
+    const txns = [
+      txn({ id: 'dinner', date: utc(2026, 7, 3), amount: -200, ...dining }),
+      // Mislabeled as Groceries but LINKED to the dinner — link wins:
+      txn({ date: utc(2026, 7, 6), amount: 150, categoryId: 'cat-groceries', categoryName: 'Groceries', reimbursesId: 'dinner' }),
+      txn({ date: utc(2026, 7, 1), amount: 5000, ...salary }),
+      txn({ date: utc(2026, 7, 10), amount: -80, categoryId: 'cat-groceries', categoryName: 'Groceries' }),
+    ];
+    const spending = computeSpendingByCategory(txns, ['2026-07'], 'MONTH').get('2026-07');
+    expect(spending?.categories.find((c) => c.categoryId === 'cat-dining')?.spending).toBe(50);
+    expect(spending?.categories.find((c) => c.categoryId === 'cat-groceries')?.spending).toBe(80); // untouched
+
+    const cashFlow = computeCashFlowTrend(txns, ['2026-07'], 'MONTH').get('2026-07');
+    expect(cashFlow?.income).toBe(5000); // salary counted once, never netted
+  });
+
+  it('over-reimbursement can push a category negative (visible credit, not hidden)', () => {
+    const txns = [
+      txn({ id: 'dinner', date: utc(2026, 7, 3), amount: -100, ...dining }),
+      txn({ date: utc(2026, 7, 5), amount: 150, reimbursesId: 'dinner' }),
+    ];
+    const spending = computeSpendingByCategory(txns, ['2026-07'], 'MONTH').get('2026-07');
+    expect(spending?.categories.find((c) => c.categoryId === 'cat-dining')?.spending).toBe(-50);
   });
 });
 

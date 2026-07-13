@@ -1,16 +1,23 @@
 import type { CashFlowTrendPayload, PeriodGranularity } from '../../types/contracts';
 import { inPeriod, previousPeriodKey } from './periods';
+import { isReimbursement, reimbursementCredits, type ReimbursementCredit } from './reimbursements';
 import { pctDelta, round2 } from './stats';
 import type { TxnData } from './types';
 
-function flowsFor(txns: TxnData[], key: string): { income: number; spending: number } {
+function flowsFor(txns: TxnData[], credits: ReimbursementCredit[], key: string): { income: number; spending: number } {
   let income = 0;
   let spending = 0;
   for (const t of txns) {
     if (t.flow === 'TRANSFER') continue;
+    // Reimbursements are money coming BACK, not earnings — they reduce
+    // spending (below) instead of inflating income.
+    if (isReimbursement(t)) continue;
     if (!inPeriod(t.date, key)) continue;
     if (t.flow === 'INFLOW') income += t.amount;
     else spending += -t.amount;
+  }
+  for (const credit of credits) {
+    if (inPeriod(credit.date, key)) spending -= credit.amount;
   }
   return { income, spending };
 }
@@ -20,11 +27,12 @@ export function computeCashFlowTrend(
   periods: string[],
   granularity: PeriodGranularity,
 ): Map<string, CashFlowTrendPayload> {
+  const credits = reimbursementCredits(txns);
   const result = new Map<string, CashFlowTrendPayload>();
   for (const key of periods) {
-    const current = flowsFor(txns, key);
+    const current = flowsFor(txns, credits, key);
     const prevKey = previousPeriodKey(key);
-    const previous = periods.includes(prevKey) ? flowsFor(txns, prevKey) : null;
+    const previous = periods.includes(prevKey) ? flowsFor(txns, credits, prevKey) : null;
     result.set(key, {
       granularity,
       income: round2(current.income),

@@ -9,6 +9,8 @@ interface MonthValue {
   label: string;
   value: number;
   estimated: boolean;
+  /** Unrealized investment movement for the month; null = no baseline. */
+  marketGains: number | null;
 }
 
 const VIEW_W = 940;
@@ -109,6 +111,9 @@ export function NetWorthChart({ months }: { months: MonthValue[] }) {
             {money(months[hovered].value)}
             {months[hovered].estimated ? " · partly estimated" : ""}
           </div>
+          {months[hovered].marketGains !== null && months[hovered].marketGains !== 0 && (
+            <div className="opacity-80">markets {money(months[hovered].marketGains)}</div>
+          )}
         </div>
       )}
     </div>

@@ -1,5 +1,17 @@
 import type { TransactionFlow } from '../../types/contracts';
 
+/**
+ * P2P payment processors: the payment rail says nothing about what the
+ * money was FOR ("ZELLE TO JOHN SMITH" could be rent or a reimbursement),
+ * so automated rules in the pack/heuristic bands never categorize these —
+ * only explicit user rules (priority < USER_PRIORITY_MAX) may.
+ */
+export const P2P_PATTERN =
+  /\b(zelle|venmo|cash ?app|paypal|apple cash|google pay|western union|moneygram|wire transfer)\b/i;
+
+/** Rules below this priority are user-authored and may categorize P2P. */
+export const USER_PRIORITY_MAX = 100;
+
 /** Plain shapes so the matcher stays pure and unit-testable. */
 export interface RuleData {
   id: string;
@@ -75,7 +87,9 @@ export function applyRules(rules: RuleData[], txns: RuleTxn[]): RuleApplication[
   const applications: RuleApplication[] = [];
   for (const txn of txns) {
     if (txn.categorySource === 'MANUAL') continue;
-    const rule = active.find((r) => matches(r, txn));
+    const isP2p = P2P_PATTERN.test(txn.normalizedMerchant) || P2P_PATTERN.test(txn.description);
+    const applicable = isP2p ? active.filter((r) => r.priority < USER_PRIORITY_MAX) : active;
+    const rule = applicable.find((r) => matches(r, txn));
     if (rule !== undefined) {
       applications.push({
         txnId: txn.id,

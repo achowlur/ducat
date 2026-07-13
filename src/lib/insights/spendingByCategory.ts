@@ -1,5 +1,6 @@
 import type { CategorySpending, PeriodGranularity, SpendingByCategoryPayload } from '../../types/contracts';
 import { inPeriod, previousPeriodKey } from './periods';
+import { reimbursementCredits, type ReimbursementCredit } from './reimbursements';
 import { pctDelta, round2 } from './stats';
 import type { TxnData } from './types';
 
@@ -8,7 +9,7 @@ interface CategoryTotals {
   byCategory: Map<string | null, { name: string | null; spending: number }>;
 }
 
-function spendingFor(txns: TxnData[], key: string): CategoryTotals {
+function spendingFor(txns: TxnData[], credits: ReimbursementCredit[], key: string): CategoryTotals {
   const byCategory = new Map<string | null, { name: string | null; spending: number }>();
   let total = 0;
   for (const t of txns) {
@@ -20,6 +21,15 @@ function spendingFor(txns: TxnData[], key: string): CategoryTotals {
     entry.spending += spent;
     byCategory.set(t.categoryId, entry);
   }
+  // Reimbursements net against their category (a fronted dinner partly
+  // Zelled back is spending you didn't ultimately do).
+  for (const credit of credits) {
+    if (!inPeriod(credit.date, key)) continue;
+    total -= credit.amount;
+    const entry = byCategory.get(credit.categoryId) ?? { name: credit.categoryName, spending: 0 };
+    entry.spending -= credit.amount;
+    byCategory.set(credit.categoryId, entry);
+  }
   return { total, byCategory };
 }
 
@@ -28,11 +38,12 @@ export function computeSpendingByCategory(
   periods: string[],
   granularity: PeriodGranularity,
 ): Map<string, SpendingByCategoryPayload> {
+  const credits = reimbursementCredits(txns);
   const result = new Map<string, SpendingByCategoryPayload>();
   for (const key of periods) {
-    const current = spendingFor(txns, key);
+    const current = spendingFor(txns, credits, key);
     const prevKey = previousPeriodKey(key);
-    const previous = periods.includes(prevKey) ? spendingFor(txns, prevKey) : null;
+    const previous = periods.includes(prevKey) ? spendingFor(txns, credits, prevKey) : null;
 
     const categories: CategorySpending[] = [...current.byCategory.entries()]
       .map(([categoryId, { name, spending }]) => {

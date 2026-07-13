@@ -51,12 +51,32 @@ shape.
   `.next/`, and the build corrupts the dev server's chunks (symptom:
   "Cannot find module './NNN.js'" and silent hydration failure — no client
   handler works). Fix: stop dev, delete `.next/`, restart.
+- After a Prisma migration, RESTART the dev server: the PrismaClient
+  global singleton (src/lib/prisma.ts) survives hot-reload with the old
+  generated client (symptom: PrismaClientValidationError, "Unknown field"
+  for a column that exists).
 - `npm run db:seed` wipes insights; re-run `npm run insights:generate`
   afterwards or pages show "no data".
 - Chart discipline (src/components/charts): axis scales must enclose the
   data (`niceTicks` guarantees last tick ≥ max — regression-tested), and
   value labels are collision-checked against every mark, never drawn over
   one.
+
+## Backlog (agreed, not yet scheduled)
+
+- **Bulk P2P categorization for historical CSV imports.** The P2P guard
+  (rules.ts) rightly blocks auto-categorizing Zelle/Venmo one at a time,
+  but a bulk import of years of history will surface hundreds of P2P
+  transactions and manually reviewing each is unacceptable. Ideas to
+  evaluate when picked up: (a) group the review queue by payee string so
+  one decision ("zelle to john smith → Rent") creates a user rule covering
+  all N occurrences at once; (b) auto-suggest reimbursement links by
+  amount/date matching against nearby outflows; (c) recurring-pattern
+  detection on P2P (same payee, same amount, monthly) to pre-fill rule
+  suggestions; (d) an explicit "P2P — Unreviewed" bucket so analytics are
+  visibly-incomplete rather than silently wrong while the pile shrinks.
+  Grouping-by-payee (a) is the most promising shape: one decision per
+  payee, not per transaction.
 
 ## Build order and status
 

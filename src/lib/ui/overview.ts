@@ -10,7 +10,7 @@ import { getProviderHealth } from "../health/health";
 import { getSubscriptionStatuses } from "../health/subscriptions";
 import type { ProviderHealth, SubscriptionStatus } from "../health/types";
 import { granularityOfKey } from "../insights/periods";
-import { money, pct, shortDate } from "./format";
+import { money, pct, shortDate, titleCase } from "./format";
 
 export interface AccountRow {
   id: string;
@@ -46,6 +46,12 @@ export interface OverviewData {
   subscriptions: SubscriptionStatus[];
   health: ProviderHealth[];
   lastSyncAt: Date | null;
+  /**
+   * Non-transfer transactions with no category and no reimbursement link.
+   * The single loudest signal on launch: spending analytics are incomplete
+   * until this is zero.
+   */
+  uncategorizedCount: number;
 }
 
 const TYPE_ORDER: Record<string, number> = { DEPOSITORY: 0, INVESTMENT: 1, CREDIT: 2, LOAN: 3 };
@@ -78,6 +84,10 @@ export async function getOverviewData(): Promise<OverviewData> {
   const netWorthAll = await monthlyInsights<NetWorthGrowthPayload>("NET_WORTH_GROWTH");
   const latest = netWorthAll[0] ?? null;
   const period = latest?.period ?? null;
+
+  const uncategorizedCount = await prisma.transaction.count({
+    where: { categoryId: null, flow: { not: "TRANSFER" }, reimbursesId: null },
+  });
 
   const accountRows = await prisma.account.findMany();
   const snapshots = await prisma.balanceSnapshot.groupBy({
@@ -112,6 +122,7 @@ export async function getOverviewData(): Promise<OverviewData> {
       subscriptions: await getSubscriptionStatuses(prisma),
       health: await getProviderHealth(prisma),
       lastSyncAt: null,
+      uncategorizedCount,
     };
   }
 
@@ -143,7 +154,7 @@ export async function getOverviewData(): Promise<OverviewData> {
       tone: "neg",
       text:
         p.kind === "TRANSACTION"
-          ? `${p.description ?? "transaction"} — ${money(p.amount)}, vs ${money(p.typicalAmount)} typical for ${p.categoryName ?? "this category"}`
+          ? `${titleCase(p.description ?? "transaction")} — ${money(p.amount)}, vs ${money(p.typicalAmount)} typical for ${p.categoryName ?? "this category"}`
           : `${p.categoryName ?? "Category"} total ${money(p.amount)} this month — vs ${money(p.typicalAmount)} in a typical month`,
     });
   }
@@ -181,7 +192,7 @@ export async function getOverviewData(): Promise<OverviewData> {
     signals.push({
       chip: "Recurring",
       tone: "neg",
-      text: `${p.merchant} raised to ${money(p.lastAmount)} (was ${money(p.previousAverageAmount ?? p.averageAmount)})`,
+      text: `${titleCase(p.merchant)} raised to ${money(p.lastAmount)} (was ${money(p.previousAverageAmount ?? p.averageAmount)})`,
     });
   }
   if (recurringAll.length > 0 && increased.length === 0) {
@@ -201,5 +212,6 @@ export async function getOverviewData(): Promise<OverviewData> {
     subscriptions: await getSubscriptionStatuses(prisma),
     health: await getProviderHealth(prisma),
     lastSyncAt: lastOk?.finishedAt ?? null,
+    uncategorizedCount,
   };
 }

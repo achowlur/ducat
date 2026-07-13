@@ -89,6 +89,11 @@ model Transaction {
   transferPairId     String?
   transferPair       Transaction?      @relation("TransferPair", fields: [transferPairId], references: [id])
   transferPairOf     Transaction[]     @relation("TransferPair")
+  // Inflow that pays back a specific outflow (dinner fronted, Zelled back):
+  // analytics subtract it from the original's category and period.
+  reimbursesId       String?
+  reimburses         Transaction?      @relation("Reimbursement", fields: [reimbursesId], references: [id])
+  reimbursedBy       Transaction[]     @relation("Reimbursement")
   source             TransactionSource
   importedAt         DateTime          @default(now())
 
@@ -101,6 +106,9 @@ model Category {
   parentId String?
   parent   Category?  @relation("CategoryParent", fields: [parentId], references: [id])
   children Category[] @relation("CategoryParent")
+  // True income (Salary, Interest): inflows here are earnings — never
+  // netted against spending the way categorized reimbursements are.
+  isIncome Boolean    @default(false)
 
   transactions Transaction[]
   rules        Rule[]

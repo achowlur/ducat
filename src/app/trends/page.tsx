@@ -85,7 +85,7 @@ export default async function TrendsPage({
                     <tr key={`${c.categoryId}-${c.label}`} className="border-b border-rule last:border-b-0">
                       <td className="py-1.5 text-[0.85rem]">
                         <Link
-                          href={`/transactions?period=${data.period}${c.categoryId !== null ? `&category=${c.categoryId}` : ""}`}
+                          href={`/transactions?period=${data.period}&category=${c.categoryId ?? "uncategorized"}`}
                           className="hover:underline"
                         >
                           {i < 3 && (

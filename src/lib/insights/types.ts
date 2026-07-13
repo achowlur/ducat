@@ -16,6 +16,10 @@ export interface TxnData {
   flow: TransactionFlow;
   categoryId: string | null;
   categoryName: string | null;
+  /** True income category (Salary/Interest) — see Category.isIncome. */
+  categoryIsIncome: boolean;
+  /** Inflow linked to the specific outflow it pays back. */
+  reimbursesId: string | null;
 }
 
 export interface AccountData {

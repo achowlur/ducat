@@ -36,7 +36,7 @@ export interface TrendsData {
   donut: { slices: DonutSliceData[]; total: number } | null;
   categories: CategoryRow[];
   cashFlow: (MonthPoint & { income: number; spending: number; net: number })[];
-  netWorth: (MonthPoint & { value: number; estimated: boolean })[];
+  netWorth: (MonthPoint & { value: number; estimated: boolean; marketGains: number | null })[];
 }
 
 function shortMonth(period: string): string {
@@ -131,6 +131,7 @@ export async function getTrendsData(requestedPeriod?: string): Promise<TrendsDat
       label: shortMonth(p),
       value: payload.netWorth,
       estimated: payload.estimatedAccountIds.length > 0,
+      marketGains: payload.marketGains ?? null,
     })),
   };
 }

@@ -39,6 +39,16 @@ export interface NetWorthGrowthPayload {
   growthRate: number | null;
   byAccountType: Partial<Record<AccountType, number>>;
   /**
+   * INVESTMENT-account value change not explained by transactions —
+   * unrealized market movement. Deliberately NOT income (see cash flow):
+   * it decomposes net worth growth into "markets" vs "everything else".
+   * Null when the previous period is out of scope. Requires snapshots:
+   * reconstruction-only investment accounts contribute 0 (unknowable).
+   */
+  marketGains: number | null;
+  /** Net transaction flow into INVESTMENT accounts during the period. */
+  investmentNetFlows: number;
+  /**
    * Accounts whose period-end balance was reconstructed from transaction
    * history because no BalanceSnapshot covered the period. Reconstruction is
    * inaccurate for INVESTMENT accounts (market moves aren't transactions).

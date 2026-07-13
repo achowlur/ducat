@@ -1,5 +1,5 @@
 import type { AccountType, NetWorthGrowthPayload, PeriodGranularity } from '../../types/contracts';
-import { periodEndExclusive, previousPeriodKey } from './periods';
+import { inPeriod, periodEndExclusive, previousPeriodKey } from './periods';
 import { round2, round4 } from './stats';
 import type { AccountData, SnapshotData, TxnData } from './types';
 
@@ -45,19 +45,32 @@ export function computeNetWorthGrowth(
   periods: string[],
   granularity: PeriodGranularity,
 ): Map<string, NetWorthGrowthPayload> {
-  const netWorthAt = (key: string): { total: number; byType: Partial<Record<AccountType, number>>; estimated: string[] } => {
+  const netWorthAt = (key: string): { total: number; invTotal: number; byType: Partial<Record<AccountType, number>>; estimated: string[] } => {
     // "End of period" = last instant before the next period starts.
     const at = new Date(periodEndExclusive(key).getTime() - 1);
     let total = 0;
+    let invTotal = 0;
     const byType: Partial<Record<AccountType, number>> = {};
     const estimated: string[] = [];
     for (const account of accounts) {
       const { balance, estimated: isEstimated } = balanceAt(account, snapshots, txns, at);
       total += balance;
+      if (account.type === 'INVESTMENT') invTotal += balance;
       byType[account.type] = round2((byType[account.type] ?? 0) + balance);
       if (isEstimated) estimated.push(account.id);
     }
-    return { total: round2(total), byType, estimated };
+    return { total: round2(total), invTotal: round2(invTotal), byType, estimated };
+  };
+
+  const investmentAccountIds = new Set(accounts.filter((a) => a.type === 'INVESTMENT').map((a) => a.id));
+  // Net transaction flow into investment accounts per period: any change
+  // NOT explained by these is market movement.
+  const investmentFlows = (key: string): number => {
+    let sum = 0;
+    for (const t of txns) {
+      if (investmentAccountIds.has(t.accountId) && inPeriod(t.date, key)) sum += t.amount;
+    }
+    return round2(sum);
   };
 
   const result = new Map<string, NetWorthGrowthPayload>();
@@ -71,12 +84,17 @@ export function computeNetWorthGrowth(
       previous !== null && previous.total !== 0
         ? round4((current.total - previous.total) / Math.abs(previous.total))
         : null;
+    const flows = investmentFlows(key);
+    const marketGains =
+      previous === null ? null : round2(current.invTotal - previous.invTotal - flows);
     result.set(key, {
       granularity,
       netWorth: current.total,
       previousNetWorth: previous === null ? null : previous.total,
       growthRate,
       byAccountType: current.byType,
+      marketGains,
+      investmentNetFlows: flows,
       estimatedAccountIds: current.estimated,
     });
   }

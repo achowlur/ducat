@@ -42,14 +42,16 @@ async function main(): Promise<void> {
   await prisma.syncLog.deleteMany();
   await prisma.trackedSubscription.deleteMany();
 
-  const categoryNames = [
-    'Salary', 'Interest', 'Rent', 'Groceries', 'Dining', 'Utilities',
-    'Subscriptions', 'Transport', 'Entertainment', 'Shopping',
+  const categoryDefs = [
+    { name: 'Salary', isIncome: true },
+    { name: 'Interest', isIncome: true },
+    { name: 'Rent' }, { name: 'Groceries' }, { name: 'Dining' }, { name: 'Utilities' },
+    { name: 'Subscriptions' }, { name: 'Transport' }, { name: 'Entertainment' }, { name: 'Shopping' },
   ];
   const categories = new Map<string, string>();
-  for (const name of categoryNames) {
-    const row = await prisma.category.create({ data: { name } });
-    categories.set(name, row.id);
+  for (const def of categoryDefs) {
+    const row = await prisma.category.create({ data: def });
+    categories.set(def.name, row.id);
   }
 
   const accountDefs = [
@@ -128,6 +130,11 @@ async function main(): Promise<void> {
   // Planted anomalies
   add({ accountKey: 'credit', date: utc(2026, 6, 14), amount: -385, description: 'MICHELIN BISTRO', merchant: 'michelin bistro', flow: 'OUTFLOW', category: 'Dining' });
   add({ accountKey: 'credit', date: utc(2026, 7, 8), amount: -2350, description: 'ONLINE ORDER - LAPTOP', merchant: 'amazon', flow: 'OUTFLOW', category: 'Shopping' });
+
+  // P2P payments: deliberately uncategorized — the rails say nothing about
+  // purpose, so these exercise the "needs review" flow in Transactions.
+  add({ accountKey: 'checking', date: utc(2026, 7, 6), amount: -200, description: 'ZELLE PAYMENT TO JOHN SMITH', merchant: 'zelle payment to john smith', flow: 'OUTFLOW', category: null });
+  add({ accountKey: 'checking', date: utc(2026, 7, 9), amount: 45, description: 'VENMO CASHOUT', merchant: 'venmo cashout', flow: 'INFLOW', category: null });
 
   // Final balances = opening + sum of that account's transactions.
   const finals = new Map<string, number>(accountDefs.map((a) => [a.key, a.opening]));

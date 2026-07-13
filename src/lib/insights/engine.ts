@@ -79,6 +79,8 @@ export async function generateInsights(
     flow: t.flow,
     categoryId: t.categoryId,
     categoryName: t.category?.name ?? null,
+    categoryIsIncome: t.category?.isIncome ?? false,
+    reimbursesId: t.reimbursesId,
   }));
 
   const emptyCounts: Record<InsightType, number> = {

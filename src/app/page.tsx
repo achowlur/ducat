@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { MiniDonut } from "../components/MiniDonut";
 import { amount, money, pct } from "../lib/ui/format";
 import { getOverviewData, type Signal } from "../lib/ui/overview";
@@ -36,6 +37,16 @@ export default async function OverviewPage() {
   return (
     <>
       <div className="flex flex-wrap items-center gap-x-8 gap-y-1 border-b border-rule py-2 text-[0.78rem] text-faint">
+        {data.uncategorizedCount > 0 && (
+          <Link
+            href="/transactions?category=uncategorized"
+            className="rounded-[2px] bg-neg px-2 py-1 font-semibold text-paper hover:opacity-90"
+            title="Spending analytics are incomplete until every transaction has a category — click to fix"
+          >
+            {data.uncategorizedCount} uncategorized transaction{data.uncategorizedCount === 1 ? "" : "s"} — fix
+            first ↗
+          </Link>
+        )}
         {simplefin !== undefined && (
           <span>
             <span
@@ -85,12 +96,24 @@ export default async function OverviewPage() {
                   </span>
                 )}
               </div>
-              {data.estimatedCount > 0 && (
-                <p className="mb-4 mt-1 text-[0.75rem] text-faint">
-                  {data.estimatedCount} of {data.accounts.length} balances reconstructed from transactions (no
-                  snapshot).
-                </p>
-              )}
+              <p className="mb-4 mt-1 text-[0.75rem] text-faint">
+                {data.netWorth.marketGains !== null && data.netWorth.marketGains !== 0 && (
+                  <>
+                    <span
+                      className={`font-money font-semibold ${data.netWorth.marketGains > 0 ? "text-pos" : "text-neg"}`}
+                    >
+                      {money(data.netWorth.marketGains)}
+                    </span>{" "}
+                    of this month&apos;s change is investment market movement (not income).{" "}
+                  </>
+                )}
+                {data.estimatedCount > 0 && (
+                  <>
+                    {data.estimatedCount} of {data.accounts.length} balances reconstructed from transactions
+                    (no snapshot).
+                  </>
+                )}
+              </p>
             </>
           )}
 
