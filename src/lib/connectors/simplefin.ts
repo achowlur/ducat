@@ -93,7 +93,15 @@ export class SimplefinConnector implements Connector {
   private warnings: string[] = [];
 
   constructor(accessUrl: string) {
-    const url = new URL(accessUrl);
+    // Parse defensively: a malformed access URL must never reach an error
+    // message or log, because it embeds basic-auth credentials (Node's
+    // URL parse error would echo the raw string back).
+    let url: URL;
+    try {
+      url = new URL(accessUrl);
+    } catch {
+      throw new Error('SIMPLEFIN_ACCESS_URL is not a valid URL (expected https://user:pass@host/simplefin)');
+    }
     if (url.username === '' || url.password === '') {
       throw new Error('SimpleFIN access URL must embed credentials (https://user:pass@host/simplefin)');
     }
