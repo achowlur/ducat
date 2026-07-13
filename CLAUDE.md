@@ -47,6 +47,16 @@ shape.
 - Useful commands: `npm run db:seed` (deterministic fixture data),
   `npm run insights:generate [-- --granularity=WEEK|MONTH|QUARTER|YEAR]`,
   `npm test`.
+- NEVER run `npm run build` while the dev server is running — both share
+  `.next/`, and the build corrupts the dev server's chunks (symptom:
+  "Cannot find module './NNN.js'" and silent hydration failure — no client
+  handler works). Fix: stop dev, delete `.next/`, restart.
+- `npm run db:seed` wipes insights; re-run `npm run insights:generate`
+  afterwards or pages show "no data".
+- Chart discipline (src/components/charts): axis scales must enclose the
+  data (`niceTicks` guarantees last tick ≥ max — regression-tested), and
+  value labels are collision-checked against every mark, never drawn over
+  one.
 
 ## Build order and status
 
