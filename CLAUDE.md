@@ -138,10 +138,24 @@ shape.
      trust cards (data path, residual risks, revocation), health signals,
      last-20 sync history, setup hints for unconfigured providers; the
      access URL credential is never displayed, only its presence.
-6. **Session 6 — Security hardening + audit**: adversarial review of the
-   HARD RULES above (credential handling, secrets, localhost binding, no
-   outbound calls) across everything built in Sessions 2-5. Doubles as the
-   deployment gate for Session 7 — its findings become the go-live checklist.
+6. **Session 6 — Security hardening + audit** (complete): adversarial review
+   of the HARD RULES across Sessions 2-5 found all six hold in code (no active
+   violation). The gap was that "nothing leaves the machine" rested on
+   developer discipline alone; hardening converted it into enforced controls:
+   - Strict CSP + security headers in `next.config.ts` (`headers()`):
+     `connect-src`/`default-src 'self'` block any off-origin
+     fetch/XHR/WebSocket/beacon at the browser boundary; dev adds
+     `'unsafe-eval'` + same-origin HMR ws (required for Fast Refresh — don't
+     remove). Also `frame-ancestors 'none'`, `poweredByHeader:false`.
+   - `src/middleware.ts`: host-allowlist (127.0.0.1/localhost only) as
+     anti-DNS-rebinding defense; 403s any non-loopback `Host`. Matcher skips
+     `_next/static|_next/image|favicon.ico`.
+   - `NEXT_TELEMETRY_DISABLED=1` in `.env`/`.env.example` (per-repo, since
+     `next telemetry disable` is only a per-machine global).
+   - `SimplefinConnector` redacts the access URL from URL-parse errors.
+   - README rewritten to document the local-only trust model.
+   Go-live checklist for Session 7: auth + encryption become hard blockers,
+   and the CSP/headers matter even more on a public origin (add HSTS there).
 7. **Session 7 — Single-tenant cloud deployment (Plan B, agreed 2026-07-13)**:
    deliberately amends the localhost HARD RULE — the charter becomes
    "local-first by default; OPTIONAL self-hosted cloud deployment with
