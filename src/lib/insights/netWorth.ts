@@ -1,5 +1,5 @@
 import type { AccountType, NetWorthGrowthPayload, PeriodGranularity } from '../../types/contracts';
-import { inPeriod, periodEndExclusive, previousPeriodKey } from './periods';
+import { inPeriod, periodEndExclusive, periodStart, previousPeriodKey } from './periods';
 import { round2, round4 } from './stats';
 import type { AccountData, SnapshotData, TxnData } from './types';
 
@@ -13,23 +13,38 @@ import type { AccountData, SnapshotData, TxnData } from './types';
  * `estimated`.
  *
  * `known: false` means the balance is NOT recoverable and callers must not
- * substitute a number. That happens for an INVESTMENT account with no snapshot
- * at or before `at`: a brokerage's value moves with the market, and market
- * moves are not transactions, so rolling today's balance back through trades
- * (every "YOU BOUGHT" is cash leaving with no offsetting entry for what it
- * bought) yields a figure with no relationship to what the account was worth.
+ * substitute a number. That happens for an INVESTMENT account with no usable
+ * snapshot: a brokerage's value moves with the market, and market moves are not
+ * transactions, so rolling a balance through trades (every "YOU BOUGHT" is cash
+ * leaving with no offsetting entry for what it bought) yields a figure with no
+ * relationship to what the account was worth.
+ *
+ * `investmentSnapshotNotBefore` bounds how stale a market-valued account's
+ * snapshot may be. Rolling one FORWARD is the same fiction as rolling it back:
+ * an August month-end carried to September ignores a month of market movement
+ * on a six-figure portfolio. Callers pass the period start, which makes the
+ * contract "an investment balance is known for a period only if a snapshot
+ * falls inside that period" — i.e. import one month-end per month you want.
  */
 export function balanceAt(
   account: AccountData,
   snapshots: SnapshotData[],
   txns: TxnData[],
   at: Date,
+  options: { investmentSnapshotNotBefore?: Date } = {},
 ): { balance: number; estimated: boolean; known: boolean } {
+  const marketValued = account.type === 'INVESTMENT';
+  const floor = marketValued ? options.investmentSnapshotNotBefore?.getTime() : undefined;
   const own = snapshots
-    .filter((s) => s.accountId === account.id && s.date.getTime() <= at.getTime())
+    .filter(
+      (s) =>
+        s.accountId === account.id &&
+        s.date.getTime() <= at.getTime() &&
+        (floor === undefined || s.date.getTime() >= floor),
+    )
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 
-  if (own.length === 0 && account.type === 'INVESTMENT') {
+  if (own.length === 0 && marketValued) {
     return { balance: 0, estimated: true, known: false };
   }
 
@@ -66,12 +81,15 @@ export function computeNetWorthGrowth(
   const netWorthAt = (key: string): { total: number; invTotal: number; byType: Partial<Record<AccountType, number>>; estimated: string[] } | null => {
     // "End of period" = last instant before the next period starts.
     const at = new Date(periodEndExclusive(key).getTime() - 1);
+    const notBefore = periodStart(key);
     let total = 0;
     let invTotal = 0;
     const byType: Partial<Record<AccountType, number>> = {};
     const estimated: string[] = [];
     for (const account of accounts) {
-      const { balance, estimated: isEstimated, known } = balanceAt(account, snapshots, txns, at);
+      const { balance, estimated: isEstimated, known } = balanceAt(account, snapshots, txns, at, {
+        investmentSnapshotNotBefore: notBefore,
+      });
       if (!known) return null;
       total += balance;
       if (account.type === 'INVESTMENT') invTotal += balance;

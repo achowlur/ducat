@@ -27,7 +27,9 @@ import { prisma } from '../src/lib/prisma';
  * guessed. Balances are signed the same way the app stores them: CREDIT and
  * LOAN balances are negative.
  *
- * Usage: npm run import:balances -- <file.csv> [--dry-run]
+ * Usage:
+ *   npm run import:balances -- --template [--months=24] > balances.csv
+ *   npm run import:balances -- balances.csv [--dry-run]
  */
 function column(header: string[], ...names: string[]): number {
   for (const name of names) {
@@ -37,11 +39,79 @@ function column(header: string[], ...names: string[]): number {
   return -1;
 }
 
+function arg(name: string): string | undefined {
+  return process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1];
+}
+
+/** Last instant-free calendar day of the month containing `d`, as YYYY-MM-DD. */
+function monthEnd(year: number, month: number): string {
+  return new Date(Date.UTC(year, month + 1, 0)).toISOString().slice(0, 10);
+}
+
+/**
+ * Emits a fill-in skeleton: one row per INVESTMENT account per month that has
+ * no snapshot yet, newest first so a partial fill still buys the most useful
+ * history. Only investment accounts appear — cash and credit reconstruct
+ * exactly from their transactions and need nothing.
+ *
+ * CSV goes to stdout so it can be redirected; guidance goes to stderr.
+ */
+async function emitTemplate(months: number): Promise<void> {
+  const accounts = await prisma.account.findMany({
+    where: { type: 'INVESTMENT' },
+    select: { id: true, name: true },
+    orderBy: { name: 'asc' },
+  });
+  if (accounts.length === 0) {
+    console.error('No investment accounts — cash and credit need no snapshots.');
+    return;
+  }
+
+  const snapshots = await prisma.balanceSnapshot.findMany({ select: { accountId: true, date: true } });
+  const covered = new Set(
+    snapshots.map((s) => `${s.accountId}|${s.date.toISOString().slice(0, 7)}`),
+  );
+
+  const now = new Date();
+  const rows: string[] = [];
+  let skipped = 0;
+  for (let back = 0; back < months; back++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1));
+    const key = d.toISOString().slice(0, 7);
+    const date = monthEnd(d.getUTCFullYear(), d.getUTCMonth());
+    for (const a of accounts) {
+      if (covered.has(`${a.id}|${key}`)) {
+        skipped++;
+        continue;
+      }
+      rows.push(`"${a.name}",${date},`);
+    }
+  }
+
+  console.log('account,date,balance');
+  for (const r of rows) console.log(r);
+
+  console.error(`\n${rows.length} row(s) to fill; ${skipped} month(s) already have a snapshot.`);
+  console.error('Fill the balance column from each statement\'s "Ending Account Value", then:');
+  console.error('  npm run import:balances -- balances.csv --dry-run');
+  console.error('Rows you leave blank are skipped, so fill only the months you want charted.');
+  console.error('Note: net worth also needs the cash side, which reconstructs from transactions —');
+  console.error('so months earlier than your oldest imported transactions stay approximate.');
+}
+
 async function main(): Promise<void> {
   const file = process.argv[2];
   const dryRun = process.argv.includes('--dry-run');
+
+  if (process.argv.includes('--template')) {
+    const months = Number(arg('months') ?? 24);
+    await emitTemplate(Number.isFinite(months) && months > 0 ? Math.floor(months) : 24);
+    return;
+  }
+
   if (file === undefined || file.startsWith('--')) {
     console.error('Usage: npm run import:balances -- <file.csv> [--dry-run]');
+    console.error('   or: npm run import:balances -- --template [--months=24] > balances.csv');
     console.error('Columns: account,date,balance   (date = YYYY-MM-DD)');
     process.exit(1);
   }
@@ -68,11 +138,18 @@ async function main(): Promise<void> {
 
   let written = 0;
   let skipped = 0;
+  let blank = 0;
   for (const row of rows.slice(1)) {
     const label = (row[iAccount] ?? '').trim();
     const rawDate = (row[iDate] ?? '').trim();
     const rawBalance = (row[iBalance] ?? '').trim().replace(/[$,]/g, '');
     if (label === '' && rawDate === '' && rawBalance === '') continue;
+    // An unfilled template row. Number('') is 0, which would silently record a
+    // $0 balance — the one wrong value that looks plausible.
+    if (rawBalance === '') {
+      blank++;
+      continue;
+    }
 
     const account = matchAccount(label, accounts);
     const date = new Date(`${rawDate}T12:00:00Z`);
@@ -108,7 +185,8 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `\n${basename(file)}: ${written} snapshot(s) ${dryRun ? 'previewed' : 'written'}, ${skipped} skipped`,
+    `\n${basename(file)}: ${written} snapshot(s) ${dryRun ? 'previewed' : 'written'}, ${skipped} skipped` +
+      (blank > 0 ? `, ${blank} left blank` : ''),
   );
   if (dryRun) {
     console.log('Dry run — nothing was written. Re-run without --dry-run to apply.');

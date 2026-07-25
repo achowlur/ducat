@@ -79,6 +79,36 @@ describe('balanceAt', () => {
     const result = balanceAt(brokerage, snapshots, [], utc(2026, 7, 31));
     expect(result).toMatchObject({ balance: 150000, known: true });
   });
+
+  // Carrying an August month-end into September ignores a month of market
+  // movement — the same fiction as rolling backwards, just pointing forwards.
+  it('will not carry a stale investment snapshot into a later period', () => {
+    const brokerage: AccountData = { id: 'acc2', type: 'INVESTMENT', balance: 197040, balanceDate: utc(2026, 7, 12) };
+    const snapshots: SnapshotData[] = [{ accountId: 'acc2', date: utc(2026, 6, 30), balance: 150000 }];
+    const july = balanceAt(brokerage, snapshots, [], utc(2026, 7, 31), {
+      investmentSnapshotNotBefore: utc(2026, 7, 1),
+    });
+    expect(july.known).toBe(false);
+  });
+
+  it('accepts a snapshot taken inside the period being asked about', () => {
+    const brokerage: AccountData = { id: 'acc2', type: 'INVESTMENT', balance: 197040, balanceDate: utc(2026, 7, 12) };
+    const snapshots: SnapshotData[] = [{ accountId: 'acc2', date: utc(2026, 7, 25), balance: 197040 }];
+    const result = balanceAt(brokerage, snapshots, [], utc(2026, 7, 31), {
+      investmentSnapshotNotBefore: utc(2026, 7, 1),
+    });
+    expect(result).toMatchObject({ balance: 197040, known: true });
+  });
+
+  // Cash and credit are fully explained by their transactions, so a snapshot
+  // from any point still rolls forward correctly — the bound is market-only.
+  it('still rolls a cash snapshot forward across periods', () => {
+    const snapshots: SnapshotData[] = [{ accountId: 'acc1', date: utc(2026, 6, 30), balance: 800 }];
+    const result = balanceAt(account, snapshots, [], utc(2026, 7, 31), {
+      investmentSnapshotNotBefore: utc(2026, 7, 1),
+    });
+    expect(result).toMatchObject({ balance: 800, known: true });
+  });
 });
 
 describe('computeNetWorthGrowth', () => {
