@@ -74,19 +74,25 @@ shape.
 
 ## Backlog (agreed, not yet scheduled)
 
-- **Bulk P2P categorization for historical CSV imports.** The P2P guard
-  (rules.ts) rightly blocks auto-categorizing Zelle/Venmo one at a time,
-  but a bulk import of years of history will surface hundreds of P2P
-  transactions and manually reviewing each is unacceptable. Ideas to
-  evaluate when picked up: (a) group the review queue by payee string so
-  one decision ("zelle to john smith → Rent") creates a user rule covering
-  all N occurrences at once; (b) auto-suggest reimbursement links by
+- **Bulk categorization — grouping-by-payee, idea (a): DONE** (2026-07-25).
+  `src/lib/sync/grouping.ts` groups the uncategorized backlog by payee and
+  `/transactions?group=1` renders it (`GroupedReview`), one decision per payee
+  writing a user rule that also covers future transactions
+  (`categorizeGroup` in transactions/actions.ts). P2P groups key on a payee
+  string derived from the description (`payeeKey` strips ref numbers/dates), so
+  "zelle to lena" and "zelle to hollis amari" stay distinct instead of collapsing
+  into the meaningless "zelle transfer" rail — those rules match DESCRIPTION,
+  which the P2P guard permits for user-priority rules. Real-world leverage:
+  355 uncategorized transactions were only 150 payees; one decision cleared 36.
+- Still open from that item: (b) auto-suggest reimbursement links by
   amount/date matching against nearby outflows; (c) recurring-pattern
   detection on P2P (same payee, same amount, monthly) to pre-fill rule
   suggestions; (d) an explicit "P2P — Unreviewed" bucket so analytics are
   visibly-incomplete rather than silently wrong while the pile shrinks.
-  Grouping-by-payee (a) is the most promising shape: one decision per
-  payee, not per transaction.
+- **Deeper history.** SimpleFIN caps a request at 90 days (it reports this as a
+  feed warning, surfaced on the provider health line). History accumulates
+  going forward since syncs never delete; CSV import is the backfill path for
+  anything older, and dedups on (accountId, externalId).
 
 ## Build order and status
 

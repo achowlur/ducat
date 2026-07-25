@@ -1,11 +1,13 @@
 import Link from "next/link";
 import type { Prisma } from "../../generated/prisma/client";
 import { CategoryCell } from "../../components/CategoryCell";
+import { GroupedReview, type PayeeGroupView } from "../../components/GroupedReview";
 import { ReimburseControl } from "../../components/ReimburseControl";
 import { prisma } from "../../lib/prisma";
 import { periodEndExclusive, periodStart } from "../../lib/insights/periods";
+import { groupByPayee } from "../../lib/sync/grouping";
 import { P2P_PATTERN } from "../../lib/sync/rulePack";
-import { amount, isoDate, titleCase } from "../../lib/ui/format";
+import { amount, isoDate, money, titleCase } from "../../lib/ui/format";
 import { monthLabel } from "../../lib/ui/trends";
 import { periodKey } from "../../lib/insights/periods";
 
@@ -20,6 +22,7 @@ interface Params {
   flow?: string;
   q?: string;
   review?: string;
+  group?: string;
 }
 
 function buildHref(params: Params, overrides: Partial<Params>): string {
@@ -140,6 +143,29 @@ export default async function TransactionsPage({
 
   const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name, isIncome: c.isIncome }));
 
+  // Grouped review: one decision per payee across the ENTIRE uncategorized
+  // backlog (not just the visible page), highest-leverage payee first. A few
+  // hundred transactions are typically only a few dozen payees.
+  const groupMode = params.group === "1";
+  let groups: PayeeGroupView[] = [];
+  if (groupMode) {
+    const uncategorized = await prisma.transaction.findMany({
+      where: { ...where, categoryId: null, flow: { not: "TRANSFER" }, reimbursesId: null },
+      select: { id: true, amount: true, description: true, normalizedMerchant: true, flow: true },
+    });
+    groups = groupByPayee(uncategorized.map((t) => ({ ...t, amount: Number(t.amount) }))).map((g) => ({
+      key: g.key,
+      label: titleCase(g.key),
+      matchField: g.matchField,
+      isP2P: g.isP2P,
+      count: g.count,
+      total: money(g.total),
+      samples: g.samples,
+      flow: g.flow,
+    }));
+  }
+  const groupedTxnCount = groups.reduce((sum, g) => sum + g.count, 0);
+
   return (
     <div className="py-5">
       <form className="flex flex-wrap items-end gap-3 border-b border-ink pb-3" action="/transactions" method="get">
@@ -212,22 +238,41 @@ export default async function TransactionsPage({
 
       <div className="flex items-center gap-5 py-2 text-[0.78rem] text-faint">
         <span className="font-money">
-          {total} matching{total > visible.length ? ` · showing ${visible.length}` : ""}
+          {groupMode
+            ? `${groups.length} payees · ${groupedTxnCount} uncategorized`
+            : `${total} matching${total > visible.length ? ` · showing ${visible.length}` : ""}`}
         </span>
-        {params.review === "1" ? (
+        {groupMode ? (
+          <Link href={buildHref(params, { group: undefined })} className="font-semibold text-acc hover:underline">
+            ← transaction list
+          </Link>
+        ) : (
+          <Link
+            href={buildHref(params, { group: "1", category: "uncategorized", review: undefined })}
+            className="font-semibold text-acc hover:underline"
+            title="Group the uncategorized backlog by payee — one decision categorizes every occurrence and future ones too"
+          >
+            group by payee — categorize in bulk
+          </Link>
+        )}
+        {!groupMode &&
+          (params.review === "1" ? (
           <Link href={buildHref(params, { review: undefined })} className="font-semibold text-acc hover:underline">
             ← all transactions
           </Link>
         ) : (
-          reviewCount > 0 && (
-            <Link href={buildHref(params, { review: "1" })} className="font-semibold text-neg hover:underline">
-              {reviewCount} P2P payment{reviewCount === 1 ? " needs" : "s need"} review — Zelle/Venmo can&apos;t
-              be auto-categorized safely
-            </Link>
-          )
-        )}
+            reviewCount > 0 && (
+              <Link href={buildHref(params, { review: "1" })} className="font-semibold text-neg hover:underline">
+                {reviewCount} P2P payment{reviewCount === 1 ? " needs" : "s need"} review — Zelle/Venmo can&apos;t
+                be auto-categorized safely
+              </Link>
+            )
+          ))}
       </div>
 
+      {groupMode ? (
+        <GroupedReview groups={groups} categories={categoryOptions} />
+      ) : (
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b border-ink">
@@ -311,6 +356,7 @@ export default async function TransactionsPage({
           )}
         </tbody>
       </table>
+      )}
     </div>
   );
 }

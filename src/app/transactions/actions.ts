@@ -30,25 +30,22 @@ export async function setTransactionCategory(
 }
 
 /**
- * Create a user rule (priority band 1-99) from a transaction's merchant
- * and apply it retroactively to all non-MANUAL transactions.
+ * Upsert a user rule (priority band 1-99, so it outranks the pack and may
+ * categorize P2P) and apply it retroactively to all non-MANUAL transactions.
  */
-export async function createRuleFromMerchant(
-  merchant: string,
+async function upsertRule(
+  matchValue: string,
+  matchField: "MERCHANT" | "DESCRIPTION",
   categoryId: string,
-): Promise<{ recategorized: number }> {
-  await requireSession();
-  const matchValue = merchant.trim().toLowerCase();
-  if (matchValue === "") throw new Error("Merchant is empty — categorize this transaction manually instead.");
-
+): Promise<number> {
   const existing = await prisma.rule.findFirst({
-    where: { matchField: "MERCHANT", matchOperator: "CONTAINS", matchValue },
+    where: { matchField, matchOperator: "CONTAINS", matchValue },
   });
   if (existing === null) {
     await prisma.rule.create({
       data: {
         priority: 50,
-        matchField: "MERCHANT",
+        matchField,
         matchOperator: "CONTAINS",
         matchValue,
         setCategoryId: categoryId,
@@ -63,7 +60,40 @@ export async function createRuleFromMerchant(
   revalidatePath("/transactions");
   revalidatePath("/");
   revalidatePath("/trends");
-  return { recategorized };
+  revalidatePath("/insights");
+  return recategorized;
+}
+
+/**
+ * Create a user rule from a transaction's merchant and apply it retroactively.
+ */
+export async function createRuleFromMerchant(
+  merchant: string,
+  categoryId: string,
+): Promise<{ recategorized: number }> {
+  await requireSession();
+  const matchValue = merchant.trim().toLowerCase();
+  if (matchValue === "") throw new Error("Merchant is empty — categorize this transaction manually instead.");
+  return { recategorized: await upsertRule(matchValue, "MERCHANT", categoryId) };
+}
+
+/**
+ * Resolve an entire payee group at once (the bulk review queue). One decision
+ * writes one rule that covers every past AND future transaction for that payee
+ * — the difference between reviewing a CSV backlog payee-by-payee instead of
+ * transaction-by-transaction. P2P groups arrive with matchField DESCRIPTION so
+ * the rule targets the counterparty, not the payment rail.
+ */
+export async function categorizeGroup(
+  matchValue: string,
+  matchField: "MERCHANT" | "DESCRIPTION",
+  categoryId: string,
+): Promise<{ recategorized: number }> {
+  await requireSession();
+  const value = matchValue.trim().toLowerCase();
+  if (value === "") throw new Error("Payee is empty — categorize these transactions individually instead.");
+  if (categoryId === "") throw new Error("Pick a category first.");
+  return { recategorized: await upsertRule(value, matchField, categoryId) };
 }
 
 /**
