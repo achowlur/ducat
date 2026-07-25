@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MiniDonut } from "../components/MiniDonut";
+import { SyncNowButton } from "../components/SyncNowButton";
 import { amount, money, pct } from "../lib/ui/format";
 import { getOverviewData, type Signal } from "../lib/ui/overview";
 
@@ -30,6 +31,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 export default async function OverviewPage() {
   const data = await getOverviewData();
+  const simplefinConfigured = (process.env.SIMPLEFIN_ACCESS_URL ?? "") !== "";
   const simplefin = data.health.find((h) => h.connectorType === "SIMPLEFIN");
   const drifted = data.subscriptions.filter((s) => s.priceDrift !== null);
   const nextRenewal = data.subscriptions.find((s) => s.priceDrift === null && s.daysUntilNextPayment <= 45);
@@ -69,9 +71,12 @@ export default async function OverviewPage() {
             {nextRenewal.name} renews in {nextRenewal.daysUntilNextPayment} days
           </span>
         )}
-        {data.lastSyncAt !== null && (
-          <span className="ml-auto font-money">
-            synced {data.lastSyncAt.toISOString().slice(0, 16).replace("T", " ")}
+        {(data.lastSyncAt !== null || simplefinConfigured) && (
+          <span className="ml-auto flex items-center gap-3 font-money">
+            {data.lastSyncAt !== null && (
+              <span>synced {data.lastSyncAt.toISOString().slice(0, 16).replace("T", " ")}</span>
+            )}
+            {simplefinConfigured && <SyncNowButton />}
           </span>
         )}
       </div>
