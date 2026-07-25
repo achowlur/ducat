@@ -43,6 +43,24 @@ function arg(name: string): string | undefined {
   return process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1];
 }
 
+/**
+ * Accepts YYYY-MM-DD (what the template emits) and M/D/YYYY, because opening
+ * the template in Excel rewrites the dates to the local format on save and
+ * every row would otherwise be rejected. Noon UTC so rendering never shifts
+ * the calendar day.
+ */
+function parseDate(raw: string): Date | null {
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(raw);
+  const mdy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(raw);
+  const [y, m, d] = iso !== null
+    ? [Number(iso[1]), Number(iso[2]), Number(iso[3])]
+    : mdy !== null
+      ? [Number(mdy[3]), Number(mdy[1]), Number(mdy[2])]
+      : [NaN, NaN, NaN];
+  if (!Number.isFinite(y) || m < 1 || m > 12 || d < 1 || d > 31) return null;
+  return new Date(Date.UTC(y, m - 1, d, 12));
+}
+
 /** Last instant-free calendar day of the month containing `d`, as YYYY-MM-DD. */
 function monthEnd(year: number, month: number): string {
   return new Date(Date.UTC(year, month + 1, 0)).toISOString().slice(0, 10);
@@ -152,7 +170,7 @@ async function main(): Promise<void> {
     }
 
     const account = matchAccount(label, accounts);
-    const date = new Date(`${rawDate}T12:00:00Z`);
+    const date = parseDate(rawDate);
     const balance = Number(rawBalance);
 
     if (account === null) {
@@ -160,8 +178,8 @@ async function main(): Promise<void> {
       skipped++;
       continue;
     }
-    if (Number.isNaN(date.getTime())) {
-      console.log(`  SKIP  unparseable date "${rawDate}" (expected YYYY-MM-DD)`);
+    if (date === null) {
+      console.log(`  SKIP  unparseable date "${rawDate}" (expected YYYY-MM-DD or M/D/YYYY)`);
       skipped++;
       continue;
     }
