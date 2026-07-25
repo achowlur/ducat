@@ -1,4 +1,4 @@
-# Finance Project
+# Ducat
 
 A personal finance tracker with an insights engine. Local-first by default (runs
 entirely on localhost; no financial data leaves the machine), with an OPTIONAL

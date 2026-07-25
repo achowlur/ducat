@@ -17,7 +17,7 @@ export default async function LoginPage({
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-sm flex-col justify-center">
-      <h1 className="text-[0.8rem] font-semibold uppercase tracking-[0.14em]">Finance · Local</h1>
+      <h1 className="text-[0.8rem] font-semibold uppercase tracking-[0.14em]">Ducat</h1>
       <p className="mt-1 text-[0.8rem] text-faint">This instance is locked. Enter your password to continue.</p>
       <form action={login} className="mt-6 flex flex-col gap-3">
         <label className="flex flex-col gap-1 text-[0.75rem] uppercase tracking-[0.1em] text-faint">

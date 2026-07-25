@@ -1,6 +1,6 @@
 # Deploying to your own cloud (optional)
 
-Finance · Local runs fine entirely on your machine — that's the private default,
+Ducat runs fine entirely on your machine — that's the private default,
 and nothing below is required for local use. This guide is for the **optional**
 single-tenant cloud deployment (Turso + Vercel) so you can reach your instance
 from anywhere with a daily auto-sync.

@@ -1,4 +1,4 @@
-# Finance · Local
+# Ducat
 
 A local-only personal finance tracker with an insights engine. It runs entirely
 on your machine — **your financial data never leaves `127.0.0.1`.** You bring

@@ -7,8 +7,8 @@ import { isAuthEnabled, isCloudMode } from "../lib/auth/mode";
 import { logout } from "./login/actions";
 
 export const metadata: Metadata = {
-  title: "Finance · Local",
-  description: "Local-only personal finance tracker",
+  title: "Ducat",
+  description: "Local-first personal finance tracker",
 };
 
 // Applied before paint so the persisted theme never flashes.
@@ -36,7 +36,7 @@ export default async function RootLayout({
           {onLogin ? null : (
             <header className="flex items-baseline justify-between gap-6 border-b-2 border-ink pb-3 pt-5">
               <span className="text-[0.8rem] font-semibold uppercase tracking-[0.14em]">
-                Finance · Local
+                Ducat
               </span>
               <AppNav />
               <span className="hidden items-baseline gap-4 text-[0.75rem] text-faint sm:flex">
