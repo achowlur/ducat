@@ -70,6 +70,8 @@ export class CsvConnector implements Connector {
   private readonly accounts: CsvAccountDescriptor[] = [];
   /** Raw account values the resolver rejected, and how many rows each cost. */
   readonly unresolvedAccounts = new Map<string, number>();
+  /** Rows dropped by the mapping's skipRowWhen filter (pending transactions). */
+  skippedRows = 0;
 
   constructor(
     content: string,
@@ -124,6 +126,11 @@ export class CsvConnector implements Connector {
 
     this.rows = [];
     for (const row of dataRows) {
+      const skip = mapping.skipRowWhen;
+      if (skip !== undefined && skip.pattern.test(col(row, skip.column))) {
+        this.skippedRows++;
+        continue;
+      }
       const date = parseDate(col(row, mapping.date), mapping.dateFormat);
       const amount = parseAmount(col(row, mapping.amount));
       if (date === null || amount === null) {

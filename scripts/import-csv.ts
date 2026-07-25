@@ -168,6 +168,9 @@ async function main(): Promise<void> {
       console.log(`    ${raw === '' ? '(blank)' : raw}: ${count} row(s)`);
     }
   }
+  if (connector.skippedRows > 0) {
+    console.log(`  Pending rows skipped: ${connector.skippedRows} (they change or vanish before posting)`);
+  }
   if (until !== undefined) {
     console.log(`  Capped: rows on/after ${untilArg} skipped (backfill behind a live feed)`);
   }

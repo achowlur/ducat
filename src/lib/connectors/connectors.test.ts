@@ -91,6 +91,30 @@ describe('CsvConnector: Chase checking', () => {
   });
 });
 
+describe('CsvConnector: Wells Fargo', () => {
+  const csv = [
+    '"DATE","DESCRIPTION","AMOUNT","CHECK #","STATUS"',
+    '"07/24/2026","PAYROLL","6840.90","","Posted"',
+    '"07/21/2026","ZELLE TO LENA","-22.82","","Posted"',
+    '"07/25/2026","","0.00",,"Pending"',
+    '"07/25/2026","LINK.COM* SIMPLEFIN BR","-1.50",,"Pending"',
+  ].join('\n');
+  const account = { externalId: 'wf-1', name: 'Checking', institution: 'Wells Fargo', type: 'DEPOSITORY' as const };
+
+  // Pending rows mutate or vanish before posting; importing them strands a
+  // phantom that never dedupes against the eventual posted row.
+  it('skips pending rows and keeps the signed amounts of posted ones', async () => {
+    const connector = new CsvConnector(csv, CSV_MAPPINGS['wells-fargo'], account);
+    const txns = await connector.fetchTransactions(new Date(0));
+    expect(connector.skippedRows).toBe(2);
+    expect(txns).toHaveLength(2);
+    expect(txns[0].amount).toBe(6840.90);
+    expect(txns[0].flow).toBe('INFLOW');
+    expect(txns[1].amount).toBe(-59.14);
+    expect(txns[1].description).toBe('ZELLE TO LENA');
+  });
+});
+
 // Fidelity exports every account into one file, so rows must be routed rather
 // than all filed under a single account.
 describe('CsvConnector: multi-account file', () => {
@@ -139,7 +163,7 @@ describe('CsvConnector: multi-account file', () => {
 describe('CsvConnector: Wells Fargo (headerless)', () => {
   it('parses positional columns', async () => {
     const csv = '"07/10/2026","-45.00","*","","PURCHASE AUTHORIZED AT SHELL GAS 12345678"\n"07/09/2026","1200.00","*","","DIRECT DEPOSIT EMPLOYER"';
-    const connector = new CsvConnector(csv, CSV_MAPPINGS['wells-fargo'], {
+    const connector = new CsvConnector(csv, CSV_MAPPINGS['wells-fargo-headerless'], {
       externalId: 'wf-1', name: 'WF Checking', institution: 'Wells Fargo', type: 'DEPOSITORY',
     });
     const txns = await connector.fetchTransactions(new Date(0));
@@ -160,6 +184,22 @@ describe('CsvConnector: Fidelity brokerage', () => {
     '',
     '"The data and information in this spreadsheet is provided to you..."',
   ].join('\n');
+
+  // Regression: transferPatterns used /\btransfer\b/, whose trailing word
+  // boundary never matches "TRANSFERRED", and had no pattern for Fidelity's
+  // ACH funding descriptor. Both are money moving between the owner's own
+  // accounts, and both landed in SPENDING — $207.34k of it in real data.
+  it('flags journals and ACH funding as TRANSFER, not spending', async () => {
+    const moves = [
+      'Run Date,Action,Symbol,Description,Type,Quantity,Price ($),Commission ($),Fees ($),Accrued Interest ($),Amount ($),Settlement Date',
+      '06/02/2026,TRANSFERRED FROM VS X10-,,TRANSFERRED FROM,Cash,0,0,0,0,0,76434.14,',
+      '05/01/2026,FID BKG SVC LLC MONEYLINE,,MONEYLINE,Cash,0,0,0,0,0,-51834.59,',
+    ].join('\n');
+    const txns = await new CsvConnector(moves, CSV_MAPPINGS.fidelity, {
+      externalId: 'fid-1', name: 'Brokerage', institution: 'Fidelity', type: 'INVESTMENT',
+    }).fetchTransactions(new Date(0));
+    expect(txns.map((t) => t.flow)).toEqual(['TRANSFER', 'TRANSFER']);
+  });
 
   it('flags buys and contributions as TRANSFER, dividends as INFLOW, skips footer junk', async () => {
     const connector = new CsvConnector(csv, CSV_MAPPINGS.fidelity, {

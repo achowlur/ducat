@@ -35,6 +35,13 @@ export interface CsvMapping {
   transferPatterns?: RegExp[];
   /** Skip rows whose date doesn't parse (disclaimer footers, section titles). */
   skipUnparseable?: boolean;
+  /**
+   * Skip rows whose value in this column matches — used for PENDING rows.
+   * Pending transactions change amount/description or vanish entirely before
+   * they post, which would corrupt the (accountId, externalId) dedupe key and
+   * leave a phantom behind. Same reason the SimpleFIN connector skips them.
+   */
+  skipRowWhen?: { column: string | number; pattern: RegExp };
 }
 
 export const CSV_MAPPINGS: Record<string, CsvMapping> = {
@@ -62,7 +69,19 @@ export const CSV_MAPPINGS: Record<string, CsvMapping> = {
   },
   'wells-fargo': {
     id: 'wells-fargo',
-    label: 'Wells Fargo checking/savings export (headerless)',
+    label: 'Wells Fargo checking/savings/credit-card export',
+    hasHeader: true,
+    // Verified against real exports (checking and credit card share this shape):
+    // "DATE","DESCRIPTION","AMOUNT","CHECK #","STATUS"
+    date: 'DATE',
+    amount: 'AMOUNT',
+    description: ['DESCRIPTION'],
+    dateFormat: 'MDY',
+    skipRowWhen: { column: 'STATUS', pattern: /pending/i },
+  },
+  'wells-fargo-headerless': {
+    id: 'wells-fargo-headerless',
+    label: 'Wells Fargo export, older headerless variant',
     hasHeader: false,
     // Columns: "Date","Amount","*","Check Number","Description"
     date: 0,
@@ -91,8 +110,14 @@ export const CSV_MAPPINGS: Record<string, CsvMapping> = {
       /\byou sold\b/i,
       /\breinvestment\b/i,
       /\bcontribution\b/i,
-      /\btransfer\b/i,
+      // Prefix, not \btransfer\b: Fidelity writes "TRANSFERRED FROM VS …" for
+      // journals between your own accounts, and a trailing word boundary makes
+      // the anchored form miss every one of them — they then land in SPENDING.
+      /\btransfer/i,
       /\bjournaled\b/i,
+      // ACH funding pulled by Fidelity from a linked bank ("FID BKG SVC LLC
+      // MONEYLINE"): your money changing accounts, never an expense.
+      /\bfid bkg svc\b/i,
     ],
   },
 };
