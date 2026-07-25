@@ -67,6 +67,14 @@ shape.
   for a column that exists).
 - `npm run db:seed` wipes insights; re-run `npm run insights:generate`
   afterwards or pages show "no data".
+- Data coverage (`src/lib/insights/coverage.ts`): accounts have different
+  history depths (a 90-day feed vs an 18-month CSV vs 5 years of brokerage
+  history), so periods before an account's first transaction are UNDERSTATED,
+  and the month its history starts looks like a spending spike that never
+  happened. `periodCoverage`/`coverageFloor` quantify this and `CoverageNotice`
+  surfaces it on Trends/Insights — visibly incomplete beats silently wrong.
+  An account counts as covering a period only if its first transaction is at
+  or before the period START (mid-period starts are partial).
 - Chart discipline (src/components/charts): axis scales must enclose the
   data (`niceTicks` guarantees last tick ≥ max — regression-tested), and
   value labels are collision-checked against every mark, never drawn over

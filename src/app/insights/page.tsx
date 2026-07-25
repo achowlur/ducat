@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { CoverageNotice } from "../../components/CoverageNotice";
 import { DismissButton } from "../../components/DismissButton";
+import { getPeriodCoverage } from "../../lib/ui/coverage";
 import { getInsightsPageData, type InsightRow } from "../../lib/ui/insights";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +63,10 @@ export default async function InsightsPage({
               : `Show ${data.dismissedCount} dismissed`}
           </Link>
         )}
+      </div>
+
+      <div className="pt-3">
+        <CoverageNotice coverage={await getPeriodCoverage(data.period)} />
       </div>
 
       {visibleGroups.length === 0 && (

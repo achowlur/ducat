@@ -2,7 +2,9 @@ import Link from "next/link";
 import { CashFlowChart } from "../../components/charts/CashFlowChart";
 import { NetWorthChart } from "../../components/charts/NetWorthChart";
 import { TrendsDonut } from "../../components/charts/TrendsDonut";
+import { CoverageNotice } from "../../components/CoverageNotice";
 import { amount, pct } from "../../lib/ui/format";
+import { getPeriodCoverage } from "../../lib/ui/coverage";
 import { getTrendsData } from "../../lib/ui/trends";
 
 export const dynamic = "force-dynamic";
@@ -31,8 +33,11 @@ export default async function TrendsPage({
     );
   }
 
+  const coverage = await getPeriodCoverage(data.period);
+
   return (
     <div className="grid gap-9 py-5">
+      <CoverageNotice coverage={coverage} />
       <div className="grid gap-9 lg:grid-cols-2">
         <section>
           <div className="flex items-baseline justify-between">
