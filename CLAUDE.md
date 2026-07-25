@@ -75,6 +75,24 @@ shape.
   per-account when NO `--external-id` is given; routing is driven by whether the
   caller passes a resolver, so per-account files still work under that mapping.
   Unroutable rows are skipped and reported, never guessed.
+- Net worth history requires SNAPSHOTS, not transactions. `balanceAt`
+  (insights/netWorth.ts) returns `known:false` for an INVESTMENT account with no
+  snapshot at/before the date, and `computeNetWorthGrowth` emits NOTHING for a
+  period it can't fully know — a net worth missing an account is not a smaller
+  net worth, it's a wrong one. Reason: market movement leaves no transaction and
+  every "YOU BOUGHT" is cash leaving with no entry for what it bought, so
+  rolling today's balance backward through trades fabricates the past (it once
+  reported net worth DECLINING from $707.54k in 2024-06 to $684.22k today, the
+  opposite of the truth). Cash/credit reconstruct exactly, so ONE month-end
+  snapshot per investment account unlocks that whole month:
+  `npm run import:balances -- balances.csv [--dry-run]` from statement
+  "Ending Account Value" figures. History otherwise grows one snapshot per sync.
+- Anomaly baselines use only periods where the category actually had spending
+  (`anomalies.ts`). Counting empty periods as $0 makes the median 0 for any
+  category whose data starts partway through history — which, with accounts
+  reaching back different distances, was everything — so every ordinary month
+  scored as an infinite deviation and reported "vs $0 in a typical month".
+  Rent, the most predictable expense there is, was flagged every month.
 - Data coverage (`src/lib/insights/coverage.ts`): accounts have different
   history depths (a 90-day feed vs an 18-month CSV vs 5 years of brokerage
   history), so periods before an account's first transaction are UNDERSTATED,
@@ -118,6 +136,32 @@ shape.
   feed warning, surfaced on the provider health line). History accumulates
   going forward since syncs never delete; CSV import is the backfill path for
   anything older, and dedups on (accountId, externalId).
+
+## Shipping to other people (agreed 2026-07-25, NOT yet built)
+
+The operator's own instance was tuned interactively — ~160 categorization
+rules, transfer patterns, an account-type correction. Someone cloning this from
+GitHub has no such help, so the tail of manual review has to be small enough to
+walk through alone. What's user-specific ("harborwaymgmt is my landlord") is
+exactly what the grouped review exists for; what's structural should ship. Four
+items, in value order:
+
+1. **Ship the structural rules.** `DIVIDEND RECEIVED → Income`,
+   `REINVESTMENT → TRANSFER`, credit-card-payment detection, ATM handling, and
+   the missing `Rent & Housing` / `Taxes` / `Cash & ATM` categories currently
+   exist ONLY in the operator's database, not in `rulePack.ts` — a fresh clone
+   gets none of them.
+2. **Strip payment-processor prefixes** in `normalizeMerchant`: `tst*` (Toast),
+   `sq *` (Square), `slice*`, `dd *` (DoorDash), `py *`, `spo*`, `gdp*`, `fiv*`
+   wrap the real merchant name, degrading both normalization and grouping.
+   `tst*`/`slice*`/`dd *` are effectively always food and can auto-categorize;
+   `sq *` is NOT (it covers salons and retail too) — don't blanket it.
+3. **Expand the shipped brand pack** with the ~100 generic chains identified
+   from real data (restaurants, retail, transit).
+4. **Fix account-type inference** (`inferAccountType` in simplefin.ts). It keys
+   on words like card/visa/credit, so "Chase Sapphire Preferred" fell through to
+   DEPOSITORY and silently counted a credit-card balance as an ASSET. Add card
+   product names (Sapphire, Freedom, Platinum, Gold, Venture, Quicksilver…).
 
 ## Build order and status
 
@@ -220,6 +264,34 @@ shape.
      end-to-end encryption (client-side keys + analyzers in the browser — viable
      because the analyzers are pure functions over plain arrays). E2E is the
      flagship feature if this becomes a shared product.
+
+8. **Session 8 — Real data onboarding + analytics correctness** (complete
+   2026-07-25). The operator's live SimpleFIN feed replaced fixture data, then
+   25 months of history was backfilled by CSV. Everything below was found BY
+   running on real money — none of it showed up against seeded data:
+   - CSV mappings were wrong against real exports: Wells Fargo actually ships a
+     HEADERED file (the mapping described a headerless one with a different
+     column order, so it would have read descriptions as amounts); WF includes
+     PENDING rows that must be skipped; Fidelity's `/\btransfer\b/` never
+     matched "TRANSFERRED" and had no pattern for its ACH descriptor, which put
+     ~$209.15k of internal transfers into SPENDING.
+   - Backfill needed `--external-id` merging (account lookup falls back across
+     connector types) and `--until` (CSV ids are content hashes, feed ids are
+     the feed's own — overlapping rows do NOT dedupe).
+   - Bulk categorization by payee, reimbursement auto-suggest, coverage
+     flagging, `db:reset`, and `import:balances` all landed here.
+   - Net worth and anomaly analytics were both fabricating results at scale —
+     see the two Conventions entries above. These are the highest-value lessons
+     in this file.
+   Result: 197 → 2,638 transactions across 21 accounts, non-P2P categorization
+   backlog cleared, 181 tests.
+9. **Session 9 — Cloud deployment (NEXT).** Nothing in the app is blocking; all
+   Session 7 code is verified locally. The remaining work is the operator's own
+   provisioning, in [DEPLOY.md](DEPLOY.md): create the Turso DB, apply the
+   schema via `npm run turso:baseline | turso db shell`, generate secrets
+   (`npm run auth:set-password`, CRON_SECRET), set Vercel env vars, deploy,
+   then verify auth + cron + headers. Claude cannot create accounts, log in, or
+   enter secrets — it builds and verifies, the operator provisions.
 
 ## Product direction (agreed 2026-07-13)
 
