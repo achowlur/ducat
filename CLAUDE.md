@@ -83,10 +83,17 @@ shape.
   every "YOU BOUGHT" is cash leaving with no entry for what it bought, so
   rolling today's balance backward through trades fabricates the past (it once
   reported net worth DECLINING from $707.54k in 2024-06 to $684.22k today, the
-  opposite of the truth). Cash/credit reconstruct exactly, so ONE month-end
-  snapshot per investment account unlocks that whole month:
-  `npm run import:balances -- balances.csv [--dry-run]` from statement
-  "Ending Account Value" figures. History otherwise grows one snapshot per sync.
+  opposite of the truth). Rolling one FORWARD is the same fiction, so a
+  snapshot only counts for a period if it falls INSIDE that period
+  (`investmentSnapshotNotBefore`) — carrying an August month-end into September
+  ignores a month of market movement. Cash/credit are exempt: transactions
+  fully explain them. So ONE month-end snapshot per investment account unlocks
+  exactly that month:
+  `npm run import:balances -- --template [--months=N] > balances.csv` (rows for
+  every uncovered month, newest first; blanks are skipped), fill from each
+  statement's "Ending Account Value", then `-- balances.csv [--dry-run]`.
+  History otherwise grows one snapshot per sync. `marketGains` only computes
+  once two consecutive periods are snapshot-backed.
 - Anomaly baselines use only periods where the category actually had spending
   (`anomalies.ts`). Counting empty periods as $0 makes the median 0 for any
   category whose data starts partway through history — which, with accounts
