@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { CsvConnector, type CsvAccountDescriptor, type CsvAccountResolver } from '../src/lib/connectors/csv';
 import { CSV_MAPPINGS } from '../src/lib/connectors/csvMappings';
+import { matchAccount } from '../src/lib/connectors/matchAccount';
 import { runSync } from '../src/lib/sync/sync';
 import { prisma } from '../src/lib/prisma';
 import type { AccountType } from '../src/types/contracts';
@@ -37,35 +38,6 @@ function arg(name: string): string | undefined {
 }
 
 const ACCOUNT_TYPES: AccountType[] = ['DEPOSITORY', 'CREDIT', 'INVESTMENT', 'LOAN'];
-
-/** Digit runs of 4+, used to match "…X12340001" against "Brokerage Individual (0001)". */
-function digitRuns(value: string): string[] {
-  return value.match(/\d{4,}/g) ?? [];
-}
-
-function findAccount<T extends { name: string; externalId: string }>(
-  raw: string,
-  candidates: T[],
-): T | null {
-  const needle = raw.trim().toLowerCase();
-  if (needle === '') return null;
-
-  const exact = candidates.find(
-    (c) => c.name.toLowerCase() === needle || c.externalId.toLowerCase() === needle,
-  );
-  if (exact !== undefined) return exact;
-
-  // Account numbers are usually masked differently on each side ("X12340001"
-  // vs "(0001)"), so match on a shared digit tail rather than equality.
-  const rawRuns = digitRuns(raw);
-  const matches = candidates.filter((c) =>
-    digitRuns(c.name).some((nameRun) =>
-      rawRuns.some((rawRun) => rawRun.endsWith(nameRun) || nameRun.endsWith(rawRun)),
-    ),
-  );
-  // Ambiguity means the digits aren't distinguishing — refuse rather than guess.
-  return matches.length === 1 ? matches[0] : null;
-}
 
 async function main(): Promise<void> {
   const file = process.argv[2];
@@ -113,7 +85,7 @@ async function main(): Promise<void> {
     account = (raw: string): CsvAccountDescriptor | null => {
       const cached = cache.get(raw);
       if (cached !== undefined) return cached;
-      const match = findAccount(raw, known);
+      const match = matchAccount(raw, known);
       const descriptor: CsvAccountDescriptor | null =
         match === null
           ? null
