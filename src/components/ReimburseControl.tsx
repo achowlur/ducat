@@ -9,12 +9,17 @@ export interface ReimburseCandidate {
   date: string; // ISO date
   amount: number; // positive magnitude
   category: string | null;
+  /** Why it was suggested: "exact amount", "1/3 of $90.00". */
+  reason: string;
+  /** Amount evidence is strong (exact or a clean split), not just proximity. */
+  strong: boolean;
 }
 
 /**
- * Ties an inflow to the outflow it pays back. Collapsed: a "link" button.
- * Expanded: nearby outflow candidates, ranked by date proximity. Linked:
- * a chip naming the original, with unlink.
+ * Ties an inflow to the outflow it pays back. Collapsed: a "link" button, with
+ * a dot when a strong match is waiting. Expanded: candidates ranked by amount
+ * evidence first (see suggestReimbursements), each showing why it matched.
+ * Linked: a chip naming the original, with unlink.
  */
 export function ReimburseControl({
   inflowId,
@@ -45,13 +50,22 @@ export function ReimburseControl({
   }
 
   if (!open) {
+    const best = candidates.find((c) => c.strong);
     return (
       <button
         onClick={() => setOpen(true)}
-        className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
-        title="This money pays back an expense — link it so spending nets correctly"
+        className={`rounded-[2px] border px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] ${
+          best === undefined
+            ? "border-rule text-faint hover:border-acc hover:text-acc"
+            : "border-acc text-acc hover:bg-chip"
+        }`}
+        title={
+          best === undefined
+            ? "This money pays back an expense — link it so spending nets correctly"
+            : `Likely pays back ${best.label} (${best.reason})`
+        }
       >
-        link
+        link{best === undefined ? "" : " •"}
       </button>
     );
   }
@@ -79,6 +93,7 @@ export function ReimburseControl({
           >
             <span className="font-money tabular">${c.amount.toFixed(2)}</span> {c.label}
             <span className="text-faint"> · {c.date.slice(5)}{c.category !== null ? ` · ${c.category}` : ""}</span>
+            <span className={`block text-[0.65rem] ${c.strong ? "text-acc" : "text-faint"}`}>{c.reason}</span>
           </button>
         ))}
         <button onClick={() => setOpen(false)} className="mt-1 block text-[0.68rem] text-faint hover:text-ink">

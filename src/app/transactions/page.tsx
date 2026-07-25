@@ -5,6 +5,7 @@ import { GroupedReview, type PayeeGroupView } from "../../components/GroupedRevi
 import { ReimburseControl } from "../../components/ReimburseControl";
 import { prisma } from "../../lib/prisma";
 import { periodEndExclusive, periodStart } from "../../lib/insights/periods";
+import { suggestReimbursements } from "../../lib/insights/suggestReimbursements";
 import { groupByPayee } from "../../lib/sync/grouping";
 import { P2P_PATTERN } from "../../lib/sync/rulePack";
 import { amount, isoDate, money, titleCase } from "../../lib/ui/format";
@@ -34,6 +35,22 @@ function buildHref(params: Params, overrides: Partial<Params>): string {
   const qs = search.toString();
   return qs === "" ? "/transactions" : `/transactions?${qs}`;
 }
+
+/**
+ * Expenses nobody splits with the friend who Venmo'd them. Without this the
+ * reimbursement ranker will happily offer "1/6 of your $6,300.49 tax payment",
+ * because the arithmetic works. Uncategorized outflows stay splittable — a
+ * shared dinner often hasn't been categorized yet.
+ */
+const UNSPLITTABLE = new Set([
+  "Rent & Housing",
+  "Taxes",
+  "Fees & Charges",
+  "Utilities",
+  "Subscriptions",
+  "Health",
+  "Cash & ATM",
+]);
 
 const FLOW_BADGE: Record<string, string> = {
   INFLOW: "text-pos",
@@ -99,10 +116,13 @@ export default async function TransactionsPage({
     }
   }
 
-  // Reimbursement candidates: outflows within 30 days before each visible
-  // inflow, big enough to plausibly be the fronted expense.
+  // Reimbursement candidates. Ranking lives in suggestReimbursements: amount
+  // evidence (exact repayment, or a clean 1/n share of a split) leads, with
+  // date proximity breaking ties — sorting by date alone puts last night's rent
+  // payment above the dinner a $116.63 Zelle actually pays back.
   const inflowDates = rows.filter((t) => t.flow === "INFLOW").map((t) => t.date.getTime());
   const DAY_MS = 86_400_000;
+  const WINDOW_DAYS = 45;
   const candidatePool =
     inflowDates.length === 0
       ? []
@@ -110,29 +130,38 @@ export default async function TransactionsPage({
           where: {
             flow: "OUTFLOW",
             date: {
-              gte: new Date(Math.min(...inflowDates) - 30 * DAY_MS),
-              lte: new Date(Math.max(...inflowDates)),
+              gte: new Date(Math.min(...inflowDates) - WINDOW_DAYS * DAY_MS),
+              lte: new Date(Math.max(...inflowDates) + 3 * DAY_MS),
             },
           },
           include: { category: true },
           orderBy: { date: "desc" },
-          take: 500,
+          take: 2000,
         });
+  const poolById = new Map(candidatePool.map((o) => [o.id, o]));
   const candidatesFor = (inflow: { date: Date; amount: unknown }) =>
-    candidatePool
-      .filter((o) => {
-        const gap = inflow.date.getTime() - o.date.getTime();
-        return gap >= 0 && gap <= 30 * DAY_MS && Math.abs(Number(o.amount)) >= Number(inflow.amount) * 0.999;
-      })
-      .sort((a, b) => (inflow.date.getTime() - a.date.getTime()) - (inflow.date.getTime() - b.date.getTime()))
-      .slice(0, 5)
-      .map((o) => ({
+    suggestReimbursements(
+      { amount: Number(inflow.amount), date: inflow.date },
+      candidatePool.map((o) => ({
+        id: o.id,
+        amount: Number(o.amount),
+        date: o.date,
+        splittable: !UNSPLITTABLE.has(o.category?.name ?? ""),
+      })),
+      { windowDays: WINDOW_DAYS },
+    ).flatMap((s) => {
+      const o = poolById.get(s.id);
+      if (o === undefined) return [];
+      return [{
         id: o.id,
         label: titleCase(o.normalizedMerchant !== "" ? o.normalizedMerchant : o.description.toLowerCase()),
         date: isoDate(o.date),
         amount: Math.abs(Number(o.amount)),
         category: o.category?.name ?? null,
-      }));
+        reason: s.reason,
+        strong: s.strong,
+      }];
+    });
 
   const needsReview = (t: { normalizedMerchant: string; description: string; categoryId: string | null; reimbursesId: string | null }) =>
     t.categoryId === null &&

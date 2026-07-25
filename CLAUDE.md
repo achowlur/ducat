@@ -100,8 +100,17 @@ shape.
   into the meaningless "zelle transfer" rail — those rules match DESCRIPTION,
   which the P2P guard permits for user-priority rules. Real-world leverage:
   355 uncategorized transactions were only 150 payees; one decision cleared 36.
-- Still open from that item: (b) auto-suggest reimbursement links by
-  amount/date matching against nearby outflows; (c) recurring-pattern
+- **Reimbursement auto-suggest, idea (b): DONE** (2026-07-25).
+  `src/lib/insights/suggestReimbursements.ts` ranks the outflows an inflow might
+  repay. AMOUNT evidence leads (exact, clean 1/n, or a rounded ≈1/n — people
+  send $62.2 for a $61.55 share) and date proximity only breaks ties; ranking by
+  date alone put last night's rent above the dinner a $116.63 Zelle actually pays
+  back. Outflows in unsplittable categories (rent, taxes, fees, utilities,
+  subscriptions, health, ATM — `UNSPLITTABLE` in transactions/page.tsx) are
+  denied split evidence, since arithmetic alone can't tell "1/5 of a dinner"
+  from "1/6 of a tax bill". `strong` tracks amount evidence ALONE: an exact
+  repayment three weeks later is still conclusive.
+- Still open from that item: (c) recurring-pattern
   detection on P2P (same payee, same amount, monthly) to pre-fill rule
   suggestions; (d) an explicit "P2P — Unreviewed" bucket so analytics are
   visibly-incomplete rather than silently wrong while the pile shrinks.
