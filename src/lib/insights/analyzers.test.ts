@@ -63,6 +63,22 @@ describe('balanceAt', () => {
     const result = balanceAt(account, [], txns, utc(2026, 6, 30));
     expect(result.balance).toBe(1300);
   });
+
+  // A brokerage's worth moves with the market, which leaves no transaction.
+  // Every "YOU BOUGHT" is cash leaving with no entry for what it bought, so
+  // rolling today's balance backwards through trades invents a past balance.
+  it('refuses to reconstruct an investment account with no snapshot', () => {
+    const brokerage: AccountData = { id: 'acc2', type: 'INVESTMENT', balance: 197040, balanceDate: utc(2026, 7, 12) };
+    const txns = [txn({ accountId: 'acc2', date: utc(2026, 7, 5), amount: -1010 })];
+    expect(balanceAt(brokerage, [], txns, utc(2026, 6, 30)).known).toBe(false);
+  });
+
+  it('knows an investment balance once a snapshot backs it', () => {
+    const brokerage: AccountData = { id: 'acc2', type: 'INVESTMENT', balance: 197040, balanceDate: utc(2026, 7, 12) };
+    const snapshots: SnapshotData[] = [{ accountId: 'acc2', date: utc(2026, 6, 30), balance: 150000 }];
+    const result = balanceAt(brokerage, snapshots, [], utc(2026, 7, 31));
+    expect(result).toMatchObject({ balance: 150000, known: true });
+  });
 });
 
 describe('computeNetWorthGrowth', () => {

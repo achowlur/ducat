@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { MiniDonut } from "../components/MiniDonut";
 import { SyncNowButton } from "../components/SyncNowButton";
-import { amount, money, pct } from "../lib/ui/format";
+import { amount, money, pct, titleCase } from "../lib/ui/format";
 import { getOverviewData, type Signal } from "../lib/ui/overview";
 
 export const dynamic = "force-dynamic";
@@ -128,10 +128,10 @@ export default async function OverviewPage() {
                 <th className="py-1 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                   Account
                 </th>
-                <th className="py-1 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                <th className="w-px whitespace-nowrap py-1 pl-3 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                   Type
                 </th>
-                <th className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                <th className="w-px whitespace-nowrap py-1 pl-3 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                   Balance
                 </th>
               </tr>
@@ -146,9 +146,14 @@ export default async function OverviewPage() {
                       {a.snapshotBacked ? ` · snapshot ${a.snapshotDate}` : ""}
                     </span>
                   </td>
-                  <td className="py-1.5 text-[0.72rem] text-faint">{TYPE_LABEL[a.type] ?? a.type}</td>
+                  {/* Six-figure balances squeeze the flexible columns; pin the
+                      numeric and type columns to their content and let the
+                      account name absorb the remaining width instead. */}
+                  <td className="w-px whitespace-nowrap py-1.5 pl-3 text-[0.72rem] text-faint">
+                    {TYPE_LABEL[a.type] ?? a.type}
+                  </td>
                   <td
-                    className={`py-1.5 text-right font-money text-[0.85rem] tabular ${
+                    className={`w-px whitespace-nowrap py-1.5 pl-3 text-right font-money text-[0.85rem] tabular ${
                       a.balance < 0 ? "font-semibold text-neg" : ""
                     }`}
                   >
@@ -160,7 +165,7 @@ export default async function OverviewPage() {
                 <tr>
                   <td className="border-t-2 border-ink py-1.5 font-semibold">Net worth</td>
                   <td className="border-t-2 border-ink" />
-                  <td className="border-t-2 border-ink py-1.5 text-right font-money text-[0.85rem] font-semibold tabular">
+                  <td className="w-px whitespace-nowrap border-t-2 border-ink py-1.5 pl-3 text-right font-money text-[0.85rem] font-semibold tabular">
                     {amount(data.netWorth.netWorth)}
                   </td>
                 </tr>
@@ -169,8 +174,43 @@ export default async function OverviewPage() {
           </table>
 
           <div className="mt-6">
-            <SectionTitle>Tracked subscriptions</SectionTitle>
-            {data.subscriptions.length === 0 && <p className="text-[0.85rem] text-faint">None registered.</p>}
+            <div className="mb-2.5 flex items-baseline justify-between">
+              <SectionTitle>Subscriptions &amp; recurring</SectionTitle>
+              {data.detectedSubscriptions.length > 0 && (
+                <span className="font-money text-[0.75rem] text-faint">
+                  {money(data.subscriptionsAnnual)}/yr
+                </span>
+              )}
+            </div>
+
+            {data.detectedSubscriptions.length === 0 && data.subscriptions.length === 0 && (
+              <p className="text-[0.85rem] text-faint">
+                No recurring charges detected yet — they surface once a merchant repeats.
+              </p>
+            )}
+
+            {/* Everything the engine found, not just what was registered by hand. */}
+            {data.detectedSubscriptions.map((s) => (
+              <div
+                key={`${s.merchant}-${s.cadence}`}
+                className="flex justify-between border-b border-rule py-1.5 text-[0.85rem] last:border-b-0"
+              >
+                <span>
+                  {titleCase(s.merchant)}{" "}
+                  <span className="text-[0.72rem] text-faint">
+                    {s.cadence.toLowerCase()} · {s.occurrences}×{s.tracked ? " · registered" : ""}
+                  </span>
+                </span>
+                {s.priceIncreased ? (
+                  <span className="font-money font-semibold tabular text-neg">
+                    {money(s.lastAmount)} · raised from {money(s.averageAmount)}
+                  </span>
+                ) : (
+                  <span className="font-money tabular">{money(s.averageAmount)}</span>
+                )}
+              </div>
+            ))}
+
             {data.subscriptions.map((s) => (
               <div key={s.id} className="flex justify-between border-b border-rule py-1.5 text-[0.85rem] last:border-b-0">
                 <span>

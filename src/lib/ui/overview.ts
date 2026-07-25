@@ -8,6 +8,12 @@ import type {
 import { prisma } from "../prisma";
 import { getProviderHealth } from "../health/health";
 import { getSubscriptionStatuses } from "../health/subscriptions";
+import {
+  annualisedTotal,
+  mergeDetectedSubscriptions,
+  type DetectedCharge,
+  type DetectedSubscription,
+} from "../health/detectedSubscriptions";
 import type { ProviderHealth, SubscriptionStatus } from "../health/types";
 import { granularityOfKey } from "../insights/periods";
 import { money, pct, shortDate, titleCase } from "./format";
@@ -44,6 +50,10 @@ export interface OverviewData {
   donut: { slices: DonutSlice[]; total: number } | null;
   signals: Signal[];
   subscriptions: SubscriptionStatus[];
+  /** Every recurring charge the engine found, deduped — not just registered ones. */
+  detectedSubscriptions: DetectedSubscription[];
+  /** What the detected set costs per year. */
+  subscriptionsAnnual: number;
   health: ProviderHealth[];
   lastSyncAt: Date | null;
   /**
@@ -80,10 +90,27 @@ async function monthlyInsights<T>(type: string): Promise<{ period: string; paylo
     .map((r) => ({ period: r.period, payload: r.payload as T, dismissed: r.dismissed }));
 }
 
+/**
+ * Recurring charges from the most recent period that has any, deduped and
+ * flagged against what's registered. Independent of the net-worth period so
+ * the list survives months where net worth can't be computed.
+ */
+async function detectedSubscriptions(): Promise<DetectedSubscription[]> {
+  const rows = await monthlyInsights<DetectedCharge>("RECURRING_CHARGE");
+  if (rows.length === 0) return [];
+  const newest = rows[0].period;
+  const tracked = await prisma.trackedSubscription.findMany({ select: { name: true } });
+  return mergeDetectedSubscriptions(
+    rows.filter((r) => r.period === newest).map((r) => r.payload),
+    tracked.map((t) => t.name),
+  );
+}
+
 export async function getOverviewData(): Promise<OverviewData> {
   const netWorthAll = await monthlyInsights<NetWorthGrowthPayload>("NET_WORTH_GROWTH");
   const latest = netWorthAll[0] ?? null;
   const period = latest?.period ?? null;
+  const detected = await detectedSubscriptions();
 
   const uncategorizedCount = await prisma.transaction.count({
     where: { categoryId: null, flow: { not: "TRANSFER" }, reimbursesId: null },
@@ -120,6 +147,8 @@ export async function getOverviewData(): Promise<OverviewData> {
       donut: null,
       signals: [],
       subscriptions: await getSubscriptionStatuses(prisma),
+      detectedSubscriptions: detected,
+      subscriptionsAnnual: annualisedTotal(detected),
       health: await getProviderHealth(prisma),
       lastSyncAt: null,
       uncategorizedCount,
@@ -210,6 +239,8 @@ export async function getOverviewData(): Promise<OverviewData> {
     donut,
     signals,
     subscriptions: await getSubscriptionStatuses(prisma),
+    detectedSubscriptions: detected,
+    subscriptionsAnnual: annualisedTotal(detected),
     health: await getProviderHealth(prisma),
     lastSyncAt: lastOk?.finishedAt ?? null,
     uncategorizedCount,

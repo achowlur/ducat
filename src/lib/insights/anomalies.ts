@@ -101,12 +101,19 @@ export function detectCategoryTotalAnomalies(
   for (const [categoryId, { name, byPeriod }] of totals) {
     const current = byPeriod.get(period) ?? 0;
     if (current < options.minAmount) continue;
-    // Prior periods with no spending in this category count as 0.
-    const history = priorPeriods.map((p) => byPeriod.get(p) ?? 0);
-    if (history.length < options.minHistory - 1) continue;
 
-    const z = robustZ(current, history);
-    const typical = median(history);
+    // Baseline only from periods where the category actually saw spending.
+    // Counting empty periods as 0 makes the median 0 for anything that doesn't
+    // appear in most months — including any category whose data starts partway
+    // through history (a newly connected account, a CSV backfill that reaches
+    // further for some accounts than others). Everything then reads as an
+    // infinite anomaly "vs $0 in a typical month", and the most predictable
+    // expense there is — rent — gets flagged every single month.
+    const active = priorPeriods.map((p) => byPeriod.get(p) ?? 0).filter((v) => v > 0);
+    if (active.length < options.minHistory - 1) continue;
+
+    const z = robustZ(current, active);
+    const typical = median(active);
     if (z < options.zThreshold || current < typical * 1.5) continue;
 
     anomalies.push({

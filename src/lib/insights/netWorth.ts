@@ -9,18 +9,30 @@ import type { AccountData, SnapshotData, TxnData } from './types';
  * Preferred source: the latest BalanceSnapshot at or before `at`, rolled
  * forward with the account's transactions between the snapshot and `at`.
  * Fallback: reconstruct from the account's current balance/balanceDate by
- * removing (or adding) transactions between `at` and balanceDate. The fallback
- * is flagged `estimated` — for INVESTMENT accounts it misses market moves.
+ * removing (or adding) transactions between `at` and balanceDate, flagged
+ * `estimated`.
+ *
+ * `known: false` means the balance is NOT recoverable and callers must not
+ * substitute a number. That happens for an INVESTMENT account with no snapshot
+ * at or before `at`: a brokerage's value moves with the market, and market
+ * moves are not transactions, so rolling today's balance back through trades
+ * (every "YOU BOUGHT" is cash leaving with no offsetting entry for what it
+ * bought) yields a figure with no relationship to what the account was worth.
  */
 export function balanceAt(
   account: AccountData,
   snapshots: SnapshotData[],
   txns: TxnData[],
   at: Date,
-): { balance: number; estimated: boolean } {
+): { balance: number; estimated: boolean; known: boolean } {
   const own = snapshots
     .filter((s) => s.accountId === account.id && s.date.getTime() <= at.getTime())
     .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  if (own.length === 0 && account.type === 'INVESTMENT') {
+    return { balance: 0, estimated: true, known: false };
+  }
+
   const anchor = own.length > 0
     ? { balance: own[own.length - 1].balance, date: own[own.length - 1].date, estimated: false }
     : { balance: account.balance, date: account.balanceDate, estimated: true };
@@ -35,7 +47,7 @@ export function balanceAt(
     if (ts <= lo || ts > hi) continue;
     balance += forward ? t.amount : -t.amount;
   }
-  return { balance, estimated: anchor.estimated };
+  return { balance, estimated: anchor.estimated, known: true };
 }
 
 export function computeNetWorthGrowth(
@@ -45,7 +57,13 @@ export function computeNetWorthGrowth(
   periods: string[],
   granularity: PeriodGranularity,
 ): Map<string, NetWorthGrowthPayload> {
-  const netWorthAt = (key: string): { total: number; invTotal: number; byType: Partial<Record<AccountType, number>>; estimated: string[] } => {
+  /**
+   * Null when any account's balance is unrecoverable for the period. A net
+   * worth missing an account is not a smaller net worth, it's a wrong one —
+   * better to report nothing for that period than a confident fiction. In
+   * practice this means history begins where balance snapshots begin.
+   */
+  const netWorthAt = (key: string): { total: number; invTotal: number; byType: Partial<Record<AccountType, number>>; estimated: string[] } | null => {
     // "End of period" = last instant before the next period starts.
     const at = new Date(periodEndExclusive(key).getTime() - 1);
     let total = 0;
@@ -53,7 +71,8 @@ export function computeNetWorthGrowth(
     const byType: Partial<Record<AccountType, number>> = {};
     const estimated: string[] = [];
     for (const account of accounts) {
-      const { balance, estimated: isEstimated } = balanceAt(account, snapshots, txns, at);
+      const { balance, estimated: isEstimated, known } = balanceAt(account, snapshots, txns, at);
+      if (!known) return null;
       total += balance;
       if (account.type === 'INVESTMENT') invTotal += balance;
       byType[account.type] = round2((byType[account.type] ?? 0) + balance);
@@ -76,6 +95,7 @@ export function computeNetWorthGrowth(
   const result = new Map<string, NetWorthGrowthPayload>();
   for (const key of periods) {
     const current = netWorthAt(key);
+    if (current === null) continue;
     const prevKey = previousPeriodKey(key);
     // Only compare when the previous period is also in scope; otherwise we'd
     // report growth against a period with no data behind it.
