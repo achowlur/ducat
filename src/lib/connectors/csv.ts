@@ -20,6 +20,16 @@ export interface CsvAccountDescriptor {
   institution: string;
   type: AccountType;
   currency?: string;
+  /**
+   * Ignore rows dated on or after this date (exclusive cut-off).
+   *
+   * Transaction dedupe is (accountId, externalId), and a CSV row's id is a
+   * content hash while an aggregator's is the feed's own id — so the SAME
+   * real transaction arriving from both sources does NOT dedupe. When
+   * backfilling history into an account a live feed already covers, cut the
+   * import at the date the feed's coverage begins.
+   */
+  until?: Date;
 }
 
 function parseDate(raw: string, format: 'MDY' | 'YMD'): Date | null {
@@ -113,11 +123,15 @@ export class CsvConnector implements Connector {
   }
 
   listAccounts(): Promise<NormalizedAccount[]> {
-    const withBalance = this.rows
+    const until = this.account.until?.getTime() ?? Infinity;
+    const rows = this.rows.filter((r) => r.date.getTime() < until);
+    const withBalance = rows
       .filter((r) => r.balance !== null)
       .sort((a, b) => a.date.getTime() - b.date.getTime());
-    const latest = withBalance[withBalance.length - 1];
-    const balanceDate = this.rows.reduce(
+    // A capped import is a historical backfill: the rows stop before today, so
+    // this file's last balance is NOT the current one. Never present it as such.
+    const latest = this.account.until === undefined ? withBalance[withBalance.length - 1] : undefined;
+    const balanceDate = rows.reduce(
       (max, r) => (r.date.getTime() > max.getTime() ? r.date : max),
       new Date(0),
     );
@@ -138,9 +152,10 @@ export class CsvConnector implements Connector {
   }
 
   fetchTransactions(since: Date): Promise<NormalizedTransaction[]> {
+    const until = this.account.until?.getTime() ?? Infinity;
     return Promise.resolve(
       this.rows
-        .filter((r) => r.date.getTime() >= since.getTime())
+        .filter((r) => r.date.getTime() >= since.getTime() && r.date.getTime() < until)
         .map((r) => ({
           accountExternalId: this.account.externalId,
           externalId: r.externalId,

@@ -103,9 +103,15 @@ async function runPipeline(
   const accountIdByExternalId = new Map<string, string>();
 
   for (const a of normalizedAccounts) {
-    const existing = await prisma.account.findFirst({
-      where: { externalId: a.externalId, connectorType: connector.type },
-    });
+    // Prefer an account this connector already owns. The externalId-only
+    // fallback is what lets a CSV backfill land IN an existing account (pass
+    // that account's externalId to the importer) instead of creating a second
+    // copy of the same real-world account — externalIds are connector-issued
+    // ids or user-chosen slugs, so a cross-connector match is deliberate.
+    const existing =
+      (await prisma.account.findFirst({
+        where: { externalId: a.externalId, connectorType: connector.type },
+      })) ?? (await prisma.account.findFirst({ where: { externalId: a.externalId } }));
     let id: string;
     if (existing === null) {
       const created = await prisma.account.create({
@@ -126,15 +132,19 @@ async function runPipeline(
     } else {
       // type intentionally not updated: inference only guesses at creation;
       // a manual correction must survive re-syncs.
+      //
+      // Two things weaker data must never clobber:
+      //  - identity, when writing into an account another connector owns (a
+      //    CSV backfill shouldn't rename the live account it's filling in);
+      //  - the balance, when the feed has none. A CSV export without a
+      //    running-balance column reports 0/isStale, which would otherwise
+      //    overwrite a good balance with zero and wreck net worth.
+      const foreign = existing.connectorType !== connector.type;
       await prisma.account.update({
         where: { id: existing.id },
         data: {
-          institution: a.institution,
-          name: a.name,
-          currency: a.currency,
-          balance: a.balance,
-          balanceDate: a.balanceDate,
-          isStale: a.isStale,
+          ...(foreign ? {} : { institution: a.institution, name: a.name, currency: a.currency }),
+          ...(a.isStale ? {} : { balance: a.balance, balanceDate: a.balanceDate, isStale: false }),
         },
       });
       id = existing.id;

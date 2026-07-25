@@ -227,4 +227,43 @@ describe('runSync integration', () => {
     expect(out.flow).toBe('TRANSFER');
     expect(result.transfersLinked).toBe(0);
   });
+
+  // A CSV backfill targets an account a live connector already owns (same
+  // externalId, different connectorType). It must fill in history WITHOUT
+  // forking a second copy of the account or overwriting the live balance —
+  // a no-balance-column export reports 0/isStale, which would zero net worth.
+  it('backfills a CSV import into an existing account without clobbering it', async () => {
+    class CsvBackfill implements Connector {
+      readonly type = 'CSV';
+      listAccounts(): Promise<NormalizedAccount[]> {
+        return Promise.resolve([
+          {
+            externalId: 'ext-checking', connectorType: 'CSV', institution: 'Typo Bank',
+            name: 'Renamed By Import', type: 'DEPOSITORY', currency: 'USD',
+            balance: 0, balanceDate: utc(2026, 1, 31), isStale: true,
+          },
+        ]);
+      }
+      fetchTransactions(): Promise<NormalizedTransaction[]> {
+        return Promise.resolve([
+          { ...txn('ext-checking', 'csv-old-1', utc(2026, 2, 3), -42, 'old coffee'), source: 'CSV' },
+        ]);
+      }
+    }
+
+    const before = await prisma.account.findFirstOrThrow({ where: { externalId: 'ext-checking' } });
+    const result = await runSync(prisma, new CsvBackfill(), { since: new Date(0) });
+
+    expect(result.accountsCreated).toBe(0); // merged, not duplicated
+    expect(await prisma.account.count({ where: { externalId: 'ext-checking' } })).toBe(1);
+
+    const after = await prisma.account.findFirstOrThrow({ where: { externalId: 'ext-checking' } });
+    expect(Number(after.balance)).toBe(Number(before.balance)); // live balance survives
+    expect(after.name).toBe(before.name); // identity not renamed by the import
+    expect(after.institution).toBe(before.institution);
+    expect(after.connectorType).toBe('SIMPLEFIN'); // still owned by the live feed
+
+    const backfilled = await prisma.transaction.findFirstOrThrow({ where: { externalId: 'csv-old-1' } });
+    expect(backfilled.accountId).toBe(before.id); // history landed in the same account
+  });
 });

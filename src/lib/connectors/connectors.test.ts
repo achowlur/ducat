@@ -66,6 +66,29 @@ describe('CsvConnector: Chase checking', () => {
     expect(first[0].externalId).not.toBe(first[1].externalId); // two coffees stay distinct
     expect(first.map((t) => t.externalId)).toEqual(second.map((t) => t.externalId)); // re-parse identical
   });
+
+  // Backfilling behind a live feed: a CSV row's id is a content hash and the
+  // feed's is its own id, so overlapping rows would NOT dedupe — the cap is
+  // what keeps them from double-counting.
+  describe('until cap', () => {
+    const capped = () =>
+      new CsvConnector(csv, CSV_MAPPINGS['chase-checking'], {
+        ...account,
+        until: new Date(Date.UTC(2026, 6, 5)), // 2026-07-05
+      });
+
+    it('drops rows on or after the cut-off', async () => {
+      const txns = await capped().fetchTransactions(new Date(0));
+      expect(txns).toHaveLength(1);
+      expect(txns[0].date.toISOString().slice(0, 10)).toBe('2026-07-01'); // Jul 8 excluded
+    });
+
+    it('never reports a current balance for a capped (historical) import', async () => {
+      const [acct] = await capped().listAccounts();
+      expect(acct.isStale).toBe(true); // so sync leaves the live balance alone
+      expect(acct.balance).toBe(0);
+    });
+  });
 });
 
 describe('CsvConnector: Wells Fargo (headerless)', () => {
