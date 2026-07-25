@@ -37,7 +37,9 @@ export interface PackRule {
   matchField: "MERCHANT" | "DESCRIPTION";
   matchOperator: "CONTAINS" | "REGEX";
   matchValue: string;
-  category: (typeof PACK_CATEGORIES)[number];
+  /** null for flow-only rules — a TRANSFER carries no category by convention. */
+  category: (typeof PACK_CATEGORIES)[number] | null;
+  setFlow?: "TRANSFER";
 }
 
 const contains = (
@@ -53,7 +55,35 @@ const regex = (
   matchField: PackRule["matchField"] = "MERCHANT",
 ): PackRule => ({ priority, matchField, matchOperator: "REGEX", matchValue, category });
 
+/**
+ * Flow-only rules: mark a payee as TRANSFER so it's excluded from spending
+ * analytics entirely (HARD RULE). Deliberately conservative — a false positive
+ * here HIDES real spending, which is worse than mis-categorizing it, so this
+ * band covers only movements that are value-neutral by definition. Anything
+ * institution-specific (a brokerage's ACH descriptor, say) is left for the user
+ * to mark via the grouped review, which writes a user-priority rule.
+ */
+const transferFlow = (
+  priority: number,
+  matchField: PackRule["matchField"],
+  ...values: string[]
+): PackRule[] =>
+  values.map((matchValue) => ({
+    priority,
+    matchField,
+    matchOperator: "CONTAINS" as const,
+    matchValue,
+    category: null,
+    setFlow: "TRANSFER" as const,
+  }));
+
 export const PACK_RULES: PackRule[] = [
+  // --- Value-neutral movements: cash changing form, never spending.
+  // A dividend/interest reinvestment buys shares INSIDE one account, so there
+  // is no second account for transfer-pair detection to match against — it can
+  // only ever be caught by classification, not pairing.
+  ...transferFlow(200, "DESCRIPTION", "reinvestment"),
+
   // --- Brands: order-sensitive pairs first (more specific = lower number)
   ...contains(500, "Dining", "uber eats", "ubereats", "doordash", "grubhub", "postmates"),
   ...contains(510, "Transport", "uber", "lyft"),
@@ -120,7 +150,7 @@ export async function installRulePack(prisma: PrismaClient): Promise<InstallResu
   let rulesCreated = 0;
   let rulesSkipped = 0;
   for (const rule of PACK_RULES) {
-    const setCategoryId = categoryIds.get(rule.category) as string;
+    const setCategoryId = rule.category === null ? null : (categoryIds.get(rule.category) as string);
     const existing = await prisma.rule.findFirst({
       where: {
         matchField: rule.matchField,
@@ -139,6 +169,7 @@ export async function installRulePack(prisma: PrismaClient): Promise<InstallResu
         matchOperator: rule.matchOperator,
         matchValue: rule.matchValue,
         setCategoryId,
+        setFlow: rule.setFlow ?? null,
         enabled: true,
       },
     });

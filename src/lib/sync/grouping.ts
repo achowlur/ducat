@@ -14,6 +14,13 @@ import { P2P_PATTERN } from './rules';
  *    transfer", but "ZELLE TO LENA" and "ZELLE TO HOLLIS AMARI" are different
  *    people who deserve different categories. Those rules match DESCRIPTION.
  */
+/**
+ * Sentinel used by the bulk-review UI in place of a category id, meaning
+ * "this payee is a TRANSFER" (excluded from spending, carries no category).
+ * Category ids are cuids, so this can never collide with one.
+ */
+export const TRANSFER_TARGET = "__transfer__";
+
 export interface GroupTxn {
   id: string;
   amount: number;

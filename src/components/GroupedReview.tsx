@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { categorizeGroup } from "../app/transactions/actions";
+import { TRANSFER_TARGET } from "../lib/sync/grouping";
 import type { CategoryOption } from "./CategoryCell";
 
 export interface PayeeGroupView {
@@ -84,6 +85,9 @@ function GroupRow({ group, categories }: { group: PayeeGroupView; categories: Ca
                 {c.name}
               </option>
             ))}
+          </optgroup>
+          <optgroup label="Not spending">
+            <option value={TRANSFER_TARGET}>Transfer — exclude</option>
           </optgroup>
         </select>
       </td>

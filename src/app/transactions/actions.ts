@@ -5,6 +5,7 @@ import { prisma } from "../../lib/prisma";
 import { generateInsights } from "../../lib/insights/engine";
 import { reapplyRules } from "../../lib/sync/rulePack";
 import { requireSession } from "../../lib/auth/requireSession";
+import { TRANSFER_TARGET } from "../../lib/sync/grouping";
 
 /**
  * Manually assign (or clear) a transaction's category. Manual assignments
@@ -36,7 +37,8 @@ export async function setTransactionCategory(
 async function upsertRule(
   matchValue: string,
   matchField: "MERCHANT" | "DESCRIPTION",
-  categoryId: string,
+  categoryId: string | null,
+  setFlow: "TRANSFER" | null = null,
 ): Promise<number> {
   const existing = await prisma.rule.findFirst({
     where: { matchField, matchOperator: "CONTAINS", matchValue },
@@ -49,11 +51,15 @@ async function upsertRule(
         matchOperator: "CONTAINS",
         matchValue,
         setCategoryId: categoryId,
+        setFlow,
         enabled: true,
       },
     });
   } else {
-    await prisma.rule.update({ where: { id: existing.id }, data: { setCategoryId: categoryId, enabled: true } });
+    await prisma.rule.update({
+      where: { id: existing.id },
+      data: { setCategoryId: categoryId, setFlow, enabled: true },
+    });
   }
 
   const recategorized = await reapplyRules(prisma);
@@ -87,13 +93,16 @@ export async function createRuleFromMerchant(
 export async function categorizeGroup(
   matchValue: string,
   matchField: "MERCHANT" | "DESCRIPTION",
-  categoryId: string,
+  /** A category id, or TRANSFER_TARGET to mark the payee as a transfer. */
+  target: string,
 ): Promise<{ recategorized: number }> {
   await requireSession();
   const value = matchValue.trim().toLowerCase();
   if (value === "") throw new Error("Payee is empty — categorize these transactions individually instead.");
-  if (categoryId === "") throw new Error("Pick a category first.");
-  return { recategorized: await upsertRule(value, matchField, categoryId) };
+  if (target === "") throw new Error("Pick a category first.");
+  return target === TRANSFER_TARGET
+    ? { recategorized: await upsertRule(value, matchField, null, "TRANSFER") }
+    : { recategorized: await upsertRule(value, matchField, target) };
 }
 
 /**

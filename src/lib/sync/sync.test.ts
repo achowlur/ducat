@@ -52,6 +52,14 @@ describe('applyRules', () => {
     const r = rule({ setFlow: 'TRANSFER' });
     expect(applyRules([r], [txn({})])[0].flow).toBe('TRANSFER');
   });
+
+  // Same-account movements (a dividend reinvestment) have no counterparty for
+  // transfer-pair detection to find, so classification is the only thing that
+  // can keep them out of spending — and they carry no category by convention.
+  it('supports flow-only rules that set no category', () => {
+    const r = rule({ setCategoryId: null, setFlow: 'TRANSFER' });
+    expect(applyRules([r], [txn({})])[0]).toMatchObject({ categoryId: null, flow: 'TRANSFER' });
+  });
 });
 
 describe('detectTransferPairs', () => {

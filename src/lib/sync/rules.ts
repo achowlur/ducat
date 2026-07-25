@@ -19,7 +19,8 @@ export interface RuleData {
   matchField: 'MERCHANT' | 'DESCRIPTION' | 'AMOUNT' | 'ACCOUNT';
   matchOperator: 'CONTAINS' | 'EQUALS' | 'REGEX' | 'GT' | 'LT';
   matchValue: string;
-  setCategoryId: string;
+  /** null = flow-only rule (e.g. "this payee is a TRANSFER", which carries no category). */
+  setCategoryId: string | null;
   setFlow: TransactionFlow | null;
   enabled: boolean;
 }
@@ -36,7 +37,7 @@ export interface RuleTxn {
 export interface RuleApplication {
   txnId: string;
   ruleId: string;
-  categoryId: string;
+  categoryId: string | null;
   flow: TransactionFlow | null;
 }
 

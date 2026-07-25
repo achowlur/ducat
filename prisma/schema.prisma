@@ -120,8 +120,10 @@ model Rule {
   matchField     RuleMatchField
   matchOperator  RuleMatchOperator
   matchValue     String
-  setCategoryId  String
-  setCategory    Category          @relation(fields: [setCategoryId], references: [id])
+  // Optional: a rule may set flow only (e.g. "this payee is a TRANSFER"),
+  // which by convention carries no category.
+  setCategoryId  String?
+  setCategory    Category?         @relation(fields: [setCategoryId], references: [id])
   setFlow        TransactionFlow?
   enabled        Boolean
 }
