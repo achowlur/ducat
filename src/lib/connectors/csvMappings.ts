@@ -16,6 +16,13 @@ export interface CsvMapping {
   description: (string | number)[];
   /** Column used for the normalized merchant; falls back to description. */
   merchant?: string | number;
+  /**
+   * Set when one file can hold several accounts (Fidelity exports all accounts
+   * together). The importer resolves each distinct value in this column to a
+   * target account; rows it can't resolve are skipped and reported rather than
+   * silently filed under the wrong account.
+   */
+  account?: string | number;
   /** Running-balance column; the latest row's value becomes the account balance. */
   balance?: string | number;
   dateFormat: 'MDY' | 'YMD';
@@ -73,6 +80,10 @@ export const CSV_MAPPINGS: Record<string, CsvMapping> = {
     amount: 'Amount ($)',
     description: ['Action', 'Symbol', 'Description'],
     merchant: 'Symbol',
+    // Fidelity can export every account into one file. Only used when the
+    // importer is asked to resolve accounts per row (no --external-id given);
+    // override with --account-column if your export names it differently.
+    account: 'Account Number',
     dateFormat: 'MDY',
     skipUnparseable: true, // Fidelity files end with disclaimer text rows
     transferPatterns: [

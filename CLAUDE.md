@@ -67,6 +67,14 @@ shape.
   for a column that exists).
 - `npm run db:seed` wipes insights; re-run `npm run insights:generate`
   afterwards or pages show "no data".
+- CSV backfill (`npm run import:csv`): pass an existing account's `--external-id`
+  to backfill INTO it (account lookup falls back to externalId across connector
+  types) and `--until=YYYY-MM-DD` to stop at a live feed's coverage start —
+  CSV ids are content hashes and feed ids are the feed's own, so overlapping
+  rows do NOT dedupe. A mapping with an `account` column (Fidelity) routes rows
+  per-account when NO `--external-id` is given; routing is driven by whether the
+  caller passes a resolver, so per-account files still work under that mapping.
+  Unroutable rows are skipped and reported, never guessed.
 - Data coverage (`src/lib/insights/coverage.ts`): accounts have different
   history depths (a 90-day feed vs an 18-month CSV vs 5 years of brokerage
   history), so periods before an account's first transaction are UNDERSTATED,

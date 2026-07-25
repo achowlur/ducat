@@ -32,6 +32,14 @@ export interface CsvAccountDescriptor {
   until?: Date;
 }
 
+/**
+ * Maps a raw account value from a multi-account file to the account it belongs
+ * to. Returning null skips the row (reported via `unresolvedAccounts`), which
+ * is the safe default — filing a transaction under the wrong account silently
+ * corrupts both accounts' history.
+ */
+export type CsvAccountResolver = (rawAccount: string) => CsvAccountDescriptor | null;
+
 function parseDate(raw: string, format: 'MDY' | 'YMD'): Date | null {
   const cleaned = raw.trim();
   const parts = format === 'MDY'
@@ -57,11 +65,23 @@ function parseAmount(raw: string): number | null {
 export class CsvConnector implements Connector {
   readonly type = 'CSV';
 
-  private readonly rows: { date: Date; amount: number; description: string; merchant: string; flow: TransactionFlow; balance: number | null; externalId: string }[];
-  private readonly account: CsvAccountDescriptor;
+  private readonly rows: { date: Date; amount: number; description: string; merchant: string; flow: TransactionFlow; balance: number | null; externalId: string; account: CsvAccountDescriptor }[];
+  /** Accounts actually seen in the file, in first-seen order. */
+  private readonly accounts: CsvAccountDescriptor[] = [];
+  /** Raw account values the resolver rejected, and how many rows each cost. */
+  readonly unresolvedAccounts = new Map<string, number>();
 
-  constructor(content: string, mapping: CsvMapping, account: CsvAccountDescriptor) {
-    this.account = account;
+  constructor(
+    content: string,
+    mapping: CsvMapping,
+    account: CsvAccountDescriptor | CsvAccountResolver,
+  ) {
+    // Routing is driven by the caller's intent, not by the mapping: a resolver
+    // means "this file may hold several accounts". Given a plain descriptor,
+    // every row belongs to it and the account column is irrelevant — so a
+    // per-account export still imports fine under a multi-account mapping.
+    const routing = typeof account === 'function';
+    const resolve: CsvAccountResolver = routing ? account : () => account;
     const parsed = parseCsv(content);
     if (parsed.length === 0) throw new Error('CSV file is empty');
 
@@ -86,6 +106,16 @@ export class CsvConnector implements Connector {
       return idx === -1 ? '' : (row[idx] ?? '');
     };
 
+    // A missing account column would silently resolve every row to '' and file
+    // the whole file under one account — fail loudly instead.
+    if (routing && mapping.account !== undefined && typeof mapping.account === 'string') {
+      if (header === null || !header.includes(mapping.account.toLowerCase())) {
+        throw new Error(
+          `CSV is missing the account column "${mapping.account}". Columns found: ${(header ?? []).join(', ')}`,
+        );
+      }
+    }
+
     // externalId: banks put no IDs in CSVs, so derive a deterministic one
     // from (date, amount, description) plus an occurrence counter, making
     // re-imports of overlapping files dedupe while genuine same-day
@@ -100,6 +130,15 @@ export class CsvConnector implements Connector {
         if (mapping.skipUnparseable === true) continue;
         throw new Error(`Unparseable CSV row (date/amount): ${JSON.stringify(row)}`);
       }
+
+      const rawAccount =
+        routing && mapping.account !== undefined ? col(row, mapping.account).trim() : '';
+      const target = resolve(rawAccount);
+      if (target === null) {
+        this.unresolvedAccounts.set(rawAccount, (this.unresolvedAccounts.get(rawAccount) ?? 0) + 1);
+        continue;
+      }
+      if (!this.accounts.some((a) => a.externalId === target.externalId)) this.accounts.push(target);
       const signed = mapping.invertAmount === true ? -amount : amount;
       const description = mapping.description
         .map((s) => col(row, s).trim())
@@ -114,50 +153,61 @@ export class CsvConnector implements Connector {
       const balanceRaw = mapping.balance === undefined ? null : parseAmount(col(row, mapping.balance));
 
       const fingerprint = `${date.toISOString().slice(0, 10)}|${signed.toFixed(2)}|${description}`;
-      const nth = (occurrences.get(fingerprint) ?? 0) + 1;
-      occurrences.set(fingerprint, nth);
+      // Counter is scoped per account so a transaction's id is the same whether
+      // it arrived in a combined export or a single-account one. The hash input
+      // stays account-free (ids may collide across accounts, which is harmless:
+      // dedupe is (accountId, externalId)).
+      const counterKey = `${target.externalId}|${fingerprint}`;
+      const nth = (occurrences.get(counterKey) ?? 0) + 1;
+      occurrences.set(counterKey, nth);
       const externalId = `csv-${createHash('sha256').update(`${fingerprint}|${nth}`).digest('hex').slice(0, 24)}`;
 
-      this.rows.push({ date, amount: signed, description, merchant, flow, balance: balanceRaw, externalId });
+      this.rows.push({ date, amount: signed, description, merchant, flow, balance: balanceRaw, externalId, account: target });
     }
   }
 
   listAccounts(): Promise<NormalizedAccount[]> {
-    const until = this.account.until?.getTime() ?? Infinity;
-    const rows = this.rows.filter((r) => r.date.getTime() < until);
-    const withBalance = rows
-      .filter((r) => r.balance !== null)
-      .sort((a, b) => a.date.getTime() - b.date.getTime());
-    // A capped import is a historical backfill: the rows stop before today, so
-    // this file's last balance is NOT the current one. Never present it as such.
-    const latest = this.account.until === undefined ? withBalance[withBalance.length - 1] : undefined;
-    const balanceDate = rows.reduce(
-      (max, r) => (r.date.getTime() > max.getTime() ? r.date : max),
-      new Date(0),
+    return Promise.resolve(
+      this.accounts.map((account) => {
+        const until = account.until?.getTime() ?? Infinity;
+        const rows = this.rows.filter(
+          (r) => r.account.externalId === account.externalId && r.date.getTime() < until,
+        );
+        const withBalance = rows
+          .filter((r) => r.balance !== null)
+          .sort((a, b) => a.date.getTime() - b.date.getTime());
+        // A capped import is a historical backfill: the rows stop before today,
+        // so this file's last balance is NOT the current one. Never say it is.
+        const latest = account.until === undefined ? withBalance[withBalance.length - 1] : undefined;
+        const balanceDate = rows.reduce(
+          (max, r) => (r.date.getTime() > max.getTime() ? r.date : max),
+          new Date(0),
+        );
+        return {
+          externalId: account.externalId,
+          connectorType: this.type,
+          institution: account.institution,
+          name: account.name,
+          type: account.type,
+          currency: account.currency ?? 'USD',
+          balance: latest === undefined ? 0 : (latest.balance as number),
+          balanceDate,
+          // Without a running-balance column the true balance is unknown.
+          isStale: latest === undefined,
+        };
+      }),
     );
-    return Promise.resolve([
-      {
-        externalId: this.account.externalId,
-        connectorType: this.type,
-        institution: this.account.institution,
-        name: this.account.name,
-        type: this.account.type,
-        currency: this.account.currency ?? 'USD',
-        balance: latest === undefined ? 0 : (latest.balance as number),
-        balanceDate,
-        // Without a running-balance column the true balance is unknown.
-        isStale: latest === undefined,
-      },
-    ]);
   }
 
   fetchTransactions(since: Date): Promise<NormalizedTransaction[]> {
-    const until = this.account.until?.getTime() ?? Infinity;
     return Promise.resolve(
       this.rows
-        .filter((r) => r.date.getTime() >= since.getTime() && r.date.getTime() < until)
+        .filter((r) => {
+          const until = r.account.until?.getTime() ?? Infinity;
+          return r.date.getTime() >= since.getTime() && r.date.getTime() < until;
+        })
         .map((r) => ({
-          accountExternalId: this.account.externalId,
+          accountExternalId: r.account.externalId,
           externalId: r.externalId,
           date: r.date,
           amount: r.amount,

@@ -91,6 +91,51 @@ describe('CsvConnector: Chase checking', () => {
   });
 });
 
+// Fidelity exports every account into one file, so rows must be routed rather
+// than all filed under a single account.
+describe('CsvConnector: multi-account file', () => {
+  const mapping = { ...CSV_MAPPINGS['chase-checking'], account: 'Account' };
+  const csv = [
+    'Account,Posting Date,Description,Amount,Balance',
+    'X1234-0001,07/08/2026,DIVIDEND,10.00,100.00',
+    'X9999-0006,07/09/2026,DIVIDEND,20.00,200.00',
+    'X0000-1111,07/10/2026,MYSTERY,30.00,300.00',
+  ].join('\n');
+
+  const desc = (externalId: string, name: string) => ({
+    externalId, name, institution: 'Fidelity', type: 'INVESTMENT' as const,
+  });
+  // Mirrors the importer: match on a shared digit tail, refuse otherwise.
+  const resolver = (raw: string) =>
+    raw.includes('0001') ? desc('acct-a', 'ROTH (0001)')
+    : raw.includes('0006') ? desc('acct-b', 'TOD (0006)')
+    : null;
+
+  it('routes each row to its own account', async () => {
+    const txns = await new CsvConnector(csv, mapping, resolver).fetchTransactions(new Date(0));
+    expect(txns).toHaveLength(2);
+    expect(txns.map((t) => t.accountExternalId)).toEqual(['acct-a', 'acct-b']);
+  });
+
+  it('lists every account the file actually contained', async () => {
+    const accounts = await new CsvConnector(csv, mapping, resolver).listAccounts();
+    expect(accounts.map((a) => a.externalId)).toEqual(['acct-a', 'acct-b']);
+    expect(accounts[0].balance).toBe(100); // per-account balance, not the file's last row
+  });
+
+  it('skips and reports unroutable rows instead of guessing an account', async () => {
+    const connector = new CsvConnector(csv, mapping, resolver);
+    expect(connector.unresolvedAccounts.get('X0000-1111')).toBe(1);
+    const txns = await connector.fetchTransactions(new Date(0));
+    expect(txns.some((t) => t.description.includes('MYSTERY'))).toBe(false);
+  });
+
+  it('fails loudly when the account column is missing rather than lumping rows together', () => {
+    const noAccountColumn = 'Posting Date,Description,Amount,Balance\n07/08/2026,X,1.00,2.00';
+    expect(() => new CsvConnector(noAccountColumn, mapping, resolver)).toThrow(/account column/i);
+  });
+});
+
 describe('CsvConnector: Wells Fargo (headerless)', () => {
   it('parses positional columns', async () => {
     const csv = '"07/10/2026","-45.00","*","","PURCHASE AUTHORIZED AT SHELL GAS 12345678"\n"07/09/2026","1200.00","*","","DIRECT DEPOSIT EMPLOYER"';

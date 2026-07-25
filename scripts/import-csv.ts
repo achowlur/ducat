@@ -1,17 +1,24 @@
 import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
-import { CsvConnector } from '../src/lib/connectors/csv';
+import { CsvConnector, type CsvAccountDescriptor, type CsvAccountResolver } from '../src/lib/connectors/csv';
 import { CSV_MAPPINGS } from '../src/lib/connectors/csvMappings';
 import { runSync } from '../src/lib/sync/sync';
 import { prisma } from '../src/lib/prisma';
 import type { AccountType } from '../src/types/contracts';
 
 /**
- * Usage:
+ * Usage (single account):
  *   npm run import:csv -- <file.csv> --mapping=<id> --name=<account name> \
  *     --type=DEPOSITORY|CREDIT|INVESTMENT|LOAN --institution=<bank> \
  *     [--external-id=<stable id>] [--currency=USD] [--until=YYYY-MM-DD]
+ *
+ * Usage (one file holding several accounts, e.g. a Fidelity combined export):
+ *   npm run import:csv -- <file.csv> --mapping=fidelity [--until=YYYY-MM-DD] \
+ *     [--account-column="Account Number"]
+ *   Omit --external-id and each row is routed to an EXISTING account by
+ *   matching the file's account number against known account names. Rows that
+ *   don't match any account are skipped and reported — never guessed at.
  *
  * Mappings: chase-checking | chase-credit | wells-fargo | fidelity
  *
@@ -31,31 +38,48 @@ function arg(name: string): string | undefined {
 
 const ACCOUNT_TYPES: AccountType[] = ['DEPOSITORY', 'CREDIT', 'INVESTMENT', 'LOAN'];
 
+/** Digit runs of 4+, used to match "…X12340001" against "Brokerage Individual (0001)". */
+function digitRuns(value: string): string[] {
+  return value.match(/\d{4,}/g) ?? [];
+}
+
+function findAccount<T extends { name: string; externalId: string }>(
+  raw: string,
+  candidates: T[],
+): T | null {
+  const needle = raw.trim().toLowerCase();
+  if (needle === '') return null;
+
+  const exact = candidates.find(
+    (c) => c.name.toLowerCase() === needle || c.externalId.toLowerCase() === needle,
+  );
+  if (exact !== undefined) return exact;
+
+  // Account numbers are usually masked differently on each side ("X12340001"
+  // vs "(0001)"), so match on a shared digit tail rather than equality.
+  const rawRuns = digitRuns(raw);
+  const matches = candidates.filter((c) =>
+    digitRuns(c.name).some((nameRun) =>
+      rawRuns.some((rawRun) => rawRun.endsWith(nameRun) || nameRun.endsWith(rawRun)),
+    ),
+  );
+  // Ambiguity means the digits aren't distinguishing — refuse rather than guess.
+  return matches.length === 1 ? matches[0] : null;
+}
+
 async function main(): Promise<void> {
   const file = process.argv[2];
   const mappingId = arg('mapping');
-  const name = arg('name');
-  const type = arg('type')?.toUpperCase() as AccountType | undefined;
-  const institution = arg('institution');
-
-  if (file === undefined || file.startsWith('--') || mappingId === undefined || name === undefined || type === undefined || institution === undefined) {
-    console.error('Usage: npm run import:csv -- <file.csv> --mapping=<id> --name=<name> --type=<type> --institution=<bank>');
+  if (file === undefined || file.startsWith('--') || mappingId === undefined) {
+    console.error('Usage: npm run import:csv -- <file.csv> --mapping=<id> [--name=... --type=... --institution=...]');
     console.error(`Mappings: ${Object.keys(CSV_MAPPINGS).join(' | ')}`);
-    console.error(`Types: ${ACCOUNT_TYPES.join(' | ')}`);
     process.exit(1);
   }
-  const mapping = CSV_MAPPINGS[mappingId];
-  if (mapping === undefined) {
+  const baseMapping = CSV_MAPPINGS[mappingId];
+  if (baseMapping === undefined) {
     console.error(`Unknown mapping "${mappingId}". Available: ${Object.keys(CSV_MAPPINGS).join(', ')}`);
     process.exit(1);
   }
-  if (!ACCOUNT_TYPES.includes(type)) {
-    console.error(`Unknown account type "${type}". Use: ${ACCOUNT_TYPES.join(', ')}`);
-    process.exit(1);
-  }
-
-  const externalId = arg('external-id')
-    ?? `${institution} ${name}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
   const untilArg = arg('until');
   const until = untilArg === undefined ? undefined : new Date(`${untilArg}T00:00:00Z`);
@@ -64,18 +88,86 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const connector = new CsvConnector(readFileSync(file, 'utf8'), mapping, {
-    externalId,
-    name,
-    institution,
-    type,
-    currency: arg('currency'),
-    until,
-  });
+  // Explicit --external-id means "this whole file is that one account", even
+  // for a mapping that supports multi-account files.
+  const explicitExternalId = arg('external-id');
+  const accountColumn = arg('account-column') ?? baseMapping.account;
+  const multiAccount = explicitExternalId === undefined && accountColumn !== undefined;
+  const mapping = multiAccount
+    ? { ...baseMapping, account: accountColumn }
+    : { ...baseMapping, account: undefined };
+
+  let account: CsvAccountDescriptor | CsvAccountResolver;
+  const resolved = new Map<string, string>();
+
+  if (multiAccount) {
+    const known = await prisma.account.findMany({
+      select: { externalId: true, name: true, institution: true, type: true, currency: true },
+    });
+    if (known.length === 0) {
+      console.error('Multi-account import needs existing accounts to route rows into.');
+      console.error('Sync a connector first, or import per-account with --external-id/--name/--type/--institution.');
+      process.exit(1);
+    }
+    const cache = new Map<string, CsvAccountDescriptor | null>();
+    account = (raw: string): CsvAccountDescriptor | null => {
+      const cached = cache.get(raw);
+      if (cached !== undefined) return cached;
+      const match = findAccount(raw, known);
+      const descriptor: CsvAccountDescriptor | null =
+        match === null
+          ? null
+          : {
+              externalId: match.externalId,
+              name: match.name,
+              institution: match.institution,
+              type: match.type as AccountType,
+              currency: match.currency,
+              until,
+            };
+      if (match !== null) resolved.set(raw, match.name);
+      cache.set(raw, descriptor);
+      return descriptor;
+    };
+  } else {
+    const name = arg('name');
+    const type = arg('type')?.toUpperCase() as AccountType | undefined;
+    const institution = arg('institution');
+    if (name === undefined || type === undefined || institution === undefined) {
+      console.error('Single-account import requires --name, --type and --institution.');
+      console.error(`Types: ${ACCOUNT_TYPES.join(' | ')}`);
+      process.exit(1);
+    }
+    if (!ACCOUNT_TYPES.includes(type)) {
+      console.error(`Unknown account type "${type}". Use: ${ACCOUNT_TYPES.join(', ')}`);
+      process.exit(1);
+    }
+    account = {
+      externalId:
+        explicitExternalId ?? `${institution} ${name}`.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      name,
+      institution,
+      type,
+      currency: arg('currency'),
+      until,
+    };
+  }
+
+  const connector = new CsvConnector(readFileSync(file, 'utf8'), mapping, account);
   // CSV files contain their full history; import all of it.
   const result = await runSync(prisma, connector, { since: new Date(0) });
 
-  console.log(`Imported ${basename(file)} (mapping: ${mapping.id}, account: ${externalId})`);
+  console.log(`Imported ${basename(file)} (mapping: ${mappingId})`);
+  if (multiAccount) {
+    console.log(`  Routed to ${resolved.size} account(s):`);
+    for (const [raw, name] of resolved) console.log(`    ${raw} → ${name}`);
+  }
+  if (connector.unresolvedAccounts.size > 0) {
+    console.log('  SKIPPED — no matching account (nothing was guessed):');
+    for (const [raw, count] of connector.unresolvedAccounts) {
+      console.log(`    ${raw === '' ? '(blank)' : raw}: ${count} row(s)`);
+    }
+  }
   if (until !== undefined) {
     console.log(`  Capped: rows on/after ${untilArg} skipped (backfill behind a live feed)`);
   }
