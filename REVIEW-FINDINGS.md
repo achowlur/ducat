@@ -14,27 +14,13 @@ deliberately NOT included.
 
 ## P2 — trust and data integrity
 
-8. **U+FFFD in account names.** "WELLS FARGO TRAVEL REWARDS VISA?? CARD ...0005" —
+8. **U+FFFD in account names.** (Only P2 item left. `paymentrec urring` merchant
+   drift, noted under the old #9, is still open under Shipping item 2 in
+   CLAUDE.md.) "WELLS FARGO TRAVEL REWARDS VISA?? CARD ...0005" —
    the ® was mis-decoded at import. Appears on Overview, the Transactions account
    filter, Accounts, and mid-sentence inside both coverage notices.
    FIX: strip `�` in connector account-name normalization; check the
    SimpleFIN response encoding at source, not just at display.
-
-9. **One Verizon subscription appears 3× on `/insights`, two of them dead.**
-   Overview applies the two-cadence-cycle recency filter and annualises correctly
-   ($5,039.25/yr); `/insights` doesn't apply it.
-   FIX: apply the same filter to the RECURRING insight list, or group lapsed
-   under "no longer charging". (`paymentrec urring` is a good candidate for the
-   `normalizeMerchant` prefix-stripping already on the backlog.)
-
-10. **"3 standing risks" is a static array length dressed as live status.**
-    `residualRisks.length` from a hardcoded array — always 3, reads as "3 things
-    are wrong now". Compounded: the 90-day SimpleFIN cap is permanent, so the
-    provider sits at WARN forever and the indicator gets ignored. Also
-    `page.tsx:59` `.toLowerCase()` mangles a full sentence that `/providers`
-    renders correctly.
-    FIX: drop "standing risks" from Overview (it's excellent on `/providers`);
-    treat the 90-day cap as expected, not WARN; keep the reason's casing.
 
 ## P3 — categorization workflow
 

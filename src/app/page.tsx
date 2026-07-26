@@ -56,8 +56,12 @@ export default async function OverviewPage() {
                 simplefin.status === "OK" ? "bg-pos" : simplefin.status === "ERROR" ? "bg-neg" : "bg-chart2"
               }`}
             />
-            {simplefin.trustCard.displayName} — {simplefin.reasons[0].toLowerCase()} · {simplefin.accountCount}{" "}
-            accounts · {simplefin.trustCard.residualRisks.length} standing risks
+            {/* Casing left alone: the reason is a whole sentence, and
+                lowercasing it mid-line mangled what /providers renders
+                correctly. "Standing risks" is a static array length dressed as
+                live status — it lives on /providers, where it is explained. */}
+            {simplefin.trustCard.displayName} — {simplefin.reasons[0]} · {simplefin.accountCount}{" "}
+            account{simplefin.accountCount === 1 ? "" : "s"}
           </span>
         )}
         {drifted.map((s) => (

@@ -102,6 +102,19 @@ export function findGappedAccounts(
   return signals;
 }
 
+/**
+ * Feed messages that describe how a provider WORKS rather than something
+ * wrong with it. SimpleFIN's free tier caps a request at 90 days and reports
+ * that on every single sync, so treating it as a warning parked the provider
+ * on amber permanently — and a light that never goes green is one nobody
+ * reads. Matched narrowly on purpose: any other feed message still warns.
+ */
+const EXPECTED_FEED_NOTICES = [/date range exceeds limit/i];
+
+export function isExpectedFeedNotice(text: string): boolean {
+  return EXPECTED_FEED_NOTICES.some((pattern) => pattern.test(text));
+}
+
 function deriveStatus(
   lastSync: LastSyncInfo | null,
   syncOverdue: boolean,
@@ -122,8 +135,13 @@ function deriveStatus(
     reasons.push(`Last sync failed: ${lastSync.errorText ?? 'unknown error'}`);
     status = 'ERROR';
   }
+  // Expected notices are reported but never degrade status, and they come
+  // last so `reasons[0]` is always the most important thing about a provider
+  // (Overview shows only that first line).
+  const notices: string[] = [];
   for (const err of lastSync.feedErrors) {
-    warn(`Provider reported: ${err}`);
+    if (isExpectedFeedNotice(err)) notices.push(`Expected for this provider: ${err}`);
+    else warn(`Provider reported: ${err}`);
   }
   if (syncOverdue) warn('No successful sync recently');
   for (const s of staleAccounts) {
@@ -135,6 +153,7 @@ function deriveStatus(
     );
   }
   if (reasons.length === 0) reasons.push('All signals normal');
+  reasons.push(...notices);
   return { status, reasons };
 }
 

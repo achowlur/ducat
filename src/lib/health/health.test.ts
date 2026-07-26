@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findGappedAccounts, findStaleAccounts, DEFAULT_HEALTH_OPTIONS } from './health';
+import { findGappedAccounts, findStaleAccounts, isExpectedFeedNotice, DEFAULT_HEALTH_OPTIONS } from './health';
 import { projectNextPayment, reconcileSubscription } from './subscriptions';
 
 const utc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d, 12));
@@ -136,5 +136,26 @@ describe('projectNextPayment month-end handling', () => {
   it('does not drift the anchor day forward on later cycles', () => {
     const next = projectNextPayment(utc(2026, 1, 31), 'MONTHLY', utc(2026, 1, 31), utc(2026, 3, 15));
     expect(next.toISOString().slice(0, 10)).toBe('2026-03-31');
+  });
+});
+
+describe('isExpectedFeedNotice', () => {
+  // The 90-day cap is how the free tier WORKS and is reported on every sync,
+  // so treating it as a warning left the provider amber forever — an
+  // indicator that never goes green is one nobody reads. The guard has to
+  // stay narrow, though: anything else is still a real signal.
+  it('recognises the SimpleFIN date-range cap', () => {
+    expect(isExpectedFeedNotice('Requested date range exceeds limit of 90 days and was capped.')).toBe(true);
+  });
+
+  it('still warns on everything else the feed reports', () => {
+    for (const real of [
+      'Account requires reauthentication',
+      'Connection to institution failed',
+      'Rate limit exceeded',
+      'Some accounts could not be refreshed',
+    ]) {
+      expect(isExpectedFeedNotice(real)).toBe(false);
+    }
   });
 });
