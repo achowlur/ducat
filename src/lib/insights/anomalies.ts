@@ -1,5 +1,6 @@
 import type { AnomalyPayload, PeriodGranularity } from '../../types/contracts';
 import { inPeriod, periodStart } from './periods';
+import { reimbursementCredits } from './reimbursements';
 import { median, robustZ, round2 } from './stats';
 import type { TxnData } from './types';
 
@@ -95,6 +96,23 @@ export function detectCategoryTotalAnomalies(
       }
     }
     totals.set(t.categoryId, entry);
+  }
+
+  // Subtract reimbursements the same way computeSpendingByCategory does.
+  // Without this the two disagree on screen: front a $7,775.19 group trip, get
+  // $6,220.15 back, and the donut says Travel $1555.04 while the signal beside it
+  // shouts "Travel total $7,775.19 this month — vs $570.18 in a typical month".
+  for (const credit of reimbursementCredits(txns)) {
+    // Uncategorized credits have no category total to net against.
+    if (credit.categoryId === null) continue;
+    const entry = totals.get(credit.categoryId);
+    if (entry === undefined) continue;
+    for (const p of [period, ...priorPeriods]) {
+      if (inPeriod(credit.date, p)) {
+        entry.byPeriod.set(p, (entry.byPeriod.get(p) ?? 0) - credit.amount);
+        break;
+      }
+    }
   }
 
   const anomalies: AnomalyPayload[] = [];

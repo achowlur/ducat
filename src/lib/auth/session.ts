@@ -21,8 +21,24 @@ function secretKey(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
+/**
+ * Non-reversible fingerprint of the password hash, embedded in the token and
+ * re-checked on every request. Without it, changing your password leaves every
+ * existing session valid for its full 30 days — so the natural response to
+ * "someone has my password" (run auth:set-password, update the env var) would
+ * not actually evict them. A digest, not the hash itself: JWT payloads are
+ * readable by anyone holding the cookie.
+ */
+async function passwordFingerprint(): Promise<string> {
+  const hash = process.env.AUTH_PASSWORD_HASH ?? "";
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(hash));
+  return Array.from(new Uint8Array(digest).slice(0, 8))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 export async function createSessionToken(): Promise<string> {
-  return new SignJWT({ role: "owner" })
+  return new SignJWT({ role: "owner", pw: await passwordFingerprint() })
     .setProtectedHeader({ alg: ALG })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE}s`)
@@ -31,8 +47,8 @@ export async function createSessionToken(): Promise<string> {
 
 export async function verifySessionToken(token: string): Promise<boolean> {
   try {
-    await jwtVerify(token, secretKey(), { algorithms: [ALG] });
-    return true;
+    const { payload } = await jwtVerify(token, secretKey(), { algorithms: [ALG] });
+    return payload.pw === (await passwordFingerprint());
   } catch {
     return false;
   }

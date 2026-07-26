@@ -38,8 +38,9 @@ async function main(): Promise<void> {
       console.log(`  Last charge: $${s.lastCharge.amount} on ${s.lastCharge.date.toISOString().slice(0, 10)}`);
     }
     if (s.priceDrift !== null) {
-      const pct = (s.priceDrift.deltaPct * 100).toFixed(1);
-      console.log(`  !! PRICE CHANGE: expected $${s.priceDrift.expected}, charged $${s.priceDrift.actual} (${pct}%)`);
+      const delta = s.priceDrift.deltaPct;
+      const pct = delta === null ? "n/a" : `${(delta * 100).toFixed(1)}%`;
+      console.log(`  !! PRICE CHANGE: expected $${s.priceDrift.expected}, charged $${s.priceDrift.actual} (${pct})`);
     }
     console.log('');
   }

@@ -10,6 +10,7 @@ import { getProviderHealth } from "../health/health";
 import { getSubscriptionStatuses } from "../health/subscriptions";
 import {
   annualisedTotal,
+  isActive,
   mergeDetectedSubscriptions,
   type DetectedCharge,
   type DetectedSubscription,
@@ -100,8 +101,14 @@ async function detectedSubscriptions(): Promise<DetectedSubscription[]> {
   if (rows.length === 0) return [];
   const newest = rows[0].period;
   const tracked = await prisma.trackedSubscription.findMany({ select: { name: true } });
+  const now = new Date();
   return mergeDetectedSubscriptions(
-    rows.filter((r) => r.period === newest).map((r) => r.payload),
+    rows
+      .filter((r) => r.period === newest)
+      .map((r) => r.payload)
+      // Drop anything whose last charge is long past — a cancelled service
+      // would otherwise keep billing in the annualised total forever.
+      .filter((c) => isActive(c, now)),
     tracked.map((t) => t.name),
   );
 }

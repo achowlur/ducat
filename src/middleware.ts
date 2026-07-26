@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { isAuthConfigured, isCloudMode } from "./lib/auth/mode";
+import { isAuthConfigured, isAuthEnabled, isCloudMode } from "./lib/auth/mode";
 import { SESSION_COOKIE, verifySessionToken } from "./lib/auth/session";
 
 /**
@@ -56,8 +56,8 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   }
 
   // 3. Auth gate.
-  if (cloud || isAuthConfigured()) {
-    if (cloud && !isAuthConfigured()) {
+  if (isAuthEnabled()) {
+    if (!isAuthConfigured()) {
       return textResponse(
         "Auth is not configured. Set AUTH_PASSWORD_HASH and SESSION_SECRET, then redeploy.",
         503,

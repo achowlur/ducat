@@ -123,3 +123,18 @@ describe('reconcileSubscription', () => {
     expect(status.daysUntilNextPayment).toBe(20);
   });
 });
+
+// Date.UTC NORMALISES an impossible day rather than clamping, so a sub billed
+// on the 31st stepped Jan 31 -> "Feb 31" -> Mar 3: February skipped, and the
+// anchor drifts further every cycle. Billers clamp; so do we.
+describe('projectNextPayment month-end handling', () => {
+  it('clamps to the last day of a short month instead of overflowing it', () => {
+    const next = projectNextPayment(utc(2026, 1, 31), 'MONTHLY', utc(2026, 1, 31), utc(2026, 2, 15));
+    expect(next.toISOString().slice(0, 10)).toBe('2026-02-28');
+  });
+
+  it('does not drift the anchor day forward on later cycles', () => {
+    const next = projectNextPayment(utc(2026, 1, 31), 'MONTHLY', utc(2026, 1, 31), utc(2026, 3, 15));
+    expect(next.toISOString().slice(0, 10)).toBe('2026-03-31');
+  });
+});

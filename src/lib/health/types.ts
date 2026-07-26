@@ -72,5 +72,6 @@ export interface SubscriptionStatus {
   daysUntilNextPayment: number;
   lastCharge: SubscriptionCharge | null;
   /** Set when the most recent charge differs from the expected amount. */
-  priceDrift: { expected: number; actual: number; deltaPct: number } | null;
+  /** deltaPct is null when expectedAmount is 0 (no meaningful percentage). */
+  priceDrift: { expected: number; actual: number; deltaPct: number | null } | null;
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   annualisedTotal,
+  isActive,
   mergeDetectedSubscriptions,
   type DetectedCharge,
 } from './detectedSubscriptions';
@@ -67,5 +68,22 @@ describe('annualisedTotal', () => {
       charge({ merchant: 'yearly', averageAmount: 120, cadence: 'YEARLY' }),
     ]);
     expect(annualisedTotal(subs)).toBe(240); // 10*12 + 120
+  });
+});
+
+describe('isActive', () => {
+  const now = new Date('2026-07-25T12:00:00Z');
+  it('keeps a subscription charged within the last couple of cycles', () => {
+    expect(isActive(charge({ merchant: 'netflix', lastDate: '2026-07-01' }), now)).toBe(true);
+  });
+
+  // The recurring detector scans all history with no recency bound, so a
+  // cancelled service kept billing in the annualised total forever.
+  it('drops one cancelled years ago', () => {
+    expect(isActive(charge({ merchant: 'netflix', lastDate: '2023-12-01' }), now)).toBe(false);
+  });
+
+  it('allows a yearly subscription its longer cycle', () => {
+    expect(isActive(charge({ merchant: 'domain', cadence: 'YEARLY', lastDate: '2025-09-01' }), now)).toBe(true);
   });
 });

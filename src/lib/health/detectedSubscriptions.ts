@@ -36,6 +36,31 @@ function dedupeKey(c: DetectedCharge): string {
   return `${brandOf(c.merchant)}|${c.cadence}|${Math.round(c.averageAmount)}`;
 }
 
+/** Cycles of grace before a charge counts as lapsed (billing dates wander). */
+const LAPSED_AFTER_CYCLES = 2;
+
+const CADENCE_DAYS: Record<RecurringCadence, number> = {
+  WEEKLY: 7,
+  BIWEEKLY: 14,
+  MONTHLY: 31,
+  QUARTERLY: 92,
+  YEARLY: 366,
+};
+
+/**
+ * Whether a detected charge is still live. The recurring detector scans all
+ * history and has no recency bound, so a subscription cancelled years ago is
+ * still emitted every period — and `annualisedTotal` happily bills it forever
+ * (Netflix cancelled in 2023 quietly adding $497.30/yr to "what my
+ * subscriptions cost"). The payload's own lastDate settles it.
+ */
+export function isActive(charge: DetectedCharge, now: Date): boolean {
+  const last = new Date(`${charge.lastDate}T12:00:00Z`).getTime();
+  if (Number.isNaN(last)) return true; // undated: don't silently drop it
+  const grace = CADENCE_DAYS[charge.cadence] * LAPSED_AFTER_CYCLES * 86_400_000;
+  return now.getTime() - last <= grace;
+}
+
 export function mergeDetectedSubscriptions(
   detected: DetectedCharge[],
   trackedNames: string[] = [],
