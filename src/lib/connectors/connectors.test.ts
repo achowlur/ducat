@@ -43,6 +43,9 @@ describe('normalizeMerchant', () => {
     expect(normalizeMerchant('GDP*bun bun llc')).toBe('bun bun llc');
     expect(normalizeMerchant('FIV*GONGCHA')).toBe('gongcha');
     expect(normalizeMerchant('UEP*GREEN THYME')).toBe('green thyme');
+    expect(normalizeMerchant('PL*PAYLEASE WEB PMTS')).toBe('paylease web pmts');
+    expect(normalizeMerchant('CL *CHASE TRAVEL')).toBe('chase travel');
+    expect(normalizeMerchant('WL *STEAM PURCHASE')).toBe('steam purchase');
   });
 
   it('leaves a name that merely ends in a processor token alone', () => {

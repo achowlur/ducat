@@ -22,11 +22,12 @@ export function sanitizeBankText(raw: string): string {
 
 /**
  * Payment processors wrap the merchant's own name: Toast bills "TST*BUCKS",
- * Square "SQ *SORREL", DoorDash "DD *DOORDASH STONEGATE", and Slice,
- * Paytronix, SpotOn, GoDaddy Payments, Fivestars and UEP all do the same.
- * The wrapper defeats both jobs this string has — a brand rule for the
- * restaurant never matches, and grouped review buckets every Toast
- * restaurant in town under nothing they have in common.
+ * Square "SQ *SORREL", DoorDash "DD *DOORDASH STONEGATE", PayLease
+ * "PL*PAYLEASE WEB PMTS", and Slice, Paytronix, SpotOn, GoDaddy Payments,
+ * Fivestars, UEP, CL and WL all do the same. The wrapper defeats both jobs
+ * this string has — a brand rule for the restaurant never matches, and
+ * grouped review buckets every Toast restaurant in town under nothing they
+ * have in common. ("CL *CHASE TRAVEL" and "CHASE TRAVEL" were two groups.)
  *
  * Only the wrapper comes off. What the rail implies about the CATEGORY is a
  * separate question answered by rules against the raw description, which
@@ -38,7 +39,7 @@ export function sanitizeBankText(raw: string): string {
  * also keeps the result a contiguous run of the original, which is what
  * lets it go on working as a rule's CONTAINS value.
  */
-const PROCESSOR_PREFIX = /\b(tst|sq|slice|dd|py|spo|gdp|fiv|uep)\s*\*\s*/g;
+const PROCESSOR_PREFIX = /\b(tst|sq|slice|dd|py|spo|gdp|fiv|uep|pl|cl|wl)\s*\*\s*/g;
 
 /**
  * Conservative merchant normalization: lowercase, unwrap payment-processor
