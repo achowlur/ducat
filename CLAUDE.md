@@ -217,6 +217,12 @@ regeneration.
 - The dev CSP needs `'unsafe-eval'` and a same-origin HMR websocket for Fast
   Refresh. Don't remove them while "tightening" `next.config.ts` — production
   gets neither.
+- Rules only ever WRITE, so deleting one does not undo it: every row it
+  already categorized keeps that category, and a payee it marked TRANSFER
+  stays out of spending. `reapplyRules` therefore returns each row as it was
+  (`TxnRestore`), which is what the grouped review's undo writes back. Any
+  future "remove this rule" path needs the same snapshot, or it silently
+  leaves the rule's effects behind.
 - Grouped review keys P2P by a payee string derived from the description, so
   "zelle to lena" and "zelle to hollis amari" stay distinct instead of collapsing
   into the meaningless "zelle transfer" rail. Those rules match DESCRIPTION,
