@@ -196,6 +196,14 @@ regeneration.
   and the no-third-party rule). Axis scales must enclose the data (`niceTicks`
   guarantees last tick ≥ max — regression-tested), and value labels are
   collision-checked against every mark, never drawn over one.
+- Analyzer cost is BUCKETING, not arithmetic, and `generateInsights` runs
+  synchronously inside server actions — so analyzer time is a hang on a
+  dropdown. Period bounds are memoized (`periods.ts`), and anomaly history is
+  bucketed once per period with each bucket's median/MAD computed once
+  (`anomalies.ts`). Re-deriving either per transaction is what made 10,000
+  transactions cost 4.1s instead of 0.15s. Both caches are safe because their
+  keys are immutable and both statistics sort, so order in a bucket is
+  irrelevant.
 - Provider health (`src/lib/health/`) derives status from LOCAL signals ONLY —
   last sync outcome, feed errors, stale balance dates, transaction-volume gaps.
   No network call on launch, ever. Adding a connector also means adding its
@@ -237,6 +245,19 @@ regeneration.
   ties. Ranking by date alone put last night's rent above the dinner a $116.63 Zelle
   actually repaid. Categories in `UNSPLITTABLE` are denied split evidence:
   arithmetic can't tell "1/5 of a dinner" from "1/6 of a tax bill".
+
+## Verified load-bearing (three reviews, 2026-07-26) — do not "clean up"
+
+Re-checked against current code by an independent reviewer and deliberately
+left alone: the merchant-string reducers (`normalizeMerchant`, `payeeKey`'s
+truncate-not-delete, `collapse` in `rules.ts`, `brandOf`); the account-lookup
+fallback vs `matchAccount`; the MANUAL exclusions in `sync.ts` and `rules.ts`;
+the `known:false` / `investmentSnapshotNotBefore` contract; the "only active
+periods" anomaly baseline; and the
+`internalActivity`/`inboundWording`/`outboundWording` triple. On the UI side:
+`/providers`, the coverage notices, refusing to draw net worth it can't know,
+the reimbursements-exceeded empty state, the grouped-review P2P tooltip, the
+money typography, and Overview's market-movement line.
 
 ## Backlog (agreed, not yet scheduled)
 
