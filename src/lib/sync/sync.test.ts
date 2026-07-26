@@ -160,7 +160,7 @@ describe('runSync integration', () => {
   ];
 
   beforeAll(async () => {
-    dir = mkdtempSync(join(tmpdir(), 'finance-sync-test-'));
+    dir = mkdtempSync(join(tmpdir(), 'ducat-sync-test-'));
     const url = `file:${join(dir, 'test.db').replace(/\\/g, '/')}`;
     const factory = new PrismaBetterSqlite3({ url });
     const conn = await factory.connect();

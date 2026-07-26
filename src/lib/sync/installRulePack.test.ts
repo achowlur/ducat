@@ -8,7 +8,7 @@ import { installRulePack, PACK_CATEGORIES, PACK_RULES } from "./rulePack";
 
 /** A migrated, empty database in a temp directory. */
 async function freshDb(): Promise<{ dir: string; prisma: PrismaClient }> {
-  const dir = mkdtempSync(join(tmpdir(), "finance-pack-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "ducat-pack-test-"));
   const url = `file:${join(dir, "test.db").replace(/\\/g, "/")}`;
   const factory = new PrismaBetterSqlite3({ url });
   const conn = await factory.connect();

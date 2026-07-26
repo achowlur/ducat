@@ -22,8 +22,11 @@ data. But be clear-eyed about the trade-off:
 
 ## Prerequisites
 
-- A [Turso](https://turso.tech) account + the `turso` CLI (`turso auth login`).
-- A [Vercel](https://vercel.com) account + the `vercel` CLI (`vercel login`), or the dashboard.
+- A [Turso](https://turso.tech) account. The `turso` CLI is optional — it has no
+  native Windows build, and `npm run turso:push` replaces the one step that
+  needed it.
+- A [Vercel](https://vercel.com) account. The `vercel` CLI is optional too; a
+  dashboard Git import deploys on push.
 - Your SimpleFIN access URL (`npm run simplefin:claim -- <setup-token>`), or plan to use CSV.
 - Node 20+ and this repo cloned locally.
 
@@ -33,9 +36,9 @@ data. But be clear-eyed about the trade-off:
 ## 1 · Create the Turso database
 
 ```bash
-turso db create finance
-turso db show finance --url        # -> your DATABASE_URL (libsql://<db>-<org>.turso.io)
-turso db tokens create finance     # -> your TURSO_AUTH_TOKEN
+turso db create ducat
+turso db show ducat --url        # -> your DATABASE_URL (libsql://<db>-<org>.turso.io)
+turso db tokens create ducat     # -> your TURSO_AUTH_TOKEN
 ```
 
 Encryption at rest is on by default. For bring-your-own-key encryption, see
@@ -66,7 +69,7 @@ a throwaway terminal you then close.
 ```bash
 npm run --silent turso:baseline > baseline.sql
 head -1 baseline.sql   # must be "-- CreateTable", not npm's "> ducat@…" banner
-turso db shell finance < baseline.sql
+turso db shell ducat < baseline.sql
 rm baseline.sql
 ```
 
@@ -164,7 +167,7 @@ generated Prisma client is gitignored, so this step is what creates it on Vercel
 - Rotate `SESSION_SECRET` → invalidates all existing sessions immediately.
 - `turso db tokens revoke …` → cut off database access.
 - Revoke the SimpleFIN access URL at the bridge → stops all feed access.
-- Delete the Vercel project and/or `turso db destroy finance` → the data is gone.
+- Delete the Vercel project and/or `turso db destroy ducat` → the data is gone.
 
 ## Going back to local
 

@@ -10,7 +10,7 @@ let dir: string;
 let prisma: PrismaClient;
 
 beforeAll(async () => {
-  dir = mkdtempSync(join(tmpdir(), 'finance-engine-test-'));
+  dir = mkdtempSync(join(tmpdir(), 'ducat-engine-test-'));
   const url = `file:${join(dir, 'test.db').replace(/\\/g, '/')}`;
 
   const factory = new PrismaBetterSqlite3({ url });

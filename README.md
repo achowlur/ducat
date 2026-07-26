@@ -34,7 +34,7 @@ Prisma + SQLite. Charts are hand-rolled SVG (no chart library, no webfonts).
 ```bash
 npm install
 cp .env.example .env            # then edit .env (see below)
-npx prisma migrate deploy       # create ./data/finance.db
+npx prisma migrate deploy       # create ./data/ducat.db
 npm run dev                     # http://127.0.0.1:3000
 ```
 
@@ -80,5 +80,5 @@ npm run import:csv -- <file.csv> --mapping=<chase-checking|chase-credit|wells-fa
 
 ## Where your data lives
 
-`./data/finance.db` (SQLite) — on your machine, gitignored. Delete it to start
+`./data/ducat.db` (SQLite) — on your machine, gitignored. Delete it to start
 over.

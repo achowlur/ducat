@@ -43,7 +43,7 @@ regeneration.
 
 - Next.js 15 (App Router) + TypeScript strict mode
 - Tailwind CSS + shadcn/ui
-- Prisma + libSQL adapter — `file:./data/finance.db` local, `libsql://` Turso in
+- Prisma + libSQL adapter — `file:./data/ducat.db` local, `libsql://` Turso in
   cloud mode (one adapter serves both; better-sqlite3 is a devDep for tests only)
 
 ## Conventions

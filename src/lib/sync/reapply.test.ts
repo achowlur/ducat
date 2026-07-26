@@ -21,7 +21,7 @@ describe("reapplyRules restore snapshot", () => {
   let groceriesId: string;
 
   beforeAll(async () => {
-    dir = mkdtempSync(join(tmpdir(), "finance-reapply-test-"));
+    dir = mkdtempSync(join(tmpdir(), "ducat-reapply-test-"));
     const url = `file:${join(dir, "test.db").replace(/\\/g, "/")}`;
     const factory = new PrismaBetterSqlite3({ url });
     const conn = await factory.connect();
