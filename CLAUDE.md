@@ -65,8 +65,50 @@ shape.
   global singleton (src/lib/prisma.ts) survives hot-reload with the old
   generated client (symptom: PrismaClientValidationError, "Unknown field"
   for a column that exists).
-- `npm run db:seed` wipes insights; re-run `npm run insights:generate`
-  afterwards or pages show "no data".
+- `npm run db:seed` DESTROYS every account, transaction, rule and MANUAL
+  categorization — it is not an additive command. It now refuses when
+  transactions exist unless given `-- --yes` (same guard as `db:reset`). It also
+  wipes insights, so re-run `npm run insights:generate` afterwards or pages show
+  "no data".
+- MANUAL categorization is sacred, and rules are not the only thing that can
+  overwrite it. Transfer-pair detection rewrites flow to TRANSFER and nulls the
+  category, so it EXCLUDES manually-categorized rows: a $139.95 dinner you
+  categorized and a $139.95 repayment two days later look exactly like a transfer
+  pair, and the expense would vanish from every spending total. Any future path
+  that rewrites flow/category must make the same exclusion.
+- Analyzers legitimately emit NOTHING (net worth refuses periods it can't know;
+  a CSV-only import writes no BalanceSnapshot at all), so every consumer must
+  survive an empty series. `/trends` returned a 500 on first run because
+  `NetWorthChart` indexed `months[-1]` and took `Math.max()` of an empty array,
+  and the page gated on SPENDING_BY_CATEGORY while net worth comes from a
+  different insight type. Guard the series, don't assume the gate covers it.
+- Reimbursements can push a category NEGATIVE (deliberate, and tested). The
+  donut must use only positive categories as its denominator — a negative one
+  shrank the denominator while drawing no arc, so the remaining slices summed
+  past 100% and overlapped. Category lists still show negatives honestly.
+- A grouped-review key must be at least 3 characters. Keys become priority-50
+  CONTAINS rules that outrank the whole pack and are exempt from the P2P guard,
+  so a Fidelity dividend on Realty Income (ticker "o") produced MERCHANT
+  CONTAINS "o" and recategorized costco, doordash and every Zelle.
+- `Date.UTC` NORMALISES an impossible day rather than clamping, so a
+  subscription billed on the 31st stepped Jan 31 → "Feb 31" → Mar 3, skipping
+  February and drifting further every cycle. Clamp to the month's last day, and
+  step from the ORIGIN each time — iterating on the clamped result walks the
+  billing day backwards (Feb 28 → Mar 28 when the biller charges the 31st).
+- Subscription charge matching is a SUBSTRING, so a $647.93 monitor became "Amazon
+  Prime charged $647.93 vs $38.85 expected (+1567%)". Prefer charges near the
+  expected amount, falling back to the newest so a real price change still
+  surfaces. Detected subscriptions also lapse: the recurring detector has no
+  recency bound, so a service cancelled years ago billed forever in the
+  annualised total until charges older than two cadence cycles were dropped.
+- CSV running-balance ties break by FILE POSITION, not just date. `Array.sort`
+  is stable and real exports are newest-first, so sorting by date and taking the
+  last row returned that day's OLDEST posting — a balance short by the rest of
+  the day's activity, written to both `Account.balance` and a BalanceSnapshot.
+- SimpleFIN timestamps are deliberately left alone: the real feed mixes noon
+  UTC, 04:00 (midnight Eastern) and true instants. A late-evening posting on a
+  month's last day can land in the next month, but without each bank's timezone
+  any "fix" would shift correct dates too.
 - CSV backfill (`npm run import:csv`): pass an existing account's `--external-id`
   to backfill INTO it (account lookup falls back to externalId across connector
   types) and `--until=YYYY-MM-DD` to stop at a live feed's coverage start —
@@ -291,6 +333,20 @@ items, in value order:
    - Daily sync cron: `src/app/api/cron/sync/route.ts` (nodejs, CRON_SECRET
      Bearer) + `vercel.json` crons; reuses `runSync`. HSTS in production.
      `npm run turso:baseline` emits the schema SQL for `turso db shell`.
+   - Auth fails CLOSED on partial configuration. Setting EITHER
+     `AUTH_PASSWORD_HASH` or `SESSION_SECRET` counts as intent to lock; the
+     middleware turns intent-without-completion into a 503. Requiring both would
+     fail OPEN on the likeliest mistake (pasting the hash into `.env` while
+     leaving `SESSION_SECRET=""` from `.env.example`), serving everything with
+     no login while the operator believes a gate is up.
+   - Session tokens carry a non-reversible digest of the password hash,
+     re-checked per request, so changing the password evicts existing sessions.
+     Without it the natural response to "someone has my password" left every
+     session valid for its full 30 days. A digest, not the hash — JWT payloads
+     are readable by whoever holds the cookie.
+   - There is an error boundary: middleware only redirects NAVIGATIONS, never
+     Server Action responses, so a tab left open past its session would throw
+     and drop the whole app to Next's bare error screen.
    - Encryption at rest = Turso's (managed; BYOK optional). Explicitly deferred:
      end-to-end encryption (client-side keys + analyzers in the browser — viable
      because the analyzers are pure functions over plain arrays). E2E is the
@@ -316,6 +372,15 @@ items, in value order:
      in this file.
    Result: 197 → 2,638 transactions across 21 accounts, non-P2P categorization
    backlog cleared, 181 tests.
+   Two adversarial QA passes then ran over the whole surface (three commits
+   on 2026-07-26) and found what running on real data hadn't: a first-run
+   `/trends` crash, `db:seed` destroying real data without a prompt, transfer
+   pairing erasing MANUAL categorizations, donut math breaking on negative
+   categories, a 1-character rule key matching everything, auth failing OPEN on
+   partial config, sessions surviving a password change, and subscription date
+   math skipping February. Every one is captured in Conventions above. The
+   lesson worth carrying: **most of these were invisible to tests and to normal
+   use — they needed someone deliberately asking "what would break this?"**
 9. **Session 9 — Cloud deployment (NEXT).** Nothing in the app is blocking; all
    Session 7 code is verified locally. The remaining work is the operator's own
    provisioning, in [DEPLOY.md](DEPLOY.md): create the Turso DB, apply the
