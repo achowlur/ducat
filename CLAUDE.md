@@ -2,7 +2,7 @@
 
 A personal finance tracker with an insights engine. Local-first by default (runs
 entirely on localhost; no financial data leaves the machine), with an OPTIONAL
-single-tenant self-hosted cloud deployment (Session 7 — see DEPLOY.md).
+single-tenant self-hosted cloud deployment (see [DEPLOY.md](DEPLOY.md)).
 
 ## HARD RULES
 
@@ -15,7 +15,7 @@ Absolute (BOTH modes):
 - NEVER write placeholder code or TODOs. Everything committed must run.
 - TRANSFER-flagged transactions are EXCLUDED from all spending analytics.
 
-Mode-scoped (amended Session 7 — `DATABASE_URL` scheme selects the mode):
+Mode-scoped (`DATABASE_URL` scheme selects the mode):
 - Server binding: LOCAL (`file:` URL) binds ONLY to 127.0.0.1 (package.json
   scripts + the middleware host-allowlist). CLOUD (`libsql://` URL) runs on the
   platform host and MUST have the auth gate configured — it fails closed.
@@ -33,11 +33,18 @@ data into the shapes defined in `src/types/contracts.ts` (`NormalizedAccount`,
 `NormalizedTransaction`). Nothing downstream may depend on a connector-specific
 shape.
 
+The sync pipeline (`src/lib/sync/`) runs in a fixed order, and the order matters:
+upsert accounts → balance snapshots → dedup import → category rules (priority
+ascending, first match wins, MANUAL never overridden) → cross-account
+transfer-pair detection (exact opposite amounts, ≤4-day window) → insight
+regeneration.
+
 ## Stack
 
 - Next.js 15 (App Router) + TypeScript strict mode
 - Tailwind CSS + shadcn/ui
-- Prisma + SQLite (`./data/finance.db`)
+- Prisma + libSQL adapter — `file:./data/finance.db` local, `libsql://` Turso in
+  cloud mode (one adapter serves both; better-sqlite3 is a devDep for tests only)
 
 ## Conventions
 
@@ -54,9 +61,7 @@ shape.
   the engine falls back to reconstructing from transactions (flagged as
   estimated) for accounts/periods without snapshots. Connectors should write
   a snapshot on every sync.
-- Useful commands: `npm run db:seed` (deterministic fixture data),
-  `npm run insights:generate [-- --granularity=WEEK|MONTH|QUARTER|YEAR]`,
-  `npm test`.
+- Commands: see README's table and `package.json`. `npm test` is Vitest.
 - NEVER run `npm run build` while the dev server is running — both share
   `.next/`, and the build corrupts the dev server's chunks (symptom:
   "Cannot find module './NNN.js'" and silent hydration failure — no client
@@ -130,12 +135,10 @@ shape.
   (`investmentSnapshotNotBefore`) — carrying an August month-end into September
   ignores a month of market movement. Cash/credit are exempt: transactions
   fully explain them. So ONE month-end snapshot per investment account unlocks
-  exactly that month:
-  `npm run import:balances -- --template [--months=N] > balances.csv` (rows for
-  every uncovered month, newest first; blanks are skipped), fill from each
-  statement's "Ending Account Value", then `-- balances.csv [--dry-run]`.
-  History otherwise grows one snapshot per sync. `marketGains` only computes
-  once two consecutive periods are snapshot-backed.
+  exactly that month; `npm run import:balances -- --template` emits a fill-in
+  template for every uncovered month (usage in the script's own header). History
+  otherwise grows one snapshot per sync. `marketGains` only computes once two
+  consecutive periods are snapshot-backed.
 - `investmentNetFlows` counts ONLY money crossing an investment account's
   boundary. Buys, sells, dividends and reinvestments move nothing in or out, and
   counting them turned a real ~$2.5k month into a reported $64.79k one. Classified
@@ -174,37 +177,54 @@ shape.
   surfaces it on Trends/Insights — visibly incomplete beats silently wrong.
   An account counts as covering a period only if its first transaction is at
   or before the period START (mid-period starts are partial).
-- Chart discipline (src/components/charts): axis scales must enclose the
-  data (`niceTicks` guarantees last tick ≥ max — regression-tested), and
-  value labels are collision-checked against every mark, never drawn over
-  one.
+- Chart discipline (src/components/charts): charts are HAND-ROLLED SVG — no
+  chart library, and no webfonts anywhere in the app (both would breach the CSP
+  and the no-third-party rule). Axis scales must enclose the data (`niceTicks`
+  guarantees last tick ≥ max — regression-tested), and value labels are
+  collision-checked against every mark, never drawn over one.
+- Provider health (`src/lib/health/`) derives status from LOCAL signals ONLY —
+  last sync outcome, feed errors, stale balance dates, transaction-volume gaps.
+  No network call on launch, ever. Adding a connector also means adding its
+  trust card in `providers.ts`.
+- `AUTH_PASSWORD_HASH` uses a `:` delimiter, NOT `$`. Next's `.env` loader
+  expands `$name` and silently mangles a `$`-delimited hash down to "scrypt", so
+  the gate stays up (non-empty) while every login fails. This cost a debugging
+  session and appears nowhere else in the repo.
+- Auth fails CLOSED on partial configuration. Setting EITHER
+  `AUTH_PASSWORD_HASH` or `SESSION_SECRET` counts as intent to lock, and
+  middleware turns intent-without-completion into a 503. Requiring both would
+  fail OPEN on the likeliest mistake — pasting the hash into `.env` while
+  leaving `SESSION_SECRET=""` from `.env.example` — serving everything with no
+  login while the operator believes a gate is up.
+- Session tokens carry a non-reversible DIGEST of the password hash, re-checked
+  per request, so changing the password evicts existing sessions. Without it the
+  natural response to "someone has my password" left every session valid for its
+  full 30 days. A digest, not the hash — JWT payloads are readable by whoever
+  holds the cookie.
+- Middleware redirects NAVIGATIONS only, never Server Action responses. A tab
+  left open past its session throws instead of redirecting, which is why an
+  error boundary exists — without one the whole app drops to Next's bare error
+  screen.
+- The dev CSP needs `'unsafe-eval'` and a same-origin HMR websocket for Fast
+  Refresh. Don't remove them while "tightening" `next.config.ts` — production
+  gets neither.
+- Grouped review keys P2P by a payee string derived from the description, so
+  "zelle to lena" and "zelle to hollis amari" stay distinct instead of collapsing
+  into the meaningless "zelle transfer" rail. Those rules match DESCRIPTION,
+  which the P2P guard permits for user-priority rules.
+- Reimbursement suggestions lead with AMOUNT evidence (exact, clean 1/n, or a
+  rounded ≈1/n — people send $62.2 for a $61.55 share); date proximity only breaks
+  ties. Ranking by date alone put last night's rent above the dinner a $116.63 Zelle
+  actually repaid. Categories in `UNSPLITTABLE` are denied split evidence:
+  arithmetic can't tell "1/5 of a dinner" from "1/6 of a tax bill".
 
 ## Backlog (agreed, not yet scheduled)
 
-- **Bulk categorization — grouping-by-payee, idea (a): DONE** (2026-07-25).
-  `src/lib/sync/grouping.ts` groups the uncategorized backlog by payee and
-  `/transactions?group=1` renders it (`GroupedReview`), one decision per payee
-  writing a user rule that also covers future transactions
-  (`categorizeGroup` in transactions/actions.ts). P2P groups key on a payee
-  string derived from the description (`payeeKey` strips ref numbers/dates), so
-  "zelle to lena" and "zelle to hollis amari" stay distinct instead of collapsing
-  into the meaningless "zelle transfer" rail — those rules match DESCRIPTION,
-  which the P2P guard permits for user-priority rules. Real-world leverage:
-  355 uncategorized transactions were only 150 payees; one decision cleared 36.
-- **Reimbursement auto-suggest, idea (b): DONE** (2026-07-25).
-  `src/lib/insights/suggestReimbursements.ts` ranks the outflows an inflow might
-  repay. AMOUNT evidence leads (exact, clean 1/n, or a rounded ≈1/n — people
-  send $62.2 for a $61.55 share) and date proximity only breaks ties; ranking by
-  date alone put last night's rent above the dinner a $116.63 Zelle actually pays
-  back. Outflows in unsplittable categories (rent, taxes, fees, utilities,
-  subscriptions, health, ATM — `UNSPLITTABLE` in transactions/page.tsx) are
-  denied split evidence, since arithmetic alone can't tell "1/5 of a dinner"
-  from "1/6 of a tax bill". `strong` tracks amount evidence ALONE: an exact
-  repayment three weeks later is still conclusive.
-- Still open from that item: (c) recurring-pattern
-  detection on P2P (same payee, same amount, monthly) to pre-fill rule
-  suggestions; (d) an explicit "P2P — Unreviewed" bucket so analytics are
-  visibly-incomplete rather than silently wrong while the pile shrinks.
+- **P2P review, still open:** (c) recurring-pattern detection on P2P (same
+  payee, same amount, monthly) to pre-fill rule suggestions; (d) an explicit
+  "P2P — Unreviewed" bucket so analytics are visibly-incomplete rather than
+  silently wrong while the pile shrinks. (Bulk grouping-by-payee and
+  reimbursement auto-suggest are both DONE — see Conventions.)
 - **Deeper history.** SimpleFIN caps a request at 90 days (it reports this as a
   feed warning, surfaced on the provider health line). History accumulates
   going forward since syncs never delete; CSV import is the backfill path for
@@ -220,10 +240,11 @@ exactly what the grouped review exists for; what's structural should ship. Four
 items, in value order:
 
 1. **Ship the structural rules.** `DIVIDEND RECEIVED → Income`,
-   `REINVESTMENT → TRANSFER`, credit-card-payment detection, ATM handling, and
-   the missing `Rent & Housing` / `Taxes` / `Cash & ATM` categories currently
-   exist ONLY in the operator's database, not in `rulePack.ts` — a fresh clone
-   gets none of them.
+   credit-card-payment detection, ATM-withdrawal handling, and the missing
+   `Rent & Housing` / `Taxes` / `Cash & ATM` categories currently exist ONLY in
+   the operator's database, not in `rulePack.ts` — a fresh clone gets none of
+   them. (`REINVESTMENT → TRANSFER` already ships; ATM appears only as "atm fee"
+   under Fees & Charges.)
 2. **Strip payment-processor prefixes** in `normalizeMerchant`: `tst*` (Toast),
    `sq *` (Square), `slice*`, `dd *` (DoorDash), `py *`, `spo*`, `gdp*`, `fiv*`
    wrap the real merchant name, degrading both normalization and grouping.
@@ -238,156 +259,35 @@ items, in value order:
 
 ## Build order and status
 
-1. **Session 1 — Foundation + contracts** (complete): Next.js/TS/Tailwind/shadcn
-   project, Prisma schema and initial migration, type contracts in
-   `src/types/contracts.ts`.
-2. **Session 2 — Insights engine** (complete): five analyzers in
-   `src/lib/insights/` (net worth growth, spending by category, cash-flow
-   trend, recurring charges, anomalies) producing typed `Insight` records at
-   configurable period granularity; `BalanceSnapshot` model added; seeded
-   fixture data via `npm run db:seed`; Vitest suite.
-3. **Session 3 — Connectors** (complete): SimpleFIN connector (access URL
-   from .env, setup-token claim flow, pending transactions skipped, account
-   type inferred from name keywords) and CSV connector (mapping configs for
-   chase-checking / chase-credit / wells-fargo / fidelity; deterministic
-   hashed externalIds; Fidelity trades pre-flagged TRANSFER). Full sync
-   pipeline in `src/lib/sync/`: upsert accounts → balance snapshots →
-   dedup import → category rules (priority asc, first match wins, MANUAL
-   never overridden) → cross-account transfer-pair detection (exact
-   opposite amounts, ≤4-day window) → insight regeneration. Commands:
-   `npm run sync:simplefin`, `npm run import:csv`, `npm run simplefin:claim`.
-4. **Session 4 — Provider health + subscription tracking** (complete):
-   `SyncLog` persists every sync outcome (success and failure, feed
-   warnings via the optional `Connector.feedWarnings()` contract method);
-   `src/lib/health/` derives per-provider status (OK/WARN/ERROR/UNKNOWN)
-   from LOCAL signals only — last sync outcome, feed errors, stale balance
-   dates, transaction-volume gap detection — no network on launch, ever.
-   Provider trust cards in `providers.ts` (add one when adding a
-   connector). `TrackedSubscription` reconciles registered subscriptions
-   against imported charges: next-payment projection from last real charge
-   (falling back to anchor) and cent-exact price-drift flagging on the
-   first deviating charge. `npm run health` prints the panel headless.
-5. **Session 5 — UI** (complete): App Router shell with tab nav and a
-   light/dark/sepia theme toggle (sepia default, tokens in globals.css,
-   no webfonts). Ledger visual system; charts hand-rolled SVG (no chart
-   lib). Six tabs:
-   - **Overview** ([src/app/page.tsx](src/app/page.tsx)): uncategorized
-     banner (highest-priority), provider-health status line, net worth
-     with market-gains decomposition line, accounts table, spending
-     donut, tracked subscriptions, signals feed.
-   - **Trends** ([src/app/trends/page.tsx](src/app/trends/page.tsx)):
-     spending donut with hover + drill-down to filtered Transactions,
-     cash-flow bars, net-worth line with market-gains in the tooltip,
-     month nav.
-   - **Insights** ([src/app/insights/page.tsx](src/app/insights/page.tsx)):
-     all five types rendered in plain language ("N× typical"), month nav,
-     dismiss/restore (survives regeneration via insight identity;
-     propagates to Overview signals; never silences TrackedSubscription
-     warnings).
-   - **Transactions** ([src/app/transactions/page.tsx](src/app/transactions/page.tsx)):
-     filter bar, P2P review queue, per-row category picker (MANUAL),
-     one-click rule-from-merchant, reimbursement linking; starter rule
-     pack (`npm run rules:install`), reimbursements (Category.isIncome,
-     Transaction.reimbursesId).
-   - **Accounts** ([src/app/accounts/page.tsx](src/app/accounts/page.tsx)):
-     grouped by type, snapshot sparklines, stale chips, type correction
-     (regenerates insights, survives syncs), per-account drill-down.
-   - **Providers** ([src/app/providers/page.tsx](src/app/providers/page.tsx)):
-     trust cards (data path, residual risks, revocation), health signals,
-     last-20 sync history, setup hints for unconfigured providers; the
-     access URL credential is never displayed, only its presence.
-6. **Session 6 — Security hardening + audit** (complete): adversarial review
-   of the HARD RULES across Sessions 2-5 found all six hold in code (no active
-   violation). The gap was that "nothing leaves the machine" rested on
-   developer discipline alone; hardening converted it into enforced controls:
-   - Strict CSP + security headers in `next.config.ts` (`headers()`):
-     `connect-src`/`default-src 'self'` block any off-origin
-     fetch/XHR/WebSocket/beacon at the browser boundary; dev adds
-     `'unsafe-eval'` + same-origin HMR ws (required for Fast Refresh — don't
-     remove). Also `frame-ancestors 'none'`, `poweredByHeader:false`.
-   - `src/middleware.ts`: host-allowlist (127.0.0.1/localhost only) as
-     anti-DNS-rebinding defense; 403s any non-loopback `Host`. Matcher skips
-     `_next/static|_next/image|favicon.ico`.
-   - `NEXT_TELEMETRY_DISABLED=1` in `.env`/`.env.example` (per-repo, since
-     `next telemetry disable` is only a per-machine global).
-   - `SimplefinConnector` redacts the access URL from URL-parse errors.
-   - README rewritten to document the local-only trust model.
-   Go-live checklist for Session 7: auth + encryption become hard blockers,
-   and the CSP/headers matter even more on a public origin (add HSTS there).
-7. **Session 7 — Single-tenant cloud deployment** (code complete 2026-07-13;
-   the deploy itself is the operator's step — see [DEPLOY.md](DEPLOY.md)):
-   amended the localhost HARD RULE (see Mode-scoped rules above). Built and
-   verified locally:
-   - DB driver swapped better-sqlite3 → `@prisma/adapter-libsql` (one adapter:
-     `file:` local + `libsql://` Turso, by DATABASE_URL). `postinstall: prisma
-     generate` (the gitignored client must build on Vercel); better-sqlite3
-     kept as a devDep for the test harness. `serverExternalPackages` → libSQL.
-   - Single-user password auth: scrypt hash (Node crypto, no native dep) + a
-     jose HS256 signed-cookie session verified in Edge middleware; fail-closed
-     in cloud mode; `requireSession()` on every Server Action; login page +
-     `npm run auth:set-password`. GOTCHA: the stored hash uses a `:` delimiter,
-     NOT `$` — Next's `.env` loader expands `$name` and silently mangles a
-     `$`-delimited hash to "scrypt".
-   - `src/middleware.ts` host-allowlist is now cloud-aware (loopback enforced in
-     local mode only, else it 403s the deploy host).
-   - Daily sync cron: `src/app/api/cron/sync/route.ts` (nodejs, CRON_SECRET
-     Bearer) + `vercel.json` crons; reuses `runSync`. HSTS in production.
-     `npm run turso:baseline` emits the schema SQL for `turso db shell`.
-   - Auth fails CLOSED on partial configuration. Setting EITHER
-     `AUTH_PASSWORD_HASH` or `SESSION_SECRET` counts as intent to lock; the
-     middleware turns intent-without-completion into a 503. Requiring both would
-     fail OPEN on the likeliest mistake (pasting the hash into `.env` while
-     leaving `SESSION_SECRET=""` from `.env.example`), serving everything with
-     no login while the operator believes a gate is up.
-   - Session tokens carry a non-reversible digest of the password hash,
-     re-checked per request, so changing the password evicts existing sessions.
-     Without it the natural response to "someone has my password" left every
-     session valid for its full 30 days. A digest, not the hash — JWT payloads
-     are readable by whoever holds the cookie.
-   - There is an error boundary: middleware only redirects NAVIGATIONS, never
-     Server Action responses, so a tab left open past its session would throw
-     and drop the whole app to Next's bare error screen.
-   - Encryption at rest = Turso's (managed; BYOK optional). Explicitly deferred:
-     end-to-end encryption (client-side keys + analyzers in the browser — viable
-     because the analyzers are pure functions over plain arrays). E2E is the
-     flagship feature if this becomes a shared product.
+The order was deliberate and still constrains changes. Contracts came first
+(`src/types/contracts.ts`) so nothing downstream could depend on a connector
+shape. The insights engine was built and tested against FIXTURE data before any
+connector existed — which is why the five analyzers in `src/lib/insights/` are
+pure functions over plain arrays, the property that makes browser-side E2E
+viable later. Connectors then normalized into contracts the engine already
+consumed (`src/lib/connectors/`, `src/lib/sync/`), and provider health plus
+subscription tracking (`src/lib/health/`) followed because real syncs could now
+fail. The six UI tabs (`src/app/`) came last, over an engine already producing
+typed insights. Security hardening came AFTER the surface existed — an audit of
+a finished attack surface, not a guess at one — converting "nothing leaves the
+machine" from developer discipline into enforced controls (`next.config.ts`,
+`src/middleware.ts`). Cloud mode (`src/lib/auth/`, `vercel.json`) amended the
+localhost HARD RULE only once local was proven.
 
-8. **Session 8 — Real data onboarding + analytics correctness** (complete
-   2026-07-25). The operator's live SimpleFIN feed replaced fixture data, then
-   25 months of history was backfilled by CSV. Everything below was found BY
-   running on real money — none of it showed up against seeded data:
-   - CSV mappings were wrong against real exports: Wells Fargo actually ships a
-     HEADERED file (the mapping described a headerless one with a different
-     column order, so it would have read descriptions as amounts); WF includes
-     PENDING rows that must be skipped; Fidelity's `/\btransfer\b/` never
-     matched "TRANSFERRED" and had no pattern for its ACH descriptor, which put
-     ~$209.15k of internal transfers into SPENDING.
-   - Backfill needed `--external-id` merging (account lookup falls back across
-     connector types) and `--until` (CSV ids are content hashes, feed ids are
-     the feed's own — overlapping rows do NOT dedupe).
-   - Bulk categorization by payee, reimbursement auto-suggest, coverage
-     flagging, `db:reset`, and `import:balances` all landed here.
-   - Net worth and anomaly analytics were both fabricating results at scale —
-     see the two Conventions entries above. These are the highest-value lessons
-     in this file.
-   Result: 197 → 2,638 transactions across 21 accounts, non-P2P categorization
-   backlog cleared, 181 tests.
-   Two adversarial QA passes then ran over the whole surface (three commits
-   on 2026-07-26) and found what running on real data hadn't: a first-run
-   `/trends` crash, `db:seed` destroying real data without a prompt, transfer
-   pairing erasing MANUAL categorizations, donut math breaking on negative
-   categories, a 1-character rule key matching everything, auth failing OPEN on
-   partial config, sessions surviving a password change, and subscription date
-   math skipping February. Every one is captured in Conventions above. The
-   lesson worth carrying: **most of these were invisible to tests and to normal
-   use — they needed someone deliberately asking "what would break this?"**
-9. **Session 9 — Cloud deployment (NEXT).** Nothing in the app is blocking; all
-   Session 7 code is verified locally. The remaining work is the operator's own
-   provisioning, in [DEPLOY.md](DEPLOY.md): create the Turso DB, apply the
-   schema via `npm run turso:baseline | turso db shell`, generate secrets
-   (`npm run auth:set-password`, CRON_SECRET), set Vercel env vars, deploy,
-   then verify auth + cron + headers. Claude cannot create accounts, log in, or
-   enter secrets — it builds and verifies, the operator provisions.
+Ducat has been exercised on four figures of real transactions across multiple
+real accounts and years of history, not just fixtures. Most of Conventions above
+exists because real money surfaced what seeded data could not — CSV mappings that
+were wrong against actual bank exports, and net worth and anomaly analytics that
+were both fabricating results at scale. Two adversarial QA passes then found what
+even real data hadn't: a first-run crash, a destructive command with no prompt,
+and several silent money errors. The lesson worth carrying: **most of these were
+invisible to tests and to normal use — they needed someone deliberately asking
+"what would break this?"**
+
+**Session 9 — Cloud deployment (NEXT).** No code is blocking. The remaining work
+is the operator's own provisioning, step by step in [DEPLOY.md](DEPLOY.md) —
+Claude builds and verifies; the operator creates accounts, logs in, enters
+secrets.
 
 ## Product direction (agreed 2026-07-13)
 
