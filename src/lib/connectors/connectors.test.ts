@@ -226,6 +226,28 @@ describe('inferAccountType', () => {
     expect(inferAccountType('RETIREMENT IRA', 'Fidelity')).toBe('INVESTMENT');
     expect(inferAccountType('Primary Checking', 'First National')).toBe('DEPOSITORY');
   });
+
+  // An issuer's own statement often names the product and nothing else, and
+  // guessing DEPOSITORY there counts a card's negative balance as an asset.
+  it('recognizes cards that never say "card"', () => {
+    expect(inferAccountType('Chase Sapphire Preferred', 'Chase')).toBe('CREDIT');
+    expect(inferAccountType('Freedom Unlimited', 'Chase')).toBe('CREDIT');
+    expect(inferAccountType('Quicksilver', 'Capital One')).toBe('CREDIT');
+    expect(inferAccountType('Venture X', 'Capital One')).toBe('CREDIT');
+    expect(inferAccountType('Active Cash', 'Wells Fargo')).toBe('CREDIT');
+    expect(inferAccountType('Bilt Mastercard', 'Wells Fargo')).toBe('CREDIT');
+  });
+
+  // Every list collides with another, so ordering is the whole design.
+  it('resolves the keyword collisions in the right order', () => {
+    expect(inferAccountType('Platinum Savings', 'Wells Fargo')).toBe('DEPOSITORY');
+    expect(inferAccountType('Investor Checking', 'Charles Schwab')).toBe('DEPOSITORY');
+    expect(inferAccountType('Cash Management', 'Fidelity')).toBe('DEPOSITORY');
+    expect(inferAccountType('Home Equity Line of Credit', 'Chase')).toBe('LOAN');
+    expect(inferAccountType('Gold Fund', 'Fidelity')).toBe('INVESTMENT');
+    expect(inferAccountType('Individual', 'Fidelity')).toBe('INVESTMENT');
+    expect(inferAccountType('Discover Online Savings', 'Discover Bank')).toBe('DEPOSITORY');
+  });
 });
 
 // Real exports are newest-first, and Array.sort is stable — so sorting by date

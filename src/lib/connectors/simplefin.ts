@@ -52,18 +52,43 @@ export interface SimplefinResponse {
 }
 
 /**
+ * A deposit account, whatever else its name says. "Platinum Savings" is a
+ * Wells Fargo savings account and "Schwab Bank Investor Checking" is a
+ * checking account at a broker — without settling these first, the card
+ * products and broker names below would each claim one.
+ */
+const DEPOSIT_WORDS = /\b(checking|savings|money market|cash management|certificate of deposit|cd)\b/;
+/** Before the card words, so a "Home Equity Line of Credit" is not a card. */
+const LOAN_WORDS = /\b(loan|mortgage|heloc|line of credit)\b/;
+const CARD_WORDS = /\b(credit|visa|mastercard|amex|american express|discover|card)\b/;
+const INVESTMENT_WORDS =
+  /\b(broker|invest|retirement|401k|401\(k\)|403b|roth|fidelity|vanguard|schwab|etrade|e\*trade|robinhood|merrill|betterment|wealthfront)|\b(ira|hsa)\b/;
+/**
+ * Card product names, for the statements that name the product and nothing
+ * else: "Chase Sapphire Preferred" carries no card word at all, so it fell
+ * through to DEPOSITORY and counted a credit-card balance as an asset.
+ * Checked AFTER the investment names on purpose — "gold" and "platinum" are
+ * fund names too, and a Fidelity Gold fund is not an Amex.
+ */
+const CARD_PRODUCTS =
+  /\b(sapphire|freedom|slate|ink\b|platinum|gold|blue cash|skymiles|bonvoy|hilton honors|venture|quicksilver|savor|spark|active cash|autograph|reflect|bilt|double cash|custom cash|aadvantage|strata)/;
+
+/**
  * SimpleFIN provides no account-type field, so type is inferred from
  * name/institution keywords. DEPOSITORY is the fallback; a wrong guess is
  * correctable in the DB and stays stable on re-sync (sync only sets type
  * at account creation).
+ *
+ * The order below is load-bearing — every list here collides with another,
+ * and each guard's reason is on the constant it protects.
  */
 export function inferAccountType(accountName: string, orgName: string): AccountType {
   const haystack = `${accountName} ${orgName}`.toLowerCase();
-  if (/credit|visa|mastercard|amex|discover it|card/.test(haystack)) return 'CREDIT';
-  if (/loan|mortgage|heloc/.test(haystack)) return 'LOAN';
-  if (/broker|invest|401k|401\(k\)|403b|ira|roth|hsa|fidelity|vanguard|schwab|etrade/.test(haystack)) {
-    return 'INVESTMENT';
-  }
+  if (DEPOSIT_WORDS.test(haystack)) return 'DEPOSITORY';
+  if (LOAN_WORDS.test(haystack)) return 'LOAN';
+  if (CARD_WORDS.test(haystack)) return 'CREDIT';
+  if (INVESTMENT_WORDS.test(haystack)) return 'INVESTMENT';
+  if (CARD_PRODUCTS.test(haystack)) return 'CREDIT';
   return 'DEPOSITORY';
 }
 
