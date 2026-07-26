@@ -169,8 +169,8 @@ regeneration.
 - Rules match against RAW bank text, so anything derived from it must stay
   findable in it. Two bugs came from ignoring that, both making a rule the user
   had just created silently match nothing: (1) banks pad descriptions into
-  fixed columns ("ZELLE TO  LARSON", "WF Credit Card   AUTO PAY") while derived
-  payee strings have whitespace collapsed — `rules.ts` now collapses BOTH sides
+  fixed columns ("ZELLE TO  RECIPIENT", "WF Credit Card   AUTO PAY") while
+  derived payee strings have whitespace collapsed — `rules.ts` collapses BOTH sides
   for CONTAINS/EQUALS (REGEX stays raw); (2) `payeeKey` deleted reference
   numbers mid-string, which only survives when the noise trails at the end as
   it does for Zelle — Venmo puts it between the verb and the name, so the key
@@ -237,9 +237,9 @@ regeneration.
   future "remove this rule" path needs the same snapshot, or it silently
   leaves the rule's effects behind.
 - Grouped review keys P2P by a payee string derived from the description, so
-  "zelle to larson" and "zelle to smith john" stay distinct instead of collapsing
-  into the meaningless "zelle transfer" rail. Those rules match DESCRIPTION,
-  which the P2P guard permits for user-priority rules.
+  two different recipients stay distinct instead of collapsing into the
+  meaningless "zelle transfer" rail. Those rules match DESCRIPTION, which the
+  P2P guard permits for user-priority rules.
 - Reimbursement suggestions lead with AMOUNT evidence (exact, clean 1/n, or a
   rounded ≈1/n — people send $62.2 for a $61.55 share); date proximity only breaks
   ties. Ranking by date alone put last night's rent above the dinner a $116.63 Zelle

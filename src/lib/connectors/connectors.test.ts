@@ -128,7 +128,7 @@ describe('CsvConnector: Wells Fargo', () => {
   const csv = [
     '"DATE","DESCRIPTION","AMOUNT","CHECK #","STATUS"',
     '"07/24/2026","PAYROLL","6840.90","","Posted"',
-    '"07/21/2026","ZELLE TO LARSON","-22.82","","Posted"',
+    '"07/21/2026","ZELLE TO JANE DOE","-59.14","","Posted"',
     '"07/25/2026","","0.00",,"Pending"',
     '"07/25/2026","LINK.COM* SIMPLEFIN BR","-1.50",,"Pending"',
   ].join('\n');
@@ -144,7 +144,7 @@ describe('CsvConnector: Wells Fargo', () => {
     expect(txns[0].amount).toBe(6840.90);
     expect(txns[0].flow).toBe('INFLOW');
     expect(txns[1].amount).toBe(-59.14);
-    expect(txns[1].description).toBe('ZELLE TO LARSON');
+    expect(txns[1].description).toBe('ZELLE TO JANE DOE');
   });
 });
 
@@ -326,7 +326,7 @@ describe('sanitizeBankText', () => {
     for (const clean of [
       'PRIMARY CHECKING ...0003',
       'Café Müller',            // real accented text must survive
-      'ZELLE TO  LARSON ON 07/18',       // bank column padding is not ours to collapse
+      'ZELLE TO  JANE DOE ON 07/18',       // bank column padding is not ours to collapse
       '',
     ]) {
       expect(sanitizeBankText(clean)).toBe(clean);

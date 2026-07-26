@@ -97,7 +97,7 @@ function matches(rule: RuleData, txn: RuleTxn): boolean {
     : txn.accountName;
   switch (rule.matchOperator) {
     // Whitespace is collapsed on BOTH sides. Banks pad descriptions into fixed
-    // columns — Wells Fargo writes "ZELLE TO  LARSON" and "WF Credit Card   AUTO
+    // columns — Wells Fargo writes "ZELLE TO  RECIPIENT" and "WF Credit Card   AUTO
     // PAY" — while every payee string the app derives has its runs collapsed.
     // Comparing them literally means a rule the user just created silently
     // matches nothing. REGEX is left raw so an author's own \s+ still applies.

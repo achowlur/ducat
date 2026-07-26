@@ -11,7 +11,7 @@ const txn = (partial: Partial<GroupTxn> & { id: string }): GroupTxn => ({
 
 describe('payeeKey', () => {
   it('strips reference numbers, dates, and doubled spaces from P2P descriptions', () => {
-    expect(payeeKey('ZELLE TO  LARSON ON 07/21 REF # WFCT0000000A')).toBe('zelle to larson');
+    expect(payeeKey('ZELLE TO  JANE DOE ON 07/21 REF # WFCT0000000A')).toBe('zelle to jane doe');
     expect(payeeKey('ZELLE TO SMITH JOHN ON 07/19 REF # WFCT0000000B')).toBe('zelle to smith john');
   });
 
@@ -28,7 +28,7 @@ describe('payeeKey', () => {
 
   it('keeps every derived key findable in its own description', () => {
     for (const description of [
-      'ZELLE TO  LARSON ON 07/21 REF # WFCT0000000A',
+      'ZELLE TO  JANE DOE ON 07/21 REF # WFCT0000000A',
       'ZELLE FROM DOE MARY ON 06/10 REF # WFCT0000000D FOR BIRTHDAY GIFT',
       'VENMO            CASHOUT    260220 1000000000002   JANE',
     ]) {
@@ -39,8 +39,8 @@ describe('payeeKey', () => {
   });
 
   it('collapses the same counterparty across different dates and refs', () => {
-    const a = payeeKey('ZELLE TO  LARSON ON 07/21 REF # WFCT0000000A');
-    const b = payeeKey('ZELLE TO  LARSON ON 07/18 REF # WFCT0000000C');
+    const a = payeeKey('ZELLE TO  JANE DOE ON 07/21 REF # WFCT0000000A');
+    const b = payeeKey('ZELLE TO  JANE DOE ON 07/18 REF # WFCT0000000C');
     expect(a).toBe(b);
   });
 });
@@ -64,11 +64,11 @@ describe('groupByPayee', () => {
 
   it('splits P2P by counterparty instead of lumping the whole rail together', () => {
     const groups = groupByPayee([
-      txn({ id: '1', normalizedMerchant: 'zelle transfer', description: 'ZELLE TO LARSON ON 07/21 REF # AAA' }),
-      txn({ id: '2', normalizedMerchant: 'zelle transfer', description: 'ZELLE TO LARSON ON 07/18 REF # BBB' }),
+      txn({ id: '1', normalizedMerchant: 'zelle transfer', description: 'ZELLE TO JANE DOE ON 07/21 REF # AAA' }),
+      txn({ id: '2', normalizedMerchant: 'zelle transfer', description: 'ZELLE TO JANE DOE ON 07/18 REF # BBB' }),
       txn({ id: '3', normalizedMerchant: 'zelle transfer', description: 'ZELLE TO SMITH JOHN ON 07/19 REF # CCC' }),
     ]);
-    expect(groups.map((g) => g.key)).toEqual(['zelle to larson', 'zelle to smith john']);
+    expect(groups.map((g) => g.key)).toEqual(['zelle to jane doe', 'zelle to smith john']);
     expect(groups.every((g) => g.matchField === 'DESCRIPTION' && g.isP2P)).toBe(true);
     expect(groups[0].count).toBe(2);
   });

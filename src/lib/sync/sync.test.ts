@@ -44,18 +44,18 @@ describe('applyRules', () => {
     expect(applyRules([bigSpend], [txn({ amount: -100 })])).toHaveLength(0);
   });
 
-  // Banks pad descriptions into fixed columns ("ZELLE TO  LARSON", "WF Credit
+  // Banks pad descriptions into fixed columns ("ZELLE TO  JANE DOE", "WF Credit
   // Card   AUTO PAY") while every payee string the app derives has its runs
   // collapsed. Matching literally meant a rule the user had just created
   // silently matched nothing.
   it('matches across bank column padding in the description', () => {
-    const r = rule({ matchField: 'DESCRIPTION', matchValue: 'zelle to larson', setCategoryId: 'cat-dining' });
-    const padded = txn({ description: 'ZELLE TO  LARSON ON 07/18 REF # WFCT0000000C' });
+    const r = rule({ matchField: 'DESCRIPTION', matchValue: 'zelle to jane doe', setCategoryId: 'cat-dining' });
+    const padded = txn({ description: 'ZELLE TO  JANE DOE ON 07/18 REF # WFCT0000000C' });
     expect(applyRules([r], [padded])[0]?.categoryId).toBe('cat-dining');
   });
 
   it('still refuses a genuinely different payee', () => {
-    const r = rule({ matchField: 'DESCRIPTION', matchValue: 'zelle to larson', setCategoryId: 'cat-dining' });
+    const r = rule({ matchField: 'DESCRIPTION', matchValue: 'zelle to jane doe', setCategoryId: 'cat-dining' });
     expect(applyRules([r], [txn({ description: 'ZELLE TO  SMITH JOHN ON 07/19' })])).toEqual([]);
   });
 

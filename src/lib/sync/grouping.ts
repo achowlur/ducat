@@ -11,8 +11,8 @@ import { P2P_PATTERN } from './rules';
  *    and the resulting rule matches MERCHANT.
  *  - P2P rails group on a payee key derived from the description, because the
  *    rail itself is meaningless — every Zelle payment normalizes to "zelle
- *    transfer", but "ZELLE TO LARSON" and "ZELLE TO SMITH JOHN" are different
- *    people who deserve different categories. Those rules match DESCRIPTION.
+ *    transfer", while two different recipients on it deserve two different
+ *    categories. Those rules match DESCRIPTION.
  */
 /**
  * Sentinel used by the bulk-review UI in place of a category id, meaning
@@ -50,8 +50,8 @@ export interface PayeeGroup {
  * is per-payment noise that would otherwise make each payment to the same
  * person look unique.
  *
- *   "ZELLE TO  LARSON ON 07/21 REF # WFCT0000000A" -> "zelle to larson"
- *   "VENMO   PAYMENT   260704 1000000000001   JANE" -> "venmo payment"
+ *   "ZELLE TO  RECIPIENT ON 07/21 REF # WFCT0000000A" -> "zelle to recipient"
+ *   "VENMO   PAYMENT   260704 1000000000001   NAME" -> "venmo payment"
  *
  * Truncating rather than deleting-and-rejoining is load-bearing: the key
  * becomes a rule's CONTAINS value, matched against the description itself. Cut
