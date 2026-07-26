@@ -94,6 +94,17 @@ shape.
   statement's "Ending Account Value", then `-- balances.csv [--dry-run]`.
   History otherwise grows one snapshot per sync. `marketGains` only computes
   once two consecutive periods are snapshot-backed.
+- Rules match against RAW bank text, so anything derived from it must stay
+  findable in it. Two bugs came from ignoring that, both making a rule the user
+  had just created silently match nothing: (1) banks pad descriptions into
+  fixed columns ("ZELLE TO  LENA", "WF Credit Card   AUTO PAY") while derived
+  payee strings have whitespace collapsed — `rules.ts` now collapses BOTH sides
+  for CONTAINS/EQUALS (REGEX stays raw); (2) `payeeKey` deleted reference
+  numbers mid-string, which only survives when the noise trails at the end as
+  it does for Zelle — Venmo puts it between the verb and the name, so the key
+  appeared nowhere in the description. It now TRUNCATES at the first noise
+  marker, making the key a contiguous prefix by construction (regression-tested
+  as an invariant: every derived key must be findable in its own description).
 - Anomaly baselines use only periods where the category actually had spending
   (`anomalies.ts`). Counting empty periods as $0 makes the median 0 for any
   category whose data starts partway through history — which, with accounts
