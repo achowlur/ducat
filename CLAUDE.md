@@ -245,6 +245,38 @@ regeneration.
   ties. Ranking by date alone put last night's rent above the dinner a $116.63 Zelle
   actually repaid. Categories in `UNSPLITTABLE` are denied split evidence:
   arithmetic can't tell "1/5 of a dinner" from "1/6 of a tax bill".
+- `installRulePack` recognizes an already-installed rule by
+  `matchField|matchOperator|matchValue`, so EDITING a shipped rule's matchValue
+  does not upgrade it — it installs a second rule and leaves the original
+  enabled in every database that already ran the pack. Add a new rule at the
+  next priority instead (why `901`/`911`/`951` exist beside `900`/`910`/`950`).
+- Rule bands in `rulePack.ts`: `1-99` user, `200-299` structural (bank and
+  brokerage bookkeeping descriptors — card payments, ATM cash, distributions,
+  taxes), `500-529` brands, `900-999` generic words, `995` payment rail.
+  Credit-card-payment patterns require a card token AND a payment token,
+  because Wells Fargo appends "CARD 1234" to every debit-card purchase and
+  matching `card` alone flags half a statement TRANSFER — hiding it from
+  spending entirely. The ATM fee pattern is ordered ahead of the ATM
+  withdrawal one ("ATM WITHDRAWAL FEE" is a fee, not cash), and short brand
+  names are word-bounded regexes, not CONTAINS: "ulta" hides in "consultant",
+  "avis" in "Davis", "rei" in "reinvestment", "culver" in "Culver City".
+- `normalizeMerchant` strips payment-processor prefixes (`tst*`, `sq *`,
+  `slice*`, `dd *`, `py *`, `spo*`, `gdp*`, `fiv*`, `uep*`, `pl*`, `cl *`,
+  `wl *`) so the real merchant is reachable by brand rules and groups by
+  itself. The leading `\b` is what keeps "DD'S DISCOUNTS" intact, and
+  stripping a PREFIX (not a middle) is what keeps the result a contiguous run
+  of the original — the same property `payeeKey` needs. Only Toast, Slice and
+  DoorDash also auto-categorize, via DESCRIPTION rules since the raw
+  description keeps the prefix; Square and the rest bill salons and retail, so
+  they get the strip and no category. Normalization runs at IMPORT, so
+  `npm run repair:merchants` re-normalizes stored rows — and MERCHANT rule
+  values too, or every rule still carrying a prefix silently stops matching.
+- `inferAccountType` order is load-bearing: deposit words first (so "Platinum
+  Savings" and "Investor Checking" at a broker stay DEPOSITORY), then LOAN
+  before CREDIT (so "line of credit" is a loan), then card words, then
+  investment names, and card PRODUCT names LAST — "gold" and "platinum" are
+  fund names too. Without the product list "Chase Sapphire Preferred" carried
+  no card word at all and counted as an asset.
 
 ## Verified load-bearing (three reviews, 2026-07-26) — do not "clean up"
 
@@ -271,32 +303,29 @@ money typography, and Overview's market-movement line.
   going forward since syncs never delete; CSV import is the backfill path for
   anything older, and dedups on (accountId, externalId).
 
-## Shipping to other people (agreed 2026-07-25, NOT yet built)
+## Shipping to other people (SHIPPED 2026-07-26)
 
-The operator's own instance was tuned interactively — ~160 categorization
-rules, transfer patterns, an account-type correction. Someone cloning this from
-GitHub has no such help, so the tail of manual review has to be small enough to
-walk through alone. What's user-specific ("harborwaymgmt is my landlord") is
-exactly what the grouped review exists for; what's structural should ship. Four
-items, in value order:
+All four items are built; the details that constrain future changes are in
+Conventions above. The pack went from 160 rules to 421 and from 12 categories
+to 15, so a fresh clone now starts with the structural rules, the processor
+prefixes, the chain list and the account-type inference that previously existed
+only in the operator's hand-tuned database.
 
-1. **Ship the structural rules.** `DIVIDEND RECEIVED → Income`,
-   credit-card-payment detection, ATM-withdrawal handling, and the missing
-   `Rent & Housing` / `Taxes` / `Cash & ATM` categories currently exist ONLY in
-   the operator's database, not in `rulePack.ts` — a fresh clone gets none of
-   them. (`REINVESTMENT → TRANSFER` already ships; ATM appears only as "atm fee"
-   under Fees & Charges.)
-2. **Strip payment-processor prefixes** in `normalizeMerchant`: `tst*` (Toast),
-   `sq *` (Square), `slice*`, `dd *` (DoorDash), `py *`, `spo*`, `gdp*`, `fiv*`
-   wrap the real merchant name, degrading both normalization and grouping.
-   `tst*`/`slice*`/`dd *` are effectively always food and can auto-categorize;
-   `sq *` is NOT (it covers salons and retail too) — don't blanket it.
-3. **Expand the shipped brand pack** with the ~100 generic chains identified
-   from real data (restaurants, retail, transit).
-4. **Fix account-type inference** (`inferAccountType` in simplefin.ts). It keys
-   on words like card/visa/credit, so "Chase Sapphire Preferred" fell through to
-   DEPOSITORY and silently counted a credit-card balance as an ASSET. Add card
-   product names (Sapphire, Freedom, Platinum, Gold, Venture, Quicksilver…).
+Two facts worth keeping. First, the pack is now large enough that its own
+consistency needs testing, not just its output — `rulePack.test.ts` asserts no
+value is listed twice (installRulePack dedupes against a DATABASE, not against
+the pack) and that every rule points at a category the pack installs. Second,
+this changed almost nothing for the operator: simulating the new pack against
+2638 real transactions rewrote 80 rows, all of them `categorySource`
+AGGREGATOR → RULE on credit-card payments already flagged TRANSFER by pair
+detection. No category moved and no total changed, because ~160 user rules at
+priority ≤50 outrank the whole pack — which is the intended relationship. The
+value is entirely for the next person to clone it.
+
+What deliberately did NOT ship: rent-portal rules (PayLease and Zego billed the
+operator's convenience FEE, not the rent, and arithmetic can't tell which is
+which), and anything institution-specific like a brokerage's own ACH
+descriptor. Those stay the grouped review's job.
 
 ## Build order and status
 
