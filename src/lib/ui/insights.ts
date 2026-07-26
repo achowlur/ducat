@@ -9,8 +9,7 @@ import type {
 import { prisma } from "../prisma";
 import { isActive } from "../health/detectedSubscriptions";
 import { granularityOfKey, periodEndExclusive } from "../insights/periods";
-import { money, pct, titleCase } from "./format";
-import { monthLabel } from "./trends";
+import { money, monthLabel, pct, titleCase } from "./format";
 
 export interface InsightRow {
   id: string;

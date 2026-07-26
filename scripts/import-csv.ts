@@ -6,7 +6,8 @@ import { CSV_MAPPINGS } from '../src/lib/connectors/csvMappings';
 import { matchAccount } from '../src/lib/connectors/matchAccount';
 import { runSync } from '../src/lib/sync/sync';
 import { prisma } from '../src/lib/prisma';
-import type { AccountType } from '../src/types/contracts';
+import { ACCOUNT_TYPES, type AccountType } from '../src/types/contracts';
+import { arg } from './args';
 
 /**
  * Usage (single account):
@@ -33,11 +34,6 @@ import type { AccountType } from '../src/types/contracts';
  * the same transaction from both sources will NOT dedupe. When backfilling
  * behind a live feed, set --until to the date that feed's coverage starts.
  */
-function arg(name: string): string | undefined {
-  return process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1];
-}
-
-const ACCOUNT_TYPES: AccountType[] = ['DEPOSITORY', 'CREDIT', 'INVESTMENT', 'LOAN'];
 
 async function main(): Promise<void> {
   const file = process.argv[2];

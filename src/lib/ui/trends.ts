@@ -3,6 +3,7 @@ import type {
   NetWorthGrowthPayload,
   SpendingByCategoryPayload,
 } from "../../types/contracts";
+import { monthLabel } from "./format";
 import { prisma } from "../prisma";
 import { granularityOfKey } from "../insights/periods";
 import { spendingBreakdown, type CategoryRow, type DonutSliceData } from "./spendingBreakdown";
@@ -33,15 +34,6 @@ export interface TrendsData {
 function shortMonth(period: string): string {
   const [y, m] = period.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
-}
-
-export function monthLabel(period: string): string {
-  const [y, m] = period.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
 }
 
 async function monthlyInsights<T>(type: string): Promise<{ period: string; payload: T }[]> {

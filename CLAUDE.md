@@ -187,7 +187,7 @@ regeneration.
   history depths (a 90-day feed vs an 18-month CSV vs 5 years of brokerage
   history), so periods before an account's first transaction are UNDERSTATED,
   and the month its history starts looks like a spending spike that never
-  happened. `periodCoverage`/`coverageFloor` quantify this and `CoverageNotice`
+  happened. `periodCoverage` quantifies this and `CoverageNotice`
   surfaces it on Trends/Insights — visibly incomplete beats silently wrong.
   An account counts as covering a period only if its first transaction is at
   or before the period START (mid-period starts are partial).

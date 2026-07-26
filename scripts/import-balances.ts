@@ -5,6 +5,7 @@ import { parseCsv } from '../src/lib/connectors/csvParser';
 import { matchAccount } from '../src/lib/connectors/matchAccount';
 import { generateInsights } from '../src/lib/insights/engine';
 import { prisma } from '../src/lib/prisma';
+import { arg } from './args';
 
 /**
  * Imports month-end balances as BalanceSnapshots — the only way to get real
@@ -37,10 +38,6 @@ function column(header: string[], ...names: string[]): number {
     if (idx !== -1) return idx;
   }
   return -1;
-}
-
-function arg(name: string): string | undefined {
-  return process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1];
 }
 
 /**

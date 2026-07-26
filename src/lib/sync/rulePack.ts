@@ -1,7 +1,7 @@
 import type { PrismaClient } from "../../generated/prisma/client";
 import type { TransactionFlow } from "../../types/contracts";
 import { generateInsights } from "../insights/engine";
-import { applyRules, type RuleTxn } from "./rules";
+import { applyRules, toRuleTxns } from "./rules";
 
 /**
  * Starter categorization pack: brand rules and generic-word heuristics,
@@ -217,27 +217,7 @@ export async function reapplyRules(
   const ruleRows = await prisma.rule.findMany({ where: { enabled: true } });
   if (ruleRows.length === 0) return { changed: 0, restore: [] };
   const txnRows = await prisma.transaction.findMany({ include: { account: true } });
-  const ruleTxns: RuleTxn[] = txnRows.map((t) => ({
-    id: t.id,
-    amount: Number(t.amount),
-    description: t.description,
-    normalizedMerchant: t.normalizedMerchant,
-    accountName: t.account.name,
-    categorySource: t.categorySource,
-  }));
-  const applications = applyRules(
-    ruleRows.map((r) => ({
-      id: r.id,
-      priority: r.priority,
-      matchField: r.matchField,
-      matchOperator: r.matchOperator,
-      matchValue: r.matchValue,
-      setCategoryId: r.setCategoryId,
-      setFlow: r.setFlow,
-      enabled: r.enabled,
-    })),
-    ruleTxns,
-  );
+  const applications = applyRules(ruleRows, toRuleTxns(txnRows));
 
   const byId = new Map(txnRows.map((t) => [t.id, t]));
   const restore: TxnRestore[] = [];

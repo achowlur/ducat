@@ -34,6 +34,33 @@ export interface RuleTxn {
   categorySource: 'AGGREGATOR' | 'RULE' | 'MANUAL';
 }
 
+/**
+ * A stored transaction row as applyRules wants it: Decimal to number, the
+ * account's name flattened. Written once here rather than in each caller —
+ * sync.ts and rulePack.ts had byte-identical copies. Structural parameter
+ * types keep this module Prisma-free, which is what makes it testable as a
+ * pure function.
+ */
+export function toRuleTxns(
+  rows: {
+    id: string;
+    amount: unknown;
+    description: string;
+    normalizedMerchant: string;
+    categorySource: string;
+    account: { name: string };
+  }[],
+): RuleTxn[] {
+  return rows.map((t) => ({
+    id: t.id,
+    amount: Number(t.amount),
+    description: t.description,
+    normalizedMerchant: t.normalizedMerchant,
+    accountName: t.account.name,
+    categorySource: t.categorySource as RuleTxn['categorySource'],
+  }));
+}
+
 export interface RuleApplication {
   txnId: string;
   ruleId: string;

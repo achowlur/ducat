@@ -8,8 +8,7 @@ import { periodEndExclusive, periodStart } from "../../lib/insights/periods";
 import { suggestReimbursements } from "../../lib/insights/suggestReimbursements";
 import { groupByPayee } from "../../lib/sync/grouping";
 import { P2P_PATTERN } from "../../lib/sync/rulePack";
-import { amount, isoDate, money, titleCase } from "../../lib/ui/format";
-import { monthLabel } from "../../lib/ui/trends";
+import { amount, isoDate, money, monthLabel, titleCase } from "../../lib/ui/format";
 import { periodKey } from "../../lib/insights/periods";
 
 export const dynamic = "force-dynamic";

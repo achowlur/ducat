@@ -17,7 +17,7 @@ import {
 } from "../health/detectedSubscriptions";
 import type { ProviderHealth, SubscriptionStatus } from "../health/types";
 import { granularityOfKey } from "../insights/periods";
-import { money, pct, shortDate, titleCase } from "./format";
+import { money, monthLabel, pct, shortDate, titleCase } from "./format";
 import { spendingBreakdown, type DonutSliceData } from "./spendingBreakdown";
 
 export interface AccountRow {
@@ -60,15 +60,6 @@ export interface OverviewData {
 }
 
 const TYPE_ORDER: Record<string, number> = { DEPOSITORY: 0, INVESTMENT: 1, CREDIT: 2, LOAN: 3 };
-
-function monthLabel(period: string): string {
-  const [y, m] = period.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
 
 /** Latest MONTH-granularity insights of one type, newest period first. */
 async function monthlyInsights<T>(type: string): Promise<{ period: string; payload: T; dismissed: boolean }[]> {

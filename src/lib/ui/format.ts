@@ -16,6 +16,16 @@ export function pct(fraction: number): string {
   return `${sign}${Math.abs(fraction * 100).toFixed(2)}%`;
 }
 
+/** Period key "2026-07" → "July 2026". */
+export function monthLabel(period: string): string {
+  const [y, m] = period.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 /** "2026-07-12" → short human date "Jul 12". */
 export function shortDate(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });

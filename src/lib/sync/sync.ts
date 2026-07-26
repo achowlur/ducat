@@ -1,7 +1,7 @@
 import type { Connector, PeriodGranularity } from '../../types/contracts';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { generateInsights, type GenerateResult } from '../insights/engine';
-import { applyRules, type RuleTxn } from './rules';
+import { applyRules, toRuleTxns } from './rules';
 import { detectTransferPairs } from './transfers';
 
 export interface SyncOptions {
@@ -204,27 +204,7 @@ async function runPipeline(
       },
       include: { account: true },
     });
-    const ruleTxns: RuleTxn[] = freshRows.map((t) => ({
-      id: t.id,
-      amount: Number(t.amount),
-      description: t.description,
-      normalizedMerchant: t.normalizedMerchant,
-      accountName: t.account.name,
-      categorySource: t.categorySource,
-    }));
-    const applications = applyRules(
-      ruleRows.map((r) => ({
-        id: r.id,
-        priority: r.priority,
-        matchField: r.matchField,
-        matchOperator: r.matchOperator,
-        matchValue: r.matchValue,
-        setCategoryId: r.setCategoryId,
-        setFlow: r.setFlow,
-        enabled: r.enabled,
-      })),
-      ruleTxns,
-    );
+    const applications = applyRules(ruleRows, toRuleTxns(freshRows));
     for (const app of applications) {
       await prisma.transaction.update({
         where: { id: app.txnId },

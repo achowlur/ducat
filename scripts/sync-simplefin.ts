@@ -3,15 +3,12 @@ import { SimplefinConnector } from '../src/lib/connectors/simplefin';
 import { runSync } from '../src/lib/sync/sync';
 import { prisma } from '../src/lib/prisma';
 import type { PeriodGranularity } from '../src/types/contracts';
+import { arg } from './args';
 
 /**
  * Usage: npm run sync:simplefin [-- --since=YYYY-MM-DD] [-- --granularity=MONTH]
  * Requires SIMPLEFIN_ACCESS_URL in .env.
  */
-function arg(name: string): string | undefined {
-  return process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1];
-}
-
 async function main(): Promise<void> {
   const accessUrl = process.env.SIMPLEFIN_ACCESS_URL;
   if (accessUrl === undefined || accessUrl === '') {

@@ -32,11 +32,6 @@ is now 94% of the remaining time, and memoization barely touched it because its
 cost is the O(n²) history re-filter per transaction (`anomalies.ts:42`), not
 period parsing. Group the history by category/merchant once per period instead.
 
-17. Safe mechanical dedup: `monthLabel` duplicated (`ui/overview.ts:70` vs
-    exported `ui/trends.ts:47`); `Rule→RuleData`/`Txn→RuleTxn` mapping blocks
-    identical in `sync.ts:207` and `rulePack.ts:192`; `function arg()` in three
-    scripts; `ACCOUNT_TYPES` duplicated; `coverageFloor` is a dead export.
-
 18. `monthlyInsights` exists 3× and has diverged (overview newest-first +
     `dismissed`; trends oldest-first without). Unify carefully — reversing a sort
     silently flips Trends' charts.

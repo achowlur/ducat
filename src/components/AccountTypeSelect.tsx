@@ -2,13 +2,18 @@
 
 import { useTransition } from "react";
 import { setAccountType } from "../app/accounts/actions";
+import type { AccountType } from "../types/contracts";
 
-const TYPES = [
-  { value: "DEPOSITORY", label: "Depository" },
-  { value: "INVESTMENT", label: "Investment" },
-  { value: "CREDIT", label: "Credit" },
-  { value: "LOAN", label: "Loan" },
-];
+const LABELS: Record<AccountType, string> = {
+  DEPOSITORY: "Depository",
+  INVESTMENT: "Investment",
+  CREDIT: "Credit",
+  LOAN: "Loan",
+};
+// Display order, deliberately not alphabetical: assets before liabilities.
+const TYPES: { value: AccountType; label: string }[] = (
+  ["DEPOSITORY", "INVESTMENT", "CREDIT", "LOAN"] as const
+).map((value) => ({ value, label: LABELS[value] }));
 
 /**
  * Corrects the account type guessed at creation. Changing it recomputes

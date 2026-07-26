@@ -45,18 +45,3 @@ export function periodCoverage(period: string, accounts: AccountCoverage[]): Per
     missing,
   };
 }
-
-/**
- * The earliest instant at which every account has data — analytics from here
- * forward are comparable, earlier ones are partial. Null when any account has
- * no transactions (nothing is fully covered).
- */
-export function coverageFloor(accounts: AccountCoverage[]): Date | null {
-  if (accounts.length === 0) return null;
-  let floor = new Date(0);
-  for (const a of accounts) {
-    if (a.firstTransaction === null) return null;
-    if (a.firstTransaction.getTime() > floor.getTime()) floor = a.firstTransaction;
-  }
-  return floor;
-}

@@ -11,7 +11,8 @@
  * means $123.45 spent) except net worth, which stays signed.
  */
 
-export type AccountType = 'DEPOSITORY' | 'CREDIT' | 'INVESTMENT' | 'LOAN';
+export const ACCOUNT_TYPES = ['DEPOSITORY', 'CREDIT', 'INVESTMENT', 'LOAN'] as const;
+export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
 export type TransactionFlow = 'INFLOW' | 'OUTFLOW' | 'TRANSFER';
 

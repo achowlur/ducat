@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coverageFloor, periodCoverage, type AccountCoverage } from './coverage';
+import { periodCoverage, type AccountCoverage } from './coverage';
 
 const utc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d, 12));
 
@@ -48,21 +48,5 @@ describe('periodCoverage', () => {
 
   it('treats an account with no transactions as covering nothing', () => {
     expect(periodCoverage('2026-06', [acct('Empty', null)]).complete).toBe(false);
-  });
-});
-
-describe('coverageFloor', () => {
-  it('is the latest account start — the point where all histories overlap', () => {
-    const floor = coverageFloor([
-      acct('Brokerage', utc(2021, 3, 1)),
-      acct('Checking', utc(2025, 1, 15)),
-      acct('Visa', utc(2026, 4, 27)),
-    ]);
-    expect(floor?.toISOString().slice(0, 10)).toBe('2026-04-27');
-  });
-
-  it('is null when any account has no data, or when there are no accounts', () => {
-    expect(coverageFloor([acct('A', utc(2025, 1, 1)), acct('B', null)])).toBeNull();
-    expect(coverageFloor([])).toBeNull();
   });
 });
