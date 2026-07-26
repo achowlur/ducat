@@ -227,3 +227,32 @@ describe('inferAccountType', () => {
     expect(inferAccountType('Primary Checking', 'First National')).toBe('DEPOSITORY');
   });
 });
+
+// Real exports are newest-first, and Array.sort is stable — so sorting by date
+// and taking "last" returns that day's OLDEST posting, a balance short by the
+// rest of the day's activity.
+describe('CsvConnector: running balance on multi-posting days', () => {
+  const account = { externalId: 'c1', name: 'Checking', institution: 'Chase', type: 'DEPOSITORY' as const };
+
+  it('takes the newest posting when a newest-first file has several that day', async () => {
+    const csv = [
+      'Details,Posting Date,Description,Amount,Type,Balance,Check or Slip #',
+      'DEBIT,07/24/2026,LAST OF DAY,-67.38,DEBIT_CARD,3110.08,',
+      'DEBIT,07/24/2026,MIDDLE,-81.82,DEBIT_CARD,3177.46,',
+      'DEBIT,07/23/2026,EARLIER DAY,-25.92,DEBIT_CARD,3259.28,',
+    ].join('\n');
+    const [acct] = await new CsvConnector(csv, CSV_MAPPINGS['chase-checking'], account).listAccounts();
+    expect(acct.balance).toBe(3110.08);
+  });
+
+  it('still works for an oldest-first file', async () => {
+    const csv = [
+      'Details,Posting Date,Description,Amount,Type,Balance,Check or Slip #',
+      'DEBIT,07/23/2026,EARLIER DAY,-25.92,DEBIT_CARD,3259.28,',
+      'DEBIT,07/24/2026,MIDDLE,-81.82,DEBIT_CARD,3177.46,',
+      'DEBIT,07/24/2026,LAST OF DAY,-67.38,DEBIT_CARD,3110.08,',
+    ].join('\n');
+    const [acct] = await new CsvConnector(csv, CSV_MAPPINGS['chase-checking'], account).listAccounts();
+    expect(acct.balance).toBe(3110.08);
+  });
+});

@@ -180,12 +180,27 @@ export class CsvConnector implements Connector {
         const rows = this.rows.filter(
           (r) => r.account.externalId === account.externalId && r.date.getTime() < until,
         );
-        const withBalance = rows
-          .filter((r) => r.balance !== null)
-          .sort((a, b) => a.date.getTime() - b.date.getTime());
+        // The running balance we want is the NEWEST posting's. Sorting by date
+        // alone isn't enough: sort is stable, and real exports are newest-first
+        // (verified against Chase and Wells Fargo), so several postings sharing
+        // the newest date keep file order and "last" is that day's OLDEST row —
+        // a balance short by the rest of the day's activity. Break ties by file
+        // position, in whichever direction this file is ordered.
+        const withBalance = rows.filter((r) => r.balance !== null);
+        const fileIsNewestFirst =
+          withBalance.length > 1 &&
+          withBalance[0].date.getTime() > withBalance[withBalance.length - 1].date.getTime();
+        const newest = withBalance.reduce<(typeof withBalance)[number] | undefined>((best, r, i) => {
+          if (best === undefined) return r;
+          const bestIndex = withBalance.indexOf(best);
+          if (r.date.getTime() !== best.date.getTime()) {
+            return r.date.getTime() > best.date.getTime() ? r : best;
+          }
+          return fileIsNewestFirst ? (i < bestIndex ? r : best) : (i > bestIndex ? r : best);
+        }, undefined);
         // A capped import is a historical backfill: the rows stop before today,
         // so this file's last balance is NOT the current one. Never say it is.
-        const latest = account.until === undefined ? withBalance[withBalance.length - 1] : undefined;
+        const latest = account.until === undefined ? newest : undefined;
         const balanceDate = rows.reduce(
           (max, r) => (r.date.getTime() > max.getTime() ? r.date : max),
           new Date(0),
