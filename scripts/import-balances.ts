@@ -160,7 +160,19 @@ async function main(): Promise<void> {
   for (const row of rows.slice(1)) {
     const label = (row[iAccount] ?? '').trim();
     const rawDate = (row[iDate] ?? '').trim();
-    const rawBalance = (row[iBalance] ?? '').trim().replace(/[$,]/g, '');
+    // A balance written with thousands separators but WITHOUT quotes
+    // ("...,2026-06-30,517,916.57") splits into extra fields, and reading just
+    // the balance column would silently store $515.75 instead of $517,916.57.
+    // When balance is the final column, re-join everything from it onward.
+    const balanceIsLast = iBalance === header.length - 1;
+    const rawBalance = (balanceIsLast ? row.slice(iBalance).join('') : (row[iBalance] ?? ''))
+      .trim()
+      .replace(/[$,\s]/g, '');
+    if (!balanceIsLast && (row[iBalance] ?? '').includes(',')) {
+      console.log(`  SKIP  ambiguous balance "${row[iBalance]}" — quote it or remove separators`);
+      skipped++;
+      continue;
+    }
     if (label === '' && rawDate === '' && rawBalance === '') continue;
     // An unfilled template row. Number('') is 0, which would silently record a
     // $0 balance — the one wrong value that looks plausible.
