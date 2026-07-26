@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { revalidateInsightPages } from "../revalidate";
 import { prisma } from "../../lib/prisma";
 import { generateInsights } from "../../lib/insights/engine";
-import { reapplyRules } from "../../lib/sync/rulePack";
+import { reapplyRules, type GroupUndo } from "../../lib/sync/rulePack";
 import { requireSession } from "../../lib/auth/requireSession";
 import { TRANSFER_TARGET } from "../../lib/sync/grouping";
 
@@ -39,7 +39,7 @@ async function upsertRule(
   matchField: "MERCHANT" | "DESCRIPTION",
   categoryId: string | null,
   setFlow: "TRANSFER" | null = null,
-): Promise<number> {
+): Promise<{ recategorized: number; undo: GroupUndo }> {
   const existing = await prisma.rule.findFirst({
     where: { matchField, matchOperator: "CONTAINS", matchValue },
   });
@@ -62,10 +62,56 @@ async function upsertRule(
     });
   }
 
-  const recategorized = await reapplyRules(prisma);
+  const { changed, restore } = await reapplyRules(prisma);
   revalidatePath("/transactions");
   revalidateInsightPages();
-  return recategorized;
+  return {
+    recategorized: changed,
+    undo: {
+      matchValue,
+      matchField,
+      previousRule:
+        existing === null
+          ? null
+          : { categoryId: existing.setCategoryId, flow: existing.setFlow === "TRANSFER" ? "TRANSFER" : null },
+      restore,
+    },
+  };
+}
+
+const FLOWS = new Set(["INFLOW", "OUTFLOW", "TRANSFER"]);
+const SOURCES = new Set(["MANUAL", "RULE", "AGGREGATOR"]);
+
+/**
+ * Reverse the last bulk categorization. Deleting the rule is not enough on its
+ * own — rules only write to rows they match, so the rows it already
+ * categorized would keep their new category with nothing left to explain it.
+ */
+export async function undoCategorizeGroup(undo: GroupUndo): Promise<void> {
+  await requireSession();
+  const rule = await prisma.rule.findFirst({
+    where: { matchField: undo.matchField, matchOperator: "CONTAINS", matchValue: undo.matchValue },
+  });
+  if (rule !== null) {
+    if (undo.previousRule === null) {
+      await prisma.rule.delete({ where: { id: rule.id } });
+    } else {
+      await prisma.rule.update({
+        where: { id: rule.id },
+        data: { setCategoryId: undo.previousRule.categoryId, setFlow: undo.previousRule.flow },
+      });
+    }
+  }
+  for (const t of undo.restore) {
+    if (!FLOWS.has(t.flow) || !SOURCES.has(t.categorySource)) continue;
+    await prisma.transaction.update({
+      where: { id: t.id },
+      data: { categoryId: t.categoryId, categorySource: t.categorySource, flow: t.flow },
+    });
+  }
+  await generateInsights(prisma);
+  revalidatePath("/transactions");
+  revalidateInsightPages();
 }
 
 /**
@@ -78,7 +124,8 @@ export async function createRuleFromMerchant(
   await requireSession();
   const matchValue = merchant.trim().toLowerCase();
   if (matchValue === "") throw new Error("Merchant is empty — categorize this transaction manually instead.");
-  return { recategorized: await upsertRule(matchValue, "MERCHANT", categoryId) };
+  const { recategorized } = await upsertRule(matchValue, "MERCHANT", categoryId);
+  return { recategorized };
 }
 
 /**
@@ -93,7 +140,7 @@ export async function categorizeGroup(
   matchField: "MERCHANT" | "DESCRIPTION",
   /** A category id, or TRANSFER_TARGET to mark the payee as a transfer. */
   target: string,
-): Promise<{ recategorized: number }> {
+): Promise<{ recategorized: number; undo: GroupUndo }> {
   await requireSession();
   const value = matchValue.trim().toLowerCase();
   if (value === "") throw new Error("Payee is empty — categorize these transactions individually instead.");
@@ -108,8 +155,8 @@ export async function categorizeGroup(
   }
   if (target === "") throw new Error("Pick a category first.");
   return target === TRANSFER_TARGET
-    ? { recategorized: await upsertRule(value, matchField, null, "TRANSFER") }
-    : { recategorized: await upsertRule(value, matchField, target) };
+    ? upsertRule(value, matchField, null, "TRANSFER")
+    : upsertRule(value, matchField, target);
 }
 
 /**

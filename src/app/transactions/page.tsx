@@ -213,6 +213,10 @@ export default async function TransactionsPage({
   return (
     <div className="py-5">
       <form className="flex flex-wrap items-end gap-3 border-b border-ink pb-3" action="/transactions" method="get">
+        {/* The filters DO apply to the grouped query, but a GET form only
+            submits its own fields — without this, "review just June" dropped
+            you out of the queue and into the flat list. */}
+        {groupMode && <input type="hidden" name="group" value="1" />}
         <label className="grid gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
           Period
           <select
@@ -273,7 +277,7 @@ export default async function TransactionsPage({
           Filter
         </button>
         <Link
-          href="/transactions"
+          href={groupMode ? "/transactions?group=1" : "/transactions"}
           className="pb-1.5 text-[0.75rem] uppercase tracking-[0.08em] text-faint hover:text-ink"
         >
           Clear

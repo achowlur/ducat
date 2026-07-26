@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../../generated/prisma/client";
+import type { TransactionFlow } from "../../types/contracts";
 import { generateInsights } from "../insights/engine";
 import { applyRules, type RuleTxn } from "./rules";
 
@@ -176,18 +177,45 @@ export async function installRulePack(prisma: PrismaClient): Promise<InstallResu
     rulesCreated++;
   }
 
-  const transactionsRecategorized = await reapplyRules(prisma);
+  const { changed: transactionsRecategorized } = await reapplyRules(prisma);
   return { categoriesCreated, rulesCreated, rulesSkipped, transactionsRecategorized };
+}
+
+/** A transaction's categorization exactly as it was before rules re-ran. */
+export interface TxnRestore {
+  id: string;
+  categoryId: string | null;
+  categorySource: "AGGREGATOR" | "RULE" | "MANUAL";
+  flow: TransactionFlow;
+}
+
+/**
+ * Everything one bulk decision changed, so it can be taken back: the rule as
+ * it was (or absent), and each transaction's categorization before rules ran.
+ * Lives here rather than beside the action because a "use server" module may
+ * only export async functions.
+ */
+export interface GroupUndo {
+  matchValue: string;
+  matchField: "MERCHANT" | "DESCRIPTION";
+  previousRule: { categoryId: string | null; flow: "TRANSFER" | null } | null;
+  restore: TxnRestore[];
 }
 
 /**
  * Re-runs all enabled rules over every non-MANUAL transaction (used after
  * installing the pack or creating a rule) and regenerates insights when
  * anything changed. MANUAL stays sacred.
+ *
+ * Returns the prior state of every row it touched, because deleting a rule
+ * does NOT reverse it: a rule only ever writes to rows it matches, so a row
+ * whose rule is gone keeps the category it was given. Undo needs the before.
  */
-export async function reapplyRules(prisma: PrismaClient): Promise<number> {
+export async function reapplyRules(
+  prisma: PrismaClient,
+): Promise<{ changed: number; restore: TxnRestore[] }> {
   const ruleRows = await prisma.rule.findMany({ where: { enabled: true } });
-  if (ruleRows.length === 0) return 0;
+  if (ruleRows.length === 0) return { changed: 0, restore: [] };
   const txnRows = await prisma.transaction.findMany({ include: { account: true } });
   const ruleTxns: RuleTxn[] = txnRows.map((t) => ({
     id: t.id,
@@ -212,12 +240,18 @@ export async function reapplyRules(prisma: PrismaClient): Promise<number> {
   );
 
   const byId = new Map(txnRows.map((t) => [t.id, t]));
-  let changed = 0;
+  const restore: TxnRestore[] = [];
   for (const app of applications) {
     const txn = byId.get(app.txnId);
     if (txn === undefined) continue;
     const flowChange = app.flow !== null && app.flow !== txn.flow;
     if (txn.categoryId === app.categoryId && txn.categorySource === "RULE" && !flowChange) continue;
+    restore.push({
+      id: txn.id,
+      categoryId: txn.categoryId,
+      categorySource: txn.categorySource,
+      flow: txn.flow,
+    });
     await prisma.transaction.update({
       where: { id: app.txnId },
       data: {
@@ -226,10 +260,9 @@ export async function reapplyRules(prisma: PrismaClient): Promise<number> {
         ...(app.flow === null ? {} : { flow: app.flow }),
       },
     });
-    changed++;
   }
-  if (changed > 0) {
+  if (restore.length > 0) {
     await generateInsights(prisma);
   }
-  return changed;
+  return { changed: restore.length, restore };
 }

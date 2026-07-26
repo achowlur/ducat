@@ -38,18 +38,6 @@ deliberately NOT included.
 
 ## P3 — categorization workflow
 
-12. **Bulk write commits on `<select>` onChange — no confirm, no undo, no scope
-    preview.** Up to 93 transactions plus a persistent priority-50 rule, fired
-    from a change event. Keyboard is the sharp edge: on a focused closed select,
-    an arrow key fires `change` per option.
-    FIX: stage the value, reveal an inline confirm styled like the existing
-    `rule` button — "apply to 36 →". The count doubles as scope preview. Add
-    "undo last" to the count line.
-
-13. **Pressing "Filter" ejects you from the grouped queue.** The form posts to
-    `/transactions` with no `group` field, so `?group=1` is dropped.
-    FIX: `{groupMode && <input type="hidden" name="group" value="1" />}`.
-
 14. **1861 of 2,638 transactions unreachable.** `LIMIT=300`, no pagination, and
     nothing hints the Period filter is the way to older data.
     FIX: an "← older" link setting `period` to the month after the last visible
