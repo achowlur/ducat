@@ -29,6 +29,36 @@ describe('normalizeMerchant', () => {
     );
     expect(normalizeMerchant('7-ELEVEN')).toBe('7-eleven');
   });
+
+  // The processor's name is not the merchant's, and leaving it on the front
+  // means no brand rule matches and grouped review can't collapse anything.
+  it('unwraps payment-processor prefixes', () => {
+    expect(normalizeMerchant('TST*BUENA COCINA')).toBe('buena cocina');
+    expect(normalizeMerchant('TST* ANTHONYS COAL FIRED')).toBe('anthonys coal fired');
+    expect(normalizeMerchant('SQ *SNACK TOWN - OAK RIDG')).toBe('snack town - oak ridg');
+    expect(normalizeMerchant('SLICE*VITOSPIZZA')).toBe('vitospizza');
+    expect(normalizeMerchant('DD *DOORDASH STONEGATE')).toBe('doordash stonegate');
+    expect(normalizeMerchant('PY *KUNG FU TEA')).toBe('kung fu tea');
+    expect(normalizeMerchant('SPO*SAVORYINDIANCUISINE')).toBe('savoryindiancuisine');
+    expect(normalizeMerchant('GDP*bun bun llc')).toBe('bun bun llc');
+    expect(normalizeMerchant('FIV*GONGCHA')).toBe('gongcha');
+    expect(normalizeMerchant('UEP*GREEN THYME')).toBe('green thyme');
+  });
+
+  it('leaves a name that merely ends in a processor token alone', () => {
+    expect(normalizeMerchant("DD'S DISCOUNTS 5124")).toBe("dd's discounts 5124");
+    expect(normalizeMerchant('DOORDASH*CHIPOTLE')).toBe('doordash*chipotle');
+    expect(normalizeMerchant('GOOGLE *YOUTUBEPREMIUM')).toBe('google *youtubepremium');
+  });
+
+  // Re-normalizing what is already stored is how repair:merchants works, so
+  // a second pass has to be a no-op on everything but the new prefix strip.
+  it('is idempotent', () => {
+    for (const raw of ['TST*BUENA COCINA', 'KROGER #532', 'WHOLEFDS MKT 10259', 'AMAZON PRIME*2H4XY89Z2']) {
+      const once = normalizeMerchant(raw);
+      expect(normalizeMerchant(once)).toBe(once);
+    }
+  });
 });
 
 describe('CsvConnector: Chase checking', () => {

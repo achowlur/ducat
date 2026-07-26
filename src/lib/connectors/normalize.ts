@@ -21,13 +21,35 @@ export function sanitizeBankText(raw: string): string {
 }
 
 /**
- * Conservative merchant normalization: lowercase, strip reference/card
- * number noise, collapse whitespace. Deliberately does not try to be
- * clever — rules can re-categorize what this misses.
+ * Payment processors wrap the merchant's own name: Toast bills "TST*BUCKS",
+ * Square "SQ *SORREL", DoorDash "DD *DOORDASH STONEGATE", and Slice,
+ * Paytronix, SpotOn, GoDaddy Payments, Fivestars and UEP all do the same.
+ * The wrapper defeats both jobs this string has — a brand rule for the
+ * restaurant never matches, and grouped review buckets every Toast
+ * restaurant in town under nothing they have in common.
+ *
+ * Only the wrapper comes off. What the rail implies about the CATEGORY is a
+ * separate question answered by rules against the raw description, which
+ * keeps the prefix: Toast and Slice are restaurant software, while Square
+ * bills salons and retail as readily as cafes.
+ *
+ * The leading \b is load-bearing: it stops "DD's Discounts" and any other
+ * name that merely ends in a token from being cut open. Stripping a PREFIX
+ * also keeps the result a contiguous run of the original, which is what
+ * lets it go on working as a rule's CONTAINS value.
+ */
+const PROCESSOR_PREFIX = /\b(tst|sq|slice|dd|py|spo|gdp|fiv|uep)\s*\*\s*/g;
+
+/**
+ * Conservative merchant normalization: lowercase, unwrap payment-processor
+ * prefixes, strip reference/card number noise, collapse whitespace.
+ * Deliberately does not try to be clever — rules can re-categorize what
+ * this misses.
  */
 export function normalizeMerchant(raw: string): string {
   return raw
     .toLowerCase()
+    .replace(PROCESSOR_PREFIX, ' ')
     .replace(/#\s*\d+/g, ' ') // "#1234" store/check numbers
     .replace(/\b\d{5,}\b/g, ' ') // long card/reference number runs
     .replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, ' ') // embedded dates

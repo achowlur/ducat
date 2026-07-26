@@ -18,6 +18,7 @@
     "import:balances": "tsx scripts/import-balances.ts",
     "health": "tsx scripts/health.ts",
     "repair:text": "tsx scripts/repair-text.ts",
+    "repair:merchants": "tsx scripts/repair-merchants.ts",
     "rules:install": "tsx scripts/install-rule-pack.ts",
     "auth:set-password": "tsx scripts/set-password.ts",
     "turso:baseline": "prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script"

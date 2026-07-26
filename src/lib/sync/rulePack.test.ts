@@ -51,7 +51,7 @@ describe("starter pack: merchant corpus", () => {
     ["DUNKIN #349762", "Dining"],
     ["CHICK-FIL-A #01822", "Dining"],
     ["TST* JOES PIZZA 412 LAKE CITY", "Dining"], // Toast prefix + generic word
-    ["SQ *BLUE BOTTLE COFFEE OAKLAND", "Dining"], // Square prefix
+    ["SQ *BLUE BOTTLE COFFEE OAKLAND", "Dining"], // "coffee", not the Square rail
     ["LOCAL THAI KITCHEN", "Dining"], // no brand — the word "thai" carries it
     ["DOORDASH*CHIPOTLE", "Dining"], // delivery prefix wins, same bucket anyway
     ["UBER EATS PENDING SF", "Dining"], // must NOT fall through to Uber=Transport
@@ -112,6 +112,19 @@ describe("starter pack: merchant corpus", () => {
 
   it("categorizes payroll from the description field (merchant carries no signal)", () => {
     expect(categorize("acme corp", "ACME CORP PAYROLL DES:1029447")).toBe("Income");
+  });
+
+  it("reads the rail only for processors that sell nothing but restaurant software", () => {
+    // No word in either name is a food word — the prefix is the only evidence,
+    // and "vitospizza" is one token, so \bpizza\b cannot reach inside it.
+    expect(categorize("TST*TRATTORIA LINDEN")).toBe("Dining");
+    expect(categorize("SLICE*VITOSPIZZA")).toBe("Dining");
+    expect(categorize("DD *LUCKYWOK")).toBe("Dining");
+    // Square, Fivestars and the rest bill salons and retail too: the prefix
+    // still comes off the merchant name, but it buys no category.
+    expect(categorize("SQ *CLEAN CUTTERS")).toBeNull();
+    expect(categorize("FIV*GONGCHA")).toBeNull();
+    expect(categorize("GDP*BUN BUN LLC")).toBeNull();
   });
 
   it("never touches MANUAL transactions", () => {

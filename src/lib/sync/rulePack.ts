@@ -172,6 +172,19 @@ export const PACK_RULES: PackRule[] = [
   regex(980, "Rent & Housing", "\\b(apartments?|property management|property mgmt|leasing office|homeowners assoc)\\b"),
   // "market" alone is the loosest signal — keep it last so anything better wins
   regex(990, "Groceries", "\\bmarket\\b"),
+
+  // The payment rail, which normalizeMerchant strips off the merchant name
+  // but the raw description keeps. Weaker evidence than any word in the name,
+  // so it speaks last: Toast, Slice and DoorDash sell restaurant software and
+  // nothing else, which makes the rail itself the category.
+  //
+  // Square, Paytronix, SpotOn, GoDaddy Payments, Fivestars and UEP are
+  // deliberately absent. Their prefixes still come off the merchant name —
+  // that part is pure gain — but they bill salons, retail and corner shops
+  // too, and "probably food" is not good enough to spend someone's money on.
+  regex(995, "Dining", "\\btst\\s*\\*", "DESCRIPTION"),
+  regex(995, "Dining", "\\bslice\\s*\\*", "DESCRIPTION"),
+  regex(995, "Dining", "\\bdd\\s*\\*", "DESCRIPTION"),
 ];
 
 export interface InstallResult {
