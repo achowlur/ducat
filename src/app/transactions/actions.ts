@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidateInsightPages } from "../revalidate";
 import { prisma } from "../../lib/prisma";
 import { generateInsights } from "../../lib/insights/engine";
 import { reapplyRules } from "../../lib/sync/rulePack";
@@ -26,8 +27,7 @@ export async function setTransactionCategory(
   });
   await generateInsights(prisma);
   revalidatePath("/transactions");
-  revalidatePath("/");
-  revalidatePath("/trends");
+  revalidateInsightPages();
 }
 
 /**
@@ -64,9 +64,7 @@ async function upsertRule(
 
   const recategorized = await reapplyRules(prisma);
   revalidatePath("/transactions");
-  revalidatePath("/");
-  revalidatePath("/trends");
-  revalidatePath("/insights");
+  revalidateInsightPages();
   return recategorized;
 }
 
@@ -133,8 +131,7 @@ export async function linkReimbursement(inflowId: string, outflowId: string): Pr
   });
   await generateInsights(prisma);
   revalidatePath("/transactions");
-  revalidatePath("/");
-  revalidatePath("/trends");
+  revalidateInsightPages();
 }
 
 export async function unlinkReimbursement(inflowId: string): Promise<void> {
@@ -145,6 +142,5 @@ export async function unlinkReimbursement(inflowId: string): Promise<void> {
   });
   await generateInsights(prisma);
   revalidatePath("/transactions");
-  revalidatePath("/");
-  revalidatePath("/trends");
+  revalidateInsightPages();
 }

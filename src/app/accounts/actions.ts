@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidateInsightPages } from "../revalidate";
 import { prisma } from "../../lib/prisma";
 import { generateInsights } from "../../lib/insights/engine";
 import { requireSession } from "../../lib/auth/requireSession";
@@ -26,7 +27,5 @@ export async function setAccountType(accountId: string, type: string): Promise<v
   });
   await generateInsights(prisma);
   revalidatePath("/accounts");
-  revalidatePath("/");
-  revalidatePath("/trends");
-  revalidatePath("/insights");
+  revalidateInsightPages();
 }

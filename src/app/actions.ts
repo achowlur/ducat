@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidateInsightPages } from "./revalidate";
 import { prisma } from "../lib/prisma";
 import { SimplefinConnector } from "../lib/connectors/simplefin";
 import { runSync } from "../lib/sync/sync";
@@ -28,7 +29,8 @@ export async function syncNow(): Promise<SyncNowResult> {
 
   try {
     const result = await runSync(prisma, new SimplefinConnector(accessUrl), {});
-    for (const path of ["/", "/trends", "/insights", "/accounts", "/transactions", "/providers"]) {
+    revalidateInsightPages();
+    for (const path of ["/accounts", "/transactions", "/providers"]) {
       revalidatePath(path);
     }
     const n = result.transactionsImported;

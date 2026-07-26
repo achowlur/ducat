@@ -12,12 +12,6 @@ deliberately NOT included.
 
 ## P0 — money correctness (wrong on screen right now)
 
-3. **`/insights` serves stale data after a manual categorization.**
-   `setTransactionCategory`, `linkReimbursement`, `unlinkReimbursement` all call
-   `generateInsights()` but do not `revalidatePath("/insights")`; only
-   `upsertRule` does. Verified in `app/transactions/actions.ts`.
-   FIX: one line each. Behaviour change — own commit.
-
 ## P1 — mobile (the phone is the reason cloud mode exists)
 
 4. **3 of 6 nav tabs off-screen at 375px.** `AppNav.tsx:18` is `flex gap-5`, no
