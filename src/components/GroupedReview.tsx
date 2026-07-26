@@ -35,10 +35,12 @@ function GroupRow({
   group,
   categories,
   onApplied,
+  onSkip,
 }: {
   group: PayeeGroupView;
   categories: CategoryOption[];
   onApplied: (applied: Applied) => void;
+  onSkip: () => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -86,8 +88,17 @@ function GroupRow({
             </span>
           )}
         </div>
-        <div className="truncate text-[0.7rem] text-faint" title={group.samples.join("\n")}>
-          {group.samples[0]}
+        {/* The evidence for the decision, in the open. It used to be one
+            truncated sample with the rest behind title=, which does not exist
+            on touch at all — the deciding information was invisible on the
+            device the queue is most likely to be worked through on. */}
+        <div className="grid gap-0.5 pt-0.5 text-[0.7rem] break-words text-faint">
+          {group.samples.slice(0, 3).map((s, i) => (
+            <div key={`${s}-${i}`}>{s}</div>
+          ))}
+          {group.count > 3 && group.samples.length >= 3 && (
+            <div className="opacity-70">+{group.count - Math.min(3, group.samples.length)} more</div>
+          )}
         </div>
         {error !== null && <div className="text-[0.7rem] text-neg">{error}</div>}
       </td>
@@ -123,6 +134,17 @@ function GroupRow({
               <option value={TRANSFER_TARGET}>Transfer — exclude</option>
             </optgroup>
           </select>
+          {staged === "" && !pending && (
+            // Without a defer, a payee you cannot resolve sits at the top of
+            // the queue forever and the queue stops feeling finishable.
+            <button
+              onClick={onSkip}
+              className="rounded-[2px] border border-rule px-1.5 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+              title="Not now — hide this payee for the rest of this session. Nothing is written."
+            >
+              skip
+            </button>
+          )}
           {staged !== "" && !pending && (
             // The count is the scope preview: this is the only place the size
             // of the write is stated before it happens.
@@ -158,6 +180,11 @@ export function GroupedReview({
   // vanish with it.
   const [last, setLast] = useState<Applied | null>(null);
   const [undoing, startUndo] = useTransition();
+  // Session-scoped on purpose: a skip is "not now", not a decision, so it
+  // must not outlive the sitting or quietly shrink the backlog for good.
+  const [skipped, setSkipped] = useState<string[]>([]);
+  const [showSkipped, setShowSkipped] = useState(false);
+  const visible = showSkipped ? groups : groups.filter((g) => !skipped.includes(g.key));
 
   if (groups.length === 0 && last === null) {
     return (
@@ -190,9 +217,26 @@ export function GroupedReview({
           </button>
         </div>
       )}
+      {skipped.length > 0 && (
+        <div className="flex items-center gap-3 py-2 text-[0.78rem] text-faint">
+          <span>
+            {skipped.length} payee{skipped.length === 1 ? "" : "s"} skipped this session
+          </span>
+          <button
+            onClick={() => setShowSkipped(!showSkipped)}
+            className="font-semibold text-acc hover:underline"
+          >
+            {showSkipped ? "hide them" : "show them"}
+          </button>
+        </div>
+      )}
       {groups.length === 0 ? (
         <p className="py-6 text-center text-[0.85rem] text-faint">
           Nothing left to review — every transaction has a category.
+        </p>
+      ) : visible.length === 0 ? (
+        <p className="py-6 text-center text-[0.85rem] text-faint">
+          Everything left is skipped for this session.
         </p>
       ) : (
         <table className="w-full border-collapse">
@@ -211,8 +255,14 @@ export function GroupedReview({
             </tr>
           </thead>
           <tbody>
-            {groups.map((g) => (
-              <GroupRow key={g.key} group={g} categories={categories} onApplied={setLast} />
+            {visible.map((g) => (
+              <GroupRow
+                key={g.key}
+                group={g}
+                categories={categories}
+                onApplied={setLast}
+                onSkip={() => setSkipped((s) => (s.includes(g.key) ? s : [...s, g.key]))}
+              />
             ))}
           </tbody>
         </table>

@@ -309,9 +309,12 @@ export default async function TransactionsPage({
             ← transaction list
           </Link>
         ) : (
+          // A bordered control, not body text: this was styled identically to
+          // "← all transactions" while being the highest-leverage thing on the
+          // screen — Overview's red pill sold it better than its own page did.
           <Link
             href={buildHref(params, { group: "1", category: "uncategorized", review: undefined })}
-            className="font-semibold text-acc hover:underline"
+            className="rounded-[2px] border border-acc px-2 py-1 font-semibold uppercase tracking-[0.06em] text-acc hover:bg-chip"
             title="Group the uncategorized backlog by payee — one decision categorizes every occurrence and future ones too"
           >
             group by payee — categorize in bulk

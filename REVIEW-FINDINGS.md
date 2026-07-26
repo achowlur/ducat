@@ -10,13 +10,6 @@ deliberately NOT included.
 
 ---
 
-## P3 — categorization workflow
-
-15. Decision evidence hidden behind `title=` (no touch support); no skip/defer,
-    so unresolvable payees sit at the top forever; entry link styled like body
-    text. FIX: stack up to 3 samples inline; per-row `skip`; style the entry as a
-    bordered button.
-
 ## P4 — performance and cleanup (code review)
 
 `generateInsights` runs synchronously inside server actions, so analyzer time
