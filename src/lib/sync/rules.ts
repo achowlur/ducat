@@ -41,6 +41,11 @@ export interface RuleApplication {
   flow: TransactionFlow | null;
 }
 
+/** Lowercase and squeeze runs of whitespace, so bank padding can't defeat a match. */
+function collapse(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
 function matches(rule: RuleData, txn: RuleTxn): boolean {
   if (rule.matchField === 'AMOUNT') {
     // Numeric comparisons run against the SIGNED amount: "GT -50" means
@@ -64,10 +69,15 @@ function matches(rule: RuleData, txn: RuleTxn): boolean {
     : rule.matchField === 'DESCRIPTION' ? txn.description
     : txn.accountName;
   switch (rule.matchOperator) {
+    // Whitespace is collapsed on BOTH sides. Banks pad descriptions into fixed
+    // columns — Wells Fargo writes "ZELLE TO  LENA" and "WF Credit Card   AUTO
+    // PAY" — while every payee string the app derives has its runs collapsed.
+    // Comparing them literally means a rule the user just created silently
+    // matches nothing. REGEX is left raw so an author's own \s+ still applies.
     case 'CONTAINS':
-      return value.toLowerCase().includes(rule.matchValue.toLowerCase());
+      return collapse(value).includes(collapse(rule.matchValue));
     case 'EQUALS':
-      return value.toLowerCase() === rule.matchValue.toLowerCase();
+      return collapse(value) === collapse(rule.matchValue);
     case 'REGEX':
       try {
         return new RegExp(rule.matchValue, 'i').test(value);

@@ -15,6 +15,29 @@ describe('payeeKey', () => {
     expect(payeeKey('ZELLE TO HOLLIS AMARI ON 07/19 REF # WFCT0000000H')).toBe('zelle to hollis amari');
   });
 
+  // The key becomes a rule's CONTAINS value, matched against the description
+  // itself — so it must stay a contiguous prefix. Venmo puts its reference
+  // numbers BETWEEN the verb and the name; deleting them mid-string produced
+  // "venmo payment marlowe brennan", which appears nowhere in the description.
+  it('truncates at mid-string noise so the key stays a substring of the description', () => {
+    const description = 'VENMO            PAYMENT    260704 1000000000003   MARLOWE BRENNAN';
+    const key = payeeKey(description);
+    expect(key).toBe('venmo payment');
+    expect(description.toLowerCase().replace(/\s+/g, ' ')).toContain(key);
+  });
+
+  it('keeps every derived key findable in its own description', () => {
+    for (const description of [
+      'ZELLE TO  LENA ON 07/21 REF # WFCT0000000E',
+      'ZELLE FROM BRENNAN NADIA ON 06/10 REF # WFCT0000000G FOR PAPAS BIRTHDAY',
+      'VENMO            CASHOUT    260220 1000000000004   MARLOWE',
+    ]) {
+      const key = payeeKey(description);
+      expect(key).not.toBe('');
+      expect(description.toLowerCase().replace(/\s+/g, ' ')).toContain(key);
+    }
+  });
+
   it('collapses the same counterparty across different dates and refs', () => {
     const a = payeeKey('ZELLE TO  LENA ON 07/21 REF # WFCT0000000E');
     const b = payeeKey('ZELLE TO  LENA ON 07/18 REF # WFCT0000000J');

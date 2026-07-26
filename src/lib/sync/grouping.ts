@@ -45,18 +45,34 @@ export interface PayeeGroup {
 }
 
 /**
- * Reduces a P2P description to the counterparty: drops reference numbers,
- * embedded dates, and long digit runs, which otherwise make every payment
- * to the same person look unique.
+ * Reduces a P2P description to the counterparty by TRUNCATING at the first
+ * reference marker, embedded date, or long digit run — everything after those
+ * is per-payment noise that would otherwise make each payment to the same
+ * person look unique.
  *
  *   "ZELLE TO  LENA ON 07/21 REF # WFCT0000000E" -> "zelle to lena"
+ *   "VENMO   PAYMENT   260704 1000000000003   MARLOWE" -> "venmo payment"
+ *
+ * Truncating rather than deleting-and-rejoining is load-bearing: the key
+ * becomes a rule's CONTAINS value, matched against the description itself. Cut
+ * the noise out of the MIDDLE and the key stops being a contiguous substring,
+ * so the rule silently matches nothing — which is exactly what happened to
+ * Venmo, whose reference numbers sit between the verb and the name.
  */
+const NOISE_MARKERS = [
+  /\bref\s*#/, // "REF # WFCT0000000E"
+  /\bon\s+\d{1,2}\/\d{1,2}/, // "ON 07/21"
+  /\b\d{4,}\b/, // confirmation and account numbers
+];
+
 export function payeeKey(description: string): string {
-  return description
-    .toLowerCase()
-    .split(/\bref\s*#/)[0]
-    .replace(/\bon\s+\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, ' ')
-    .replace(/\b\d{4,}\b/g, ' ')
+  const lower = description.toLowerCase();
+  const cut = NOISE_MARKERS.reduce((earliest, marker) => {
+    const found = marker.exec(lower);
+    return found !== null && found.index < earliest ? found.index : earliest;
+  }, lower.length);
+  return lower
+    .slice(0, cut)
     .replace(/[^a-z0-9\s&'-]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
