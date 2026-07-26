@@ -5,7 +5,7 @@ import type {
 } from "../../types/contracts";
 import { monthLabel } from "./format";
 import { prisma } from "../prisma";
-import { granularityOfKey } from "../insights/periods";
+import { monthlyRows, ofType } from "./insightRows";
 import { spendingBreakdown, type CategoryRow, type DonutSliceData } from "./spendingBreakdown";
 
 export type { CategoryRow, DonutSliceData };
@@ -36,22 +36,11 @@ function shortMonth(period: string): string {
   return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
 }
 
-async function monthlyInsights<T>(type: string): Promise<{ period: string; payload: T }[]> {
-  const rows = await prisma.insight.findMany({ where: { type } });
-  return rows
-    .filter((r) => {
-      try {
-        return granularityOfKey(r.period) === "MONTH";
-      } catch {
-        return false;
-      }
-    })
-    .sort((a, b) => (a.period < b.period ? -1 : 1))
-    .map((r) => ({ period: r.period, payload: r.payload as T }));
-}
-
 export async function getTrendsData(requestedPeriod?: string): Promise<TrendsData | null> {
-  const spendingAll = await monthlyInsights<SpendingByCategoryPayload>("SPENDING_BY_CATEGORY");
+  // One read for all three series: this page plots spending, cash flow and net
+  // worth, and each used to scan the whole Insight table for itself.
+  const monthly = monthlyRows(await prisma.insight.findMany());
+  const spendingAll = ofType<SpendingByCategoryPayload>(monthly, "SPENDING_BY_CATEGORY");
   if (spendingAll.length === 0) return null;
 
   const available = spendingAll.map((s) => s.period);
@@ -64,8 +53,8 @@ export async function getTrendsData(requestedPeriod?: string): Promise<TrendsDat
 
   const breakdown = spendingBreakdown(spending);
 
-  const cashFlowAll = await monthlyInsights<CashFlowTrendPayload>("CASH_FLOW_TREND");
-  const netWorthAll = await monthlyInsights<NetWorthGrowthPayload>("NET_WORTH_GROWTH");
+  const cashFlowAll = ofType<CashFlowTrendPayload>(monthly, "CASH_FLOW_TREND");
+  const netWorthAll = ofType<NetWorthGrowthPayload>(monthly, "NET_WORTH_GROWTH");
 
   return {
     period,

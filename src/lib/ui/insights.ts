@@ -8,7 +8,8 @@ import type {
 } from "../../types/contracts";
 import { prisma } from "../prisma";
 import { isActive } from "../health/detectedSubscriptions";
-import { granularityOfKey, periodEndExclusive } from "../insights/periods";
+import { periodEndExclusive } from "../insights/periods";
+import { monthlyRows } from "./insightRows";
 import { money, monthLabel, pct, titleCase } from "./format";
 
 export interface InsightRow {
@@ -109,14 +110,7 @@ function toRow(row: { id: string; type: string; payload: unknown; dismissed: boo
 }
 
 export async function getInsightsPageData(requestedPeriod?: string): Promise<InsightsPageData | null> {
-  const all = await prisma.insight.findMany();
-  const monthly = all.filter((r) => {
-    try {
-      return granularityOfKey(r.period) === "MONTH";
-    } catch {
-      return false;
-    }
-  });
+  const monthly = monthlyRows(await prisma.insight.findMany());
   if (monthly.length === 0) return null;
 
   const available = [...new Set(monthly.map((r) => r.period))].sort();

@@ -32,14 +32,6 @@ is now 94% of the remaining time, and memoization barely touched it because its
 cost is the O(n²) history re-filter per transaction (`anomalies.ts:42`), not
 period parsing. Group the history by category/merchant once per period instead.
 
-18. `monthlyInsights` exists 3× and has diverged (overview newest-first +
-    `dismissed`; trends oldest-first without). Unify carefully — reversing a sort
-    silently flips Trends' charts.
-
-19. Overview issues ~20 sequential queries, 4 full Insight table scans,
-    RECURRING_CHARGE fetched twice. `ui/insights.ts:110` already demonstrates the
-    partition-in-memory pattern.
-
 20. `installRulePack` does ~180 sequential existence queries; per-row `update()`
     loops where `updateMany` fits; two full-table loads in `health/`.
 

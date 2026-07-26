@@ -16,8 +16,8 @@ import {
   type DetectedSubscription,
 } from "../health/detectedSubscriptions";
 import type { ProviderHealth, SubscriptionStatus } from "../health/types";
-import { granularityOfKey } from "../insights/periods";
 import { money, monthLabel, pct, shortDate, titleCase } from "./format";
+import { monthlyRows, ofType, type MonthlyInsight } from "./insightRows";
 import { spendingBreakdown, type DonutSliceData } from "./spendingBreakdown";
 
 export interface AccountRow {
@@ -61,58 +61,58 @@ export interface OverviewData {
 
 const TYPE_ORDER: Record<string, number> = { DEPOSITORY: 0, INVESTMENT: 1, CREDIT: 2, LOAN: 3 };
 
-/** Latest MONTH-granularity insights of one type, newest period first. */
-async function monthlyInsights<T>(type: string): Promise<{ period: string; payload: T; dismissed: boolean }[]> {
-  const rows = await prisma.insight.findMany({ where: { type } });
-  return rows
-    .filter((r) => {
-      try {
-        return granularityOfKey(r.period) === "MONTH";
-      } catch {
-        return false;
-      }
-    })
-    .sort((a, b) => (a.period < b.period ? 1 : -1))
-    .map((r) => ({ period: r.period, payload: r.payload as T, dismissed: r.dismissed }));
-}
-
 /**
  * Recurring charges from the most recent period that has any, deduped and
  * flagged against what's registered. Independent of the net-worth period so
  * the list survives months where net worth can't be computed.
  */
-async function detectedSubscriptions(): Promise<DetectedSubscription[]> {
-  const rows = await monthlyInsights<DetectedCharge>("RECURRING_CHARGE");
-  if (rows.length === 0) return [];
-  const newest = rows[0].period;
-  const tracked = await prisma.trackedSubscription.findMany({ select: { name: true } });
+function detectedSubscriptions(
+  recurring: MonthlyInsight<DetectedCharge>[],
+  trackedNames: string[],
+): DetectedSubscription[] {
+  if (recurring.length === 0) return [];
+  const newest = recurring[recurring.length - 1].period;
   const now = new Date();
   return mergeDetectedSubscriptions(
-    rows
+    recurring
       .filter((r) => r.period === newest)
       .map((r) => r.payload)
       // Drop anything whose last charge is long past — a cancelled service
       // would otherwise keep billing in the annualised total forever.
       .filter((c) => isActive(c, now)),
-    tracked.map((t) => t.name),
+    trackedNames,
   );
 }
 
 export async function getOverviewData(): Promise<OverviewData> {
-  const netWorthAll = await monthlyInsights<NetWorthGrowthPayload>("NET_WORTH_GROWTH");
-  const latest = netWorthAll[0] ?? null;
+  // Everything this page needs, read once and in parallel. It used to issue
+  // its queries one after another — four of them full scans of the Insight
+  // table, with RECURRING_CHARGE fetched twice over.
+  const [insightRows, accountRows, snapshots, uncategorizedCount, trackedRows, lastOk, subscriptions, health] =
+    await Promise.all([
+      prisma.insight.findMany(),
+      prisma.account.findMany(),
+      prisma.balanceSnapshot.groupBy({ by: ["accountId"], _max: { date: true } }),
+      prisma.transaction.count({
+        where: { categoryId: null, flow: { not: "TRANSFER" }, reimbursesId: null },
+      }),
+      prisma.trackedSubscription.findMany({ select: { name: true } }),
+      prisma.syncLog.findFirst({ where: { ok: true }, orderBy: { finishedAt: "desc" } }),
+      getSubscriptionStatuses(prisma),
+      getProviderHealth(prisma),
+    ]);
+
+  const monthly = monthlyRows(insightRows);
+  // ofType is oldest-first, the order charts plot in. This page reads the
+  // LATEST month, so it takes from the end rather than flipping the shared
+  // default out from under Trends.
+  const netWorthAll = ofType<NetWorthGrowthPayload>(monthly, "NET_WORTH_GROWTH");
+  const latest = netWorthAll[netWorthAll.length - 1] ?? null;
   const period = latest?.period ?? null;
-  const detected = await detectedSubscriptions();
-
-  const uncategorizedCount = await prisma.transaction.count({
-    where: { categoryId: null, flow: { not: "TRANSFER" }, reimbursesId: null },
-  });
-
-  const accountRows = await prisma.account.findMany();
-  const snapshots = await prisma.balanceSnapshot.groupBy({
-    by: ["accountId"],
-    _max: { date: true },
-  });
+  const detected = detectedSubscriptions(
+    ofType<DetectedCharge>(monthly, "RECURRING_CHARGE"),
+    trackedRows.map((t) => t.name),
+  );
   const snapshotByAccount = new Map(snapshots.map((s) => [s.accountId, s._max.date]));
   const accounts: AccountRow[] = accountRows
     .map((a) => {
@@ -138,21 +138,22 @@ export async function getOverviewData(): Promise<OverviewData> {
       estimatedCount: 0,
       donut: null,
       signals: [],
-      subscriptions: await getSubscriptionStatuses(prisma),
+      subscriptions,
       detectedSubscriptions: detected,
       subscriptionsAnnual: annualisedTotal(detected),
-      health: await getProviderHealth(prisma),
+      health,
       lastSyncAt: null,
       uncategorizedCount,
     };
   }
 
-  const spendingAll = await monthlyInsights<SpendingByCategoryPayload>("SPENDING_BY_CATEGORY");
-  const spending = spendingAll.find((s) => s.period === period)?.payload ?? null;
+  const spending =
+    ofType<SpendingByCategoryPayload>(monthly, "SPENDING_BY_CATEGORY").find((s) => s.period === period)?.payload ??
+    null;
   const donut = spending === null ? null : spendingBreakdown(spending).donut;
 
   const signals: Signal[] = [];
-  const anomalies = await prisma.insight.findMany({ where: { type: "ANOMALY", period, dismissed: false } });
+  const anomalies = monthly.filter((r) => r.type === "ANOMALY" && r.period === period && !r.dismissed);
   for (const row of anomalies) {
     const p = row.payload as unknown as AnomalyPayload;
     signals.push({
@@ -166,7 +167,7 @@ export async function getOverviewData(): Promise<OverviewData> {
   }
 
   let streak = 0;
-  for (const row of netWorthAll) {
+  for (const row of [...netWorthAll].reverse()) {
     if (row.payload.growthRate !== null && row.payload.growthRate > 0) streak++;
     else break;
   }
@@ -179,8 +180,8 @@ export async function getOverviewData(): Promise<OverviewData> {
     });
   }
 
-  const trendAll = await monthlyInsights<CashFlowTrendPayload>("CASH_FLOW_TREND");
-  const trend = trendAll.find((t) => t.period === period)?.payload ?? null;
+  const trend =
+    ofType<CashFlowTrendPayload>(monthly, "CASH_FLOW_TREND").find((t) => t.period === period)?.payload ?? null;
   if (trend !== null && trend.spendingDeltaPct !== null) {
     const dir = trend.spendingDeltaPct >= 0 ? "up" : "down";
     signals.push({
@@ -190,7 +191,7 @@ export async function getOverviewData(): Promise<OverviewData> {
     });
   }
 
-  const recurringAll = await prisma.insight.findMany({ where: { type: "RECURRING_CHARGE", period, dismissed: false } });
+  const recurringAll = monthly.filter((r) => r.type === "RECURRING_CHARGE" && r.period === period && !r.dismissed);
   const increased = recurringAll
     .map((r) => r.payload as unknown as RecurringChargePayload)
     .filter((p) => p.priceIncreased);
@@ -205,8 +206,6 @@ export async function getOverviewData(): Promise<OverviewData> {
     signals.push({ chip: "Recurring", tone: "neutral", text: `${recurringAll.length} recurring charges detected, all at expected prices` });
   }
 
-  const lastOk = await prisma.syncLog.findFirst({ where: { ok: true }, orderBy: { finishedAt: "desc" } });
-
   return {
     period,
     periodLabel: monthLabel(period),
@@ -215,10 +214,10 @@ export async function getOverviewData(): Promise<OverviewData> {
     estimatedCount: latest.payload.estimatedAccountIds.length,
     donut,
     signals,
-    subscriptions: await getSubscriptionStatuses(prisma),
+    subscriptions,
     detectedSubscriptions: detected,
     subscriptionsAnnual: annualisedTotal(detected),
-    health: await getProviderHealth(prisma),
+    health,
     lastSyncAt: lastOk?.finishedAt ?? null,
     uncategorizedCount,
   };
