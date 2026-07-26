@@ -18,6 +18,7 @@ import {
 import type { ProviderHealth, SubscriptionStatus } from "../health/types";
 import { granularityOfKey } from "../insights/periods";
 import { money, pct, shortDate, titleCase } from "./format";
+import { spendingBreakdown, type DonutSliceData } from "./spendingBreakdown";
 
 export interface AccountRow {
   id: string;
@@ -27,13 +28,6 @@ export interface AccountRow {
   balance: number;
   snapshotBacked: boolean;
   snapshotDate: string | null;
-}
-
-export interface DonutSlice {
-  label: string;
-  categoryId: string | null;
-  value: number;
-  share: number; // 0..1 of total
 }
 
 export interface Signal {
@@ -48,7 +42,7 @@ export interface OverviewData {
   netWorth: NetWorthGrowthPayload | null;
   accounts: AccountRow[];
   estimatedCount: number;
-  donut: { slices: DonutSlice[]; total: number } | null;
+  donut: { slices: DonutSliceData[]; total: number } | null;
   signals: Signal[];
   subscriptions: SubscriptionStatus[];
   /** Every recurring charge the engine found, deduped — not just registered ones. */
@@ -164,22 +158,7 @@ export async function getOverviewData(): Promise<OverviewData> {
 
   const spendingAll = await monthlyInsights<SpendingByCategoryPayload>("SPENDING_BY_CATEGORY");
   const spending = spendingAll.find((s) => s.period === period)?.payload ?? null;
-  let donut: OverviewData["donut"] = null;
-  if (spending !== null && spending.totalSpending > 0) {
-    const top = spending.categories.slice(0, 3);
-    const rest = spending.categories.slice(3);
-    const slices: DonutSlice[] = top.map((c) => ({
-      label: c.categoryName ?? "Uncategorized",
-      categoryId: c.categoryId,
-      value: c.spending,
-      share: c.spending / spending.totalSpending,
-    }));
-    const restTotal = rest.reduce((sum, c) => sum + c.spending, 0);
-    if (restTotal > 0) {
-      slices.push({ label: "Other", categoryId: null, value: restTotal, share: restTotal / spending.totalSpending });
-    }
-    donut = { slices, total: spending.totalSpending };
-  }
+  const donut = spending === null ? null : spendingBreakdown(spending).donut;
 
   const signals: Signal[] = [];
   const anomalies = await prisma.insight.findMany({ where: { type: "ANOMALY", period, dismissed: false } });

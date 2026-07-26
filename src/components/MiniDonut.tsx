@@ -1,4 +1,4 @@
-import type { DonutSlice } from "../lib/ui/overview";
+import type { DonutSliceData } from "../lib/ui/spendingBreakdown";
 
 const COLORS = ["var(--chart1)", "var(--chart2)", "var(--pie3)", "var(--pie4)"];
 
@@ -38,7 +38,7 @@ export function MiniDonut({
   centerBottom,
   width = 170,
 }: {
-  slices: DonutSlice[];
+  slices: DonutSliceData[];
   centerTop: string;
   centerBottom: string;
   width?: number;

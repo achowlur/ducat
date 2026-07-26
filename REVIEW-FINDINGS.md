@@ -12,17 +12,6 @@ deliberately NOT included.
 
 ## P0 — money correctness (wrong on screen right now)
 
-1. **Two different spending totals for the same month.**
-   `/insights?period=2026-06` says **$3,125.52**; `/trends?period=2026-06` donut
-   centre says **$3,535.25**. Cause: `ui/trends.ts:89` computes the table's share
-   against NET total (includes June's −$409.73 rent reimbursement) while
-   `:106/:117` computes the donut against `drawable` (positives only) and prints
-   drawable as the headline. The donut fix recorded in Conventions was applied to
-   the arc but not the table beside it. Fallout: "Dining 1719.90 — 55%" where 55%
-   of the printed total is $1943.8.
-   FIX: divide table share by `drawable`; render non-positive categories' share
-   as "—"; keep the honest negative in the Spent column.
-
 2. **"Rent & Housing ×13.4" — percent change against a negative baseline.**
    `stats.ts:38 pctDelta` guards only `previous === 0`, then divides by
    `Math.abs(previous)`. June rent was −$409.73 (refund), so July renders ×13.4

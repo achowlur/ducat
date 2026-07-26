@@ -5,22 +5,9 @@ import type {
 } from "../../types/contracts";
 import { prisma } from "../prisma";
 import { granularityOfKey } from "../insights/periods";
+import { spendingBreakdown, type CategoryRow, type DonutSliceData } from "./spendingBreakdown";
 
-export interface DonutSliceData {
-  label: string;
-  categoryId: string | null;
-  value: number;
-  share: number;
-}
-
-export interface CategoryRow {
-  label: string;
-  categoryId: string | null;
-  spending: number;
-  previousSpending: number | null;
-  deltaPct: number | null;
-  share: number;
-}
+export type { CategoryRow, DonutSliceData };
 
 export interface MonthPoint {
   period: string; // "2026-07"
@@ -35,6 +22,10 @@ export interface TrendsData {
   periodLabel: string;
   donut: { slices: DonutSliceData[]; total: number } | null;
   categories: CategoryRow[];
+  /** Sum of the categories with net spending — what every share divides by. */
+  drawable: number;
+  /** Drawn spending a credit elsewhere cancels; 0 unless a category ended the period negative. */
+  credited: number;
   cashFlow: (MonthPoint & { income: number; spending: number; net: number })[];
   netWorth: (MonthPoint & { value: number; estimated: boolean; marketGains: number | null })[];
 }
@@ -79,43 +70,7 @@ export async function getTrendsData(requestedPeriod?: string): Promise<TrendsDat
   const idx = available.indexOf(period);
   const spending = spendingAll[idx].payload;
 
-  let donut: TrendsData["donut"] = null;
-  const categories: CategoryRow[] = spending.categories.map((c) => ({
-    label: c.categoryName ?? "Uncategorized",
-    categoryId: c.categoryId,
-    spending: c.spending,
-    previousSpending: c.previousSpending,
-    deltaPct: c.deltaPct,
-    share: spending.totalSpending > 0 ? c.spending / spending.totalSpending : 0,
-  }));
-
-  // A category can be NEGATIVE when reimbursements outrun what was spent on it
-  // that period (deliberate — the credit stays visible). It must not reach the
-  // donut: a negative shrinks the denominator while contributing no arc, so
-  // the drawn slices would sum past 100% and overlap. Slice off the positives
-  // and give them their own denominator, so the ring always sums to exactly 1.
-  const positive = categories.filter((c) => c.spending > 0);
-  const drawable = positive.reduce((sum, c) => sum + c.spending, 0);
-  if (drawable > 0) {
-    const top = positive.slice(0, 3);
-    const rest = positive.slice(3);
-    const slices: DonutSliceData[] = top.map((c) => ({
-      label: c.label,
-      categoryId: c.categoryId,
-      value: c.spending,
-      share: c.spending / drawable,
-    }));
-    const restTotal = rest.reduce((sum, c) => sum + c.spending, 0);
-    if (restTotal > 0) {
-      slices.push({
-        label: "Other",
-        categoryId: null,
-        value: restTotal,
-        share: restTotal / drawable,
-      });
-    }
-    donut = { slices, total: drawable };
-  }
+  const breakdown = spendingBreakdown(spending);
 
   const cashFlowAll = await monthlyInsights<CashFlowTrendPayload>("CASH_FLOW_TREND");
   const netWorthAll = await monthlyInsights<NetWorthGrowthPayload>("NET_WORTH_GROWTH");
@@ -125,8 +80,10 @@ export async function getTrendsData(requestedPeriod?: string): Promise<TrendsDat
     prevPeriod: idx > 0 ? available[idx - 1] : null,
     nextPeriod: idx < available.length - 1 ? available[idx + 1] : null,
     periodLabel: monthLabel(period),
-    donut,
-    categories,
+    donut: breakdown.donut,
+    categories: breakdown.categories,
+    drawable: breakdown.drawable,
+    credited: breakdown.credited,
     cashFlow: cashFlowAll.map(({ period: p, payload }) => ({
       period: p,
       label: shortMonth(p),

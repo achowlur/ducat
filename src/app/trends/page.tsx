@@ -3,7 +3,7 @@ import { CashFlowChart } from "../../components/charts/CashFlowChart";
 import { NetWorthChart } from "../../components/charts/NetWorthChart";
 import { TrendsDonut } from "../../components/charts/TrendsDonut";
 import { CoverageNotice } from "../../components/CoverageNotice";
-import { amount, pct } from "../../lib/ui/format";
+import { amount, money, pct } from "../../lib/ui/format";
 import { getPeriodCoverage } from "../../lib/ui/coverage";
 import { getTrendsData } from "../../lib/ui/trends";
 
@@ -62,6 +62,13 @@ export default async function TrendsPage({
           </div>
           <p className="mb-3 text-[0.75rem] text-faint">
             Transfers excluded. Hover for detail; click a slice or row to open those transactions.
+            {data.credited > 0 && (
+              <>
+                {" "}
+                Shares are of the {money(data.drawable)} in categories with net spending — the total also
+                nets {money(data.credited)} refunded elsewhere.
+              </>
+            )}
           </p>
           {data.donut === null ? (
             <p className="text-[0.85rem] text-faint">
@@ -100,10 +107,12 @@ export default async function TrendsPage({
                           href={`/transactions?period=${data.period}&category=${c.categoryId ?? "uncategorized"}`}
                           className="hover:underline"
                         >
-                          {i < 3 && (
+                          {/* No swatch for a category that ended in credit: it draws no arc. */}
+                          {c.share === null ? (
+                            <i className="mr-2 inline-block h-[10px] w-[10px] align-[-1px]" />
+                          ) : i < 3 ? (
                             <i className={`mr-2 inline-block h-[10px] w-[10px] rounded-[2px] align-[-1px] ${DONUT_COLORS[i]}`} />
-                          )}
-                          {i >= 3 && (
+                          ) : (
                             <i className="mr-2 inline-block h-[10px] w-[10px] rounded-[2px] bg-pie4 align-[-1px] opacity-40" />
                           )}
                           {c.label}
@@ -128,7 +137,7 @@ export default async function TrendsPage({
                             : pct(c.deltaPct)}
                       </td>
                       <td className="py-1.5 text-right font-money text-[0.78rem] tabular text-faint">
-                        {Math.round(c.share * 100)}%
+                        {c.share === null ? "—" : `${Math.round(c.share * 100)}%`}
                       </td>
                     </tr>
                   ))}
