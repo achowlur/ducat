@@ -18,10 +18,16 @@ const rules: RuleData[] = PACK_RULES.map((r, i) => ({
   matchOperator: r.matchOperator,
   matchValue: r.matchValue,
   setCategoryId: r.category,
-  setFlow: null,
+  setFlow: r.setFlow ?? null,
   enabled: true,
 }));
 
+/**
+ * Category name, "TRANSFER" for a flow-only rule, or null when nothing
+ * matched. Flow has to come back distinguishable from null: a rule that
+ * marks a payee TRANSFER carries no category, so collapsing the two would
+ * make "excluded from spending" and "no idea" look identical.
+ */
 function categorize(rawMerchant: string, description = rawMerchant): string | null {
   const txn: RuleTxn = {
     id: "t1",
@@ -32,7 +38,8 @@ function categorize(rawMerchant: string, description = rawMerchant): string | nu
     categorySource: "AGGREGATOR",
   };
   const result = applyRules(rules, [txn]);
-  return result.length === 0 ? null : result[0].categoryId;
+  if (result.length === 0) return null;
+  return result[0].flow ?? result[0].categoryId;
 }
 
 describe("starter pack: merchant corpus", () => {
@@ -95,7 +102,6 @@ describe("starter pack: merchant corpus", () => {
     ["CASH APP*JANE DOE", null],
     ["PAYPAL *STEAM GAMES", null], // PayPal-routed — payee string unreliable
     ["SOCALGAS BILL PAYMENT", null], // "gas" the utility, not fuel — needs a user rule
-    ["ATM WITHDRAWAL 00423 MAIN ST", null], // cash is inherently uncategorizable
     ["BOBS HARDWARE", null], // honest unknown beats a wrong guess
     ["USPS PO 4455900129", null],
   ];
@@ -118,6 +124,58 @@ describe("starter pack: merchant corpus", () => {
       categorySource: "MANUAL",
     };
     expect(applyRules(rules, [txn])).toEqual([]);
+  });
+});
+
+/**
+ * Bank and brokerage bookkeeping, which arrives as a descriptor rather than a
+ * merchant. Strings are the real shapes seen on Wells Fargo, Chase and
+ * Fidelity statements, with names and numbers replaced.
+ */
+describe("starter pack: structural descriptors", () => {
+  const DESCRIPTORS: [description: string, expected: string | null][] = [
+    // --- Credit-card payments: value-neutral on both sides
+    ["CHASE CREDIT CRD EPAY       260321 1000000002      JANE DOE", "TRANSFER"],
+    ["CHASE CREDIT CRD AUTOPAY    XXXXXX XXXXXXXXXXX1002 JANE DOE", "TRANSFER"],
+    ["WF Credit Card   AUTO PAY   251228 10000000000006  DOE,JANE", "TRANSFER"],
+    ["Payment Thank You-Mobile", "TRANSFER"],
+    ["ONLINE PAYMENT THANK YOU", "TRANSFER"],
+    ["AUTOMATIC PAYMENT - THANK YOU", "TRANSFER"],
+    ["ONLINE TRANSFER REF #IB0BBBBBBB TO WELLS FARGO CASH REWARDS VISA CARD XXXXXXXXXXXX0004 ON 07/13/26", "TRANSFER"],
+
+    // --- Cash: its own category, because where it went is unknowable
+    ["ATM WITHDRAWAL                 AUTHORIZED ON   04/29 3 LAKESIDE AVE STE 100    FAIRVIEW      IL  0002127           ATM ID 1001A    CARD 1234", "Cash & ATM"],
+    ["NON-WF ATM WITHDRAWAL FEE", "Fees & Charges"], // a fee, not cash
+    ["CASH WITHDRAWAL 00423 MAIN ST", "Cash & ATM"],
+
+    // --- Brokerage: distributions are income, reinvesting them is not
+    ["DIVIDEND RECEIVED FIDELITY 500 INDEX FUND (FZZAX) (Cash)", "Income"],
+    ["LONG-TERM CAP GAIN FIDELITY CONTRAFUND (FZZBX) (Cash)", "Income"],
+    ["SHORT-TERM CAP GAIN FIDELITY LARGE CAP STOCK (FZZCX) (Cash)", "Income"],
+    ["REINVESTMENT FIDELITY 500 INDEX FUND (FZZAX) (Cash)", "TRANSFER"],
+
+    // --- Taxes
+    ["IRS              USATAXPYMT 041226 100000000000005 JANE H DOE", "Taxes"],
+
+    // --- Rent: a landlord's own name is all most statements carry
+    ["SUNRISE APARTMENTS LLC", "Rent & Housing"],
+    ["KEYSTONE PROPERTY MANAGEMENT", "Rent & Housing"],
+
+    // --- Near misses that must NOT match
+    // Wells Fargo appends "CARD nnnn" to every debit-card purchase, so the
+    // card-payment patterns must need a card PRODUCT, not the word "card".
+    ["PURCHASE AUTHORIZED ON 07/12 BOBS HARDWARE FAIRVIEW IL CARD 1234", null],
+    ["YOU BOUGHT REALTY INCOME CORP (O) (Cash)", null], // a REIT, not housing
+    ["DIVIDEND SOLAR FINANCE PAYMENT", null], // a lender named Dividend
+  ];
+
+  it.each(DESCRIPTORS)("%s → %s", (description, expected) => {
+    expect(categorize(description)).toBe(expected);
+  });
+
+  it("does not let a card payment hide an ordinary purchase on the same statement", () => {
+    // Both rows carry "CARD 1234"; only one is a payment.
+    expect(categorize("PURCHASE AUTHORIZED ON 07/12 TRADER JOES 058 FAIRVIEW IL CARD 1234")).toBe("Groceries");
   });
 });
 

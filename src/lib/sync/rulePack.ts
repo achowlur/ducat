@@ -11,6 +11,8 @@ import { applyRules, toRuleTxns } from "./rules";
  * Priority bands (lower wins, first match applies):
  *   1-99    user rules — always beat the pack, and are the ONLY rules
  *           allowed to categorize P2P payments (see rules.ts P2P guard)
+ *   200-299 structural patterns — bank and brokerage bookkeeping descriptors
+ *           rather than merchants, so they outrank every brand rule
  *   500-599 brand patterns (specific merchants)
  *   900-999 generic-word heuristics (last resort before uncategorized)
  */
@@ -29,6 +31,9 @@ export const PACK_CATEGORIES = [
   "Travel",
   "Health",
   "Entertainment",
+  "Rent & Housing",
+  "Taxes",
+  "Cash & ATM",
   "Fees & Charges",
   "Income",
 ] as const;
@@ -78,12 +83,58 @@ const transferFlow = (
     setFlow: "TRANSFER" as const,
   }));
 
+/** As transferFlow, for descriptors that need two tokens to be safe. */
+const transferRegex = (priority: number, matchValue: string): PackRule => ({
+  priority,
+  matchField: "DESCRIPTION",
+  matchOperator: "REGEX",
+  matchValue,
+  category: null,
+  setFlow: "TRANSFER",
+});
+
 export const PACK_RULES: PackRule[] = [
   // --- Value-neutral movements: cash changing form, never spending.
   // A dividend/interest reinvestment buys shares INSIDE one account, so there
   // is no second account for transfer-pair detection to match against — it can
   // only ever be caught by classification, not pairing.
   ...transferFlow(200, "DESCRIPTION", "reinvestment"),
+
+  // Paying a credit card moves the same dollars between two of your own
+  // accounts. Transfer-pair detection catches it only when BOTH sides are in
+  // Ducat and the amounts are exact opposites within 4 days — an unlinked
+  // card, a partial payment, or a slow posting each defeat that, so the
+  // descriptors are classified here too. Every pattern needs a card token AND
+  // a payment token: matching either alone would swallow ordinary card
+  // purchases, and a false TRANSFER hides real spending outright.
+  // Issuer side: "CHASE CREDIT CRD EPAY", "WF Credit Card   AUTO PAY".
+  transferRegex(210, "\\bcredit\\s*(crd|card)\\b.*\\b(e-?pay|auto\\s?pay|payment|pymt)\\b"),
+  // Card side: "Payment Thank You-Mobile", "ONLINE PAYMENT - THANK YOU".
+  transferRegex(210, "\\bpayment\\s*[-,]?\\s*thank\\b"),
+  // Wells Fargo bills a card payment as a plain transfer, naming the card
+  // product. The product name is required: WF appends "CARD 1234" to every
+  // debit-card purchase, so `card` alone here would hide half the statement.
+  transferRegex(210, "\\bonline transfer\\b.*\\b(visa|mastercard|amex|credit)\\s+card\\b"),
+
+  // ATM cash leaves the account with no merchant attached — a category of its
+  // own is the honest answer, and where it went stays unknowable. The fee
+  // pattern is ordered FIRST because "ATM WITHDRAWAL FEE" is a fee, not cash
+  // (same specific-beats-general idiom as kroger fuel vs kroger below).
+  regex(215, "Fees & Charges", "\\batm\\b.*\\bfee\\b", "DESCRIPTION"),
+  regex(220, "Cash & ATM", "\\batm\\b.*\\b(withdrawal|wdl)\\b|\\bcash withdrawal\\b", "DESCRIPTION"),
+
+  // Brokerage distributions arrive as cash and are income; the matching
+  // "REINVESTMENT" row that spends it again is already a TRANSFER above, so
+  // the pair nets to the dividend counted once. Both patterns name the event
+  // rather than the word "dividend" alone, which is also a company name
+  // ("DIVIDEND SOLAR") and a ticker's line item on a buy.
+  regex(230, "Income", "\\b(dividends?\\s+(received|paid|earned)|cash dividends?)\\b", "DESCRIPTION"),
+  regex(230, "Income", "\\b(long|short)[-\\s]term\\s+(cap|capital)\\s+gains?\\b", "DESCRIPTION"),
+
+  // "USATAXPYMT" is the EFTPS descriptor every federal e-payment carries;
+  // the second pattern covers the state agencies that collect the rest.
+  regex(240, "Taxes", "\\busataxpymt\\b", "DESCRIPTION"),
+  regex(240, "Taxes", "\\b(franchise tax bd|dept of revenue|department of revenue|dept of taxation)\\b", "DESCRIPTION"),
 
   // --- Brands: order-sensitive pairs first (more specific = lower number)
   ...contains(500, "Dining", "uber eats", "ubereats", "doordash", "grubhub", "postmates"),
@@ -114,6 +165,11 @@ export const PACK_RULES: PackRule[] = [
   regex(950, "Entertainment", "\\b(cinema|theatre|theater|bowling|arcade)\\b"),
   regex(960, "Fees & Charges", "\\b(overdraft|atm fee|service charge|monthly fee|late fee|interest charge[ds]?)\\b"),
   regex(970, "Income", "\\b(payroll|salary|direct deposit)\\b", "DESCRIPTION"),
+  // Rent reaches a landlord's own name far more often than a recognizable
+  // brand, so this is all the pack can honestly claim; the rest is what the
+  // grouped review is for. "realty" is deliberately absent — it is a REIT
+  // name too, and "YOU BOUGHT REALTY INCOME CORP" is not a housing expense.
+  regex(980, "Rent & Housing", "\\b(apartments?|property management|property mgmt|leasing office|homeowners assoc)\\b"),
   // "market" alone is the loosest signal — keep it last so anything better wins
   regex(990, "Groceries", "\\bmarket\\b"),
 ];
