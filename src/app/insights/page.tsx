@@ -6,6 +6,13 @@ import { getInsightsPageData, type InsightRow } from "../../lib/ui/insights";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Month step. Below md the box grows to a 44px touch target; at md and up it
+ * is the original px-1 glyph, so the desktop header is untouched.
+ */
+const ARROW =
+  "inline-block px-1 text-center text-faint hover:text-ink max-md:min-h-[44px] max-md:min-w-[44px] max-md:-my-3 max-md:py-3";
+
 const CHIP_CLASS: Record<InsightRow["tone"], string> = {
   neg: "bg-neg text-paper",
   pos: "bg-pos text-paper",
@@ -38,19 +45,19 @@ export default async function InsightsPage({
       <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-ink pb-3">
         <span className="flex items-center gap-2 font-money text-[0.85rem]">
           {data.prevPeriod !== null ? (
-            <Link href={`/insights?period=${data.prevPeriod}${showDismissed ? "&show=dismissed" : ""}`} className="px-1 text-faint hover:text-ink">
+            <Link href={`/insights?period=${data.prevPeriod}${showDismissed ? "&show=dismissed" : ""}`} className={ARROW}>
               ‹
             </Link>
           ) : (
-            <span className="px-1 text-faint opacity-30">‹</span>
+            <span className={`${ARROW} opacity-30`}>‹</span>
           )}
           <span className="text-ink">{data.periodLabel}</span>
           {data.nextPeriod !== null ? (
-            <Link href={`/insights?period=${data.nextPeriod}${showDismissed ? "&show=dismissed" : ""}`} className="px-1 text-faint hover:text-ink">
+            <Link href={`/insights?period=${data.nextPeriod}${showDismissed ? "&show=dismissed" : ""}`} className={ARROW}>
               ›
             </Link>
           ) : (
-            <span className="px-1 text-faint opacity-30">›</span>
+            <span className={`${ARROW} opacity-30`}>›</span>
           )}
         </span>
         {data.dismissedCount > 0 && (
@@ -81,7 +88,7 @@ export default async function InsightsPage({
           {group.rows.map((row) => (
             <div
               key={row.id}
-              className={`flex items-start gap-2.5 border-b border-rule py-2 text-[0.85rem] last:border-b-0 ${
+              className={`flex items-start gap-2.5 border-b border-rule py-2 text-[0.85rem] last:border-b-0 max-md:py-3 ${
                 row.dismissed ? "opacity-50" : ""
               }`}
             >

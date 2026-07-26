@@ -11,6 +11,9 @@ export const dynamic = "force-dynamic";
 
 const DONUT_COLORS = ["bg-chart1", "bg-chart2", "bg-pie3", "bg-pie4"];
 
+/** Month step: a 44px touch target below md, the original glyph above it. */
+const ARROW = "inline-block px-1 text-center max-md:min-h-[44px] max-md:min-w-[44px] max-md:-my-3 max-md:py-3";
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <h3 className="mb-1 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">{children}</h3>
@@ -44,19 +47,19 @@ export default async function TrendsPage({
             <SectionTitle>Spending by category</SectionTitle>
             <span className="flex items-center gap-2 font-money text-[0.78rem] text-faint">
               {data.prevPeriod !== null ? (
-                <Link href={`/trends?period=${data.prevPeriod}`} className="px-1 hover:text-ink">
+                <Link href={`/trends?period=${data.prevPeriod}`} className={`${ARROW} hover:text-ink`}>
                   ‹
                 </Link>
               ) : (
-                <span className="px-1 opacity-30">‹</span>
+                <span className={`${ARROW} opacity-30`}>‹</span>
               )}
               <span className="text-ink">{data.periodLabel}</span>
               {data.nextPeriod !== null ? (
-                <Link href={`/trends?period=${data.nextPeriod}`} className="px-1 hover:text-ink">
+                <Link href={`/trends?period=${data.nextPeriod}`} className={`${ARROW} hover:text-ink`}>
                   ›
                 </Link>
               ) : (
-                <span className="px-1 opacity-30">›</span>
+                <span className={`${ARROW} opacity-30`}>›</span>
               )}
             </span>
           </div>

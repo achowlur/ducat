@@ -22,9 +22,6 @@ deliberately NOT included.
    below md; put per-month figures in `aria-label` (the Overview donut already
    does this well — copy that pattern to the other four).
 
-7. **Every tap target under 44px** (Insights month arrows 16×20px; 14 of 14
-   targets fail). FIX: `py-2 + min-h-[44px]` — padding only, no desktop change.
-
 ## P2 — trust and data integrity
 
 8. **U+FFFD in account names.** "WELLS FARGO TRAVEL REWARDS VISA?? CARD ...0005" —
