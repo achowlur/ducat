@@ -43,8 +43,25 @@ Turso's [encryption docs](https://docs.turso.tech/tursodb/encryption).
 
 ## 2 · Apply the schema
 
-Generate the full schema as one SQL script and pipe it into the remote DB
-(libSQL is HTTP-based, so `prisma migrate deploy` can't target it directly):
+libSQL is HTTP-based, so `prisma migrate deploy` can't target it directly. Use
+the pusher, which needs no CLI — handy, because the Turso CLI has no native
+Windows build (its documented install is WSL-only):
+
+```bash
+DATABASE_URL="libsql://…turso.io" TURSO_AUTH_TOKEN="…" npm run turso:push
+```
+
+Expect `Created 9 tables and 2 indexes`. It **refuses a database that already
+has tables**: a baseline is not idempotent, so a second run would fail every
+`CREATE TABLE` and leave a half-applied schema. That guard is also what stops a
+mistyped `DATABASE_URL` from being pointed at your own local data.
+
+Set the variables inline rather than editing `.env`, or the next local command
+silently runs against the cloud. In PowerShell, use `$env:DATABASE_URL="…"` in
+a throwaway terminal you then close.
+
+<details>
+<summary>Equivalent with the Turso CLI, if you have it</summary>
 
 ```bash
 npm run --silent turso:baseline > baseline.sql
@@ -54,13 +71,18 @@ rm baseline.sql
 ```
 
 `--silent` is load-bearing: without it npm writes its own `> ducat@0.1.0
-turso:baseline` banner to stdout, into the file, and `turso db shell` stops at
-`near ">": syntax error` having created nothing. Prisma's "Loaded Prisma
-config" notice goes to stderr and stays out of the file either way.
+turso:baseline` banner into the file and `turso db shell` stops at
+`near ">": syntax error` having created nothing.
+</details>
 
-The script is generated from `prisma/schema.prisma` rather than replayed from
-`prisma/migrations/`, so it is always current — verified to produce a schema
-identical to applying every migration in order.
+Either route generates the schema from `prisma/schema.prisma` rather than
+replaying `prisma/migrations/`, so it is current by construction — verified to
+produce a schema identical to applying every migration in order.
+
+Note for later: the cloud database gets no `_prisma_migrations` table, and
+`prisma migrate deploy` can't reach it, so a *future* schema change means
+generating just the delta and applying it the same way. Nothing reads that
+table at runtime, so this only matters when you next change the schema.
 
 ## 3 · Seed the starter categorization pack
 

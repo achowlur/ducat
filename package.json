@@ -21,7 +21,8 @@
     "repair:merchants": "tsx scripts/repair-merchants.ts",
     "rules:install": "tsx scripts/install-rule-pack.ts",
     "auth:set-password": "tsx scripts/set-password.ts",
-    "turso:baseline": "prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script"
+    "turso:baseline": "prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script",
+    "turso:push": "tsx scripts/turso-push.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
