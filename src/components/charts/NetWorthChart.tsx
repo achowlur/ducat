@@ -13,24 +13,23 @@ interface MonthValue {
   marketGains: number | null;
 }
 
-const VIEW_W = 940;
-const VIEW_H = 220;
-const PLOT_TOP = 14;
-const PLOT_BOTTOM = 186;
-const PLOT_LEFT = 16;
-const PLOT_RIGHT = 872;
+/**
+ * Text inside a viewBox scales with the viewBox, so one geometry cannot serve
+ * both widths: 940 units squeezed into a 327px phone renders 10px type at 4px.
+ * Each breakpoint gets its own plot, sized so the scale factor stays near 1.
+ */
+const DESKTOP = { w: 940, h: 220 };
+const MOBILE = { w: 340, h: 250 };
 
 /**
  * Net worth line: hairline grid, emphasized endpoint with a static label,
- * hover snaps to the nearest month with a crosshair and tooltip.
+ * hover or tap snaps to the nearest month with a crosshair and tooltip.
  */
 export function NetWorthChart({ months }: { months: MonthValue[] }) {
-  const [hovered, setHovered] = useState<number | null>(null);
-
   // Net worth is emitted only for periods where every account's balance is
   // known, so this list is legitimately empty until the first snapshot lands —
   // e.g. after a CSV-only import, which writes no snapshots. Every expression
-  // below indexes months[], so bail before Math.max() of nothing yields
+  // in Plot indexes months[], so bail before Math.max() of nothing yields
   // -Infinity and months[-1] throws.
   if (months.length === 0) {
     return (
@@ -40,6 +39,28 @@ export function NetWorthChart({ months }: { months: MonthValue[] }) {
       </p>
     );
   }
+
+  return (
+    <>
+      <div className="md:hidden">
+        <Plot months={months} view={MOBILE} />
+      </div>
+      <div className="hidden md:block">
+        <Plot months={months} view={DESKTOP} />
+      </div>
+    </>
+  );
+}
+
+function Plot({ months, view }: { months: MonthValue[]; view: { w: number; h: number } }) {
+  const [hovered, setHovered] = useState<number | null>(null);
+
+  const VIEW_W = view.w;
+  const VIEW_H = view.h;
+  const PLOT_TOP = 14;
+  const PLOT_BOTTOM = VIEW_H - 34;
+  const PLOT_LEFT = 16;
+  const PLOT_RIGHT = VIEW_W - 68; // room for the right-hand axis labels
 
   const values = months.map((m) => m.value);
   const pad = (Math.max(...values) - Math.min(...values)) * 0.12 || 1;
@@ -53,9 +74,12 @@ export function NetWorthChart({ months }: { months: MonthValue[] }) {
   const points = months.map((m, i) => `${x(i).toFixed(1)},${y(m.value).toFixed(1)}`).join(" ");
   const last = months.length - 1;
 
-  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const svgX = ((e.clientX - rect.left) / rect.width) * VIEW_W;
+  // Nearest month to a pointer, in viewBox units. Touch goes through the same
+  // path as the mouse: without it a phone has no way to read any figure, while
+  // the caption promises exact ones.
+  const snapTo = (clientX: number, target: SVGSVGElement) => {
+    const rect = target.getBoundingClientRect();
+    const svgX = ((clientX - rect.left) / rect.width) * VIEW_W;
     if (svgX < PLOT_LEFT - 10 || svgX > PLOT_RIGHT + 10) {
       setHovered(null);
       return;
@@ -72,15 +96,21 @@ export function NetWorthChart({ months }: { months: MonthValue[] }) {
     setHovered(nearest);
   };
 
+  const summary = months
+    .map((m) => `${m.label} ${money(m.value)}${m.estimated ? " (partly estimated)" : ""}`)
+    .join(", ");
+
   return (
     <div className="relative">
       <svg
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        className="w-full"
+        className="w-full touch-pan-y"
         role="img"
-        aria-label="Net worth by month"
-        onMouseMove={onMove}
+        aria-label={`Net worth by month: ${summary}`}
+        onMouseMove={(e) => snapTo(e.clientX, e.currentTarget)}
         onMouseLeave={() => setHovered(null)}
+        onTouchStart={(e) => snapTo(e.touches[0].clientX, e.currentTarget)}
+        onTouchMove={(e) => snapTo(e.touches[0].clientX, e.currentTarget)}
       >
         {ticks.map((t) => (
           <g key={t}>

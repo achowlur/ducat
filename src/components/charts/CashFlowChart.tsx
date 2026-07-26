@@ -52,9 +52,26 @@ export function CashFlowChart({ months }: { months: MonthFlow[] }) {
   const spendCenterX = pairX(latest) + BAR_W + PAIR_GAP + BAR_W / 2;
   const latestLabelX = Math.min(spendCenterX, PLOT_RIGHT - 38);
 
+  const summary = months
+    .map((m) => `${m.label}: income ${money(m.income)}, spending ${money(m.spending)}`)
+    .join("; ");
+
   return (
-    <div className="relative">
-      <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="w-full" role="img" aria-label="Monthly income and spending columns">
+    // Below md the chart keeps its natural 520px and the strip scrolls, rather
+    // than scaling 26 months into 327px — that squeezed the axis type to 7px.
+    // Two dozen months cannot be legible on a phone at any scale; scrolling a
+    // timeline at least matches how one reads it.
+    <div className="scroll-x md:overflow-visible">
+      {/* The tooltip is positioned as a percentage of the plot, so it has to
+          live inside the element that IS the plot's width — and it then
+          scrolls with the bar it describes. */}
+      <div className="relative w-[520px] md:w-full">
+      <svg
+        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+        className="w-full"
+        role="img"
+        aria-label={`Monthly income and spending. ${summary}`}
+      >
         {ticks.slice(1).map((t) => (
           <g key={t}>
             <line x1={PLOT_LEFT} y1={y(t)} x2={PLOT_RIGHT} y2={y(t)} stroke="var(--grid)" strokeWidth="1" />
@@ -74,6 +91,9 @@ export function CashFlowChart({ months }: { months: MonthFlow[] }) {
               opacity={dim ? 0.45 : 1}
               onMouseEnter={() => setHovered(i)}
               onMouseLeave={() => setHovered(null)}
+              // A tap toggles the same tooltip: touch has no hover, and these
+              // figures exist nowhere else on the page.
+              onClick={() => setHovered(hovered === i ? null : i)}
               className="transition-opacity"
             >
               {/* generous invisible hit target for the whole month */}
@@ -130,6 +150,7 @@ export function CashFlowChart({ months }: { months: MonthFlow[] }) {
           <div>net {money(months[hovered].net)}</div>
         </div>
       )}
+      </div>
     </div>
   );
 }

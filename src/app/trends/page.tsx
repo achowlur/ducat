@@ -41,8 +41,10 @@ export default async function TrendsPage({
   return (
     <div className="grid gap-9 py-5">
       <CoverageNotice coverage={coverage} />
-      <div className="grid gap-9 lg:grid-cols-2">
-        <section>
+      {/* min-w-0: a grid item defaults to min-width:auto and will not shrink
+          below its content, which is how a 520px chart widened the page. */}
+      <div className="grid min-w-0 gap-9 lg:grid-cols-2">
+        <section className="min-w-0">
           <div className="flex items-baseline justify-between">
             <SectionTitle>Spending by category</SectionTitle>
             <span className="flex items-center gap-2 font-money text-[0.78rem] text-faint">
@@ -64,7 +66,7 @@ export default async function TrendsPage({
             </span>
           </div>
           <p className="mb-3 text-[0.75rem] text-faint">
-            Transfers excluded. Hover for detail; click a slice or row to open those transactions.
+            Transfers excluded. Hover or tap for detail; click a slice or row to open those transactions.
             {data.credited > 0 && (
               <>
                 {" "}
@@ -154,7 +156,7 @@ export default async function TrendsPage({
           )}
         </section>
 
-        <section>
+        <section className="min-w-0">
           <SectionTitle>Cash flow by month</SectionTitle>
           <div className="mb-2 flex gap-5 text-[0.75rem] text-faint">
             <span>
@@ -173,7 +175,7 @@ export default async function TrendsPage({
       <section>
         <SectionTitle>Net worth</SectionTitle>
         <p className="mb-3 text-[0.75rem] text-faint">
-          Month-end, all accounts. Hover for exact figures; months marked estimated lack a balance snapshot
+          Month-end, all accounts. Hover or tap a month for exact figures; months marked estimated lack a balance snapshot
           for at least one account.
         </p>
         {data.netWorth.length < 3 && (

@@ -12,16 +12,6 @@ deliberately NOT included.
 
 ## P0 — money correctness (wrong on screen right now)
 
-## P1 — mobile (the phone is the reason cloud mode exists)
-
-6. **Charts illegible + data is hover-only.** Fixed viewBox + `w-full` means text
-   scales down to 4–7px at 375px. Both Trends charts expose figures only via
-   `onMouseMove` — no hover on touch, while the caption says "Hover for exact
-   figures". Overview donut renders 76×69px.
-   FIX: set SVG text size in px via CSS so it stops scaling; shorter viewBox
-   below md; put per-month figures in `aria-label` (the Overview donut already
-   does this well — copy that pattern to the other four).
-
 ## P2 — trust and data integrity
 
 8. **U+FFFD in account names.** "WELLS FARGO TRAVEL REWARDS VISA?? CARD ...0005" —

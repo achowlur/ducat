@@ -235,7 +235,9 @@ export default async function OverviewPage() {
           {data.donut !== null && (
             <>
               <SectionTitle>Spending — {data.periodLabel.split(" ")[0]}</SectionTitle>
-              <div className="mb-5 flex items-center gap-4">
+              {/* Stacked below md: sharing a row with the legend squeezed the
+                  donut to 76px, with a 5px total in the hole. */}
+              <div className="mb-5 flex flex-col items-start gap-4 md:flex-row md:items-center">
                 <MiniDonut
                   slices={data.donut.slices}
                   centerTop={money(data.donut.total)}
