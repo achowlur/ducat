@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { normalizeMerchant } from "../connectors/normalize";
 import { applyRules, type RuleData, type RuleTxn } from "./rules";
-import { P2P_PATTERN, PACK_RULES } from "./rulePack";
+import { P2P_PATTERN, PACK_CATEGORIES, PACK_RULES } from "./rulePack";
 
 /**
  * The merchant corpus: realistic, messy bank strings run through the SAME
@@ -85,6 +85,9 @@ describe("starter pack: merchant corpus", () => {
     ["COMCAST CABLE COMM", "Utilities"],
     ["T-MOBILE AUTO PAY", "Utilities"],
     ["PG&E WEB ONLINE PAY", "Utilities"],
+    // The utility, not a filling station. It only works because the fuel
+    // heuristic needs "gas" standing alone and "socalgas" is one token.
+    ["SOCALGAS BILL PAYMENT", "Utilities"],
     ["DELTA AIR 00623411229876", "Travel"],
     ["MARRIOTT DOWNTOWN SEATTLE", "Travel"],
     ["AIRBNB * HMXYZ123", "Travel"],
@@ -101,7 +104,6 @@ describe("starter pack: merchant corpus", () => {
     ["VENMO PAYMENT 1023996", null],
     ["CASH APP*JANE DOE", null],
     ["PAYPAL *STEAM GAMES", null], // PayPal-routed — payee string unreliable
-    ["SOCALGAS BILL PAYMENT", null], // "gas" the utility, not fuel — needs a user rule
     ["BOBS HARDWARE", null], // honest unknown beats a wrong guess
     ["USPS PO 4455900129", null],
   ];
@@ -137,6 +139,65 @@ describe("starter pack: merchant corpus", () => {
       categorySource: "MANUAL",
     };
     expect(applyRules(rules, [txn])).toEqual([]);
+  });
+});
+
+describe("starter pack: shape", () => {
+  // installRulePack dedupes against what a database already has, not against
+  // the pack itself, so a value listed twice here installs twice — invisible
+  // in the UI except as a duplicate row the user has to read past.
+  it("lists no rule twice", () => {
+    const counts = new Map<string, number>();
+    for (const r of PACK_RULES) {
+      const key = `${r.matchField}|${r.matchOperator}|${r.matchValue}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    expect([...counts].filter(([, n]) => n > 1).map(([k]) => k)).toEqual([]);
+  });
+
+  it("points every categorizing rule at a category the pack installs", () => {
+    const known = new Set<string>(PACK_CATEGORIES);
+    for (const r of PACK_RULES) {
+      if (r.category !== null) expect(known.has(r.category)).toBe(true);
+      else expect(r.setFlow).toBe("TRANSFER");
+    }
+  });
+});
+
+describe("starter pack: the long tail of chains", () => {
+  const CHAINS: [raw: string, expected: string | null][] = [
+    ["MACY'S 100 2003 PLAZA SPRINGFIELD IL", "Shopping"], // the apostrophe form
+    ["MACYS .COM 8006220679 OH", "Shopping"], // and the form macys.com uses
+    ["QDOBA 2002", "Dining"],
+    ["JIMMY JOHNS - 2001", "Dining"],
+    ["COLD STONE CREAMERY #22", "Dining"],
+    ["FIRST WATCH - CORAL SPR", "Dining"],
+    ["DAIRY QUEEN BLIZZARD 4412", "Dining"], // dessert, not the game studio
+    ["BLIZZARD *US1000000002", "Entertainment"],
+    ["FOODMART OF FAIRVIEW", "Groceries"],
+    ["WORLD MARKET 4412", "Shopping"], // beats the "market" catch-all
+    ["TRC TAPGO LAKE CITY IL", "Transport"],
+    ["SILVERSPOT CYPRESS GLEN", "Entertainment"],
+    ["DELTA DENTAL OF NEW JERSEY", "Health"], // not Delta Air Lines
+    ["ALAMO RENT A CAR PHOENIX", "Travel"],
+    ["TST* ALAMO DRAFTHOUSE - N", "Entertainment"], // beats the Toast rail
+    ["GAP #1291 FAIRVIEW IL", "Shopping"],
+    ["H&M 0912 LAKE CITY", "Shopping"],
+    ["REI CO-OP SEATTLE", "Shopping"],
+    ["SOUTHERN CALIFORNIA EDISON", "Utilities"],
+    ["COURSERA.ORG", "Subscriptions"],
+
+    // Fragments that must NOT be read as the brand they hide inside.
+    ["CONSULTANT SERVICES LLC", null], // ulta
+    ["DAVIS HARDWARE SUPPLY", null], // avis
+    ["STONE MEDICAL BILLING", "Health"], // "medical", not One Medical
+    ["WESTINGHOUSE SERVICE CO", null], // westin
+    ["CANVAS PRINTS DIRECT", null], // canva
+    ["CULVER CITY DRY CLEANER", null], // culvers
+  ];
+
+  it.each(CHAINS)("%s → %s", (raw, expected) => {
+    expect(categorize(raw)).toBe(expected);
   });
 });
 

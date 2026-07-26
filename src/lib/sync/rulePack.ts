@@ -155,14 +155,52 @@ export const PACK_RULES: PackRule[] = [
   ...contains(520, "Travel", "airbnb", "marriott", "hilton", "hyatt", "expedia", "booking.com", "vrbo", "delta air", "united air", "american airlines", "southwest air", "alaska air", "jetblue", "spirit air", "amtrak"),
   ...contains(520, "Health", "cvs", "walgreens", "rite aid", "kaiser", "quest diagnostics", "labcorp"),
   ...contains(520, "Entertainment", "amc theat", "regal cinemas", "cinemark", "ticketmaster", "stubhub", "steam purchase", "steampowered", "epic games"),
+  // "MACY'S 100 2003 PLAZA SPRINGFIELD IL" is what the statement says, and
+  // "macys" above never matched it — only macys.com, which writes it the
+  // other way. Both spellings occur in one account's history.
+  ...contains(520, "Shopping", "macy's"),
+
+  // --- The long tail of chains, at 525 so the curated brands above still win
+  // any tie. Everything here is a name a statement carries verbatim, drawn
+  // from real statements first and then from the chains with the widest
+  // footprint, because a fresh clone starts with none of this.
+  ...contains(525, "Dining", "cold stone", "dairy queen", "jimmy john", "qdoba", "first watch", "cheesecake factory", "uncle julio", "menchie", "playa bowls", "toastique", "blaze pizza", "pieology", "sweetgreen", "just salad", "gong cha", "kung fu tea", "jersey mike", "potbelly", "wingstop", "raising cane", "whataburger", "culvers", "jack in the box", "del taco", "el pollo loco", "panda express", "pf chang", "red lobster", "outback steak", "texas roadhouse", "buffalo wild wings", "cracker barrel", "waffle house", "tim horton", "dutch bros", "krispy kreme", "baskin", "ben & jerry", "insomnia cookie", "crumbl", "halal guys", "little caesar", "sonic drive", "firehouse subs", "auntie anne", "cinnabon", "smoothie king", "zesta"),
+  ...contains(525, "Groceries", "harris teeter", "hy-vee", "meijer", "stop & shop", "shoprite", "acme markets", "ralphs", "fred meyer", "king soopers", "jewel-osco", "lidl", "grocery outlet", "foodmart", "key food"),
+  ...contains(525, "Shopping", "kohl", "jcpenney", "dillard", "famous footwear", "foot locker", "sephora", "bath & body", "victoria's secret", "american eagle", "hollister", "abercrombie", "urban outfitters", "uniqlo", "forever 21", "banana republic", "lululemon", "under armour", "dick's sporting", "academy sports", "bass pro", "cabela", "michaels stores", "hobby lobby", "joann", "party city", "barnes & noble", "gamestop", "b&h photo", "micro center", "newegg", "staples", "office depot", "petco", "petsmart", "tractor supply", "ace hardware", "menards", "harbor freight", "world market", "big lots", "dollar general", "dollar tree", "family dollar", "swarovski"),
+  ...contains(525, "Transport", "trc tapgo", "e-zpass", "sunpass", "fastrak", "spothero", "parkmobile", "paybyphone", "citi bike", "zipcar", "sound transit", "clipper card", "ventra"),
+  ...contains(525, "Travel", "hertz", "enterprise rent", "budget rent", "alamo rent", "priceline", "hotels.com", "orbitz", "travelocity", "holiday inn", "hampton inn", "best western", "la quinta", "motel 6", "days inn", "wyndham", "sheraton", "frontier air", "allegiant air", "hawaiian air", "air canada", "lufthansa", "british airways", "greyhound", "flixbus", "megabus", "global entry", "chase travel"),
+  ...contains(525, "Health", "duane reade", "walgreen", "minuteclinic", "zocdoc", "goodrx", "teladoc", "lenscrafters", "warby parker", "pearle vision", "aspen dental", "delta dental", "blue cross", "blue shield"),
+  // "blizzard *" rather than the bare word: a Dairy Queen Blizzard is dinner.
+  ...contains(525, "Entertainment", "silverspot", "alamo drafthouse", "fandango", "atom tickets", "dave & buster", "topgolf", "chuck e cheese", "sky zone", "bowlero", "six flags", "cedar point", "universal studios", "walt disney world", "disneyland", "seaworld", "busch gardens", "blizzard *", "riot games", "roblox", "nintendo", "eventbrite", "seatgeek", "vivid seats"),
+  ...contains(525, "Subscriptions", "coursera", "udemy", "masterclass", "duolingo", "notion.so", "figma", "grammarly", "1password", "nordvpn", "github", "nytimes", "new york times", "wall street journal", "washington post", "the athletic", "substack", "peloton", "strava", "headspace", "sirius", "paramount+", "peacock", "starz", "crunchyroll", "orangetheory", "anytime fitness", "24 hour fitness", "blink fitness", "crunch fitness"),
+  // SoCalGas is a gas UTILITY, not a filling station — and it is why the
+  // fuel heuristic at 920 needs the word "gas" standing on its own.
+  ...contains(525, "Utilities", "socalgas", "dominion energy", "xcel energy", "ameren", "entergy", "florida power", "georgia power", "dte energy", "consumers energy", "peoples gas", "washington gas", "eversource", "pseg", "puget sound energy", "austin energy", "reliant energy", "nv energy", "southern california edison", "ladwp", "centurylink", "frontier communications", "starlink", "mint mobile", "cricket wireless", "boost mobile", "us cellular", "straight talk"),
+  // Names short enough, or common enough as a fragment, that a substring
+  // match would swallow an unrelated merchant: "ulta" hides inside
+  // "consultant", "avis" inside "Davis", "one medical" inside "Stone
+  // Medical", "westin" inside "Westinghouse", "canva" inside "canvas".
+  regex(525, "Dining", "\\b(arby|nando)\\b"),
+  regex(525, "Groceries", "\\b(vons|iga)\\b"),
+  regex(525, "Shopping", "\\b(ulta|zara|h&m|gap|nike|adidas|rei|dsw|chewy|temu|shein)\\b"),
+  regex(525, "Transport", "\\b(trc|tapgo|bart|metrocard)\\b"),
+  regex(525, "Travel", "\\b(avis|turo|westin)\\b"),
+  regex(525, "Health", "\\bone medical\\b"),
+  regex(525, "Subscriptions", "\\bcanva\\b"),
 
   // --- Generic-word heuristics: catch "Local Thai Kitchen" without knowing the brand
   regex(900, "Dining", "\\b(restaurant|cafe|coffee|espresso|pizza|pizzeria|sushi|thai|pho|ramen|taco|taqueria|burrito|grill|bistro|diner|bbq|barbecue|bakery|brewery|brewing|taphouse|pub|cantina|eatery|deli|steakhouse|wings?|donut|doughnut|ice cream|gelato|boba)\\b"),
+  // A second pass rather than an edit to the line above: installRulePack
+  // matches existing rules by their matchValue, so changing one leaves the
+  // old row behind in every database that already ran the pack.
+  regex(901, "Dining", "\\b(creamery|frozen yogurt|churro|empanada|arepa|shawarma|falafel|kebab|dumpling|noodles?|udon|poke|acai|smoothie|patisserie|creperie|trattoria|osteria|izakaya|hibachi|teriyaki|dim sum|halal|cheesecake|juice bar|food truck)\\b"),
   regex(910, "Groceries", "\\b(grocery|grocer|supermarket|supermercado|mercado|farmers market|food mart)\\b"),
+  regex(911, "Groceries", "\\b(food center|food bazaar|produce market|fish market|butcher)\\b"),
   regex(920, "Gas", "\\b(gas station|fuel|gasoline)\\b"),
   regex(930, "Health", "\\b(pharmacy|dental|dentist|clinic|medical|hospital|optometr|chiropract|urgent care)\\b"),
   regex(940, "Transport", "\\b(parking|toll|transit|metro|taxi)\\b"),
   regex(950, "Entertainment", "\\b(cinema|theatre|theater|bowling|arcade)\\b"),
+  regex(951, "Entertainment", "\\b(museum|aquarium|zoo|mini golf|escape room|karaoke|planetarium|botanic)\\b"),
   regex(960, "Fees & Charges", "\\b(overdraft|atm fee|service charge|monthly fee|late fee|interest charge[ds]?)\\b"),
   regex(970, "Income", "\\b(payroll|salary|direct deposit)\\b", "DESCRIPTION"),
   // Rent reaches a landlord's own name far more often than a recognizable
