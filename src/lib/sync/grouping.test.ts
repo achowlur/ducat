@@ -11,16 +11,16 @@ const txn = (partial: Partial<GroupTxn> & { id: string }): GroupTxn => ({
 
 describe('payeeKey', () => {
   it('strips reference numbers, dates, and doubled spaces from P2P descriptions', () => {
-    expect(payeeKey('ZELLE TO  LENA ON 07/21 REF # WFCT0000000E')).toBe('zelle to lena');
-    expect(payeeKey('ZELLE TO HOLLIS AMARI ON 07/19 REF # WFCT0000000H')).toBe('zelle to hollis amari');
+    expect(payeeKey('ZELLE TO  LARSON ON 07/21 REF # WFCT0000000A')).toBe('zelle to larson');
+    expect(payeeKey('ZELLE TO SMITH JOHN ON 07/19 REF # WFCT0000000B')).toBe('zelle to smith john');
   });
 
   // The key becomes a rule's CONTAINS value, matched against the description
   // itself — so it must stay a contiguous prefix. Venmo puts its reference
   // numbers BETWEEN the verb and the name; deleting them mid-string produced
-  // "venmo payment marlowe brennan", which appears nowhere in the description.
+  // "venmo payment jane doe", which appears nowhere in the description.
   it('truncates at mid-string noise so the key stays a substring of the description', () => {
-    const description = 'VENMO            PAYMENT    260704 1000000000003   MARLOWE BRENNAN';
+    const description = 'VENMO            PAYMENT    260704 1000000000001   JANE DOE';
     const key = payeeKey(description);
     expect(key).toBe('venmo payment');
     expect(description.toLowerCase().replace(/\s+/g, ' ')).toContain(key);
@@ -28,9 +28,9 @@ describe('payeeKey', () => {
 
   it('keeps every derived key findable in its own description', () => {
     for (const description of [
-      'ZELLE TO  LENA ON 07/21 REF # WFCT0000000E',
-      'ZELLE FROM BRENNAN NADIA ON 06/10 REF # WFCT0000000G FOR PAPAS BIRTHDAY',
-      'VENMO            CASHOUT    260220 1000000000004   MARLOWE',
+      'ZELLE TO  LARSON ON 07/21 REF # WFCT0000000A',
+      'ZELLE FROM DOE MARY ON 06/10 REF # WFCT0000000D FOR BIRTHDAY GIFT',
+      'VENMO            CASHOUT    260220 1000000000002   JANE',
     ]) {
       const key = payeeKey(description);
       expect(key).not.toBe('');
@@ -39,8 +39,8 @@ describe('payeeKey', () => {
   });
 
   it('collapses the same counterparty across different dates and refs', () => {
-    const a = payeeKey('ZELLE TO  LENA ON 07/21 REF # WFCT0000000E');
-    const b = payeeKey('ZELLE TO  LENA ON 07/18 REF # WFCT0000000J');
+    const a = payeeKey('ZELLE TO  LARSON ON 07/21 REF # WFCT0000000A');
+    const b = payeeKey('ZELLE TO  LARSON ON 07/18 REF # WFCT0000000C');
     expect(a).toBe(b);
   });
 });
@@ -64,11 +64,11 @@ describe('groupByPayee', () => {
 
   it('splits P2P by counterparty instead of lumping the whole rail together', () => {
     const groups = groupByPayee([
-      txn({ id: '1', normalizedMerchant: 'zelle transfer', description: 'ZELLE TO LENA ON 07/21 REF # AAA' }),
-      txn({ id: '2', normalizedMerchant: 'zelle transfer', description: 'ZELLE TO LENA ON 07/18 REF # BBB' }),
-      txn({ id: '3', normalizedMerchant: 'zelle transfer', description: 'ZELLE TO HOLLIS AMARI ON 07/19 REF # CCC' }),
+      txn({ id: '1', normalizedMerchant: 'zelle transfer', description: 'ZELLE TO LARSON ON 07/21 REF # AAA' }),
+      txn({ id: '2', normalizedMerchant: 'zelle transfer', description: 'ZELLE TO LARSON ON 07/18 REF # BBB' }),
+      txn({ id: '3', normalizedMerchant: 'zelle transfer', description: 'ZELLE TO SMITH JOHN ON 07/19 REF # CCC' }),
     ]);
-    expect(groups.map((g) => g.key)).toEqual(['zelle to lena', 'zelle to hollis amari']);
+    expect(groups.map((g) => g.key)).toEqual(['zelle to larson', 'zelle to smith john']);
     expect(groups.every((g) => g.matchField === 'DESCRIPTION' && g.isP2P)).toBe(true);
     expect(groups[0].count).toBe(2);
   });

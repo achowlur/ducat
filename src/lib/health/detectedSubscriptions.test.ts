@@ -22,7 +22,7 @@ describe('mergeDetectedSubscriptions', () => {
   it('folds the same subscription seen under different merchant strings', () => {
     const merged = mergeDetectedSubscriptions([
       charge({ merchant: 'verizon', averageAmount: 109.99, occurrences: 3 }),
-      charge({ merchant: 'verizon paymentrec urring marlowe brennan', averageAmount: 109.99, occurrences: 4 }),
+      charge({ merchant: 'verizon paymentrec urring jane doe', averageAmount: 109.99, occurrences: 4 }),
       charge({ merchant: 'verizon paymentrec urring first name last name', averageAmount: 109.99, occurrences: 8 }),
     ]);
     expect(merged).toHaveLength(1);

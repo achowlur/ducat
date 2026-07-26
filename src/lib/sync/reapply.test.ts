@@ -49,7 +49,7 @@ describe("reapplyRules restore snapshot", () => {
       prisma.transaction.create({
         data: {
           accountId: account.id, externalId, date: utc(2026, 7, 5), amount: -40,
-          description: "ZELLE TO LENA ON 07/05", normalizedMerchant: "zelle to lena",
+          description: "ZELLE TO LARSON ON 07/05", normalizedMerchant: "zelle to larson",
           flow: "OUTFLOW", source: "SIMPLEFIN", categoryId, categorySource,
         },
       });
@@ -67,7 +67,7 @@ describe("reapplyRules restore snapshot", () => {
     await prisma.rule.create({
       data: {
         priority: 50, matchField: "DESCRIPTION", matchOperator: "CONTAINS",
-        matchValue: "zelle to lena", setCategoryId: diningId, enabled: true,
+        matchValue: "zelle to larson", setCategoryId: diningId, enabled: true,
       },
     });
     const { changed, restore } = await reapplyRules(prisma);
@@ -101,7 +101,7 @@ describe("reapplyRules restore snapshot", () => {
     await prisma.rule.create({
       data: {
         priority: 50, matchField: "DESCRIPTION", matchOperator: "CONTAINS",
-        matchValue: "zelle to lena", setCategoryId: null, setFlow: "TRANSFER", enabled: true,
+        matchValue: "zelle to larson", setCategoryId: null, setFlow: "TRANSFER", enabled: true,
       },
     });
     const { restore } = await reapplyRules(prisma);

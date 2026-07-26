@@ -11,7 +11,7 @@ import { P2P_PATTERN } from './rules';
  *    and the resulting rule matches MERCHANT.
  *  - P2P rails group on a payee key derived from the description, because the
  *    rail itself is meaningless — every Zelle payment normalizes to "zelle
- *    transfer", but "ZELLE TO LENA" and "ZELLE TO HOLLIS AMARI" are different
+ *    transfer", but "ZELLE TO LARSON" and "ZELLE TO SMITH JOHN" are different
  *    people who deserve different categories. Those rules match DESCRIPTION.
  */
 /**
@@ -50,8 +50,8 @@ export interface PayeeGroup {
  * is per-payment noise that would otherwise make each payment to the same
  * person look unique.
  *
- *   "ZELLE TO  LENA ON 07/21 REF # WFCT0000000E" -> "zelle to lena"
- *   "VENMO   PAYMENT   260704 1000000000003   MARLOWE" -> "venmo payment"
+ *   "ZELLE TO  LARSON ON 07/21 REF # WFCT0000000A" -> "zelle to larson"
+ *   "VENMO   PAYMENT   260704 1000000000001   JANE" -> "venmo payment"
  *
  * Truncating rather than deleting-and-rejoining is load-bearing: the key
  * becomes a rule's CONTAINS value, matched against the description itself. Cut
@@ -60,7 +60,7 @@ export interface PayeeGroup {
  * Venmo, whose reference numbers sit between the verb and the name.
  */
 const NOISE_MARKERS = [
-  /\bref\s*#/, // "REF # WFCT0000000E"
+  /\bref\s*#/, // "REF # WFCT0000000A"
   /\bon\s+\d{1,2}\/\d{1,2}/, // "ON 07/21"
   /\b\d{4,}\b/, // confirmation and account numbers
 ];

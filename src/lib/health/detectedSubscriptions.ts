@@ -5,9 +5,10 @@ import type { RecurringCadence } from '../../types/contracts';
  *
  * The recurring analyzer keys on the normalized merchant, and the same
  * subscription reaches us under several of those: a live feed reports
- * "verizon" while a bank CSV reports "verizon paymentrec urring marlowe
- * brennan". Listing all three as separate subscriptions is worse than useless,
- * so charges that agree on the leading word, cadence, and rounded amount are
+ * "verizon" while a bank CSV reports "verizon paymentrec urring jane doe" —
+ * the account holder's name, with the bank's own wrapping mangled into it.
+ * Listing all three as separate subscriptions is worse than useless, so
+ * charges that agree on the leading word, cadence, and rounded amount are
  * folded together under the shortest (cleanest) name.
  */
 export interface DetectedCharge {
