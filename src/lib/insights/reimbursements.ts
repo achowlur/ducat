@@ -46,6 +46,11 @@ export function reimbursementCredits(txns: TxnData[]): ReimbursementCredit[] {
         categoryId: target.categoryId,
         categoryName: target.categoryName,
         date: target.date,
+        // Deliberately NOT capped at the original's amount: an over-repayment
+        // stays visible as a negative category total rather than being
+        // silently discarded (see the over-reimbursement test). Presentation
+        // handles the consequences — the donut's denominator uses only
+        // positive categories so slices can never exceed 100%.
         amount: t.amount,
       });
     } else {

@@ -52,6 +52,19 @@ export function balanceAt(
     ? { balance: own[own.length - 1].balance, date: own[own.length - 1].date, estimated: false }
     : { balance: account.balance, date: account.balanceDate, estimated: true };
 
+  // A market-valued snapshot is the account's TOTAL worth, so its own trades
+  // must not be applied to it: "YOU BOUGHT VTI -$51,834.59" moves cash into
+  // securities inside the same account and leaves the total unchanged, but
+  // rolling it forward subtracts the $51,834.59 outright. (SimpleFIN reports
+  // trades as plain OUTFLOWs — only the Fidelity CSV mapping flags them
+  // TRANSFER — so this is the normal case for a live feed, not an edge one.)
+  // The snapshot is reported as-is, flagged estimated whenever it isn't the
+  // period-end value it's standing in for.
+  if (marketValued) {
+    const staleBy = at.getTime() - anchor.date.getTime();
+    return { balance: anchor.balance, estimated: staleBy > 3 * 86_400_000, known: true };
+  }
+
   let balance = anchor.balance;
   const lo = Math.min(anchor.date.getTime(), at.getTime());
   const hi = Math.max(anchor.date.getTime(), at.getTime());

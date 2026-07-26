@@ -243,7 +243,16 @@ async function runPipeline(
   // to catch counterparts of everything just imported.
   const transferScanStart = new Date(since.getTime() - 7 * DAY_MS);
   const candidates = await prisma.transaction.findMany({
-    where: { date: { gte: transferScanStart }, transferPairId: null, flow: { not: 'TRANSFER' } },
+    // MANUAL rows are excluded: pairing rewrites flow to TRANSFER and clears
+    // the category, which would silently delete a human's decision and drop
+    // the expense from every spending total. A $139.95 dinner you categorized and
+    // a $139.95 repayment two days later look exactly like a transfer pair.
+    where: {
+      date: { gte: transferScanStart },
+      transferPairId: null,
+      flow: { not: 'TRANSFER' },
+      categorySource: { not: 'MANUAL' },
+    },
     select: { id: true, accountId: true, date: true, amount: true, transferPairId: true },
   });
   const pairs = detectTransferPairs(

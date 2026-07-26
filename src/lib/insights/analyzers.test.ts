@@ -100,6 +100,20 @@ describe('balanceAt', () => {
     expect(result).toMatchObject({ balance: 197040, known: true });
   });
 
+  // A brokerage snapshot is the TOTAL worth; a buy shifts cash into securities
+  // inside it and changes nothing. SimpleFIN reports trades as plain OUTFLOWs,
+  // so rolling forward would subtract the whole purchase from net worth.
+  it('does not apply an investment account\'s own trades to its snapshot', () => {
+    const brokerage: AccountData = { id: 'acc2', type: 'INVESTMENT', balance: 250_000, balanceDate: utc(2026, 7, 1) };
+    const snapshots: SnapshotData[] = [{ accountId: 'acc2', date: utc(2026, 7, 1), balance: 250_000 }];
+    const buy = [txn({ accountId: 'acc2', date: utc(2026, 7, 10), amount: -20_000 })];
+    const result = balanceAt(brokerage, snapshots, buy, utc(2026, 7, 31), {
+      investmentSnapshotNotBefore: utc(2026, 7, 1),
+    });
+    expect(result.balance).toBe(250_000);
+    expect(result.estimated).toBe(true); // a Jul 1 snapshot is not the Jul 31 value
+  });
+
   // Cash and credit are fully explained by their transactions, so a snapshot
   // from any point still rolls forward correctly — the bound is market-only.
   it('still rolls a cash snapshot forward across periods', () => {

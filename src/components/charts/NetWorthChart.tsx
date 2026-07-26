@@ -27,6 +27,20 @@ const PLOT_RIGHT = 872;
 export function NetWorthChart({ months }: { months: MonthValue[] }) {
   const [hovered, setHovered] = useState<number | null>(null);
 
+  // Net worth is emitted only for periods where every account's balance is
+  // known, so this list is legitimately empty until the first snapshot lands —
+  // e.g. after a CSV-only import, which writes no snapshots. Every expression
+  // below indexes months[], so bail before Math.max() of nothing yields
+  // -Infinity and months[-1] throws.
+  if (months.length === 0) {
+    return (
+      <p className="py-6 text-[0.85rem] text-faint">
+        No month yet has a balance snapshot behind every account, so there is nothing to chart. Run a sync,
+        or add month-end balances with <span className="font-money">npm run import:balances</span>.
+      </p>
+    );
+  }
+
   const values = months.map((m) => m.value);
   const pad = (Math.max(...values) - Math.min(...values)) * 0.12 || 1;
   const ticks = niceTicks(Math.min(...values) - pad, Math.max(...values) + pad, 4);

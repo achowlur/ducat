@@ -33,6 +33,18 @@ interface TxnSpec {
 }
 
 async function main(): Promise<void> {
+  // Seeding WIPES everything first. That is fine on an empty database and
+  // catastrophic on a real one — a year of imported transactions, every MANUAL
+  // categorization and every tuned rule, gone with no prompt. Refuse unless the
+  // database is empty or the caller says --yes, matching db:reset's guard.
+  const existing = await prisma.transaction.count();
+  if (existing > 0 && !process.argv.includes('--yes')) {
+    console.error(`Refusing to seed: ${existing} transactions already exist.`);
+    console.error('Seeding DELETES all accounts, transactions, rules and categories first.');
+    console.error('If you really want fixture data, re-run: npm run db:seed -- --yes');
+    process.exit(1);
+  }
+
   await prisma.insight.deleteMany();
   await prisma.balanceSnapshot.deleteMany();
   await prisma.transaction.deleteMany();

@@ -88,14 +88,22 @@ export async function getTrendsData(requestedPeriod?: string): Promise<TrendsDat
     deltaPct: c.deltaPct,
     share: spending.totalSpending > 0 ? c.spending / spending.totalSpending : 0,
   }));
-  if (spending.totalSpending > 0) {
-    const top = categories.slice(0, 3);
-    const rest = categories.slice(3);
+
+  // A category can be NEGATIVE when reimbursements outrun what was spent on it
+  // that period (deliberate — the credit stays visible). It must not reach the
+  // donut: a negative shrinks the denominator while contributing no arc, so
+  // the drawn slices would sum past 100% and overlap. Slice off the positives
+  // and give them their own denominator, so the ring always sums to exactly 1.
+  const positive = categories.filter((c) => c.spending > 0);
+  const drawable = positive.reduce((sum, c) => sum + c.spending, 0);
+  if (drawable > 0) {
+    const top = positive.slice(0, 3);
+    const rest = positive.slice(3);
     const slices: DonutSliceData[] = top.map((c) => ({
       label: c.label,
       categoryId: c.categoryId,
       value: c.spending,
-      share: c.share,
+      share: c.spending / drawable,
     }));
     const restTotal = rest.reduce((sum, c) => sum + c.spending, 0);
     if (restTotal > 0) {
@@ -103,10 +111,10 @@ export async function getTrendsData(requestedPeriod?: string): Promise<TrendsDat
         label: "Other",
         categoryId: null,
         value: restTotal,
-        share: restTotal / spending.totalSpending,
+        share: restTotal / drawable,
       });
     }
-    donut = { slices, total: spending.totalSpending };
+    donut = { slices, total: drawable };
   }
 
   const cashFlowAll = await monthlyInsights<CashFlowTrendPayload>("CASH_FLOW_TREND");

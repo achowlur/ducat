@@ -99,6 +99,15 @@ export async function categorizeGroup(
   await requireSession();
   const value = matchValue.trim().toLowerCase();
   if (value === "") throw new Error("Payee is empty — categorize these transactions individually instead.");
+  // A CONTAINS rule at user priority outranks the whole pack and is exempt from
+  // the P2P guard, so a one- or two-character key is a wrecking ball: a Fidelity
+  // dividend on Realty Income normalizes its merchant to the ticker "o", and
+  // MERCHANT CONTAINS "o" then recategorizes costco, doordash, every Zelle…
+  if (value.length < 3) {
+    throw new Error(
+      `"${value}" is too short to make a rule from — it would match unrelated merchants. Categorize these individually instead.`,
+    );
+  }
   if (target === "") throw new Error("Pick a category first.");
   return target === TRANSFER_TARGET
     ? { recategorized: await upsertRule(value, matchField, null, "TRANSFER") }

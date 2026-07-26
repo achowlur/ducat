@@ -64,7 +64,14 @@ export default async function TrendsPage({
             Transfers excluded. Hover for detail; click a slice or row to open those transactions.
           </p>
           {data.donut === null ? (
-            <p className="text-[0.85rem] text-faint">No spending recorded in {data.periodLabel}.</p>
+            <p className="text-[0.85rem] text-faint">
+              {data.categories.length === 0
+                ? `No spending recorded in ${data.periodLabel}.`
+                : // Spending happened, but reimbursements outran it. Saying
+                  // "no spending" here is simply false — the rows below show
+                  // real expenses.
+                  `Reimbursements exceeded spending in ${data.periodLabel}, so there is no chart to draw. The categories below still show what was spent and credited.`}
+            </p>
           ) : (
             <div className="flex flex-wrap items-start gap-6">
               <TrendsDonut slices={data.donut.slices} total={data.donut.total} period={data.period} />

@@ -29,6 +29,12 @@ const PAIR_GAP = 2;
 export function CashFlowChart({ months }: { months: MonthFlow[] }) {
   const [hovered, setHovered] = useState<number | null>(null);
 
+  // Same guard as NetWorthChart: `slot` divides by months.length and
+  // months[latest] indexes -1, so an empty series must never reach the math.
+  if (months.length === 0) {
+    return <p className="py-6 text-[0.85rem] text-faint">No months with income or spending yet.</p>;
+  }
+
   const maxVal = Math.max(...months.map((m) => Math.max(m.income, m.spending)), 1);
   const ticks = niceTicks(0, maxVal * 1.06, 4);
   const top = ticks[ticks.length - 1];
