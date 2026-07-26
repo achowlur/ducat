@@ -135,11 +135,18 @@
    per the no-third-party-CDN hard rule.
    ============================================================ */
 
+/*
+ * --faint carries more text than any other token — every column header, all
+ * account sub-labels, and the ✎ that marks a categorization rules must never
+ * override. Both light themes failed WCAG AA on it (3.61:1 sepia, 4.48:1
+ * light); these values clear 4.5:1 (4.96 and 5.76) while staying clearly
+ * recessed against --ink. Dark already passed at 5.37:1 and is unchanged.
+ */
 :root,
 :root[data-theme="sepia"] {
   --paper: #f2e9d8;
   --ink: #3b3227;
-  --faint: #857767;
+  --faint: #6f6153;
   --rule: #d9cbb0;
   --acc: #6e4a2f;
   --pos: #2f6b40;
@@ -155,7 +162,7 @@
 :root[data-theme="light"] {
   --paper: #fbfbf9;
   --ink: #191d21;
-  --faint: #70757c;
+  --faint: #5f646b;
   --rule: #dcdcd6;
   --acc: #23405f;
   --pos: #2e6b4f;

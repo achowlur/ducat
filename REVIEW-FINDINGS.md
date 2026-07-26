@@ -46,12 +46,6 @@ deliberately NOT included.
     FIX: drop "standing risks" from Overview (it's excellent on `/providers`);
     treat the 90-day cap as expected, not WARN; keep the reason's casing.
 
-11. **`--faint` fails WCAG AA in both light themes** — 3.61:1 sepia (default),
-    4.48:1 light; covers 41 text nodes on Overview alone including all column
-    headers and the ✎ MANUAL marker at 0.62rem.
-    FIX: `~#6f6153` (sepia), `~#5f646b` (light) in `globals.css:142`. Dark passes,
-    leave it.
-
 ## P3 — categorization workflow
 
 12. **Bulk write commits on `<select>` onChange — no confirm, no undo, no scope
