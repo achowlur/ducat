@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CsvConnector } from './csv';
 import { CSV_MAPPINGS } from './csvMappings';
 import { parseCsv } from './csvParser';
-import { normalizeMerchant } from './normalize';
+import { normalizeMerchant, sanitizeBankText } from './normalize';
 import { inferAccountType } from './simplefin';
 
 describe('parseCsv', () => {
@@ -254,5 +254,27 @@ describe('CsvConnector: running balance on multi-posting days', () => {
     ].join('\n');
     const [acct] = await new CsvConnector(csv, CSV_MAPPINGS['chase-checking'], account).listAccounts();
     expect(acct.balance).toBe(3110.08);
+  });
+});
+
+describe('sanitizeBankText', () => {
+  // The real string, from a live feed: a ® that lost its encoding upstream.
+  // It rendered on Overview, on Accounts, in the account filter, and
+  // mid-sentence inside the coverage notice explaining why totals were low.
+  it('removes replacement characters and the gap they leave', () => {
+    expect(sanitizeBankText('WELLS FARGO TRAVEL REWARDS VISA�� CARD ...0005')).toBe(
+      'WELLS FARGO TRAVEL REWARDS VISA CARD ...0005',
+    );
+  });
+
+  it('leaves ordinary text exactly as it found it', () => {
+    for (const clean of [
+      'PRIMARY CHECKING ...0003',
+      'Café Müller',            // real accented text must survive
+      'ZELLE TO  LENA ON 07/18',       // bank column padding is not ours to collapse
+      '',
+    ]) {
+      expect(sanitizeBankText(clean)).toBe(clean);
+    }
   });
 });

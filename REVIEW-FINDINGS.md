@@ -10,18 +10,6 @@ deliberately NOT included.
 
 ---
 
-## P0 — money correctness (wrong on screen right now)
-
-## P2 — trust and data integrity
-
-8. **U+FFFD in account names.** (Only P2 item left. `paymentrec urring` merchant
-   drift, noted under the old #9, is still open under Shipping item 2 in
-   CLAUDE.md.) "WELLS FARGO TRAVEL REWARDS VISA?? CARD ...0005" —
-   the ® was mis-decoded at import. Appears on Overview, the Transactions account
-   filter, Accounts, and mid-sentence inside both coverage notices.
-   FIX: strip `�` in connector account-name normalization; check the
-   SimpleFIN response encoding at source, not just at display.
-
 ## P3 — categorization workflow
 
 14. **1861 of 2,638 transactions unreachable.** `LIMIT=300`, no pagination, and

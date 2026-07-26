@@ -4,7 +4,7 @@ import type {
   NormalizedAccount,
   NormalizedTransaction,
 } from '../../types/contracts';
-import { normalizeMerchant } from './normalize';
+import { normalizeMerchant, sanitizeBankText } from './normalize';
 
 /**
  * SimpleFIN Bridge connector (https://www.simplefin.org/protocol.html).
@@ -148,8 +148,8 @@ export class SimplefinConnector implements Connector {
     return (data.accounts ?? []).map((a) => ({
       externalId: a.id,
       connectorType: this.type,
-      institution: a.org?.name ?? a.org?.domain ?? 'Unknown',
-      name: a.name,
+      institution: sanitizeBankText(a.org?.name ?? a.org?.domain ?? 'Unknown'),
+      name: sanitizeBankText(a.name),
       type: inferAccountType(a.name, a.org?.name ?? ''),
       currency: a.currency,
       balance: Number(a.balance),
@@ -167,7 +167,7 @@ export class SimplefinConnector implements Connector {
         const date = new Date(t.posted * 1000);
         if (date.getTime() < since.getTime()) continue;
         const amount = Number(t.amount);
-        const description = t.description ?? '';
+        const description = sanitizeBankText(t.description ?? '');
         txns.push({
           accountExternalId: account.id,
           externalId: t.id,

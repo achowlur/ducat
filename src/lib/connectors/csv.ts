@@ -8,7 +8,7 @@ import type {
 } from '../../types/contracts';
 import type { CsvMapping } from './csvMappings';
 import { parseCsv } from './csvParser';
-import { normalizeMerchant } from './normalize';
+import { normalizeMerchant, sanitizeBankText } from './normalize';
 
 /**
  * CSV files carry no account metadata, so the caller must say which
@@ -208,8 +208,8 @@ export class CsvConnector implements Connector {
         return {
           externalId: account.externalId,
           connectorType: this.type,
-          institution: account.institution,
-          name: account.name,
+          institution: sanitizeBankText(account.institution),
+          name: sanitizeBankText(account.name),
           type: account.type,
           currency: account.currency ?? 'USD',
           balance: latest === undefined ? 0 : (latest.balance as number),
@@ -233,7 +233,7 @@ export class CsvConnector implements Connector {
           externalId: r.externalId,
           date: r.date,
           amount: r.amount,
-          description: r.description,
+          description: sanitizeBankText(r.description),
           normalizedMerchant: r.merchant,
           flow: r.flow,
           source: this.type,
