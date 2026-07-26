@@ -47,10 +47,20 @@ Generate the full schema as one SQL script and pipe it into the remote DB
 (libSQL is HTTP-based, so `prisma migrate deploy` can't target it directly):
 
 ```bash
-npm run turso:baseline > baseline.sql
+npm run --silent turso:baseline > baseline.sql
+head -1 baseline.sql   # must be "-- CreateTable", not npm's "> ducat@…" banner
 turso db shell finance < baseline.sql
 rm baseline.sql
 ```
+
+`--silent` is load-bearing: without it npm writes its own `> ducat@0.1.0
+turso:baseline` banner to stdout, into the file, and `turso db shell` stops at
+`near ">": syntax error` having created nothing. Prisma's "Loaded Prisma
+config" notice goes to stderr and stays out of the file either way.
+
+The script is generated from `prisma/schema.prisma` rather than replayed from
+`prisma/migrations/`, so it is always current — verified to produce a schema
+identical to applying every migration in order.
 
 ## 3 · Generate your secrets (locally, never committed)
 
