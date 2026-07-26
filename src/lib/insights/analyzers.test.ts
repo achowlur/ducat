@@ -144,6 +144,50 @@ describe('computeNetWorthGrowth', () => {
   });
 });
 
+describe('investment flows', () => {
+  const brokerage: AccountData = {
+    id: 'brokerage', type: 'INVESTMENT', balance: 11400, balanceDate: utc(2026, 7, 31),
+  };
+  const snapshots: SnapshotData[] = [
+    { accountId: 'brokerage', date: utc(2026, 6, 30), balance: 10000 },
+    { accountId: 'brokerage', date: utc(2026, 7, 31), balance: 11400 },
+  ];
+  const periods = ['2026-06', '2026-07'];
+
+  // Buying a security turns cash into shares inside the account. Counting it as
+  // a flow made one month of trading ($59,552.76 of purchases against a $3,628.42
+  // deposit) report a ~$2.5k gain as $25k.
+  it('ignores trading and income that never leaves the account', () => {
+    const txns = [
+      txn({ accountId: 'brokerage', date: utc(2026, 7, 5), amount: -8000, description: 'YOU BOUGHT FIDELITY 500 INDEX FUND' }),
+      txn({ accountId: 'brokerage', date: utc(2026, 7, 6), amount: 120, description: 'DIVIDEND RECEIVED FZZAX' }),
+      txn({ accountId: 'brokerage', date: utc(2026, 7, 7), amount: -50, description: 'REINVESTMENT FZZAX' }),
+    ];
+    const july = computeNetWorthGrowth([brokerage], snapshots, txns, periods, 'MONTH').get('2026-07');
+    expect(july?.investmentNetFlows).toBe(0);
+    expect(july?.marketGains).toBe(1400); // the whole balance change is gain
+  });
+
+  // The same monthly transfer arrives +1400 from Fidelity's CSV and -1400 from
+  // SimpleFIN. The wording is the reliable signal; the sign is not.
+  it('takes direction from the wording when a source signs a transfer backwards', () => {
+    const txns = [
+      txn({ accountId: 'brokerage', date: utc(2026, 7, 1), amount: -1400, description: 'Electronic Funds Transfer Received (Cash)' }),
+    ];
+    const july = computeNetWorthGrowth([brokerage], snapshots, txns, periods, 'MONTH').get('2026-07');
+    expect(july?.investmentNetFlows).toBe(1400);
+    expect(july?.marketGains).toBe(0); // balance rose 1400 purely from the deposit
+  });
+
+  it('still treats an outbound transfer as money leaving', () => {
+    const txns = [
+      txn({ accountId: 'brokerage', date: utc(2026, 7, 1), amount: 500, description: 'TRANSFERRED TO BANK — WITHDRAWAL' }),
+    ];
+    const july = computeNetWorthGrowth([brokerage], snapshots, txns, periods, 'MONTH').get('2026-07');
+    expect(july?.investmentNetFlows).toBe(-500);
+  });
+});
+
 describe('market gains decomposition (buy → appreciate → sell lifecycle)', () => {
   const checking: AccountData = {
     id: 'checking', type: 'DEPOSITORY', balance: 5000, balanceDate: utc(2026, 8, 31),

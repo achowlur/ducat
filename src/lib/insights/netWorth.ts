@@ -113,12 +113,43 @@ export function computeNetWorthGrowth(
   };
 
   const investmentAccountIds = new Set(accounts.filter((a) => a.type === 'INVESTMENT').map((a) => a.id));
-  // Net transaction flow into investment accounts per period: any change
-  // NOT explained by these is market movement.
+  /**
+   * Net money CROSSING an investment account's boundary in the period. Any
+   * balance change not explained by it is market movement.
+   *
+   * Most activity inside a brokerage moves nothing in or out: buying a security
+   * turns cash into shares, a dividend is earned in place, a reinvestment does
+   * both. Counting those as flows is badly wrong — one month of trading
+   * ($59,552.76 of purchases against a $3,628.42 deposit) turned a real ~$2.5k gain
+   * into a reported $64.79k one. Only genuine transfers count.
+   *
+   * Classification is by exclusion because brokerage verbs are a small stable
+   * set while transfer descriptors vary by institution; anything unrecognised
+   * counts as a flow, which understates gains rather than inflating them.
+   */
+  const internalActivity =
+    /\b(you bought|you sold|reinvest\w*|dividend|interest\b|cap(ital)? gain|advisory fee|in lieu of|redemption|exchange (in|out))\b/i;
+  /**
+   * Direction taken from the wording when the wording is unambiguous, because
+   * sources disagree on the sign. The SAME monthly $3,628.42 transfer, same
+   * account and same description, arrives as +1400 from Fidelity's own CSV and
+   * -1400 from SimpleFIN. Fidelity's export and the paired debit on the funding
+   * account both say it is money IN, so the wording is the reliable signal and
+   * only the magnitude is taken from the amount.
+   */
+  const inboundWording = /\b(received|transferred from|deposit|contribution|rollover in)\b/i;
+  const outboundWording = /\b(withdrawal|transferred to|distribution|rollover out)\b/i;
   const investmentFlows = (key: string): number => {
     let sum = 0;
     for (const t of txns) {
-      if (investmentAccountIds.has(t.accountId) && inPeriod(t.date, key)) sum += t.amount;
+      if (!investmentAccountIds.has(t.accountId) || !inPeriod(t.date, key)) continue;
+      if (internalActivity.test(t.description)) continue;
+      const magnitude = Math.abs(t.amount);
+      sum += inboundWording.test(t.description)
+        ? magnitude
+        : outboundWording.test(t.description)
+          ? -magnitude
+          : t.amount;
     }
     return round2(sum);
   };
