@@ -131,7 +131,11 @@ export default async function TrendsPage({
                         }`}
                       >
                         {c.deltaPct === null
-                          ? "new"
+                          ? // No prior row at all is "new"; a prior period that
+                            // ended at zero or in credit has no percentage.
+                            c.previousSpending === null
+                            ? "new"
+                            : "—"
                           : c.deltaPct > 9.99
                             ? `×${(1 + c.deltaPct).toFixed(1)}`
                             : pct(c.deltaPct)}

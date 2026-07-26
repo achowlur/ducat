@@ -12,13 +12,6 @@ deliberately NOT included.
 
 ## P0 — money correctness (wrong on screen right now)
 
-2. **"Rent & Housing ×13.4" — percent change against a negative baseline.**
-   `stats.ts:38 pctDelta` guards only `previous === 0`, then divides by
-   `Math.abs(previous)`. June rent was −$409.73 (refund), so July renders ×13.4
-   in the page's heaviest style. Same defect produces "Fees & Charges ×32.3".
-   FIX: return null when `previous <= 0`; render as "—" / "n/a" (distinct from
-   the existing "new"), because a sign flip is not a percentage increase.
-
 3. **`/insights` serves stale data after a manual categorization.**
    `setTransactionCategory`, `linkReimbursement`, `unlinkReimbursement` all call
    `generateInsights()` but do not `revalidatePath("/insights")`; only

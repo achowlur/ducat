@@ -34,8 +34,14 @@ export function round4(n: number): number {
   return Math.round(n * 10_000) / 10_000;
 }
 
-/** Relative change; null when there is no meaningful base to compare against. */
+/**
+ * Relative change; null when there is no meaningful base to compare against.
+ * A NON-POSITIVE base is one of those: a sign flip is not a percentage
+ * increase. June's rent was −$409.73 (a refund month), so dividing July's
+ * $4,655.60 by |−409.73| rendered "×13.4" in the page's heaviest style — the
+ * most confident number on the screen, and it measured nothing.
+ */
 export function pctDelta(current: number, previous: number | null): number | null {
-  if (previous === null || previous === 0) return null;
-  return round4((current - previous) / Math.abs(previous));
+  if (previous === null || previous <= 0) return null;
+  return round4((current - previous) / previous);
 }

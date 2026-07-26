@@ -410,6 +410,30 @@ describe('reimbursements (fronted dinner, Zelled back)', () => {
     expect(cashFlow?.income).toBe(5000); // salary counted once, never netted
   });
 
+  it('refuses a percentage against a month that ended in credit', () => {
+    // A category that ended NEGATIVE is not a small base to measure growth
+    // from — it is a different sign. Real case: June rent was refunded to
+    // −$409.73, and dividing July's $4,655.60 by its magnitude reported
+    // "×13.4" as the boldest figure on the page.
+    const rent = { categoryId: 'cat-rent', categoryName: 'Rent & Housing' };
+    const txns = [
+      txn({ id: 'june-rent', date: utc(2026, 6, 1), amount: -200, ...rent }),
+      txn({ date: utc(2026, 6, 20), amount: 358, reimbursesId: 'june-rent' }), // refund outran the charge
+      txn({ date: utc(2026, 7, 1), amount: -4655.60, ...rent }),
+    ];
+    const months = computeSpendingByCategory(txns, ['2026-06', '2026-07'], 'MONTH');
+    const june = months.get('2026-06')?.categories.find((c) => c.categoryId === 'cat-rent');
+    const july = months.get('2026-07')?.categories.find((c) => c.categoryId === 'cat-rent');
+    expect(june?.spending).toBe(-158);
+    expect(july?.previousSpending).toBe(-158); // the base stays visible…
+    expect(july?.deltaPct).toBeNull(); // …but no percentage is claimed from it
+
+    // Same for the month-level totals the cash-flow row prints.
+    const flow = computeCashFlowTrend(txns, ['2026-06', '2026-07'], 'MONTH').get('2026-07');
+    expect(flow?.previousSpending).toBe(-158);
+    expect(flow?.spendingDeltaPct).toBeNull();
+  });
+
   it('over-reimbursement can push a category negative (visible credit, not hidden)', () => {
     const txns = [
       txn({ id: 'dinner', date: utc(2026, 7, 3), amount: -100, ...dining }),
