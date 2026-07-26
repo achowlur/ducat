@@ -87,10 +87,19 @@ regeneration.
   `NetWorthChart` indexed `months[-1]` and took `Math.max()` of an empty array,
   and the page gated on SPENDING_BY_CATEGORY while net worth comes from a
   different insight type. Guard the series, don't assume the gate covers it.
-- Reimbursements can push a category NEGATIVE (deliberate, and tested). The
-  donut must use only positive categories as its denominator — a negative one
-  shrank the denominator while drawing no arc, so the remaining slices summed
-  past 100% and overlapped. Category lists still show negatives honestly.
+- Reimbursements can push a category NEGATIVE (deliberate, and tested), and
+  three money bugs grew out of that one fact. (1) Shares and arcs divide by
+  `drawable`, the categories with net spending — a negative shrinks the
+  denominator while drawing no arc, so slices summed past 100% and overlapped.
+  (2) Every PRINTED total is the net `totalSpending` that /insights and the
+  cash-flow row report; printing `drawable` as the donut headline gave June two
+  totals ($3,535.25 on /trends, $3,125.52 on /insights). Both donuts now come
+  from `ui/spendingBreakdown.ts` so the two screens cannot drift again.
+  (3) `pctDelta` returns null for any base ≤ 0 — a sign flip is not a
+  percentage increase, but it rendered as one in the boldest style on the page
+  ("Rent & Housing ×13.4", from June's −$409.73 refund). Category lists still
+  show negatives honestly; a negative shows "—" for share and vs-prev, while
+  "new" keeps its own meaning of no prior row at all.
 - A grouped-review key must be at least 3 characters. Keys become priority-50
   CONTAINS rules that outrank the whole pack and are exempt from the P2P guard,
   so a Fidelity dividend on Realty Income (ticker "o") produced MERCHANT
