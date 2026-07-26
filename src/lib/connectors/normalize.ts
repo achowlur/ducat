@@ -22,7 +22,7 @@ export function sanitizeBankText(raw: string): string {
 
 /**
  * Payment processors wrap the merchant's own name: Toast bills "TST*BUCKS",
- * Square "SQ *SORREL", DoorDash "DD *DOORDASH STONEGATE", PayLease
+ * Square "SQ *NORTHSIDE BAKERY", DoorDash "DD *DOORDASH BLUEBARN", PayLease
  * "PL*PAYLEASE WEB PMTS", and Slice, Paytronix, SpotOn, GoDaddy Payments,
  * Fivestars, UEP, CL and WL all do the same. The wrapper defeats both jobs
  * this string has — a brand rule for the restaurant never matches, and

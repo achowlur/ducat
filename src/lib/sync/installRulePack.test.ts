@@ -145,9 +145,9 @@ describe("installRulePack: retroactive categorization", () => {
 
     await prisma.transaction.createMany({
       data: [
-        row(checking.id, "t-card-pay", -812.44, "CHASE CREDIT CRD EPAY       260321 1000000002      JANE DOE", "chase credit crd epay jane doe", "OUTFLOW"),
-        row(checking.id, "t-atm", -100, "ATM WITHDRAWAL                 AUTHORIZED ON   07/09 2100 MAPLE RD    ATM ID 1002B    CARD 1234", "atm withdrawal authorized on 2100 maple rd atm id 1002b card 1234", "OUTFLOW"),
-        row(checking.id, "t-tax", -2_140, "IRS              USATAXPYMT 041226 100000000000005 JANE H DOE", "irs usataxpymt jane h doe", "OUTFLOW"),
+        row(checking.id, "t-card-pay", -812.44, "CHASE CREDIT CRD EPAY       260321 0000000000      JANE DOE", "chase credit crd epay jane doe", "OUTFLOW"),
+        row(checking.id, "t-atm", -100, "ATM WITHDRAWAL                 AUTHORIZED ON   07/09 100 MAIN ST    ATM ID 0001A    CARD 1234", "atm withdrawal authorized on 100 main st atm id 0001a card 1234", "OUTFLOW"),
+        row(checking.id, "t-tax", -2_140, "IRS              USATAXPYMT 041226 000000000000000 JANE H DOE", "irs usataxpymt jane h doe", "OUTFLOW"),
         row(checking.id, "t-rent", -2_350, "KEYSTONE PROPERTY MANAGEMENT ONLINE PMT", "keystone property management online pmt", "OUTFLOW"),
         row(brokerage.id, "t-dividend", 61.18, "DIVIDEND RECEIVED FIDELITY 500 INDEX FUND (FZZAX) (Cash)", "dividend", "INFLOW"),
         row(checking.id, "t-unknown", -46.2, "BOBS HARDWARE FAIRVIEW IL", "bobs hardware fairview il", "OUTFLOW"),
@@ -157,7 +157,7 @@ describe("installRulePack: retroactive categorization", () => {
     // match for the new ATM rule — the collision is the point.
     const manual = await prisma.transaction.create({
       data: {
-        ...row(checking.id, "t-manual-atm", -60, "ATM WITHDRAWAL AUTHORIZED ON 07/02 MAIN ST    ATM ID 1001A    CARD 1234", "atm withdrawal authorized on main st atm id 1001a card 1234", "OUTFLOW"),
+        ...row(checking.id, "t-manual-atm", -60, "ATM WITHDRAWAL AUTHORIZED ON 07/02 MAIN ST    ATM ID 0001A    CARD 1234", "atm withdrawal authorized on main st atm id 0001a card 1234", "OUTFLOW"),
         categoryId: dining.id,
         categorySource: "MANUAL",
       },

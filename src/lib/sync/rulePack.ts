@@ -155,7 +155,7 @@ export const PACK_RULES: PackRule[] = [
   ...contains(520, "Travel", "airbnb", "marriott", "hilton", "hyatt", "expedia", "booking.com", "vrbo", "delta air", "united air", "american airlines", "southwest air", "alaska air", "jetblue", "spirit air", "amtrak"),
   ...contains(520, "Health", "cvs", "walgreens", "rite aid", "kaiser", "quest diagnostics", "labcorp"),
   ...contains(520, "Entertainment", "amc theat", "regal cinemas", "cinemark", "ticketmaster", "stubhub", "steam purchase", "steampowered", "epic games"),
-  // "MACY'S 100 2003 PLAZA SPRINGFIELD IL" is what the statement says, and
+  // "MACY'S 0000 ANYTOWN IL" is what the statement says, and
   // "macys" above never matched it — only macys.com, which writes it the
   // other way. Both spellings occur in one account's history.
   ...contains(520, "Shopping", "macy's"),

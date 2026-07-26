@@ -118,15 +118,15 @@ describe("starter pack: merchant corpus", () => {
 
   it("reads the rail only for processors that sell nothing but restaurant software", () => {
     // No word in either name is a food word — the prefix is the only evidence,
-    // and "vitospizza" is one token, so \bpizza\b cannot reach inside it.
-    expect(categorize("TST*TRATTORIA LINDEN")).toBe("Dining");
-    expect(categorize("SLICE*VITOSPIZZA")).toBe("Dining");
-    expect(categorize("DD *LUCKYWOK")).toBe("Dining");
+    // and "joespizza" is one token, so \bpizza\b cannot reach inside it.
+    expect(categorize("TST*RIVERSIDE COMMONS")).toBe("Dining");
+    expect(categorize("SLICE*JOESPIZZA")).toBe("Dining");
+    expect(categorize("DD *BLUEBARN")).toBe("Dining");
     // Square, Fivestars and the rest bill salons and retail too: the prefix
     // still comes off the merchant name, but it buys no category.
-    expect(categorize("SQ *CLEAN CUTTERS")).toBeNull();
-    expect(categorize("FIV*GONGCHA")).toBeNull();
-    expect(categorize("GDP*BUN BUN LLC")).toBeNull();
+    expect(categorize("SQ *HAIR STUDIO 9")).toBeNull();
+    expect(categorize("FIV*TEAHOUSE")).toBeNull();
+    expect(categorize("GDP*CORNER PIE LLC")).toBeNull();
   });
 
   it("never touches MANUAL transactions", () => {
@@ -166,23 +166,23 @@ describe("starter pack: shape", () => {
 
 describe("starter pack: the long tail of chains", () => {
   const CHAINS: [raw: string, expected: string | null][] = [
-    ["MACY'S 100 2003 PLAZA SPRINGFIELD IL", "Shopping"], // the apostrophe form
-    ["MACYS .COM 8006220679 OH", "Shopping"], // and the form macys.com uses
+    ["MACY'S 0000 ANYTOWN IL", "Shopping"], // the apostrophe form
+    ["MACYS .COM 0000000000 OH", "Shopping"], // and the form macys.com uses
     ["QDOBA 2002", "Dining"],
     ["JIMMY JOHNS - 2001", "Dining"],
     ["COLD STONE CREAMERY #22", "Dining"],
-    ["FIRST WATCH - CORAL SPR", "Dining"],
+    ["FIRST WATCH - 0404", "Dining"],
     ["DAIRY QUEEN BLIZZARD 4412", "Dining"], // dessert, not the game studio
-    ["BLIZZARD *US1000000002", "Entertainment"],
-    ["FOODMART OF FAIRVIEW", "Groceries"],
+    ["BLIZZARD *US0000000000", "Entertainment"],
+    ["FOODMART #12", "Groceries"],
     ["WORLD MARKET 4412", "Shopping"], // beats the "market" catch-all
     ["TRC TAPGO LAKE CITY IL", "Transport"],
-    ["SILVERSPOT CYPRESS GLEN", "Entertainment"],
+    ["SILVERSPOT CINEMA 12", "Entertainment"],
     ["DELTA DENTAL OF NEW JERSEY", "Health"], // not Delta Air Lines
     ["ALAMO RENT A CAR PHOENIX", "Travel"],
-    ["TST* ALAMO DRAFTHOUSE - N", "Entertainment"], // beats the Toast rail
-    ["GAP #1291 FAIRVIEW IL", "Shopping"],
-    ["H&M 0912 LAKE CITY", "Shopping"],
+    ["TST* ALAMO DRAFTHOUSE", "Entertainment"], // beats the Toast rail
+    ["GAP #1291", "Shopping"],
+    ["H&M 0912", "Shopping"],
     ["REI CO-OP SEATTLE", "Shopping"],
     ["SOUTHERN CALIFORNIA EDISON", "Utilities"],
     ["COURSERA.ORG", "Subscriptions"],
@@ -209,16 +209,16 @@ describe("starter pack: the long tail of chains", () => {
 describe("starter pack: structural descriptors", () => {
   const DESCRIPTORS: [description: string, expected: string | null][] = [
     // --- Credit-card payments: value-neutral on both sides
-    ["CHASE CREDIT CRD EPAY       260321 1000000002      JANE DOE", "TRANSFER"],
-    ["CHASE CREDIT CRD AUTOPAY    XXXXXX XXXXXXXXXXX1002 JANE DOE", "TRANSFER"],
-    ["WF Credit Card   AUTO PAY   251228 10000000000006  DOE,JANE", "TRANSFER"],
+    ["CHASE CREDIT CRD EPAY       260321 0000000000      JANE DOE", "TRANSFER"],
+    ["CHASE CREDIT CRD AUTOPAY    XXXXXX XXXXXXXXXXX1234 JANE DOE", "TRANSFER"],
+    ["WF Credit Card   AUTO PAY   251228 00000000000000  DOE,JANE", "TRANSFER"],
     ["Payment Thank You-Mobile", "TRANSFER"],
     ["ONLINE PAYMENT THANK YOU", "TRANSFER"],
     ["AUTOMATIC PAYMENT - THANK YOU", "TRANSFER"],
-    ["ONLINE TRANSFER REF #IB0BBBBBBB TO WELLS FARGO CASH REWARDS VISA CARD XXXXXXXXXXXX0004 ON 07/13/26", "TRANSFER"],
+    ["ONLINE TRANSFER REF #IB0AAAAAAA TO WELLS FARGO CASH REWARDS VISA CARD XXXXXXXXXXXX1234 ON 07/13/26", "TRANSFER"],
 
     // --- Cash: its own category, because where it went is unknowable
-    ["ATM WITHDRAWAL                 AUTHORIZED ON   04/29 3 LAKESIDE AVE STE 100    FAIRVIEW      IL  0002127           ATM ID 1001A    CARD 1234", "Cash & ATM"],
+    ["ATM WITHDRAWAL                 AUTHORIZED ON   04/29 100 MAIN ST STE 1         ANYTOWN       IL  0000000           ATM ID 0001A    CARD 1234", "Cash & ATM"],
     ["NON-WF ATM WITHDRAWAL FEE", "Fees & Charges"], // a fee, not cash
     ["CASH WITHDRAWAL 00423 MAIN ST", "Cash & ATM"],
 
@@ -229,7 +229,7 @@ describe("starter pack: structural descriptors", () => {
     ["REINVESTMENT FIDELITY 500 INDEX FUND (FZZAX) (Cash)", "TRANSFER"],
 
     // --- Taxes
-    ["IRS              USATAXPYMT 041226 100000000000005 JANE H DOE", "Taxes"],
+    ["IRS              USATAXPYMT 041226 000000000000000 JANE H DOE", "Taxes"],
 
     // --- Rent: a landlord's own name is all most statements carry
     ["SUNRISE APARTMENTS LLC", "Rent & Housing"],
