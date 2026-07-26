@@ -12,11 +12,6 @@ deliberately NOT included.
 
 ## P3 — categorization workflow
 
-14. **1861 of 2,638 transactions unreachable.** `LIMIT=300`, no pagination, and
-    nothing hints the Period filter is the way to older data.
-    FIX: an "← older" link setting `period` to the month after the last visible
-    row — reuses existing filter plumbing, no offset pagination.
-
 15. Decision evidence hidden behind `title=` (no touch support); no skip/defer,
     so unresolvable payees sit at the top forever; entry link styled like body
     text. FIX: stack up to 3 samples inline; per-row `skip`; style the entry as a

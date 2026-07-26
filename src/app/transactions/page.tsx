@@ -210,6 +210,20 @@ export default async function TransactionsPage({
   }
   const groupedTxnCount = groups.reduce((sum, g) => sum + g.count, 0);
 
+  // Older history had no navigable path at all: the list stops at LIMIT with
+  // no pagination, and nothing hinted that the period filter was the way back
+  // — 1861 of 2,638 rows were simply unreachable. Stepping by month reuses the
+  // filter plumbing, and monthOptions only contains months that have data, so
+  // a link never lands on an empty page.
+  const selectedIdx = params.period === undefined ? -1 : monthOptions.indexOf(params.period);
+  const olderPeriod =
+    selectedIdx >= 0
+      ? (monthOptions[selectedIdx + 1] ?? null)
+      : total > visible.length && visible.length > 0
+        ? periodKey(visible[visible.length - 1].date, "MONTH")
+        : null;
+  const newerPeriod = selectedIdx > 0 ? monthOptions[selectedIdx - 1] : null;
+
   return (
     <div className="py-5">
       <form className="flex flex-wrap items-end gap-3 border-b border-ink pb-3" action="/transactions" method="get">
@@ -301,6 +315,20 @@ export default async function TransactionsPage({
             title="Group the uncategorized backlog by payee — one decision categorizes every occurrence and future ones too"
           >
             group by payee — categorize in bulk
+          </Link>
+        )}
+        {!groupMode && olderPeriod !== null && (
+          <Link
+            href={buildHref(params, { period: olderPeriod })}
+            className="font-semibold text-acc hover:underline"
+            title={`Show ${monthLabel(olderPeriod)} — the list stops at ${LIMIT} rows, so the period filter is how you reach older history`}
+          >
+            ← older ({monthLabel(olderPeriod)})
+          </Link>
+        )}
+        {!groupMode && newerPeriod !== null && (
+          <Link href={buildHref(params, { period: newerPeriod })} className="font-semibold text-acc hover:underline">
+            newer ({monthLabel(newerPeriod)}) →
           </Link>
         )}
         {!groupMode &&
