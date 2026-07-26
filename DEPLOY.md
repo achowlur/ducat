@@ -62,14 +62,38 @@ The script is generated from `prisma/schema.prisma` rather than replayed from
 `prisma/migrations/`, so it is always current — verified to produce a schema
 identical to applying every migration in order.
 
-## 3 · Generate your secrets (locally, never committed)
+## 3 · Seed the starter categorization pack
+
+The baseline creates tables, not rows. Without this the cloud instance has zero
+categories, so everything that syncs lands uncategorized and the grouped review
+is the only way out.
+
+Every CLI script picks its database from `DATABASE_URL` alone (see
+`src/lib/prisma.ts` — one libSQL adapter serves both schemes), so point the two
+Turso variables at it for one command:
+
+```bash
+DATABASE_URL="libsql://…turso.io" TURSO_AUTH_TOKEN="…" npm run rules:install
+```
+
+Expect `Categories created: 15`, `Rules created: 421`,
+`Transactions recategorized: 0`. Setting the variables inline is deliberate:
+they take precedence over `.env` for that one process and leave your local
+database alone — don't edit `.env`, or the next local command silently runs
+against the cloud. In PowerShell, inline prefixes don't work; use
+`$env:DATABASE_URL="…"` in a throwaway terminal you then close.
+
+The same trick runs any other script against the cloud database —
+`sync:simplefin`, `import:csv`, `insights:generate`.
+
+## 4 · Generate your secrets (locally, never committed)
 
 ```bash
 npm run auth:set-password    # type a password (never shown/stored) -> prints AUTH_PASSWORD_HASH + SESSION_SECRET
 node -e "console.log('CRON_SECRET=' + require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-## 4 · Create the Vercel project and set env vars
+## 5 · Create the Vercel project and set env vars
 
 Import the repo in Vercel, then set these **Production** environment variables
 (Project → Settings → Environment Variables). Never put them in a committed file
@@ -79,16 +103,16 @@ Import the repo in Vercel, then set these **Production** environment variables
 | --- | --- |
 | `DATABASE_URL` | `libsql://…turso.io` (from step 1) |
 | `TURSO_AUTH_TOKEN` | token from step 1 |
-| `AUTH_PASSWORD_HASH` | `scrypt:…` from step 3 |
-| `SESSION_SECRET` | from step 3 |
-| `CRON_SECRET` | from step 3 |
+| `AUTH_PASSWORD_HASH` | `scrypt:…` from step 4 |
+| `SESSION_SECRET` | from step 4 |
+| `CRON_SECRET` | from step 4 |
 | `SIMPLEFIN_ACCESS_URL` | your SimpleFIN access URL |
 | `NEXT_TELEMETRY_DISABLED` | `1` |
 
 Auth **fails closed**: a `libsql://` deployment without `AUTH_PASSWORD_HASH` +
 `SESSION_SECRET` refuses to serve rather than run open.
 
-## 5 · Deploy
+## 6 · Deploy
 
 ```bash
 vercel          # link the project (first time)
@@ -98,7 +122,7 @@ vercel --prod   # production deploy
 The build runs `prisma generate` (via `postinstall`) then `next build`. The
 generated Prisma client is gitignored, so this step is what creates it on Vercel.
 
-## 6 · Verify the deployment
+## 7 · Verify the deployment
 
 - **Auth:** open the URL → you should hit the login screen. Enter your password.
 - **Cron:** Vercel → Project → Cron Jobs lists `/api/cron/sync` (daily 08:00 UTC).
