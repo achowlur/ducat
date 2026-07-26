@@ -20,8 +20,16 @@ export const ROBUST_Z_CAP = 99;
  * infinitely surprising, so the caller's threshold decides via magnitude.
  */
 export function robustZ(x: number, history: number[]): number {
-  const m = median(history);
-  const d = mad(history);
+  return robustZFrom(x, median(history), mad(history));
+}
+
+/**
+ * robustZ against an already-computed centre and spread. Both median and MAD
+ * sort the history, so a caller comparing many values against the SAME
+ * history (every transaction in a period against its category's past) can
+ * compute them once instead of four sorts per transaction.
+ */
+export function robustZFrom(x: number, m: number, d: number): number {
   if (d === 0) return x === m ? 0 : ROBUST_Z_CAP;
   return Math.min(Math.abs(x - m) / (1.4826 * d), ROBUST_Z_CAP);
 }

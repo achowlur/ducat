@@ -1,7 +1,7 @@
 import type { AnomalyPayload, PeriodGranularity } from '../../types/contracts';
 import { inPeriod, periodStart } from './periods';
 import { reimbursementCredits } from './reimbursements';
-import { median, robustZ, round2 } from './stats';
+import { mad, median, robustZ, robustZFrom, round2 } from './stats';
 import type { TxnData } from './types';
 
 export interface AnomalyOptions {
@@ -34,23 +34,52 @@ export function detectTransactionAnomalies(
   const outflows = txns.filter((t) => t.flow === 'OUTFLOW');
   const anomalies: AnomalyPayload[] = [];
 
+  // History is bucketed once rather than re-filtered per transaction. The
+  // scan was O(transactions × outflows) and dominated a whole insight run:
+  // at 10,000 transactions it cost 1.5s of a 1.6s total, ten times the four
+  // other analyzers combined. Order within a bucket is irrelevant — median
+  // and MAD sort — so the results are identical.
+  const priorByCategory = new Map<string, number[]>();
+  const priorByMerchant = new Map<string, number[]>();
+  const push = (index: Map<string, number[]>, key: string, amount: number) => {
+    const bucket = index.get(key);
+    if (bucket === undefined) index.set(key, [amount]);
+    else bucket.push(amount);
+  };
+  for (const h of outflows) {
+    if (h.date.getTime() >= start) continue;
+    // A categorized transaction compares against its category; an
+    // uncategorized one against its own merchant, whatever the category.
+    if (h.categoryId !== null) push(priorByCategory, h.categoryId, -h.amount);
+    push(priorByMerchant, h.normalizedMerchant.toLowerCase(), -h.amount);
+  }
+
+  // Every transaction in a category compares against the SAME history, and
+  // median and MAD each sort it. Summarising a bucket once turns four sorts
+  // per transaction into four per bucket.
+  const summaries = new Map<string, { typical: number; spread: number }>();
+  const summarise = (key: string, history: number[]) => {
+    const cached = summaries.get(key);
+    if (cached !== undefined) return cached;
+    const computed = { typical: median(history), spread: mad(history) };
+    summaries.set(key, computed);
+    return computed;
+  };
+
   for (const t of outflows) {
     if (!inPeriod(t.date, period)) continue;
     const amount = -t.amount;
     if (amount < options.minAmount) continue;
 
-    const history = outflows
-      .filter((h) =>
-        h.date.getTime() < start &&
-        (t.categoryId !== null
-          ? h.categoryId === t.categoryId
-          : h.normalizedMerchant.toLowerCase() === t.normalizedMerchant.toLowerCase()),
-      )
-      .map((h) => -h.amount);
+    const key = t.categoryId !== null ? `c:${t.categoryId}` : `m:${t.normalizedMerchant.toLowerCase()}`;
+    const history =
+      t.categoryId !== null
+        ? (priorByCategory.get(t.categoryId) ?? [])
+        : (priorByMerchant.get(t.normalizedMerchant.toLowerCase()) ?? []);
     if (history.length < options.minHistory) continue;
 
-    const z = robustZ(amount, history);
-    const typical = median(history);
+    const { typical, spread } = summarise(key, history);
+    const z = robustZFrom(amount, typical, spread);
     // A capped z from constant history still needs a real magnitude gap.
     if (z < options.zThreshold || amount < typical * 1.5) continue;
 
