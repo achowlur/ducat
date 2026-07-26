@@ -94,6 +94,19 @@ shape.
   statement's "Ending Account Value", then `-- balances.csv [--dry-run]`.
   History otherwise grows one snapshot per sync. `marketGains` only computes
   once two consecutive periods are snapshot-backed.
+- `investmentNetFlows` counts ONLY money crossing an investment account's
+  boundary. Buys, sells, dividends and reinvestments move nothing in or out, and
+  counting them turned a real ~$2.5k month into a reported $64.79k one. Classified
+  by excluding internal verbs (a small stable set) rather than listing transfer
+  descriptors (which vary by institution), so anything unrecognised counts as a
+  flow and understates gains rather than inflating them. DIRECTION comes from the
+  wording, not the sign: the same monthly transfer arrives +1400 from Fidelity's
+  CSV and -1400 from SimpleFIN, so only the magnitude is trusted.
+- Sources disagree, so never trust one connector's convention alone. Fidelity's
+  CSV and SimpleFIN sign the identical transfer oppositely; SimpleFIN reports
+  trades as plain OUTFLOWs while the CSV mapping flags them TRANSFER. Anything
+  that reads transaction amounts for an investment account must be robust to
+  both.
 - Rules match against RAW bank text, so anything derived from it must stay
   findable in it. Two bugs came from ignoring that, both making a rule the user
   had just created silently match nothing: (1) banks pad descriptions into
