@@ -50,9 +50,7 @@ export function granularityOfKey(key: string): PeriodGranularity {
   throw new Error(`Unrecognized period key: ${key}`);
 }
 
-/** Inclusive start of the period (UTC midnight). */
-export function periodStart(key: string): Date {
-  const g = granularityOfKey(key);
+function startOf(key: string, g: PeriodGranularity): Date {
   switch (g) {
     case 'YEAR':
       return new Date(Date.UTC(Number(key), 0, 1));
@@ -71,10 +69,7 @@ export function periodStart(key: string): Date {
   }
 }
 
-/** Exclusive end: the instant the next period starts. */
-export function periodEndExclusive(key: string): Date {
-  const g = granularityOfKey(key);
-  const start = periodStart(key);
+function endOf(start: Date, g: PeriodGranularity): Date {
   switch (g) {
     case 'YEAR':
       return new Date(Date.UTC(start.getUTCFullYear() + 1, 0, 1));
@@ -85,6 +80,38 @@ export function periodEndExclusive(key: string): Date {
     case 'WEEK':
       return new Date(start.getTime() + 7 * DAY_MS);
   }
+}
+
+/**
+ * Period bounds as epoch milliseconds, memoized. A period key is immutable —
+ * "2026-07" names the same instants forever — so a cache entry cannot go
+ * stale, and the work it skips (a regex to classify the key, a split, UTC
+ * date math, two Date allocations) was being repeated on every one of the
+ * hundreds of thousands of `inPeriod` calls an insight run makes.
+ *
+ * Numbers, not Dates: every caller still gets its own Date, so none of them
+ * can mutate what the next one reads.
+ */
+const BOUNDS = new Map<string, { start: number; end: number }>();
+
+function bounds(key: string): { start: number; end: number } {
+  const cached = BOUNDS.get(key);
+  if (cached !== undefined) return cached;
+  const g = granularityOfKey(key);
+  const start = startOf(key, g);
+  const computed = { start: start.getTime(), end: endOf(start, g).getTime() };
+  BOUNDS.set(key, computed);
+  return computed;
+}
+
+/** Inclusive start of the period (UTC midnight). */
+export function periodStart(key: string): Date {
+  return new Date(bounds(key).start);
+}
+
+/** Exclusive end: the instant the next period starts. */
+export function periodEndExclusive(key: string): Date {
+  return new Date(bounds(key).end);
 }
 
 export function previousPeriodKey(key: string): string {
@@ -109,5 +136,7 @@ export function enumeratePeriods(from: Date, to: Date, granularity: PeriodGranul
 }
 
 export function inPeriod(date: Date, key: string): boolean {
-  return date.getTime() >= periodStart(key).getTime() && date.getTime() < periodEndExclusive(key).getTime();
+  const { start, end } = bounds(key);
+  const t = date.getTime();
+  return t >= start && t < end;
 }

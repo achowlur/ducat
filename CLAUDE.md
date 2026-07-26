@@ -62,6 +62,11 @@ regeneration.
   estimated) for accounts/periods without snapshots. Connectors should write
   a snapshot on every sync.
 - Commands: see README's table and `package.json`. `npm test` is Vitest.
+- VERIFY BEFORE EVERY COMMIT (`/verify`): `npx tsc --noEmit`, `npm run lint`,
+  `npm test`, and — for anything that renders — load the affected page in the
+  running dev server and read back the actual numbers or measurements. All four
+  must pass before `git commit`; a failure is fixed, not committed and noted.
+  Never `npm run build` as part of this (see the dev-server rule below).
 - NEVER run `npm run build` while the dev server is running — both share
   `.next/`, and the build corrupts the dev server's chunks (symptom:
   "Cannot find module './NNN.js'" and silent hydration failure — no client

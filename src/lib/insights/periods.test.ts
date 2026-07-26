@@ -89,3 +89,27 @@ describe('inPeriod', () => {
     expect(inPeriod(utc(2026, 8, 1), '2026-07')).toBe(false);
   });
 });
+
+describe('memoized period bounds', () => {
+  // Bounds are cached because inPeriod is called hundreds of thousands of
+  // times per insight run. The cache holds NUMBERS and every caller gets a
+  // fresh Date — caching the Date itself would let one caller's mutation
+  // silently redefine the period for everyone after it.
+  it('hands every caller its own Date, so a mutation cannot poison the cache', () => {
+    const first = periodStart('2026-07');
+    first.setUTCDate(20);
+    expect(periodStart('2026-07').toISOString()).toBe('2026-07-01T00:00:00.000Z');
+
+    const end = periodEndExclusive('2026-07');
+    end.setUTCFullYear(1999);
+    expect(periodEndExclusive('2026-07').toISOString()).toBe('2026-08-01T00:00:00.000Z');
+    expect(inPeriod(utc(2026, 7, 15), '2026-07')).toBe(true);
+  });
+
+  it('returns identical bounds on a repeat call for every granularity', () => {
+    for (const key of ['2026', '2026-Q3', '2026-07', '2026-W28']) {
+      expect(periodStart(key).getTime()).toBe(periodStart(key).getTime());
+      expect(periodEndExclusive(key).getTime()).toBe(periodEndExclusive(key).getTime());
+    }
+  });
+});

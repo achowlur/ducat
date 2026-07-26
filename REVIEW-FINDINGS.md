@@ -50,15 +50,25 @@ deliberately NOT included.
 
 ## P4 — performance and cleanup (code review)
 
-Measured: 1,000 txns 0.3s → 10,000 txns 13.7s, and `generateInsights` runs
-synchronously inside server actions, so at 10k that's a ~14s hang on a dropdown.
+`generateInsights` runs synchronously inside server actions, so analyzer time
+is a hang on a dropdown.
 
-16. **`inPeriod` re-parses its period key on every call** (`periods.ts:111`).
-    Independently benchmarked: 610k calls, **419ms → 11ms (38×)**, identical
-    results. Module-level `Map<string,{start,end}>`; keys are immutable so it
-    can't go stale. ~15 lines, zero money-math exposure. **Do this first, then
-    re-measure** — it likely collapses the 10.7s `categoryTotalAnomalies` case on
-    its own.
+**Re-measured after #16 landed** (10,000 synthetic txns, 26 periods, analyzers
+only, no DB):
+
+| | before | after |
+|---|---|---|
+| computeSpendingByCategory | 310 ms | 14 ms |
+| computeCashFlowTrend | 303 ms | 14 ms |
+| detectCategoryTotalAnomalies | 1,895 ms | 66 ms |
+| detectTransactionAnomalies | 1,628 ms | **1,455 ms** |
+| total | 4,143 ms | 1,553 ms |
+| `inPeriod` × 610k | 393 ms | 10 ms |
+
+So the next perf item is no longer any of the ones below: `detectTransactionAnomalies`
+is now 94% of the remaining time, and memoization barely touched it because its
+cost is the O(n²) history re-filter per transaction (`anomalies.ts:42`), not
+period parsing. Group the history by category/merchant once per period instead.
 
 17. Safe mechanical dedup: `monthLabel` duplicated (`ui/overview.ts:70` vs
     exported `ui/trends.ts:47`); `Rule→RuleData`/`Txn→RuleTxn` mapping blocks
