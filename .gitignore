@@ -50,3 +50,6 @@ next-env.d.ts
 
 # claude code local state
 /.claude/
+
+# scratch diagnostics (either of us)
+/scripts/tmp-*.ts
