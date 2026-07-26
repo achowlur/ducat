@@ -7,6 +7,19 @@ import { getAccountsData } from "../../lib/ui/accounts";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Snapshot history and transaction counts are context, not the reason to open
+ * this screen; below md they drop so account, balance and type fit a phone.
+ */
+const COLUMNS = [
+  { label: "Account", className: "text-left" },
+  { label: "Balance", className: "text-right" },
+  { label: "History", className: "hidden text-left md:table-cell" },
+  { label: "Activity", className: "hidden text-left md:table-cell" },
+  { label: "Type", className: "text-left" },
+  { label: "", className: "text-left" },
+];
+
 export default async function AccountsPage() {
   const data = await getAccountsData();
 
@@ -18,17 +31,16 @@ export default async function AccountsPage() {
 
   return (
     <div className="py-5">
+      <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b border-ink">
-            {["Account", "Balance", "History", "Activity", "Type", ""].map((h, i) => (
+            {COLUMNS.map((c, i) => (
               <th
-                key={`${h}-${i}`}
-                className={`py-1 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint ${
-                  h === "Balance" ? "text-right" : "text-left"
-                }`}
+                key={`${c.label}-${i}`}
+                className={`py-1 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint ${c.className}`}
               >
-                {h}
+                {c.label}
               </th>
             ))}
           </tr>
@@ -70,7 +82,7 @@ export default async function AccountsPage() {
                       )}
                     </span>
                   </td>
-                  <td className="py-2 pr-3">
+                  <td className="hidden py-2 pr-3 md:table-cell">
                     {a.snapshotCount >= 2 ? (
                       <span className="inline-flex items-center gap-2" title={`${a.snapshotCount} balance snapshots, latest ${a.latestSnapshotDate}`}>
                         <Sparkline values={a.snapshotSeries} />
@@ -85,7 +97,7 @@ export default async function AccountsPage() {
                       </span>
                     )}
                   </td>
-                  <td className="py-2 pr-3 text-[0.75rem] text-faint">
+                  <td className="hidden py-2 pr-3 text-[0.75rem] text-faint md:table-cell">
                     {a.txnCount > 0 ? (
                       <>
                         <span className="font-money tabular">{a.txnCount}</span> txns · last {a.lastTxnDate}
@@ -119,6 +131,7 @@ export default async function AccountsPage() {
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

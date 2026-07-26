@@ -14,19 +14,6 @@ deliberately NOT included.
 
 ## P1 — mobile (the phone is the reason cloud mode exists)
 
-4. **3 of 6 nav tabs off-screen at 375px.** `AppNav.tsx:18` is `flex gap-5`, no
-   wrap/scroll; nav needs 526px. Header doesn't scroll so the whole DOCUMENT
-   widens to 621px.
-   FIX: `overflow-x-auto` on `<nav>` with `-mx-6 px-6`; `flex-wrap` on the
-   header. Do NOT flex-wrap the nav — the active tab's negative margin is tied
-   to header `pb-3` and misaligns on a second row.
-
-5. **Transactions unusable on a phone.** 6-column table renders 790px at 375px;
-   the AMOUNT column is entirely off-screen and the *document* scrolls, so the
-   filter bar slides away. `/accounts` same defect at 576px.
-   FIX: wrap both in `overflow-x-auto`. Better below md: drop Account and Flow to
-   a second line under the merchant; keep Date / Merchant / Amount as the spine.
-
 6. **Charts illegible + data is hover-only.** Fixed viewBox + `w-full` means text
    scales down to 4–7px at 375px. Both Trends charts expose figures only via
    `onMouseMove` — no hover on touch, while the caption says "Hover for exact

@@ -58,6 +58,21 @@ const FLOW_BADGE: Record<string, string> = {
   TRANSFER: "text-acc",
 };
 
+/**
+ * Six columns need 790px; a phone has 327px. Account and Flow drop below md
+ * and reappear under the merchant, leaving date / merchant / category /
+ * amount as the spine — the category control is the reason to open this
+ * screen on a phone at all, so it stays.
+ */
+const COLUMNS = [
+  { label: "Date", className: "text-left" },
+  { label: "Merchant / description", className: "text-left" },
+  { label: "Account", className: "hidden text-left md:table-cell" },
+  { label: "Category", className: "text-left" },
+  { label: "Flow", className: "hidden text-left md:table-cell" },
+  { label: "Amount", className: "text-right" },
+];
+
 export default async function TransactionsPage({
   searchParams,
 }: {
@@ -302,15 +317,16 @@ export default async function TransactionsPage({
       {groupMode ? (
         <GroupedReview groups={groups} categories={categoryOptions} />
       ) : (
+      <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b border-ink">
-            {["Date", "Merchant / description", "Account", "Category", "Flow", "Amount"].map((h, i) => (
+            {COLUMNS.map((c) => (
               <th
-                key={h}
-                className={`py-1 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint ${i === 5 ? "text-right" : "text-left"}`}
+                key={c.label}
+                className={`py-1 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint ${c.className}`}
               >
-                {h}
+                {c.label}
               </th>
             ))}
           </tr>
@@ -321,15 +337,18 @@ export default async function TransactionsPage({
             return (
               <tr key={t.id} className={`border-b border-rule ${t.flow === "TRANSFER" ? "opacity-60" : ""}`}>
                 <td className="py-1.5 pr-3 font-money text-[0.78rem] tabular text-faint">{isoDate(t.date)}</td>
-                <td className="max-w-[280px] truncate py-1.5 pr-3 text-[0.85rem]" title={t.description}>
+                <td className="max-w-[150px] truncate py-1.5 pr-3 text-[0.85rem] md:max-w-[280px]" title={t.description}>
                   {titleCase(t.normalizedMerchant !== "" ? t.normalizedMerchant : t.description.toLowerCase())}
                   {review && (
                     <span className="ml-2 rounded-[2px] bg-neg px-1 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.05em] text-paper">
                       review
                     </span>
                   )}
+                  <span className={`block truncate text-[0.68rem] md:hidden ${FLOW_BADGE[t.flow]}`}>
+                    {t.account.name} · {t.flow.toLowerCase()}
+                  </span>
                 </td>
-                <td className="py-1.5 pr-3 text-[0.75rem] text-faint">{t.account.name}</td>
+                <td className="hidden py-1.5 pr-3 text-[0.75rem] text-faint md:table-cell">{t.account.name}</td>
                 <td className="py-1.5 pr-3">
                   {t.flow === "TRANSFER" ? (
                     <span className="text-[0.75rem] text-faint" title="Transfers are excluded from spending analytics and carry no category">
@@ -363,7 +382,7 @@ export default async function TransactionsPage({
                     </span>
                   )}
                 </td>
-                <td className={`py-1.5 pr-3 text-[0.68rem] uppercase tracking-[0.06em] ${FLOW_BADGE[t.flow]}`}>
+                <td className={`hidden py-1.5 pr-3 text-[0.68rem] uppercase tracking-[0.06em] md:table-cell ${FLOW_BADGE[t.flow]}`}>
                   {t.flow.toLowerCase()}
                 </td>
                 <td
@@ -385,6 +404,7 @@ export default async function TransactionsPage({
           )}
         </tbody>
       </table>
+      </div>
       )}
     </div>
   );

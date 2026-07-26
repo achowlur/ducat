@@ -213,3 +213,18 @@
 .tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/*
+ * Horizontal scroll rail for a row too wide for the viewport (the nav at
+ * 375px). Pairs with min-w-0 — a flex child refuses to shrink below its
+ * content without it, which is how the nav widened the whole document
+ * instead of scrolling. The clipped edge is the affordance, so the bar is
+ * hidden: a classic Windows scrollbar would otherwise sit on the header rule.
+ */
+.scroll-x {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.scroll-x::-webkit-scrollbar {
+  display: none;
+}
