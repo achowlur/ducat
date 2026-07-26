@@ -131,51 +131,54 @@ export interface InstallResult {
  * non-MANUAL transactions and regenerates insights.
  */
 export async function installRulePack(prisma: PrismaClient): Promise<InstallResult> {
-  let categoriesCreated = 0;
-  const categoryIds = new Map<string, string>();
-  for (const name of PACK_CATEGORIES) {
-    const isIncome = name === "Income";
-    const existing = await prisma.category.findFirst({ where: { name } });
-    if (existing !== null) {
-      categoryIds.set(name, existing.id);
-      if (isIncome && !existing.isIncome) {
-        await prisma.category.update({ where: { id: existing.id }, data: { isIncome: true } });
-      }
-    } else {
-      const created = await prisma.category.create({ data: { name, isIncome } });
-      categoryIds.set(name, created.id);
-      categoriesCreated++;
-    }
+  // Existence is decided in memory against one read of each table. Asking the
+  // database ~190 separate "does this already exist?" questions is the whole
+  // cost of this command.
+  const existingCategories = await prisma.category.findMany({ select: { id: true, name: true, isIncome: true } });
+  const categoryIds = new Map(existingCategories.map((c) => [c.name, c.id]));
+
+  const missingCategories = PACK_CATEGORIES.filter((name) => !categoryIds.has(name));
+  if (missingCategories.length > 0) {
+    await prisma.category.createMany({
+      data: missingCategories.map((name) => ({ name, isIncome: name === "Income" })),
+    });
+    const created = await prisma.category.findMany({
+      where: { name: { in: [...missingCategories] } },
+      select: { id: true, name: true },
+    });
+    for (const c of created) categoryIds.set(c.name, c.id);
+  }
+  const categoriesCreated = missingCategories.length;
+
+  // "Income" may pre-date the pack as a spending category.
+  const incomeRow = existingCategories.find((c) => c.name === "Income");
+  if (incomeRow !== undefined && !incomeRow.isIncome) {
+    await prisma.category.update({ where: { id: incomeRow.id }, data: { isIncome: true } });
   }
 
-  let rulesCreated = 0;
-  let rulesSkipped = 0;
-  for (const rule of PACK_RULES) {
-    const setCategoryId = rule.category === null ? null : (categoryIds.get(rule.category) as string);
-    const existing = await prisma.rule.findFirst({
-      where: {
-        matchField: rule.matchField,
-        matchOperator: rule.matchOperator,
-        matchValue: rule.matchValue,
-      },
-    });
-    if (existing !== null) {
-      rulesSkipped++;
-      continue;
-    }
-    await prisma.rule.create({
-      data: {
+  const existingRules = await prisma.rule.findMany({
+    select: { matchField: true, matchOperator: true, matchValue: true },
+  });
+  const ruleKey = (r: { matchField: string; matchOperator: string; matchValue: string }) =>
+    `${r.matchField}|${r.matchOperator}|${r.matchValue}`;
+  const known = new Set(existingRules.map(ruleKey));
+
+  const toCreate = PACK_RULES.filter((r) => !known.has(ruleKey(r)));
+  if (toCreate.length > 0) {
+    await prisma.rule.createMany({
+      data: toCreate.map((rule) => ({
         priority: rule.priority,
         matchField: rule.matchField,
         matchOperator: rule.matchOperator,
         matchValue: rule.matchValue,
-        setCategoryId,
+        setCategoryId: rule.category === null ? null : (categoryIds.get(rule.category) as string),
         setFlow: rule.setFlow ?? null,
         enabled: true,
-      },
+      })),
     });
-    rulesCreated++;
   }
+  const rulesCreated = toCreate.length;
+  const rulesSkipped = PACK_RULES.length - rulesCreated;
 
   const { changed: transactionsRecategorized } = await reapplyRules(prisma);
   return { categoriesCreated, rulesCreated, rulesSkipped, transactionsRecategorized };
@@ -221,6 +224,9 @@ export async function reapplyRules(
 
   const byId = new Map(txnRows.map((t) => [t.id, t]));
   const restore: TxnRestore[] = [];
+  // Rows headed for the same category and flow are written together: one
+  // statement per distinct target (a dozen or so) instead of one per row.
+  const batches = new Map<string, { categoryId: string | null; flow: TransactionFlow | null; ids: string[] }>();
   for (const app of applications) {
     const txn = byId.get(app.txnId);
     if (txn === undefined) continue;
@@ -232,12 +238,18 @@ export async function reapplyRules(
       categorySource: txn.categorySource,
       flow: txn.flow,
     });
-    await prisma.transaction.update({
-      where: { id: app.txnId },
+    const key = `${app.categoryId ?? ""}|${app.flow ?? ""}`;
+    const batch = batches.get(key) ?? { categoryId: app.categoryId, flow: app.flow, ids: [] };
+    batch.ids.push(app.txnId);
+    batches.set(key, batch);
+  }
+  for (const batch of batches.values()) {
+    await prisma.transaction.updateMany({
+      where: { id: { in: batch.ids } },
       data: {
-        categoryId: app.categoryId,
+        categoryId: batch.categoryId,
         categorySource: "RULE",
-        ...(app.flow === null ? {} : { flow: app.flow }),
+        ...(batch.flow === null ? {} : { flow: batch.flow }),
       },
     });
   }

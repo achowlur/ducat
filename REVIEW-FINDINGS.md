@@ -32,12 +32,11 @@ is now 94% of the remaining time, and memoization barely touched it because its
 cost is the O(n²) history re-filter per transaction (`anomalies.ts:42`), not
 period parsing. Group the history by category/merchant once per period instead.
 
-20. `installRulePack` does ~180 sequential existence queries; per-row `update()`
-    loops where `updateMany` fits; two full-table loads in `health/`.
-
 **Deferred deliberately:** DB indexes (free at 2,638 rows, and a migration right
-before deploy invites the dev-server-restart gotcha); the analyzer restructures
-in the reviewer's Tier C (re-measure after #16 first).
+before deploy invites the dev-server-restart gotcha). The two full-table loads
+in `health/` also stay: both are already column-narrowed, and bounding them by
+date would change what they can detect — a subscription that stopped charging a
+year ago is exactly what the reconciler needs to see.
 
 ---
 
