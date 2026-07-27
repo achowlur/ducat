@@ -52,6 +52,24 @@ const DISPLAY_TZ =
   process.env.DUCAT_TIMEZONE ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 /**
+ * An anomaly's magnitude as a RANK: "higher than 96% of your Dining".
+ *
+ * Replaces "9.6× typical", which invited reading the median as what a dinner
+ * costs. In a heavy-tailed category it is nothing like it — 56% of this
+ * database's Dining transactions are under $51.83 against a $43.75 median, so a
+ * perfectly ordinary $189.2 dinner rendered as "4.3× typical".
+ *
+ * Rounds DOWN so the claim is never bigger than the data supports, and says
+ * "all" rather than "100%" when nothing in the history was larger. Undefined
+ * covers rows stored before the field existed, which regeneration replaces.
+ */
+export function higherThan(percentileOfHistory: number | undefined, what: string): string {
+  if (percentileOfHistory === undefined || percentileOfHistory <= 0) return `unusual for ${what}`;
+  if (percentileOfHistory >= 1) return `higher than all ${what}`;
+  return `higher than ${Math.floor(percentileOfHistory * 100)}% of ${what}`;
+}
+
+/**
  * An instant as local wall-clock, always carrying its zone: "Jul 26, 5:50 PM
  * EDT". The zone name is not decoration — without it a UTC timestamp reads as
  * local and is silently four or five hours wrong.

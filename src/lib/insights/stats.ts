@@ -11,6 +11,21 @@ export function mad(values: number[]): number {
   return median(values.map((v) => Math.abs(v - m)));
 }
 
+/**
+ * Fraction of `history` that `x` exceeds, 0–1.
+ *
+ * This is what an anomaly should actually say. A robust z-score is a fine way
+ * to RANK how unusual something is, but it is a terrible thing to show someone:
+ * "4.3× typical" invites reading the median as what a dinner costs, when more
+ * than half of one heavy-tailed category's transactions can sit under a fifth
+ * of it. "Higher than 96% of your Dining" makes the same claim without the
+ * arithmetic that isn't true.
+ */
+export function fractionBelow(x: number, history: number[]): number {
+  if (history.length === 0) return 0;
+  return history.filter((v) => v < x).length / history.length;
+}
+
 export const ROBUST_Z_CAP = 99;
 
 /**

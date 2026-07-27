@@ -16,7 +16,7 @@ import {
   type DetectedSubscription,
 } from "../health/detectedSubscriptions";
 import type { ProviderHealth, SubscriptionStatus } from "../health/types";
-import { money, monthLabel, pct, shortDate, titleCase } from "./format";
+import { higherThan, money, monthLabel, pct, shortDate, titleCase } from "./format";
 import { monthlyRows, ofType, type MonthlyInsight } from "./insightRows";
 import { spendingBreakdown, type DonutSliceData } from "./spendingBreakdown";
 
@@ -161,8 +161,8 @@ export async function getOverviewData(): Promise<OverviewData> {
       tone: "neg",
       text:
         p.kind === "TRANSACTION"
-          ? `${titleCase(p.description ?? "transaction")} — ${money(p.amount)}, vs ${money(p.typicalAmount)} typical for ${p.categoryName ?? "this category"}`
-          : `${p.categoryName ?? "Category"} total ${money(p.amount)} this month — vs ${money(p.typicalAmount)} in a typical month`,
+          ? `${titleCase(p.description ?? "transaction")} — ${money(p.amount)}, ${higherThan(p.percentileOfHistory, `your ${p.categoryName ?? "spending here"}`)}`
+          : `${p.categoryName ?? "Category"} total ${money(p.amount)} this month — ${higherThan(p.percentileOfHistory, "prior months")}`,
     });
   }
 

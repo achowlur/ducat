@@ -114,6 +114,13 @@ export interface AnomalyPayload {
   typicalAmount: number;
   /** Robust z-score ((x - median) / (1.4826 * MAD)), capped at 99. */
   deviation: number;
+  /**
+   * Fraction of the compared history this amount exceeds, 0–1. What the UI
+   * shows, because `amount / typicalAmount` reads as "you spent 4× what a
+   * dinner costs" when the median of a heavy-tailed category is nothing like
+   * the cost of a dinner. `deviation` still does the ranking.
+   */
+  percentileOfHistory: number;
 }
 
 export interface InsightPayloadMap {

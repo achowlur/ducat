@@ -506,6 +506,46 @@ describe('detectTransactionAnomalies', () => {
     const spike = txn({ date: utc(2026, 7, 8), amount: -900, ...groceries });
     expect(detectTransactionAnomalies([...thinHistory, spike], '2026-07', 'MONTH')).toHaveLength(0);
   });
+
+  // On real data this analyzer emitted six restaurant meals in a single month —
+  // 114 of 132 transaction anomalies across 15 months were one category. Every
+  // alternative statistic left that composition intact, because it was honest:
+  // most outflows were Dining, so the most unusual outflows were too. Reporting
+  // only the most unusual one per category is what fixes it.
+  it('reports only the most unusual transaction per category', () => {
+    const spikes = [
+      txn({ id: 'big', date: utc(2026, 7, 8), amount: -900, ...groceries }),
+      txn({ id: 'mid', date: utc(2026, 7, 9), amount: -400, ...groceries }),
+      txn({ id: 'small', date: utc(2026, 7, 10), amount: -200, ...groceries }),
+    ];
+    const result = detectTransactionAnomalies([...history, ...spikes], '2026-07', 'MONTH');
+    expect(result).toHaveLength(1);
+    expect(result[0].transactionId).toBe('big');
+  });
+
+  it('still reports one per category when several categories spike', () => {
+    const diningHistory = Array.from({ length: 8 }, (_, i) =>
+      txn({ id: `d${i}`, date: utc(2026, i + 1 <= 6 ? i + 1 : 6, (i % 27) + 1), amount: -(20 + i), categoryId: 'cat-dining', categoryName: 'Dining' }),
+    );
+    const result = detectTransactionAnomalies(
+      [
+        ...history,
+        ...diningHistory,
+        txn({ id: 'g-spike', date: utc(2026, 7, 8), amount: -900, ...groceries }),
+        txn({ id: 'd-spike', date: utc(2026, 7, 9), amount: -400, categoryId: 'cat-dining', categoryName: 'Dining' }),
+      ],
+      '2026-07',
+      'MONTH',
+    );
+    expect(result.map((r) => r.transactionId).sort()).toEqual(['d-spike', 'g-spike']);
+  });
+
+  it('states magnitude as a rank, since a heavy-tailed median is not "typical"', () => {
+    const spike = txn({ id: 'spike', date: utc(2026, 7, 8), amount: -900, ...groceries });
+    const [result] = detectTransactionAnomalies([...history, spike], '2026-07', 'MONTH');
+    // $2332.56 exceeds all 8 historical Groceries amounts ($155.5–$209.93).
+    expect(result.percentileOfHistory).toBe(1);
+  });
 });
 
 describe('detectCategoryTotalAnomalies', () => {

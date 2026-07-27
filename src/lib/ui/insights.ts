@@ -10,7 +10,7 @@ import { prisma } from "../prisma";
 import { isActive } from "../health/detectedSubscriptions";
 import { periodEndExclusive } from "../insights/periods";
 import { monthlyRows } from "./insightRows";
-import { money, monthLabel, pct, titleCase } from "./format";
+import { higherThan, money, monthLabel, pct, titleCase } from "./format";
 
 export interface InsightRow {
   id: string;
@@ -33,11 +33,9 @@ export interface InsightsPageData {
 }
 
 function renderAnomaly(p: AnomalyPayload): InsightRow["text"] {
-  const times =
-    p.typicalAmount > 0 ? ` — ${(p.amount / p.typicalAmount).toFixed(p.amount / p.typicalAmount >= 10 ? 0 : 1)}× typical` : "";
   return p.kind === "TRANSACTION"
-    ? `${titleCase(p.description ?? "Transaction")} — ${money(p.amount)}, vs ${money(p.typicalAmount)} typical for ${p.categoryName ?? "its category"}${times}`
-    : `${p.categoryName ?? "Category"} total ${money(p.amount)}, vs ${money(p.typicalAmount)} in a typical month${times}`;
+    ? `${titleCase(p.description ?? "Transaction")} — ${money(p.amount)}, ${higherThan(p.percentileOfHistory, `your ${p.categoryName ?? "spending here"}`)} (median ${money(p.typicalAmount)})`
+    : `${p.categoryName ?? "Category"} total ${money(p.amount)} — ${higherThan(p.percentileOfHistory, "prior months")} (median ${money(p.typicalAmount)})`;
 }
 
 function renderRecurring(p: RecurringChargePayload): InsightRow["text"] {

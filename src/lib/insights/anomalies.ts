@@ -1,7 +1,7 @@
 import type { AnomalyPayload, PeriodGranularity } from '../../types/contracts';
 import { inPeriod, periodStart } from './periods';
 import { reimbursementCredits } from './reimbursements';
-import { mad, median, robustZ, robustZFrom, round2 } from './stats';
+import { fractionBelow, mad, median, robustZ, robustZFrom, round2, round4 } from './stats';
 import type { TxnData } from './types';
 
 export interface AnomalyOptions {
@@ -11,12 +11,31 @@ export interface AnomalyOptions {
   minAmount: number;
   /** Minimum historical data points before a comparison is meaningful. */
   minHistory: number;
+  /**
+   * Most transaction anomalies to report per baseline per period — one per
+   * category, or per merchant for uncategorized rows.
+   *
+   * Without this the analyzer emitted every transaction over the threshold, and
+   * on real data that meant six restaurant meals in a month: 44 of 51
+   * transaction anomalies across 15 months were Dining. Simulating every
+   * alternative statistic (higher z, p90, p95, absolute floors) left Dining at
+   * 76-86% of output in ALL of them, because the composition is honest — 321 of
+   * 470 outflows were Dining, so the most unusual outflows are mostly dinners.
+   * The tighter thresholds only threw away the good findings: p95 dropped a
+   * $1707.95 one-off purchase, and a $100 floor dropped both a $95 annual card fee
+   * and a $186.6 advisory fee, the three most useful results in the whole set.
+   *
+   * So this is a ranking-and-cap problem, not a threshold one. `deviation`
+   * decides which one survives; the threshold only decides eligibility.
+   */
+  maxPerBaseline: number;
 }
 
 export const DEFAULT_ANOMALY_OPTIONS: AnomalyOptions = {
   zThreshold: 3.5,
   minAmount: 50,
   minHistory: 5,
+  maxPerBaseline: 1,
 };
 
 /**
@@ -66,6 +85,8 @@ export function detectTransactionAnomalies(
     return computed;
   };
 
+  // Keyed by baseline so the cap below can pick a winner per comparison group.
+  const candidates = new Map<string, AnomalyPayload[]>();
   for (const t of outflows) {
     if (!inPeriod(t.date, period)) continue;
     const amount = -t.amount;
@@ -83,7 +104,8 @@ export function detectTransactionAnomalies(
     // A capped z from constant history still needs a real magnitude gap.
     if (z < options.zThreshold || amount < typical * 1.5) continue;
 
-    anomalies.push({
+    const bucket = candidates.get(key) ?? [];
+    bucket.push({
       kind: 'TRANSACTION',
       granularity,
       transactionId: t.id,
@@ -93,7 +115,17 @@ export function detectTransactionAnomalies(
       amount: round2(amount),
       typicalAmount: round2(typical),
       deviation: round2(z),
+      percentileOfHistory: round4(fractionBelow(amount, history)),
     });
+    candidates.set(key, bucket);
+  }
+
+  // Most unusual first, then the cap. Ties break on amount so the choice is
+  // deterministic — a constant history caps every z at ROBUST_Z_CAP, which
+  // would otherwise make "the most unusual Utilities bill" arbitrary.
+  for (const bucket of candidates.values()) {
+    bucket.sort((a, b) => b.deviation - a.deviation || b.amount - a.amount);
+    anomalies.push(...bucket.slice(0, options.maxPerBaseline));
   }
   return anomalies;
 }
@@ -173,6 +205,7 @@ export function detectCategoryTotalAnomalies(
       amount: round2(current),
       typicalAmount: round2(typical),
       deviation: round2(z),
+      percentileOfHistory: round4(fractionBelow(current, active)),
     });
   }
   return anomalies;

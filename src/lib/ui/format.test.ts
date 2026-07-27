@@ -1,5 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { titleCase } from "./format";
+import { higherThan, titleCase } from "./format";
+
+describe("higherThan", () => {
+  it("states an anomaly's magnitude as a rank", () => {
+    expect(higherThan(0.96, "your Dining")).toBe("higher than 96% of your Dining");
+    expect(higherThan(0.7123, "prior months")).toBe("higher than 71% of prior months");
+  });
+
+  // Rounding UP would let 399/400 read as "higher than 100%", a claim the data
+  // does not support.
+  it("rounds down, and says 'all' rather than 100%", () => {
+    expect(higherThan(0.9975, "your Dining")).toBe("higher than 99% of your Dining");
+    expect(higherThan(1, "prior months")).toBe("higher than all prior months");
+  });
+
+  // Rows stored before the field existed, which regeneration replaces.
+  it("falls back when the fraction is missing or zero", () => {
+    expect(higherThan(undefined, "your Dining")).toBe("unusual for your Dining");
+    expect(higherThan(0, "your Dining")).toBe("unusual for your Dining");
+  });
+});
 
 describe("titleCase", () => {
   it("capitalizes word starts across the separators merchants actually use", () => {
