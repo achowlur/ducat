@@ -42,10 +42,11 @@ export function isoDate(d: Date): string {
  * happened at a real instant is different: "synced at 21:50" is useless if you
  * pressed the button at 5:50pm.
  *
- * Resolves from the environment, so it needs no app-specific configuration:
- * locally that is the machine's zone; on Vercel, functions run in UTC unless
- * `TZ` is set (see DEPLOY.md). `DUCAT_TIMEZONE` is an explicit override for
- * hosts that ignore `TZ`.
+ * `DUCAT_TIMEZONE` comes first because Vercel REFUSES `TZ` as a reserved
+ * variable name, so the standard mechanism isn't available where it is most
+ * needed. Falling back to the resolved zone means local development needs no
+ * configuration at all (it picks up the machine's, honouring `TZ` if set), while
+ * Vercel runs functions in UTC until told otherwise — see DEPLOY.md.
  */
 const DISPLAY_TZ =
   process.env.DUCAT_TIMEZONE ?? Intl.DateTimeFormat().resolvedOptions().timeZone;

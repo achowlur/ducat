@@ -191,15 +191,20 @@ and the localhost host-allowlist 403s it. Safe by default.
 | `CRON_SECRET` | from step 4 |
 | `SIMPLEFIN_ACCESS_URL` | your SimpleFIN access URL |
 | `NEXT_TELEMETRY_DISABLED` | `1` |
-| `TZ` | your zone, e.g. `America/New_York` |
+| `DUCAT_TIMEZONE` | your zone, e.g. `America/New_York` |
 
-`TZ` only affects how wall-clock instants are *displayed* — "synced Jul 25, 1:04
-PM EDT" instead of `17:04`. Without it Vercel runs functions in UTC and every
-sync time reads four or five hours off. Transaction dates are pinned to UTC in
-code and are deliberately unaffected (the feed mixes noon UTC, midnight Eastern
-and true instants, so re-zoning them would move correct dates), and all period
-math uses `Date.UTC`, so no month boundary moves either. If your host ignores
-`TZ`, `DUCAT_TIMEZONE` overrides it explicitly.
+Not `TZ` — **Vercel rejects it as a reserved name** ("The name of your
+Environment Variable is reserved"), which is why the app reads `DUCAT_TIMEZONE`
+first. `TZ` still works anywhere that allows it, including locally, where you
+can leave both unset and get your machine's zone.
+
+This only affects how wall-clock instants are *displayed*: "synced Jul 25, 1:04
+PM EDT" rather than `17:04`. Without it Vercel runs functions in UTC and every
+sync time reads four or five hours off, with no label to say so. Transaction
+dates stay pinned to UTC in code and are deliberately unaffected — the feed
+mixes noon UTC, midnight Eastern and true instants, so re-zoning a date would
+move correct ones — and all period math uses `Date.UTC`, so no month boundary
+moves either.
 
 Auth **fails closed**: a `libsql://` deployment without `AUTH_PASSWORD_HASH` +
 `SESSION_SECRET` refuses to serve rather than run open.
