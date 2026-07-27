@@ -208,6 +208,18 @@ regeneration.
   surfaces it on Trends/Insights — visibly incomplete beats silently wrong.
   An account counts as covering a period only if its first transaction is at
   or before the period START (mid-period starts are partial).
+- Page cost on this app is PAYLOAD, not server time, and a dev measurement is
+  not a measurement. `/transactions` shipped a 1.1 MB document (952 KB of markup
+  across 300 rows, 3705 `<option>` elements because every row renders the whole
+  category list) against 30-57 KB for every other page — that is what "slow on
+  a phone" was. It now defaults to the newest month WITH DATA with `LIMIT = 100`:
+  312 KB. An ABSENT `period` param means that default, an EMPTY one (`?period=`)
+  means all time, which is what keeps Overview's uncategorized banner reviewing
+  the whole backlog instead of silently one month of it. Measure with
+  `preview_start prod`, never `npm run dev`: dev-mode React SSR reported 870 ms
+  for a page production serves in 87 ms, and chasing that number led to two
+  wrong diagnoses — the reimbursement hot path (74 inflows × 470 outflows) is
+  2.5 ms, so hoisting its projection would have saved 0.6 ms.
 - Chart discipline (src/components/charts): charts are HAND-ROLLED SVG — no
   chart library, and no webfonts anywhere in the app (both would breach the CSP
   and the no-third-party rule). Axis scales must enclose the data (`niceTicks`
