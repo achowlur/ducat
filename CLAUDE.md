@@ -226,11 +226,33 @@ regeneration.
   and both matter — Hobby has no provisioned concurrency, so real page views
   land on lukewarm instances often and pay the higher one, while anything you
   measure back-to-back pays the lower. What survives unchanged is the
-  conclusion: what matters is the NUMBER of serialized round trips, not the size
-  of any of them. Never add a query that gates the others; if a filter needs a
-  value from the database, prefer a default that doesn't. Cold start is a
-  separate and larger cost again: ~600-800ms of client init and TLS lands on
-  whichever query runs first.
+  conclusion: what matters is the NUMBER of round trips, not the size of any of
+  them. Cold start is a separate and larger cost again: ~600-800ms of client
+  init and TLS lands on whichever query runs first.
+- The `Promise.all` on `/transactions` buys about 1.13x, NOT the "six
+  concurrent trips cost about the slowest one rather than their sum" this file
+  used to claim — that would be nearer 4x. Measured with the ABBA arrangement
+  in `/api/diag/timing` (`ordering.concurrentSpeedup`) across seven warm
+  samples: 1.63, 1.25, 1.20, 1.15, 0.95, 0.88, 0.87 — mean 1.13, median 1.15,
+  individual samples on BOTH sides of 1. libSQL over HTTP overlaps round trips
+  only weakly, so concurrency is worth keeping (it is never meaningfully worse)
+  while being nowhere near free parallelism. Consequences: a query that GATES
+  the others costs about its own round trip, not the loss of parallelism, so
+  the old "never add one" is too strong — prefer a filter default that needs no
+  database read, but do not contort the page to avoid a gate. And do not try to
+  buy speed by adding concurrency; buy it by removing round trips, which is
+  what the `include` work above actually did.
+- Two things this measurement cost, both worth avoiding again. The endpoint
+  compared UNLIKE things for a while: a `replace_all` matched only one of two
+  identically-shaped copies of the rows query, so the concurrent group kept an
+  `include` the sequential one had dropped — 9 statements against 7 — and every
+  number it produced argued for a conclusion that was purely the extra round
+  trips. The six queries are now defined ONCE and both arrangements run that
+  list, which makes the divergence impossible rather than unlikely. And the
+  design was too weak before it was counterbalanced: sequential-then-concurrent
+  cannot separate "concurrent is slower" from "whatever runs second is slower",
+  and the A-blocks really do differ by position (124.5ms at position 1 against
+  66.3ms at position 4 in one sample). ABBA is why the number is trustworthy.
 - Reading `/api/diag/timing` correctly, because it is easy to read three
   different numbers off it and believe all of them. `msSinceFunctionBoot` under
   ~2000 means that sample paid a cold start — discard it, or read it as the
@@ -416,26 +438,6 @@ the reimbursements-exceeded empty state, the grouped-review P2P tooltip, the
 money typography, and Overview's market-movement line.
 
 ## Backlog (agreed 2026-07-27, investigated, not yet built)
-
-**Does the `Promise.all` on `/transactions` actually buy anything?** Measured
-on the deployment once `/api/diag/timing` stopped misattributing connection
-setup, and the answer looks like NO — possibly the reverse. Across six warm
-samples the six queries summed 39.8-110.8ms run one after another, while the
-SAME six in one `Promise.all` took 58.7-190.4ms: a speedup of 0.31-0.89, never
-once above 1. The parallel group is also far noisier, which is what contention
-looks like. Likely cause: libSQL over HTTP on one connection, so concurrency
-adds queueing without adding throughput. This would refute the claim recorded
-above that six concurrent trips "cost about the slowest one rather than their
-sum" — that number came from the era when `sequentialTotalMs` was inflated by
-connection setup, and the honest instrument no longer supports it.
-DO NOT rewrite the page on this yet: the diag route always runs the sequential
-block FIRST and the parallel group second, so ordering is an uncontrolled
-confound (page cache favours the second, which makes the result conservative,
-but request-lifetime effects would penalise it). The next step is a diag
-variant that ALTERNATES the order, not a refactor. If it holds, sequential is
-worth ~45ms and the "never add a query that gates the others" advice needs
-restating — the cost of a gating query would be its own round trip, not the
-loss of parallelism.
 
 Five items raised after the cloud deploy, with what investigating them already
 turned up so it isn't rediscovered:
