@@ -1,5 +1,6 @@
 import { getProvidersData } from "../../lib/ui/providers";
 import { dateTime } from "../../lib/ui/format";
+import { isCloudMode } from "../../lib/auth/mode";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +21,36 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 export default async function ProvidersPage() {
   const providers = await getProvidersData();
+  const cloud = isCloudMode();
 
   return (
     <div className="grid gap-10 py-5">
+      {/* Where the data RESTS, which the per-connector cards deliberately do not
+          claim. They were written when localhost was the only mode and said
+          things like "fully local; no third party involved" — true then, false
+          from a cloud deployment, and a trust page that is confidently wrong is
+          worse than one that says nothing. */}
+      <section className="border-l-2 border-acc bg-chip px-3 py-2.5">
+        <SectionTitle>This instance</SectionTitle>
+        <p className="text-[0.82rem] leading-relaxed">
+          {cloud ? (
+            <>
+              Running in <strong>cloud mode</strong>, against your own Turso database on your own Vercel
+              project. Your transaction data rests there rather than on this device — single-tenant
+              infrastructure you control and pay for, not a shared service, so no third party custodies it.
+              A password gate is what stands between it and the internet, and it is required: deployed
+              without one, the app refuses to serve.
+            </>
+          ) : (
+            <>
+              Running in <strong>local mode</strong>, against a file database on this machine, bound to
+              127.0.0.1. Transaction data never leaves this device — the only outbound connection the app
+              makes is to the SimpleFIN feed below.
+            </>
+          )}
+        </p>
+      </section>
+
       {providers.map(({ health, configured, setupHint, syncLogs }) => (
         <section key={health.connectorType}>
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b-2 border-ink pb-2">
@@ -70,8 +98,9 @@ export default async function ProvidersPage() {
               )}
               {health.connectorType === "SIMPLEFIN" && (
                 <p className="mt-3 text-[0.75rem] text-faint">
-                  Access URL in .env: {configured ? "configured" : "not configured"} — the credential itself is
-                  never displayed.
+                  Access URL: {configured ? "configured" : "not configured"} — read from{" "}
+                  {cloud ? "the platform's environment variables" : ".env on this machine"}, and never
+                  displayed.
                 </p>
               )}
 

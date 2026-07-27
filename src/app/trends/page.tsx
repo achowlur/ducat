@@ -66,7 +66,10 @@ export default async function TrendsPage({
             </span>
           </div>
           <p className="mb-3 text-[0.75rem] text-faint">
-            Transfers excluded. Hover or tap for detail; click a slice or row to open those transactions.
+            {/* "Hover or tap for detail" promised something a phone cannot do:
+                there is no hover, and a tap on a slice navigates. */}
+            Transfers excluded. Tap or click a slice or row to open those transactions; hover a slice for
+            its exact share.
             {data.credited > 0 && (
               <>
                 {" "}

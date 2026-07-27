@@ -28,8 +28,11 @@ export interface ProviderView {
 }
 
 const SETUP_HINTS: Record<ConnectorType, string> = {
+  // Deliberately says "this instance's environment" rather than ".env": the
+  // claim script runs on your machine either way, but a cloud deployment reads
+  // the access URL from the platform's variable store (see DEPLOY.md).
   SIMPLEFIN:
-    "npm run simplefin:claim -- <setup-token>  →  paste the printed SIMPLEFIN_ACCESS_URL into .env  →  npm run sync:simplefin",
+    "npm run simplefin:claim -- <setup-token>  →  set the printed SIMPLEFIN_ACCESS_URL in this instance's environment  →  npm run sync:simplefin",
   CSV: "npm run import:csv -- <file.csv> --mapping=<chase-checking|chase-credit|wells-fargo|fidelity> --name=<account> --type=<DEPOSITORY|CREDIT|INVESTMENT|LOAN> --institution=<bank>",
 };
 
