@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 // trip to Turso — and bulk review on a phone is exactly when it happens.
 export const maxDuration = 60;
 
-const LIMIT = 300;
+const LIMIT = 100;
 
 interface Params {
   period?: string;
@@ -84,10 +84,38 @@ export default async function TransactionsPage({
 }) {
   const params = await searchParams;
 
+  // The month range has to be known BEFORE the filter is built, because with no
+  // period in the URL this page defaults to the newest month that has data
+  // rather than to all time. One extra serialized round trip buys that; the
+  // all-time view rendered 300 rows into a 1.1 MB document, which is the entire
+  // reason the page felt slow on a phone (server time was 87 ms).
+  const dateRange = await prisma.transaction.aggregate({ _min: { date: true }, _max: { date: true } });
+
+  // Every month with data, newest first — also the period select's options.
+  const monthOptions: string[] = [];
+  if (dateRange._min.date !== null && dateRange._max.date !== null) {
+    let cursor = new Date(Date.UTC(dateRange._max.date.getUTCFullYear(), dateRange._max.date.getUTCMonth(), 1));
+    const first = periodKey(dateRange._min.date, "MONTH");
+    for (;;) {
+      const key = periodKey(cursor, "MONTH");
+      monthOptions.push(key);
+      if (key === first || monthOptions.length > 240) break;
+      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() - 1, 1));
+    }
+  }
+
+  // An ABSENT period means "the default", an EMPTY one means "all time". That
+  // distinction is what keeps `?period=` a working link for the callers that
+  // genuinely need every month — Overview's uncategorized banner, which opens
+  // the grouped review over the whole backlog rather than one month of it.
+  // Defaulting to the newest month WITH DATA rather than the calendar month
+  // means a stale feed or the first of the month never shows an empty page.
+  const period = params.period === "" ? null : (params.period ?? monthOptions[0] ?? null);
+
   const where: Prisma.TransactionWhereInput = {};
-  if (params.period !== undefined && params.period !== "") {
+  if (period !== null) {
     try {
-      where.date = { gte: periodStart(params.period), lt: periodEndExclusive(params.period) };
+      where.date = { gte: periodStart(period), lt: periodEndExclusive(period) };
     } catch {
       // Unparseable period param — ignore the filter rather than crash.
     }
@@ -109,7 +137,7 @@ export default async function TransactionsPage({
     ];
   }
 
-  const [rows, total, categories, accounts, dateRange] = await Promise.all([
+  const [rows, total, categories, accounts] = await Promise.all([
     prisma.transaction.findMany({
       where,
       include: { category: true, account: true, reimburses: true },
@@ -119,21 +147,7 @@ export default async function TransactionsPage({
     prisma.transaction.count({ where }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
     prisma.account.findMany({ orderBy: { name: "asc" } }),
-    prisma.transaction.aggregate({ _min: { date: true }, _max: { date: true } }),
   ]);
-
-  // Month options for the period select: every month with data, newest first.
-  const monthOptions: string[] = [];
-  if (dateRange._min.date !== null && dateRange._max.date !== null) {
-    let cursor = new Date(Date.UTC(dateRange._max.date.getUTCFullYear(), dateRange._max.date.getUTCMonth(), 1));
-    const first = periodKey(dateRange._min.date, "MONTH");
-    for (;;) {
-      const key = periodKey(cursor, "MONTH");
-      monthOptions.push(key);
-      if (key === first || monthOptions.length > 240) break;
-      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() - 1, 1));
-    }
-  }
 
   // Reimbursement candidates. Ranking lives in suggestReimbursements: amount
   // evidence (exact repayment, or a clean 1/n share of a split) leads, with
@@ -219,7 +233,7 @@ export default async function TransactionsPage({
   // — 1861 of 2,638 rows were simply unreachable. Stepping by month reuses the
   // filter plumbing, and monthOptions only contains months that have data, so
   // a link never lands on an empty page.
-  const selectedIdx = params.period === undefined ? -1 : monthOptions.indexOf(params.period);
+  const selectedIdx = period === null ? -1 : monthOptions.indexOf(period);
   const olderPeriod =
     selectedIdx >= 0
       ? (monthOptions[selectedIdx + 1] ?? null)
@@ -239,7 +253,7 @@ export default async function TransactionsPage({
           Period
           <select
             name="period"
-            defaultValue={params.period ?? ""}
+            defaultValue={period ?? ""}
             className="rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink"
           >
             <option value="">All</option>
