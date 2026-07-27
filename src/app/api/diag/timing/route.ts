@@ -21,7 +21,13 @@ export const maxDuration = 60;
  *
  * Sends nothing anywhere. It is a read-only endpoint the operator queries,
  * session-gated like every other page (middleware allow-lists only
- * `/api/cron/*`), and it runs no query the transactions page doesn't already.
+ * `/api/cron/*`), and beyond one `SELECT 1` it runs no query the transactions
+ * page doesn't already.
+ *
+ * Read `connectMs` before anything else, and read a small `msSinceFunctionBoot`
+ * as "discard this sample". Absolute ms drift about 2x between batches on
+ * identical code, so compare a query against the trivial ones in the SAME
+ * response rather than against a number written down last week.
  */
 
 /** Module scope: a small value means this invocation paid a cold start. */
@@ -37,6 +43,15 @@ async function timed<T>(name: string, fn: () => Promise<T>): Promise<{ name: str
 
 export async function GET(): Promise<Response> {
   await requireSession();
+
+  // The first database call of a request absorbs connection setup, and whatever
+  // runs first wears it. That is not a subtle effect: `rows` once reported
+  // 194.1ms in a response whose `parallelGroupMs` was 72.7ms — and the parallel
+  // group RUNS THAT SAME QUERY, so 194.1ms was never its intrinsic cost.
+  // Paying it here, on a query that touches no data, is what lets the seven
+  // below measure themselves. Timed rather than hidden: on a cold invocation
+  // this is where the ~600-800ms goes, and that belongs on the report.
+  const connect = await timed("connect", () => prisma.$queryRaw`SELECT 1`);
 
   // Individually and sequentially, so each round trip's own cost is visible.
   const rows = await timed("rows", () =>
@@ -105,7 +120,13 @@ export async function GET(): Promise<Response> {
     // Small = this request paid a cold start, which is worth knowing before
     // reading anything else here as typical.
     msSinceFunctionBoot: Date.now() - bootedAt,
+    // The request's first database call, on a query that reads nothing. Large
+    // means this request established a connection; the seven below are then
+    // measuring themselves rather than inheriting it.
+    connectMs: connect.ms,
     sequential: Object.fromEntries(sequential.map((s) => [s.name, s.ms])),
+    // Now a real "if these ran one after another" figure, which it was not
+    // while the first entry was carrying connection setup.
     sequentialTotalMs: Math.round(sequential.reduce((sum, s) => sum + s.ms, 0) * 10) / 10,
     parallelGroupMs: parallel.ms,
     candidatePoolMs: pool.ms,
@@ -129,6 +150,7 @@ export async function GET(): Promise<Response> {
         `total;desc="data the page pays for";dur=${body.pagePaysMs}`,
         `parallel;desc="6 concurrent queries";dur=${body.parallelGroupMs}`,
         `pool;desc="candidate pool (serialized)";dur=${body.candidatePoolMs}`,
+        `connect;desc="first call of the request";dur=${body.connectMs}`,
         ...sequential.map((s) => `${s.name};dur=${s.ms}`),
       ].join(", "),
       "Cache-Control": "private, no-store",
