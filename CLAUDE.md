@@ -355,6 +355,37 @@ regeneration.
   transactions cost 4.1s instead of 0.15s. Both caches are safe because their
   keys are immutable and both statistics sort, so order in a bucket is
   irrelevant.
+- Subscription thresholds are TUNED — `npm run subs:audit` before touching one,
+  and expect the answer to be no. The audit reports every merchant with 2+
+  charges that was NOT detected, grouped by the gate that rejected it and
+  ranked by what it would cost a year if real. On 2638 real transactions, 59 of
+  them, and almost every one deserves it: restaurants visited twice, TRC TAPGO
+  at a 0.5-day median gap, "zelle transfer" with 1 of 9 gaps regular. Loosening
+  any gate floods the list with dining, which is the same failure the anomaly
+  pass already worked through. The one honest gap is ANNUAL plans — a $95 card
+  fee sits at 2 occurrences because 3 yearly charges need 3 years of history —
+  and closing it by admitting 2-occurrence yearlies also admits a tax payment
+  and an ice cream shop visited twice a year, so it stays open deliberately.
+  The merchant-string-shift blind spot is real but already handled downstream:
+  Verizon arrives under three merchant strings and `brandOf` folds them.
+  The audit RE-IMPLEMENTS the detector's gates so it can name which one bit, so
+  any change to `recurring.ts` has to be mirrored there — it silently kept
+  reporting Zego as detected after the category exclusion removed it.
+- Recurring is NOT the same as subscribed. `NOT_SUBSCRIPTION_CATEGORIES`
+  (`insights/recurring.ts`) drops Rent & Housing and Taxes before grouping:
+  they have exactly the shape the detector hunts for — stable descriptor,
+  stable amount, monthly cadence — and listing them buries the two or three
+  things actually worth cancelling. Excluding by CATEGORY rather than by name
+  is what demotes a rent PORTAL without enumerating portals. This reverses the
+  earlier decision to ship no rent-portal rules: that objection was that a
+  portal bills the convenience FEE for this operator and the whole rent for
+  someone else and arithmetic cannot tell which, but that is about what the
+  AMOUNT means, not where it belongs — Rent & Housing is correct under both
+  readings. A `zego|paylease` rule now ships at priority 250. It does nothing
+  for a database that already has user rules at ≤99 pointing elsewhere, which
+  is the general lesson: a pack rule cannot fix an instance the operator has
+  already hand-tuned, so simulate against the real rule set before assuming a
+  pack change lands.
 - Provider health (`src/lib/health/`) derives status from LOCAL signals ONLY —
   last sync outcome, feed errors, stale balance dates, transaction-volume gaps.
   No network call on launch, ever. Adding a connector also means adding its
@@ -470,16 +501,8 @@ turned up so it isn't rediscovered:
   are currently computed AND serialized into the HTML even when none is opened.
   Measure in a PRODUCTION build before judging — 0.87s is a dev-mode number.
 - ~~Donut navigation~~ — DONE, see the category-filter convention above.
-- **Another pass on subscription detection.** The detector needs 3+
-  occurrences, amounts within 25%, and gaps inside a cadence band (monthly =
-  26–35 days); `TrackedSubscription` has 0 rows, so everything shown is
-  detected and nothing is registered by hand. Likely blind spots: annual plans
-  (3 occurrences = 3 years), anything varying more than 25%, and merchants
-  whose string shifts between charges. Do the read-only "what did it miss"
-  report — merchants with 3+ charges at regular gaps that are NOT reported —
-  before touching any threshold. (Zego is not a mystery: it is a rent-payment
-  portal, formerly PayLease, and the $7.88/month is its convenience FEE, not
-  rent — which is exactly why rent-portal rules deliberately did not ship.)
+- ~~Another pass on subscription detection~~ — AUDITED, and the answer is
+  DON'T. See the recurring-detection convention above.
 - **A public demo instance** with fabricated data. Blocked on a decision, not
   on code: the mode-scoped HARD RULE says cloud mode MUST have the auth gate
   and fails closed, so a login-less demo is an explicit amendment to that rule
