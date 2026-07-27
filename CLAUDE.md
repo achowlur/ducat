@@ -324,6 +324,24 @@ regeneration.
   ("g" has to mean Gas, not Dining). `GroupedReview` deliberately keeps its
   `<select>`: its choice is STAGED before a write that can rewrite dozens of
   rows, which is a different contract, and it is not on the hot path.
+- The `?category=` filter takes a LIST, and `src/lib/ui/categoryFilter.ts` is
+  the only place its format is written or read — link builders and the page
+  share one encoder/decoder so they cannot drift. It exists because the donut's
+  "Other" slice is a SET (everything ranked below `TOP_SLICES`, 8 categories and
+  $2005.74 in July 2026) and WHICH categories those are changes every period, so
+  a link has to enumerate the ids for the month on screen. The list is an
+  INCLUSION list: an exclusion list would silently swallow any category added
+  later. `null` in it is the Uncategorized BUCKET, not an absence — which is
+  the distinction the donut used to lose, since "Other" and "Uncategorized"
+  both carried `categoryId: null` and the href builder skipped the param when
+  it was null, so clicking either drilled into the whole ledger instead of the
+  slice it had just drawn. Slices now carry `categoryIds`, and `categoryId` is
+  gone so the mistake cannot be repeated. Two consequences on the page: the
+  multi-id group goes in `where.AND`, because `q` already owns top-level `OR`
+  and the two would overwrite each other; and a list matches no `<option>`, so
+  the select grows a synthetic "N categories" entry — without it the control
+  read "All" while a filter was applied and submitting the form silently
+  dropped it.
 - Chart discipline (src/components/charts): charts are HAND-ROLLED SVG — no
   chart library, and no webfonts anywhere in the app (both would breach the CSP
   and the no-third-party rule). Axis scales must enclose the data (`niceTicks`
@@ -451,17 +469,7 @@ turned up so it isn't rediscovered:
   hoisting the map; the bigger one is computing candidates lazily, since all 74
   are currently computed AND serialized into the HTML even when none is opened.
   Measure in a PRODUCTION build before judging — 0.87s is a dev-mode number.
-- **Overview donut should link to `/trends`.** `MiniDonut` is not wrapped in
-  anything clickable. Slices already carry `categoryId`, so slice → filtered
-  transactions is the natural pair with the item below.
-- **Trends donut "Other" should open those transactions.** `TOP_SLICES = 3`, so
-  "Other" is everything ranked 4th and below (8 categories, $2005.74 in July
-  2026). Needs a multi-category filter — `?category=id1,id2,id3` →
-  `categoryId: { in: [...] }` — because today it takes one id or
-  `"uncategorized"`. The catch: which categories land in "Other" CHANGES BY
-  PERIOD, so the link must enumerate the ids for the month on screen rather
-  than pass a static `other` token. Prefer an inclusion list to an exclusion
-  one, or a category added later joins "Other" silently.
+- ~~Donut navigation~~ — DONE, see the category-filter convention above.
 - **Another pass on subscription detection.** The detector needs 3+
   occurrences, amounts within 25%, and gaps inside a cadence band (monthly =
   26–35 days); `TrackedSubscription` has 0 rows, so everything shown is

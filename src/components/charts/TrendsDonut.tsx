@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { DonutSliceData } from "../../lib/ui/trends";
 import { money } from "../../lib/ui/format";
+import { transactionsHref } from "../../lib/ui/categoryFilter";
 
 const COLORS = ["var(--chart1)", "var(--chart2)", "var(--pie3)", "var(--pie4)"];
 
@@ -21,16 +22,16 @@ function slicePath(cx: number, cy: number, R: number, r: number, a0: number, a1:
   return `M${o0.x.toFixed(2)},${o0.y.toFixed(2)} A${R},${R} 0 ${large} 1 ${o1.x.toFixed(2)},${o1.y.toFixed(2)} L${i1.x.toFixed(2)},${i1.y.toFixed(2)} A${r},${r} 0 ${large} 0 ${i0.x.toFixed(2)},${i0.y.toFixed(2)} Z`;
 }
 
-function transactionsHref(slice: DonutSliceData, period: string): string {
-  const params = new URLSearchParams({ period });
-  if (slice.categoryId !== null) params.set("category", slice.categoryId);
-  return `/transactions?${params.toString()}`;
-}
-
 /**
  * Interactive spending donut: hover raises a tooltip and dims the other
- * slices; click drills into Transactions pre-filtered to the category
- * and period. "Other" drills to the period without a category filter.
+ * slices; click drills into Transactions pre-filtered to the period and to
+ * every category the slice stands for — which for "Other" is the whole set
+ * ranked below the top slices, enumerated for THIS month.
+ *
+ * It used to build the link from a single `categoryId` and omit the filter
+ * when that was null, which was wrong for two different slices: "Other" and
+ * "Uncategorized" both carry null, so clicking either drilled into the entire
+ * ledger instead of the ~$2006 or the uncategorized pile it had just drawn.
  */
 export function TrendsDonut({
   slices,
@@ -61,7 +62,7 @@ export function TrendsDonut({
       <svg viewBox="0 0 220 200" width="230" role="img" aria-label="Spending by category donut">
         <g stroke="var(--paper)" strokeWidth="2">
           {paths.map((p) => (
-            <Link key={p.slice.label} href={transactionsHref(p.slice, period)}>
+            <Link key={p.slice.label} href={transactionsHref(p.slice.categoryIds, period)}>
               <path
                 d={p.d}
                 fill={p.color}
@@ -91,7 +92,10 @@ export function TrendsDonut({
           <div>
             {active.slice.label} · {(active.slice.share * 100).toFixed(1)}%
           </div>
-          <div>{money(active.slice.value)} ↗ view</div>
+          <div>
+            {money(active.slice.value)} ↗ view
+            {active.slice.categoryIds.length > 1 && ` ${active.slice.categoryIds.length} categories`}
+          </div>
         </div>
       )}
     </div>

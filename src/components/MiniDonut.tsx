@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { DonutSliceData } from "../lib/ui/spendingBreakdown";
 
 const COLORS = ["var(--chart1)", "var(--chart2)", "var(--pie3)", "var(--pie4)"];
@@ -31,17 +32,23 @@ function slicePath(cx: number, cy: number, R: number, r: number, a0: number, a1:
 /**
  * Server-renderable donut (no hooks). Slices ordered largest-first from
  * 12 o'clock; 2px paper gaps between slices; total in the hole.
+ *
+ * `hrefFor` makes the slices navigable. Optional, because the donut is a
+ * drawing and shouldn't require a destination to exist — but Overview passes
+ * one, so a slice goes where the number it draws came from.
  */
 export function MiniDonut({
   slices,
   centerTop,
   centerBottom,
   width = 170,
+  hrefFor,
 }: {
   slices: DonutSliceData[];
   centerTop: string;
   centerBottom: string;
   width?: number;
+  hrefFor?: (slice: DonutSliceData) => string;
 }) {
   const cx = 110;
   const cy = 100;
@@ -62,11 +69,22 @@ export function MiniDonut({
   return (
     <svg viewBox="0 0 220 200" width={width} role="img" aria-label={`Spending by category: ${label}`}>
       <g stroke="var(--paper)" strokeWidth="2">
-        {paths.map((p) => (
-          <path key={p.slice.label} d={p.d} fill={p.color}>
-            <title>{`${p.slice.label}: ${(p.slice.share * 100).toFixed(1)}%`}</title>
-          </path>
-        ))}
+        {paths.map((p) => {
+          const arc = (
+            <path key={p.slice.label} d={p.d} fill={p.color} className={hrefFor === undefined ? "" : "cursor-pointer"}>
+              <title>
+                {`${p.slice.label}: ${(p.slice.share * 100).toFixed(1)}%`}
+                {hrefFor === undefined ? "" : " — view transactions"}
+              </title>
+            </path>
+          );
+          if (hrefFor === undefined) return arc;
+          return (
+            <Link key={p.slice.label} href={hrefFor(p.slice)} aria-label={`${p.slice.label} transactions`}>
+              {arc}
+            </Link>
+          );
+        })}
       </g>
       <text x={cx} y={cy - 4} textAnchor="middle" className="fill-[var(--ink)] font-money text-[11px]">
         {centerTop}

@@ -10,6 +10,7 @@ import { groupByPayee } from "../../lib/sync/grouping";
 import { P2P_PATTERN } from "../../lib/sync/rulePack";
 import { amount, isoDate, money, monthLabel, titleCase } from "../../lib/ui/format";
 import { periodKey } from "../../lib/insights/periods";
+import { parseCategoryParam } from "../../lib/ui/categoryFilter";
 
 export const dynamic = "force-dynamic";
 // This page's actions are the slowest in the app: categorizing a group calls
@@ -95,12 +96,26 @@ export default async function TransactionsPage({
       // Unparseable period param — ignore the filter rather than crash.
     }
   }
-  if (params.category === "uncategorized") {
-    where.categoryId = null;
-    // Transfers legitimately carry no category — they'd drown the queue.
-    // An explicit flow=TRANSFER filter still shows them.
-    if (params.flow === undefined || params.flow === "") where.flow = { not: "TRANSFER" };
-  } else if (params.category !== undefined && params.category !== "") where.categoryId = params.category;
+  // One id, `uncategorized`, or a comma-separated list of either — the donut's
+  // "Other" slice is a SET of categories, so it arrives here enumerated.
+  const selection = parseCategoryParam(params.category);
+  if (selection !== null) {
+    if (!selection.uncategorized) {
+      where.categoryId = { in: selection.ids };
+    } else if (selection.ids.length === 0) {
+      where.categoryId = null;
+    } else {
+      // Mixed. Goes in AND rather than OR because `q` already owns top-level
+      // OR, and the two would silently overwrite each other.
+      where.AND = [{ OR: [{ categoryId: { in: selection.ids } }, { categoryId: null }] }];
+    }
+    // Transfers legitimately carry no category — they'd drown the queue, and
+    // the donut this links from excludes them anyway. An explicit
+    // flow=TRANSFER filter still shows them.
+    if (selection.uncategorized && (params.flow === undefined || params.flow === "")) {
+      where.flow = { not: "TRANSFER" };
+    }
+  }
   if (params.account !== undefined && params.account !== "") where.accountId = params.account;
   if (params.flow !== undefined && ["INFLOW", "OUTFLOW", "TRANSFER"].includes(params.flow)) {
     where.flow = params.flow as "INFLOW" | "OUTFLOW" | "TRANSFER";
@@ -265,6 +280,16 @@ export default async function TransactionsPage({
 
   const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name, isIncome: c.isIncome }));
 
+  // Named only when the selection covers more than one category, since a single
+  // one is already visible in the select.
+  const selectedNames: string[] | null =
+    selection === null || selection.ids.length + (selection.uncategorized ? 1 : 0) < 2
+      ? null
+      : [
+          ...selection.ids.map((id) => categories.find((c) => c.id === id)?.name ?? id),
+          ...(selection.uncategorized ? ["Uncategorized"] : []),
+        ];
+
   // Grouped review: one decision per payee across the ENTIRE uncategorized
   // backlog (not just the visible page), highest-leverage payee first. A few
   // hundred transactions are typically only a few dozen payees.
@@ -330,6 +355,13 @@ export default async function TransactionsPage({
           <select name="category" defaultValue={params.category ?? ""} className="rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink">
             <option value="">All</option>
             <option value="uncategorized">Uncategorized</option>
+            {/* A multi-category arrival (the donut's "Other") matches no single
+                option, so the select would read "All" while a filter was
+                applied — and submitting the form would then silently drop it.
+                Naming the set keeps the control honest and round-trippable. */}
+            {selectedNames !== null && params.category !== undefined && (
+              <option value={params.category}>{selectedNames.length} categories</option>
+            )}
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -385,6 +417,19 @@ export default async function TransactionsPage({
               ? "0 matching"
               : `${firstShown}–${lastShown} of ${matchCount}`}
         </span>
+        {/* Which categories, spelled out. A title= would be invisible on touch,
+            which is where a donut slice is most likely to have been tapped. */}
+        {selectedNames !== null && !groupMode && (
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="text-ink">{selectedNames.join(", ")}</span>
+            <Link
+              href={buildHref(params, { category: undefined, page: undefined })}
+              className="font-semibold text-acc hover:underline"
+            >
+              clear categories
+            </Link>
+          </span>
+        )}
         {groupMode ? (
           <Link href={buildHref(params, { group: undefined, page: undefined })} className="font-semibold text-acc hover:underline">
             ← transaction list

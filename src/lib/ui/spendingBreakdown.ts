@@ -4,7 +4,18 @@ import { round2 } from "../insights/stats";
 /** Slices are positive categories only, so a slice's share is never null. */
 export interface DonutSliceData {
   label: string;
-  categoryId: string | null;
+  /**
+   * Every category this slice stands for — one for a named category, and for
+   * "Other" the whole set ranked below the top slices. `null` is the
+   * Uncategorized bucket, which is a real category and not an absence.
+   *
+   * A list rather than a single id because the two are genuinely different and
+   * conflating them was a bug: "Other" and "Uncategorized" both carried
+   * `categoryId: null`, so a link built from it dropped the filter and drilled
+   * into the entire ledger. It is also an INCLUSION list — naming what is in
+   * the slice — so a category added later cannot join "Other" silently.
+   */
+  categoryIds: (string | null)[];
   value: number;
   share: number;
 }
@@ -70,13 +81,19 @@ export function spendingBreakdown(payload: SpendingByCategoryPayload): SpendingB
   if (drawable > 0) {
     const slices: DonutSliceData[] = positive.slice(0, TOP_SLICES).map((c) => ({
       label: c.categoryName ?? "Uncategorized",
-      categoryId: c.categoryId,
+      categoryIds: [c.categoryId],
       value: c.spending,
       share: c.spending / drawable,
     }));
-    const restTotal = round2(positive.slice(TOP_SLICES).reduce((sum, c) => sum + c.spending, 0));
+    const rest = positive.slice(TOP_SLICES);
+    const restTotal = round2(rest.reduce((sum, c) => sum + c.spending, 0));
     if (restTotal > 0) {
-      slices.push({ label: "Other", categoryId: null, value: restTotal, share: restTotal / drawable });
+      slices.push({
+        label: "Other",
+        categoryIds: rest.map((c) => c.categoryId),
+        value: restTotal,
+        share: restTotal / drawable,
+      });
     }
     donut = { slices, total };
   }

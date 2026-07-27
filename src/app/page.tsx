@@ -3,6 +3,7 @@ import { MiniDonut } from "../components/MiniDonut";
 import { SyncNowButton } from "../components/SyncNowButton";
 import { amount, dateTime, money, pct, titleCase } from "../lib/ui/format";
 import { getOverviewData, type Signal } from "../lib/ui/overview";
+import { transactionsHref } from "../lib/ui/categoryFilter";
 
 export const dynamic = "force-dynamic";
 // Server Actions run under their page's budget, and "Sync now" calls the same
@@ -244,7 +245,18 @@ export default async function OverviewPage() {
         <section className="border-rule py-5 md:border-l md:pl-7">
           {data.donut !== null && (
             <>
-              <SectionTitle>Spending — {data.periodLabel.split(" ")[0]}</SectionTitle>
+              <div className="flex items-baseline justify-between gap-3">
+                <SectionTitle>Spending — {data.periodLabel.split(" ")[0]}</SectionTitle>
+                {/* The donut answers "on what?"; Trends answers "compared to
+                    when?" — so the ring drills into transactions and the
+                    heading goes to the fuller breakdown. */}
+                <Link
+                  href={`/trends?period=${data.period}`}
+                  className="pb-2 text-[0.72rem] uppercase tracking-[0.08em] text-acc hover:underline"
+                >
+                  full breakdown →
+                </Link>
+              </div>
               {/* Stacked below md: sharing a row with the legend squeezed the
                   donut to 76px, with a 5px total in the hole. */}
               <div className="mb-5 flex flex-col items-start gap-4 md:flex-row md:items-center">
@@ -252,15 +264,25 @@ export default async function OverviewPage() {
                   slices={data.donut.slices}
                   centerTop={money(data.donut.total)}
                   centerBottom="this month"
+                  hrefFor={(s) => transactionsHref(s.categoryIds, data.period)}
                 />
                 <div className="grid gap-1.5 font-money text-[0.78rem] tabular">
                   {data.donut.slices.map((s, i) => (
-                    <div key={s.label} className="grid grid-cols-[11px_96px_72px_38px] items-center gap-1.5">
+                    <Link
+                      key={s.label}
+                      href={transactionsHref(s.categoryIds, data.period)}
+                      className="grid grid-cols-[11px_96px_72px_38px] items-center gap-1.5 rounded-[2px] hover:bg-chip"
+                      title={
+                        s.categoryIds.length > 1
+                          ? `View the ${s.categoryIds.length} categories in Other`
+                          : `View ${s.label} transactions`
+                      }
+                    >
                       <i className={`h-[11px] w-[11px] rounded-[2px] ${DONUT_COLORS[i % DONUT_COLORS.length]}`} />
                       <span className="font-ledger">{s.label}</span>
                       <span className="text-right">{amount(s.value)}</span>
                       <span className="text-right text-faint">{Math.round(s.share * 100)}%</span>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </div>

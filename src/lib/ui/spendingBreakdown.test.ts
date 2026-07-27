@@ -73,6 +73,55 @@ describe("spendingBreakdown", () => {
     expect(b.donut?.slices.find((s) => s.label === "Other")?.value).toBe(388.75);
   });
 
+  it("names the categories inside Other, so a link can enumerate them", () => {
+    // Which categories land in Other changes by period, so the slice has to
+    // carry its own membership rather than a token resolved later.
+    const other = spendingBreakdown(june).donut?.slices.find((s) => s.label === "Other");
+    expect(other?.categoryIds).toEqual(["cat-transport"]);
+    // Rent & Housing ended negative, draws no arc, and so is not in Other
+    // either — a link built from an EXCLUSION list would have swept it in.
+    expect(other?.categoryIds).not.toContain("cat-rent & housing");
+  });
+
+  it("keeps Uncategorized distinct from Other, though both once carried a null id", () => {
+    const b = spendingBreakdown(
+      payload([
+        { name: "Dining", spending: 100 },
+        { name: "Groceries", spending: 90 },
+        { name: null, spending: 80 }, // the uncategorized pile, ranked 3rd
+        { name: "Gas", spending: 20 },
+      ]),
+    );
+    const slices = b.donut?.slices ?? [];
+    expect(slices.map((s) => s.label)).toEqual(["Dining", "Groceries", "Uncategorized", "Other"]);
+    // Uncategorized is a bucket of its own: [null], not an empty membership.
+    expect(slices[2].categoryIds).toEqual([null]);
+    expect(slices[3].categoryIds).toEqual(["cat-gas"]);
+  });
+
+  it("puts an uncategorized pile that ranks low INSIDE Other", () => {
+    const b = spendingBreakdown(
+      payload([
+        { name: "Dining", spending: 100 },
+        { name: "Groceries", spending: 90 },
+        { name: "Shopping", spending: 80 },
+        { name: "Gas", spending: 20 },
+        { name: null, spending: 10 },
+      ]),
+    );
+    const other = b.donut?.slices.find((s) => s.label === "Other");
+    expect(other?.categoryIds).toEqual(["cat-gas", null]);
+    expect(other?.value).toBe(30);
+  });
+
+  it("gives every single-category slice a one-element membership", () => {
+    const b = spendingBreakdown(june);
+    for (const s of b.donut?.slices ?? []) {
+      if (s.label === "Other") continue;
+      expect(s.categoryIds).toHaveLength(1);
+    }
+  });
+
   it("draws no donut when reimbursements outran every category", () => {
     const b = spendingBreakdown(payload([{ name: "Dining", spending: -50 }]));
     expect(b.donut).toBeNull();
