@@ -81,6 +81,20 @@ npm run import:csv -- <file.csv> --mapping=<chase-checking|chase-credit|wells-fa
 | `npm run turso:copy` | Copy this database into a fresh cloud one (dry run; `-- --apply` writes) |
 | `npm run cloud:backup` | Pull the cloud database into a dated file under `data/backups/` |
 
+## Measuring performance
+
+Time has to be measured on the **deployment**, not localhost — localhost has no
+network, no cold start, a `file:` database instead of HTTP round trips, and a
+desktop CPU instead of a phone. Open `/api/diag/timing` on the deployed app
+(session-gated, read-only, sends nothing anywhere) for per-query round-trip
+costs, whether the invocation paid a cold start, and a `Server-Timing` header
+that DevTools renders under Network → Timing. Subtract its `pagePaysMs` from the
+page's TTFB to get render time.
+
+Localhost is still the right place to measure *structure* — DOM node counts,
+how many queries a page issues, payload composition — since those are identical
+everywhere. Use `preview_start prod` for that, never `npm run dev`.
+
 ## Where your data lives
 
 `./data/ducat.db` (SQLite) — on your machine, gitignored. Delete it to start
