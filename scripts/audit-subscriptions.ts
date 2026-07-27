@@ -11,7 +11,11 @@
  * Run: npm run subs:audit
  */
 import { prisma } from '../src/lib/prisma';
-import { detectRecurringCharges, DEFAULT_RECURRING_OPTIONS } from '../src/lib/insights/recurring';
+import {
+  detectRecurringCharges,
+  DEFAULT_RECURRING_OPTIONS,
+  NOT_SUBSCRIPTION_CATEGORIES,
+} from '../src/lib/insights/recurring';
 import { median } from '../src/lib/insights/stats';
 import { isActive, type DetectedCharge } from '../src/lib/health/detectedSubscriptions';
 import type { TxnData } from '../src/lib/insights/types';
@@ -45,6 +49,27 @@ interface Verdict {
 /** The same gates as the detector, in the same order, reporting which one bit. */
 function classify(merchant: string, list: TxnData[]): Verdict {
   const sorted = [...list].sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  // The detector drops these transactions BEFORE grouping, so a report that
+  // skipped this gate would claim a charge is detected when the app no longer
+  // shows it — which it did for Zego the moment rent portals moved to
+  // Rent & Housing.
+  const excluded = sorted.filter(
+    (t) => t.categoryName !== null && NOT_SUBSCRIPTION_CATEGORIES.has(t.categoryName),
+  );
+  if (excluded.length === sorted.length) {
+    return {
+      merchant,
+      occurrences: sorted.length,
+      medianAmount: median(sorted.map((t) => -t.amount)),
+      medianGap: null,
+      lastDate: sorted[sorted.length - 1].date.toISOString().slice(0, 10),
+      rejectedBy: 'not a subscription',
+      detail: `every charge is ${[...new Set(excluded.map((t) => t.categoryName))].join('/')} — recurring, but not something you cancel`,
+      annualised: 0,
+    };
+  }
+
   const amounts = sorted.map((t) => -t.amount);
   const medianAmount = median(amounts);
   const last = sorted[sorted.length - 1];
