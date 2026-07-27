@@ -77,6 +77,8 @@ npm run import:csv -- <file.csv> --mapping=<chase-checking|chase-credit|wells-fa
 | `npm run health` | Print the provider-health panel (no network) |
 | `npm run repair:text` | Strip undecodable characters from imported names/descriptions (dry run; `-- --apply` writes) |
 | `npm run repair:merchants` | Re-normalize stored merchant names after a normalizer change (dry run; `-- --apply` writes) |
+| `npm run turso:push` | Apply the schema to a fresh cloud database (see [DEPLOY.md](DEPLOY.md)) |
+| `npm run turso:copy` | Copy this database into a fresh cloud one (dry run; `-- --apply` writes) |
 
 ## Where your data lives
 

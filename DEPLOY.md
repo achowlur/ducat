@@ -126,6 +126,33 @@ against the cloud. In PowerShell, inline prefixes don't work; use
 The same trick runs any other script against the cloud database —
 `sync:simplefin`, `import:csv`, `insights:generate`.
 
+### Already running locally? Copy that database instead
+
+If you have been using Ducat locally, the pack alone understates what the cloud
+instance is missing. The feed reaches back 90 days, while a local database holds
+however many years of CSV backfill you gave it — and the rules you tuned by hand
+sit at priority ≤50, outranking the entire shipped pack. Those live in the
+database, not the repo.
+
+```bash
+DATABASE_URL="libsql://…turso.io" TURSO_AUTH_TOKEN="…" npm run turso:copy
+DATABASE_URL="libsql://…turso.io" TURSO_AUTH_TOKEN="…" npm run turso:copy -- --apply
+```
+
+Dry run first (it prints row counts per table and the aggregates it will verify),
+then `--apply`. It clears the destination and replaces it wholesale, so running
+`rules:install` beforehand is harmless but unnecessary. It **refuses a
+destination holding any transactions**: this is a one-way copy into a fresh
+instance, and two divergent histories of the same accounts cannot be reconciled.
+
+Do this BEFORE the first cloud sync. Once the cloud has synced its own accounts,
+the copy has nothing clean to land in and your only options are starting over or
+living with the split.
+
+Verification is built in: nine row counts plus eight aggregates — net worth,
+summed amounts, MANUAL count, transfer pairs, reimbursements — compared against
+the source, and a mismatch exits non-zero telling you not to sync.
+
 ## 4 · Generate your secrets (locally, never committed)
 
 ```bash
