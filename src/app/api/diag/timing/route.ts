@@ -56,7 +56,22 @@ export async function GET(): Promise<Response> {
   // Individually and sequentially, so each round trip's own cost is visible.
   const rows = await timed("rows", () =>
     prisma.transaction.findMany({
-      include: { category: true, account: true, reimburses: true },
+      // Mirrors the page: `category` is unused since the picker took over,
+      // `account` names come from the accounts array, and only `reimburses`
+      // still costs a relation query.
+      select: {
+        id: true,
+        date: true,
+        amount: true,
+        flow: true,
+        description: true,
+        normalizedMerchant: true,
+        accountId: true,
+        categoryId: true,
+        categorySource: true,
+        reimbursesId: true,
+        reimburses: { select: { normalizedMerchant: true, description: true, date: true } },
+      },
       orderBy: { date: "desc" },
       take: PAGE_SIZE,
     }),

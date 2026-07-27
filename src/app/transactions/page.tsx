@@ -124,7 +124,26 @@ export default async function TransactionsPage({
   const [rows, total, categories, accounts, dateRange, reviewPool] = await Promise.all([
     prisma.transaction.findMany({
       where: listWhere,
-      include: { category: true, account: true, reimburses: true },
+      // A relation `include` is a ROUND TRIP, and this query had three of them
+      // for a page that reads one string from two. `category` became dead the
+      // moment the category picker started taking `categoryId` instead of the
+      // object, and `account` supplies a NAME that `accounts` below already
+      // has. Only `reimburses` genuinely needs the database — it points at
+      // another transaction, so nothing in memory can answer it — and it is
+      // narrowed to the three fields the chip renders.
+      select: {
+        id: true,
+        date: true,
+        amount: true,
+        flow: true,
+        description: true,
+        normalizedMerchant: true,
+        accountId: true,
+        categoryId: true,
+        categorySource: true,
+        reimbursesId: true,
+        reimburses: { select: { normalizedMerchant: true, description: true, date: true } },
+      },
       orderBy: { date: "desc" },
       // Paged in SQL for the ledger; review mode pages in JS after filtering.
       ...(reviewMode ? {} : { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE }),
@@ -142,6 +161,10 @@ export default async function TransactionsPage({
       select: { id: true, normalizedMerchant: true, description: true },
     }),
   ]);
+
+  // The account column, without joining Account onto every row: `accounts` is
+  // the whole table and `accountId` is a required FK, so this cannot miss.
+  const accountNameById = new Map(accounts.map((a) => [a.id, a.name]));
 
   // Every month with data, newest first — the period select's options, and the
   // month-stepping links below.
@@ -470,10 +493,12 @@ export default async function TransactionsPage({
                     </span>
                   )}
                   <span className={`block truncate text-[0.68rem] md:hidden ${FLOW_BADGE[t.flow]}`}>
-                    {t.account.name} · {t.flow.toLowerCase()}
+                    {accountNameById.get(t.accountId) ?? ""} · {t.flow.toLowerCase()}
                   </span>
                 </td>
-                <td className="hidden py-1.5 pr-3 text-[0.75rem] text-faint md:table-cell">{t.account.name}</td>
+                <td className="hidden py-1.5 pr-3 text-[0.75rem] text-faint md:table-cell">
+                  {accountNameById.get(t.accountId) ?? ""}
+                </td>
                 <td className="py-1.5 pr-3">
                   {t.flow === "TRANSFER" ? (
                     <span className="text-[0.75rem] text-faint" title="Transfers are excluded from spending analytics and carry no category">
