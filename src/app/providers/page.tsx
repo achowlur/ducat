@@ -1,4 +1,5 @@
 import { getProvidersData } from "../../lib/ui/providers";
+import { dateTime } from "../../lib/ui/format";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,7 @@ export default async function ProvidersPage() {
             <span className="text-[0.78rem] text-faint">
               {health.accountCount} account{health.accountCount === 1 ? "" : "s"}
               {health.lastSuccessfulSyncAt !== null &&
-                ` · last successful sync ${health.lastSuccessfulSyncAt.toISOString().slice(0, 16).replace("T", " ")}`}
+                ` · last successful sync ${dateTime(health.lastSuccessfulSyncAt)}`}
             </span>
           </div>
 
@@ -98,7 +99,7 @@ export default async function ProvidersPage() {
                       {syncLogs.map((log) => (
                         <tr key={log.id} className="border-b border-rule last:border-b-0">
                           <td className="py-1 pr-3 font-money text-[0.75rem] tabular text-faint">
-                            {log.finishedAt.toISOString().slice(0, 16).replace("T", " ")}
+                            {dateTime(log.finishedAt)}
                           </td>
                           <td className="py-1 pr-3 text-[0.78rem]">
                             {log.ok ? (

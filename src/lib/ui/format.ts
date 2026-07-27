@@ -36,6 +36,37 @@ export function isoDate(d: Date): string {
 }
 
 /**
+ * The zone WALL-CLOCK times are shown in. Transaction dates stay pinned to UTC
+ * above — deliberately, because the feed mixes noon UTC, midnight Eastern and
+ * true instants, so re-zoning them would move correct dates. An event that
+ * happened at a real instant is different: "synced at 21:50" is useless if you
+ * pressed the button at 5:50pm.
+ *
+ * Resolves from the environment, so it needs no app-specific configuration:
+ * locally that is the machine's zone; on Vercel, functions run in UTC unless
+ * `TZ` is set (see DEPLOY.md). `DUCAT_TIMEZONE` is an explicit override for
+ * hosts that ignore `TZ`.
+ */
+const DISPLAY_TZ =
+  process.env.DUCAT_TIMEZONE ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+/**
+ * An instant as local wall-clock, always carrying its zone: "Jul 26, 5:50 PM
+ * EDT". The zone name is not decoration — without it a UTC timestamp reads as
+ * local and is silently four or five hours wrong.
+ */
+export function dateTime(d: Date): string {
+  return d.toLocaleString("en-US", {
+    timeZone: DISPLAY_TZ,
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+}
+
+/**
  * Display-only title case for normalized merchant strings ("zelle payment
  * to john smith" → "Zelle Payment To John Smith"). The lowercase original
  * stays untouched in the DB — it's the rule-matching key. Known trade-off:

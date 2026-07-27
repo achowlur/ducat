@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { MiniDonut } from "../components/MiniDonut";
 import { SyncNowButton } from "../components/SyncNowButton";
-import { amount, money, pct, titleCase } from "../lib/ui/format";
+import { amount, dateTime, money, pct, titleCase } from "../lib/ui/format";
 import { getOverviewData, type Signal } from "../lib/ui/overview";
 
 export const dynamic = "force-dynamic";
@@ -84,7 +84,7 @@ export default async function OverviewPage() {
         {(data.lastSyncAt !== null || simplefinConfigured) && (
           <span className="ml-auto flex items-center gap-3 font-money">
             {data.lastSyncAt !== null && (
-              <span>synced {data.lastSyncAt.toISOString().slice(0, 16).replace("T", " ")}</span>
+              <span>synced {dateTime(data.lastSyncAt)}</span>
             )}
             {simplefinConfigured && <SyncNowButton />}
           </span>
