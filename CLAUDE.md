@@ -208,6 +208,19 @@ regeneration.
   last sync outcome, feed errors, stale balance dates, transaction-volume gaps.
   No network call on launch, ever. Adding a connector also means adding its
   trust card in `providers.ts`.
+- Dates vs INSTANTS are formatted differently and both are deliberate. A
+  transaction date, a month label and a projected renewal date are pinned to
+  `timeZone: "UTC"`, because the feed mixes noon UTC, 04:00 (midnight Eastern)
+  and true instants — re-zoning a date would move correct ones by a day. A real
+  instant ("synced …") goes through `dateTime()` in `ui/format.ts`, which renders
+  local wall-clock and ALWAYS appends the zone name: without it a UTC timestamp
+  reads as local and is silently four or five hours wrong, which is how
+  "synced 02:59" was really 10:59pm. Safe because period keys and bounds use
+  `Date.UTC`/`getUTC*` exclusively and nothing in `insights/`, `sync/` or
+  `health/` touches a local-time accessor, so no display zone can move a month
+  boundary. The zone comes from `DUCAT_TIMEZONE` and NOT `TZ`: Vercel refuses
+  `TZ` as a reserved variable name, so the standard mechanism is unavailable
+  exactly where it is needed. Unset locally, the machine's zone is used.
 - `AUTH_PASSWORD_HASH` uses a `:` delimiter, NOT `$`. Next's `.env` loader
   expands `$name` and silently mangles a `$`-delimited hash down to "scrypt", so
   the gate stays up (non-empty) while every login fails. This cost a debugging
