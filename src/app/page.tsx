@@ -260,10 +260,18 @@ export default async function OverviewPage() {
               {/* Stacked below md: sharing a row with the legend squeezed the
                   donut to 76px, with a 5px total in the hole. */}
               <div className="mb-5 flex flex-col items-start gap-4 md:flex-row md:items-center">
+                {/* Bigger and centred on a phone, where it is the only graphic
+                    in a 327px column — at 170px its ring is barely 108px wide
+                    (the viewBox carries ~31px of padding a side) and it read as
+                    stranded against a void. The legend below stays flush left
+                    with the section title. `self-center` is safe at every width:
+                    on the desktop row the cross axis is vertical, which is what
+                    the wrapper's md:items-center already does. */}
                 <MiniDonut
                   slices={data.donut.slices}
                   centerTop={money(data.donut.total)}
                   centerBottom="this month"
+                  className="w-[230px] self-center md:w-[170px]"
                   hrefFor={(s) => transactionsHref(s.categoryIds, data.period)}
                 />
                 <div className="grid gap-1.5 font-money text-[0.78rem] tabular">

@@ -41,13 +41,18 @@ export function MiniDonut({
   slices,
   centerTop,
   centerBottom,
-  width = 170,
+  className = "w-[170px]",
   hrefFor,
 }: {
   slices: DonutSliceData[];
   centerTop: string;
   centerBottom: string;
-  width?: number;
+  /**
+   * Sizing and alignment, as CSS rather than an SVG `width` attribute, because
+   * the donut wants to be bigger on a phone than beside the legend on a desktop
+   * and an attribute cannot carry a breakpoint. The viewBox scales it.
+   */
+  className?: string;
   hrefFor?: (slice: DonutSliceData) => string;
 }) {
   const cx = 110;
@@ -67,7 +72,7 @@ export function MiniDonut({
     .join(", ");
 
   return (
-    <svg viewBox="0 0 220 200" width={width} role="img" aria-label={`Spending by category: ${label}`}>
+    <svg viewBox="0 0 220 200" className={className} role="img" aria-label={`Spending by category: ${label}`}>
       <g stroke="var(--paper)" strokeWidth="2">
         {paths.map((p) => {
           const arc = (

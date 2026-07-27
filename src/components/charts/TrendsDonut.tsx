@@ -58,7 +58,9 @@ export function TrendsDonut({
   const active = hovered === null ? null : paths[hovered];
 
   return (
-    <div className="relative" style={{ width: 230 }}>
+    // Centred on a phone, where it wraps onto its own line and would otherwise
+    // sit left of a 97px void; flush left on the desktop row beside the table.
+    <div className="relative mx-auto md:mx-0" style={{ width: 230 }}>
       <svg viewBox="0 0 220 200" width="230" role="img" aria-label="Spending by category donut">
         <g stroke="var(--paper)" strokeWidth="2">
           {paths.map((p) => (
