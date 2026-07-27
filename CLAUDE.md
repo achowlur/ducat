@@ -354,10 +354,27 @@ and several silent money errors. The lesson worth carrying: **most of these were
 invisible to tests and to normal use — they needed someone deliberately asking
 "what would break this?"**
 
-**Session 9 — Cloud deployment (NEXT).** No code is blocking. The remaining work
-is the operator's own provisioning, step by step in [DEPLOY.md](DEPLOY.md) —
-Claude builds and verifies; the operator creates accounts, logs in, enters
-secrets.
+**Session 9 — Cloud deployment (DONE 2026-07-26).** Live at
+`https://<your-deployment>.vercel.app`, Turso database `ducat` in `aws-us-east-1`
+(paired with Vercel's `iad1`: every route is server-rendered on demand, so each
+page view is several function→database round trips). Verified from outside —
+every page 307s to /login, the cron 401s without a token and with a wrong one,
+CSP/HSTS and four more headers present, and production correctly lacks the
+dev-only `'unsafe-eval'`. Login and data rendering confirmed on a phone.
+
+Four things the runbook was wrong or silent about, all now fixed in DEPLOY.md
+and worth not relearning: npm's banner ended up inside `baseline.sql` and
+killed the very first command; the baseline creates tables but no rows, so the
+instance came up with zero categories until step 3 was added; the Turso CLI
+ships Darwin/Linux assets only, so Windows needs the dashboard plus
+`npm run turso:push` (which refuses a non-empty database); and step 4's
+generators print `.env` LINES, so pasting them into Vercel's form buries quotes
+inside the secret and login fails with nothing on screen to say why.
+
+STILL OPEN: the cloud database holds schema + 15 categories + 421 pack rules
+and ZERO transactions, while local holds 1018 plus ~160 hand-tuned rules at
+priority ≤50. Nothing has synced into the cloud yet, because a clean copy of
+local history only goes into an empty database.
 
 ## Product direction (agreed 2026-07-13)
 
