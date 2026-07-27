@@ -208,18 +208,24 @@ regeneration.
   surfaces it on Trends/Insights — visibly incomplete beats silently wrong.
   An account counts as covering a period only if its first transaction is at
   or before the period START (mid-period starts are partial).
-- Page cost on this app is PAYLOAD, not server time, and a dev measurement is
-  not a measurement. `/transactions` shipped a 1.1 MB document (952 KB of markup
-  across 300 rows, 3705 `<option>` elements because every row renders the whole
-  category list) against 30-57 KB for every other page — that is what "slow on
-  a phone" was. It now defaults to the newest month WITH DATA with `LIMIT = 100`:
-  312 KB. An ABSENT `period` param means that default, an EMPTY one (`?period=`)
-  means all time, which is what keeps Overview's uncategorized banner reviewing
-  the whole backlog instead of silently one month of it. Measure with
-  `preview_start prod`, never `npm run dev`: dev-mode React SSR reported 870 ms
-  for a page production serves in 87 ms, and chasing that number led to two
-  wrong diagnoses — the reimbursement hot path (74 inflows × 470 outflows) is
-  2.5 ms, so hoisting its projection would have saved 0.6 ms.
+- Page cost on this app is DOM SIZE, not server time and not bytes on the wire.
+  `/transactions` built a 1.1 MB document (952 KB of markup across 300 rows,
+  3705 `<option>` elements because every row renders the whole category list)
+  against 30-57 KB for every other page. It now defaults to the newest month
+  WITH DATA with `LIMIT = 100`: 312 KB, 1161 options. An ABSENT `period` param
+  means that default, an EMPTY one (`?period=`) means all time, which is what
+  keeps Overview's uncategorized banner reviewing the whole backlog instead of
+  silently one month of it.
+  Three wrong diagnoses preceded the right one, all from measuring the wrong
+  thing — worth not repeating: (1) the reimbursement hot path (74 inflows × 470
+  outflows) is 2.5 ms, so hoisting its projection would have saved 0.6 ms;
+  (2) `npm run dev` reported 870 ms for a page production serves in 87 ms, so
+  measure with `preview_start prod`, never dev; (3) the document size is NOT a
+  transfer cost — Vercel serves `Content-Encoding: br`, and repeated markup is
+  what Brotli is best at (292 KB of identical selects compresses 1249× to
+  0.2 KB). What a big document actually costs is parse, DOM construction and
+  React hydration on the client's CPU, which is why cutting ROWS helped and
+  why compressing harder would not have.
 - Chart discipline (src/components/charts): charts are HAND-ROLLED SVG — no
   chart library, and no webfonts anywhere in the app (both would breach the CSP
   and the no-third-party rule). Axis scales must enclose the data (`niceTicks`
