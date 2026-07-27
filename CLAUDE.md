@@ -218,17 +218,41 @@ regeneration.
   of DOM however many years accumulate, and `count` was already being queried,
   so total pages cost nothing. Every filter-changing link resets `page`, or it
   lands on a page that no longer exists.
-- In cloud mode a Turso round trip costs 20-25ms MINIMUM — measured on the
-  deployment, where a query returning ZERO rows took 34.8ms and an 8-row one
-  24.7ms. So what matters is the NUMBER of serialized round trips, not the size
-  of any of them: `/transactions` pays ~131ms for data, of which its one
-  serialized query (the reimbursement candidate pool) is ~68ms and the other six
-  cost 63ms TOGETHER because they run in one `Promise.all` — sequentially those
-  six would be 859ms. Never add a query that gates the others; if a filter needs
-  a value from the database, prefer a default that doesn't. Cold start is a
-  separate and larger cost: ~600-800ms of client init and TLS lands on whichever
-  query runs first, and Hobby has no provisioned concurrency to avoid it.
-  `/api/diag/timing` reports all of this from the deployment.
+- In cloud mode a Turso round trip costs ~6ms WARM and 17-58ms while the
+  instance is still warming. The "20-25ms MINIMUM" previously recorded here was
+  a warming number read as a floor: the zero-row query written down at 34.8ms
+  and the 8-row one at 24.7ms both measure ~6ms once hot, because a cold
+  invocation inflates EVERY query 3-10x together. Neither number is "the" cost
+  and both matter — Hobby has no provisioned concurrency, so real page views
+  land on lukewarm instances often and pay the higher one, while anything you
+  measure back-to-back pays the lower. What survives unchanged is the
+  conclusion: what matters is the NUMBER of serialized round trips, not the size
+  of any of them. Never add a query that gates the others; if a filter needs a
+  value from the database, prefer a default that doesn't. Cold start is a
+  separate and larger cost again: ~600-800ms of client init and TLS lands on
+  whichever query runs first.
+- Reading `/api/diag/timing` correctly, because it is easy to read three
+  different numbers off it and believe all of them. `msSinceFunctionBoot` under
+  ~2000 means that sample paid a cold start — discard it, or read it as the
+  ceiling. Take several samples: absolute ms drift 2x between batches on
+  identical code, so normalize the query you care about against the trivial ones
+  in the SAME response (`accounts`/`dateRange`/`reviewPool`) rather than
+  comparing raw ms across readings. And its `sequential.rows` entry is an
+  ARTIFACT, not a query cost — the first database call of a request absorbs
+  connection setup. The proof is arithmetic: one response reported `rows` at
+  194.1ms and `parallelGroupMs` at 72.7ms, and the parallel group RUNS THAT SAME
+  QUERY, so 194.1ms cannot be its intrinsic cost. `sequentialTotalMs` inherits
+  the error and is not a real "if these were serialized" figure.
+- A relation `include` is a ROUND TRIP; treat it as one whenever the query sits
+  on a serialized path. The reimbursement candidate pool is the only query on
+  `/transactions` that cannot join the `Promise.all` — its date window is
+  derived from the rows already fetched — so it is paid in full. Dropping
+  `include: { category: true }` for a scalar `select` took it from 41.2ms to
+  ~19ms warm (5.9x the trivial-query cost down to 2.7x) with no behaviour
+  change, because the only thing the join supplied was a category NAME and the
+  `categories` array is already in memory. Verified identical against all 2638
+  real transactions before shipping: both shapes produce byte-identical
+  candidate lists for every inflow on page 1.
 - MEASURE TIME ON THE CLOUD, structure on localhost. Localhost has no network,
   no cold start, a `file:` database instead of HTTP round trips to Turso, and a
   desktop CPU instead of a phone — so every TIME number it gives is fiction, and
@@ -492,10 +516,10 @@ ships Darwin/Linux assets only, so Windows needs the dashboard plus
 generators print `.env` LINES, so pasting them into Vercel's form buries quotes
 inside the secret and login fails with nothing on screen to say why.
 
-STILL OPEN: the cloud database holds schema + 15 categories + 421 pack rules
-and ZERO transactions, while local holds 1018 plus ~160 hand-tuned rules at
-priority ≤50. Nothing has synced into the cloud yet, because a clean copy of
-local history only goes into an empty database.
+The cloud database now holds the full copy: `/api/diag/timing` reports 2638
+transactions across 21 accounts and 15 categories, matching local. Its review
+pool is empty (0 uncategorized non-transfer rows), so the P2P backlog went over
+with everything else.
 
 ## Product direction (agreed 2026-07-13)
 
