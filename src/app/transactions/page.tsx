@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 // trip to Turso — and bulk review on a phone is exactly when it happens.
 export const maxDuration = 60;
 
-const LIMIT = 100;
+const PAGE_SIZE = 100;
 
 interface Params {
   period?: string;
@@ -27,6 +27,7 @@ interface Params {
   flow?: string;
   q?: string;
   review?: string;
+  page?: string;
   group?: string;
 }
 
@@ -84,38 +85,12 @@ export default async function TransactionsPage({
 }) {
   const params = await searchParams;
 
-  // The month range has to be known BEFORE the filter is built, because with no
-  // period in the URL this page defaults to the newest month that has data
-  // rather than to all time. One extra serialized round trip buys that; the
-  // all-time view rendered 300 rows into a 1.1 MB document, which is the entire
-  // reason the page felt slow on a phone (server time was 87 ms).
-  const dateRange = await prisma.transaction.aggregate({ _min: { date: true }, _max: { date: true } });
-
-  // Every month with data, newest first — also the period select's options.
-  const monthOptions: string[] = [];
-  if (dateRange._min.date !== null && dateRange._max.date !== null) {
-    let cursor = new Date(Date.UTC(dateRange._max.date.getUTCFullYear(), dateRange._max.date.getUTCMonth(), 1));
-    const first = periodKey(dateRange._min.date, "MONTH");
-    for (;;) {
-      const key = periodKey(cursor, "MONTH");
-      monthOptions.push(key);
-      if (key === first || monthOptions.length > 240) break;
-      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() - 1, 1));
-    }
-  }
-
-  // An ABSENT period means "the default", an EMPTY one means "all time". That
-  // distinction is what keeps `?period=` a working link for the callers that
-  // genuinely need every month — Overview's uncategorized banner, which opens
-  // the grouped review over the whole backlog rather than one month of it.
-  // Defaulting to the newest month WITH DATA rather than the calendar month
-  // means a stale feed or the first of the month never shows an empty page.
-  const period = params.period === "" ? null : (params.period ?? monthOptions[0] ?? null);
+  const page = Math.max(1, Math.floor(Number(params.page ?? "1")) || 1);
 
   const where: Prisma.TransactionWhereInput = {};
-  if (period !== null) {
+  if (params.period !== undefined && params.period !== "") {
     try {
-      where.date = { gte: periodStart(period), lt: periodEndExclusive(period) };
+      where.date = { gte: periodStart(params.period), lt: periodEndExclusive(params.period) };
     } catch {
       // Unparseable period param — ignore the filter rather than crash.
     }
@@ -137,17 +112,50 @@ export default async function TransactionsPage({
     ];
   }
 
-  const [rows, total, categories, accounts] = await Promise.all([
+  // Review mode narrows in SQL as far as Prisma can, then finishes in JS: the
+  // P2P test is a regex across two columns, which Prisma cannot express. Its
+  // candidate set is small by construction, so it is fetched WHOLE and paged in
+  // JS — paging in SQL and filtering afterwards gives uneven pages.
+  const reviewMode = params.review === "1";
+  const listWhere: Prisma.TransactionWhereInput = reviewMode
+    ? { ...where, categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" } }
+    : where;
+
+  const [rows, total, categories, accounts, dateRange, reviewPool] = await Promise.all([
     prisma.transaction.findMany({
-      where,
+      where: listWhere,
       include: { category: true, account: true, reimburses: true },
       orderBy: { date: "desc" },
-      take: LIMIT * 2, // review filtering happens in JS; fetch headroom
+      // Paged in SQL for the ledger; review mode pages in JS after filtering.
+      ...(reviewMode ? {} : { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE }),
     }),
-    prisma.transaction.count({ where }),
+    prisma.transaction.count({ where: listWhere }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
     prisma.account.findMany({ orderBy: { name: "asc" } }),
+    prisma.transaction.aggregate({ _min: { date: true }, _max: { date: true } }),
+    // The "N need review" nudge used to count within whatever rows the page
+    // happened to fetch, so it undercounted — and with paging it would have got
+    // worse. Three small columns over a set that shrinks to nothing as the
+    // backlog clears, and it runs in parallel, so the count costs no latency.
+    prisma.transaction.findMany({
+      where: { ...where, categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" } },
+      select: { id: true, normalizedMerchant: true, description: true },
+    }),
   ]);
+
+  // Every month with data, newest first — the period select's options, and the
+  // month-stepping links below.
+  const monthOptions: string[] = [];
+  if (dateRange._min.date !== null && dateRange._max.date !== null) {
+    let cursor = new Date(Date.UTC(dateRange._max.date.getUTCFullYear(), dateRange._max.date.getUTCMonth(), 1));
+    const first = periodKey(dateRange._min.date, "MONTH");
+    for (;;) {
+      const key = periodKey(cursor, "MONTH");
+      monthOptions.push(key);
+      if (key === first || monthOptions.length > 240) break;
+      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() - 1, 1));
+    }
+  }
 
   // Reimbursement candidates. Ranking lives in suggestReimbursements: amount
   // evidence (exact repayment, or a clean 1/n share of a split) leads, with
@@ -196,12 +204,25 @@ export default async function TransactionsPage({
       }];
     });
 
+  // The only half of "needs review" that SQL cannot express, kept separate so
+  // the pool query — which already constrains category and reimbursement in
+  // SQL — does not have to select columns it has by construction.
+  const isP2P = (t: { normalizedMerchant: string; description: string }) =>
+    P2P_PATTERN.test(t.normalizedMerchant) || P2P_PATTERN.test(t.description);
   const needsReview = (t: { normalizedMerchant: string; description: string; categoryId: string | null; reimbursesId: string | null }) =>
     t.categoryId === null &&
     t.reimbursesId === null && // linked to its expense = resolved
-    (P2P_PATTERN.test(t.normalizedMerchant) || P2P_PATTERN.test(t.description));
-  const reviewCount = rows.filter(needsReview).length;
-  const visible = (params.review === "1" ? rows.filter(needsReview) : rows).slice(0, LIMIT);
+    isP2P(t);
+  const reviewCount = reviewPool.filter(isP2P).length;
+
+  // In review mode the whole filtered set is in memory, so the page is a slice
+  // of it. Otherwise SQL already returned exactly this page.
+  const reviewRows = reviewMode ? rows.filter(needsReview) : null;
+  const visible = reviewRows === null ? rows : reviewRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const matchCount = reviewRows === null ? total : reviewRows.length;
+  const pageCount = Math.max(1, Math.ceil(matchCount / PAGE_SIZE));
+  const firstShown = matchCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const lastShown = (page - 1) * PAGE_SIZE + visible.length;
 
   const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name, isIncome: c.isIncome }));
 
@@ -228,12 +249,13 @@ export default async function TransactionsPage({
   }
   const groupedTxnCount = groups.reduce((sum, g) => sum + g.count, 0);
 
-  // Older history had no navigable path at all: the list stops at LIMIT with
-  // no pagination, and nothing hinted that the period filter was the way back
-  // — 1861 of 2,638 rows were simply unreachable. Stepping by month reuses the
-  // filter plumbing, and monthOptions only contains months that have data, so
-  // a link never lands on an empty page.
-  const selectedIdx = period === null ? -1 : monthOptions.indexOf(period);
+  // Month stepping is a convenience now rather than the only way back. It used
+  // to be the only one: the list stopped at its cap with no paging, and nothing
+  // hinted the period filter was the route to older rows — 718 of 1,018 were
+  // unreachable. This is a LEDGER, so pagination above covers every row and
+  // these links just make "the month before this one" one click.
+  const selectedIdx =
+    params.period === undefined || params.period === "" ? -1 : monthOptions.indexOf(params.period);
   const olderPeriod =
     selectedIdx >= 0
       ? (monthOptions[selectedIdx + 1] ?? null)
@@ -253,7 +275,7 @@ export default async function TransactionsPage({
           Period
           <select
             name="period"
-            defaultValue={period ?? ""}
+            defaultValue={params.period ?? ""}
             className="rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink"
           >
             <option value="">All</option>
@@ -320,10 +342,12 @@ export default async function TransactionsPage({
         <span className="font-money">
           {groupMode
             ? `${groups.length} payees · ${groupedTxnCount} uncategorized`
-            : `${total} matching${total > visible.length ? ` · showing ${visible.length}` : ""}`}
+            : matchCount === 0
+              ? "0 matching"
+              : `${firstShown}–${lastShown} of ${matchCount}`}
         </span>
         {groupMode ? (
-          <Link href={buildHref(params, { group: undefined })} className="font-semibold text-acc hover:underline">
+          <Link href={buildHref(params, { group: undefined, page: undefined })} className="font-semibold text-acc hover:underline">
             ← transaction list
           </Link>
         ) : (
@@ -331,7 +355,7 @@ export default async function TransactionsPage({
           // "← all transactions" while being the highest-leverage thing on the
           // screen — Overview's red pill sold it better than its own page did.
           <Link
-            href={buildHref(params, { group: "1", category: "uncategorized", review: undefined })}
+            href={buildHref(params, { group: "1", category: "uncategorized", review: undefined, page: undefined })}
             className="rounded-[2px] border border-acc px-2 py-1 font-semibold uppercase tracking-[0.06em] text-acc hover:bg-chip"
             title="Group the uncategorized backlog by payee — one decision categorizes every occurrence and future ones too"
           >
@@ -340,26 +364,55 @@ export default async function TransactionsPage({
         )}
         {!groupMode && olderPeriod !== null && (
           <Link
-            href={buildHref(params, { period: olderPeriod })}
+            href={buildHref(params, { period: olderPeriod, page: undefined })}
             className="font-semibold text-acc hover:underline"
-            title={`Show ${monthLabel(olderPeriod)} — the list stops at ${LIMIT} rows, so the period filter is how you reach older history`}
+            title={`Jump to ${monthLabel(olderPeriod)}`}
           >
             ← older ({monthLabel(olderPeriod)})
           </Link>
         )}
         {!groupMode && newerPeriod !== null && (
-          <Link href={buildHref(params, { period: newerPeriod })} className="font-semibold text-acc hover:underline">
+          <Link href={buildHref(params, { period: newerPeriod, page: undefined })} className="font-semibold text-acc hover:underline">
             newer ({monthLabel(newerPeriod)}) →
           </Link>
         )}
+        {/* This is a LEDGER: every row has to be reachable. The list used to
+            stop at its cap with no way past it, which hid 539 rows across 8
+            months once the default narrowed to a single month. Pagination is
+            also cheaper than the alternative — a page stays ~PAGE_SIZE rows of
+            DOM however many years accumulate. */}
+        {!groupMode && pageCount > 1 && (
+          <span className="ml-auto flex items-center gap-3 font-money">
+            {page > 1 ? (
+              <Link
+                href={buildHref(params, { page: page === 2 ? undefined : String(page - 1) })}
+                className="font-semibold text-acc hover:underline"
+              >
+                ‹ newer
+              </Link>
+            ) : (
+              <span className="text-faint">‹ newer</span>
+            )}
+            <span>
+              page {page} of {pageCount}
+            </span>
+            {page < pageCount ? (
+              <Link href={buildHref(params, { page: String(page + 1) })} className="font-semibold text-acc hover:underline">
+                older ›
+              </Link>
+            ) : (
+              <span className="text-faint">older ›</span>
+            )}
+          </span>
+        )}
         {!groupMode &&
           (params.review === "1" ? (
-          <Link href={buildHref(params, { review: undefined })} className="font-semibold text-acc hover:underline">
+          <Link href={buildHref(params, { review: undefined, page: undefined })} className="font-semibold text-acc hover:underline">
             ← all transactions
           </Link>
         ) : (
             reviewCount > 0 && (
-              <Link href={buildHref(params, { review: "1" })} className="font-semibold text-neg hover:underline">
+              <Link href={buildHref(params, { review: "1", page: undefined })} className="font-semibold text-neg hover:underline">
                 {reviewCount} P2P payment{reviewCount === 1 ? " needs" : "s need"} review — Zelle/Venmo can&apos;t
                 be auto-categorized safely
               </Link>

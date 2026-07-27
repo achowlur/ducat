@@ -47,7 +47,7 @@ export default async function OverviewPage() {
       <div className="flex flex-wrap items-center gap-x-8 gap-y-1 border-b border-rule py-2 text-[0.78rem] text-faint">
         {data.uncategorizedCount > 0 && (
           <Link
-            href="/transactions?period=&category=uncategorized&group=1"
+            href="/transactions?category=uncategorized&group=1"
             className="rounded-[2px] bg-neg px-2 py-1 font-semibold text-paper hover:opacity-90"
             title="Spending analytics are incomplete until every transaction has a category — click to clear them in bulk, grouped by payee"
           >

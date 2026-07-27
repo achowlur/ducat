@@ -208,14 +208,20 @@ regeneration.
   surfaces it on Trends/Insights — visibly incomplete beats silently wrong.
   An account counts as covering a period only if its first transaction is at
   or before the period START (mid-period starts are partial).
+- `/transactions` is a LEDGER: every row must be reachable, so it PAGINATES
+  (`?page=N`, `PAGE_SIZE = 100`, all time newest-first by default). Capping the
+  list without paging is a data-visibility bug this codebase has now shipped
+  twice — first as "1861 of 2,638 rows were simply unreachable", then again when
+  a month default hid 539 rows across 8 months, because 12 of 26 months exceed
+  100 transactions (mean 39, median 37, max 135) and month-stepping is not
+  pagination. Paging is also CHEAPER than the alternatives: a page is ~100 rows
+  of DOM however many years accumulate, and `count` was already being queried,
+  so total pages cost nothing. Every filter-changing link resets `page`, or it
+  lands on a page that no longer exists.
 - Page cost on this app is DOM SIZE, not server time and not bytes on the wire.
   `/transactions` built a 1.1 MB document (952 KB of markup across 300 rows,
   3705 `<option>` elements because every row renders the whole category list)
-  against 30-57 KB for every other page. It now defaults to the newest month
-  WITH DATA with `LIMIT = 100`: 312 KB, 1161 options. An ABSENT `period` param
-  means that default, an EMPTY one (`?period=`) means all time, which is what
-  keeps Overview's uncategorized banner reviewing the whole backlog instead of
-  silently one month of it.
+  against 30-57 KB for every other page. A page is now 402 KB / 1161 options.
   Three wrong diagnoses preceded the right one, all from measuring the wrong
   thing — worth not repeating: (1) the reimbursement hot path (74 inflows × 470
   outflows) is 2.5 ms, so hoisting its projection would have saved 0.6 ms;
