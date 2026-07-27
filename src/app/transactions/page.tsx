@@ -12,6 +12,11 @@ import { amount, isoDate, money, monthLabel, titleCase } from "../../lib/ui/form
 import { periodKey } from "../../lib/insights/periods";
 
 export const dynamic = "force-dynamic";
+// This page's actions are the slowest in the app: categorizing a group calls
+// reapplyRules over every transaction, and four of them regenerate insights
+// outright. Cheap against a local file, but in cloud mode each is an HTTP round
+// trip to Turso — and bulk review on a phone is exactly when it happens.
+export const maxDuration = 60;
 
 const LIMIT = 300;
 

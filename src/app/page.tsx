@@ -5,6 +5,12 @@ import { amount, money, pct, titleCase } from "../lib/ui/format";
 import { getOverviewData, type Signal } from "../lib/ui/overview";
 
 export const dynamic = "force-dynamic";
+// Server Actions run under their page's budget, and "Sync now" calls the same
+// runSync as the cron — which declares 60 while this page would otherwise take
+// the platform default. In cloud mode every read is an HTTP round trip to Turso,
+// so the two need the same ceiling or the button times out where the cron
+// doesn't. 60 is also Vercel's Hobby maximum.
+export const maxDuration = 60;
 
 const TYPE_LABEL: Record<string, string> = {
   DEPOSITORY: "Depository",
