@@ -130,8 +130,14 @@ The same trick runs any other script against the cloud database —
 
 ```bash
 npm run auth:set-password    # type a password (never shown/stored) -> prints AUTH_PASSWORD_HASH + SESSION_SECRET
-node -e "console.log('CRON_SECRET=' + require('crypto').randomBytes(32).toString('hex'))"
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"   # -> CRON_SECRET
 ```
+
+`CRON_SECRET` is invented here, not looked up anywhere. Vercel attaches it as
+`Authorization: Bearer <CRON_SECRET>` when it triggers the cron, and the route
+compares it against the same variable — a shared secret whose only job is to
+stop anyone who finds the URL from triggering your sync. The command prints the
+bare value because its destination is a form field, not a `.env` line.
 
 ## 5 · Create the Vercel project and set env vars
 
