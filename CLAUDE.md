@@ -218,6 +218,17 @@ regeneration.
   of DOM however many years accumulate, and `count` was already being queried,
   so total pages cost nothing. Every filter-changing link resets `page`, or it
   lands on a page that no longer exists.
+- MEASURE TIME ON THE CLOUD, structure on localhost. Localhost has no network,
+  no cold start, a `file:` database instead of HTTP round trips to Turso, and a
+  desktop CPU instead of a phone — so every TIME number it gives is fiction, and
+  three wrong diagnoses in one session came from trusting one. What localhost
+  measures correctly is STRUCTURE, which is identical everywhere: DOM node
+  counts, how many queries a page issues, uncompressed payload composition,
+  whether something is accidentally quadratic. Use `preview_start prod` for
+  those (never `npm run dev` — its React SSR reported 870 ms for a page
+  production serves in 87 ms). For time, read the deployed app: DevTools →
+  Network → Timing gives TTFB and Content Download, and the numbers that matter
+  are TTFB (server + round trips) and whatever happens after it (hydration).
 - Page cost on this app is DOM SIZE, not server time and not bytes on the wire.
   `/transactions` built a 1.1 MB document (952 KB of markup across 300 rows,
   3705 `<option>` elements because every row renders the whole category list)
