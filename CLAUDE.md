@@ -243,16 +243,20 @@ regeneration.
   194.1ms and `parallelGroupMs` at 72.7ms, and the parallel group RUNS THAT SAME
   QUERY, so 194.1ms cannot be its intrinsic cost. `sequentialTotalMs` inherits
   the error and is not a real "if these were serialized" figure.
-- A relation `include` is a ROUND TRIP; treat it as one whenever the query sits
-  on a serialized path. The reimbursement candidate pool is the only query on
-  `/transactions` that cannot join the `Promise.all` — its date window is
-  derived from the rows already fetched — so it is paid in full. Dropping
-  `include: { category: true }` for a scalar `select` took it from 41.2ms to
-  ~19ms warm (5.9x the trivial-query cost down to 2.7x) with no behaviour
-  change, because the only thing the join supplied was a category NAME and the
-  `categories` array is already in memory. Verified identical against all 2638
-  real transactions before shipping: both shapes produce byte-identical
-  candidate lists for every inflow on page 1.
+- A relation `include` is a ROUND TRIP — one SQL statement each, confirmed by
+  counting Prisma's query log. So `include: { a: true, b: true, c: true }` is
+  four statements, and on Turso that is four round trips. Both of
+  `/transactions`' big queries were fixed by selecting columns instead:
+  - The reimbursement candidate pool (the only query that cannot join the
+    `Promise.all`, since its date window comes from the rows already fetched)
+    went 41.2ms → ~19ms warm, 5.9x the trivial-query cost down to 2.7x.
+  - The row list went from 4 statements to 2 and 32-47ms → 16-24ms warm,
+    5.1-7.7x down to 2.5x. `category` was already dead once the category picker
+    started taking `categoryId` instead of the object; `account` supplied one
+    NAME that the `accounts` array already has. `reimburses` STAYS — it points
+    at another transaction, so nothing in memory can answer it.
+  Normalize against the trivial queries in the same response when judging any
+  of this; raw ms drift 2x between batches.
 - MEASURE TIME ON THE CLOUD, structure on localhost. Localhost has no network,
   no cold start, a `file:` database instead of HTTP round trips to Turso, and a
   desktop CPU instead of a phone — so every TIME number it gives is fiction, and
@@ -412,6 +416,26 @@ the reimbursements-exceeded empty state, the grouped-review P2P tooltip, the
 money typography, and Overview's market-movement line.
 
 ## Backlog (agreed 2026-07-27, investigated, not yet built)
+
+**Does the `Promise.all` on `/transactions` actually buy anything?** Measured
+on the deployment once `/api/diag/timing` stopped misattributing connection
+setup, and the answer looks like NO — possibly the reverse. Across six warm
+samples the six queries summed 39.8-110.8ms run one after another, while the
+SAME six in one `Promise.all` took 58.7-190.4ms: a speedup of 0.31-0.89, never
+once above 1. The parallel group is also far noisier, which is what contention
+looks like. Likely cause: libSQL over HTTP on one connection, so concurrency
+adds queueing without adding throughput. This would refute the claim recorded
+above that six concurrent trips "cost about the slowest one rather than their
+sum" — that number came from the era when `sequentialTotalMs` was inflated by
+connection setup, and the honest instrument no longer supports it.
+DO NOT rewrite the page on this yet: the diag route always runs the sequential
+block FIRST and the parallel group second, so ordering is an uncontrolled
+confound (page cache favours the second, which makes the result conservative,
+but request-lifetime effects would penalise it). The next step is a diag
+variant that ALTERNATES the order, not a refactor. If it holds, sequential is
+worth ~45ms and the "never add a query that gates the others" advice needs
+restating — the cost of a gating query would be its own round trip, not the
+loss of parallelism.
 
 Five items raised after the cloud deploy, with what investigating them already
 turned up so it isn't rediscovered:
