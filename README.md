@@ -75,6 +75,7 @@ npm run import:csv -- <file.csv> --mapping=<chase-checking|chase-credit|wells-fa
 | `npm run import:csv` | Import a CSV (see above) |
 | `npm run rules:install` | Install the starter category-rule pack |
 | `npm run health` | Print the provider-health panel (no network) |
+| `npm run subs:audit` | Report what subscription detection missed and which gate rejected it (read-only) |
 | `npm run repair:text` | Strip undecodable characters from imported names/descriptions (dry run; `-- --apply` writes) |
 | `npm run repair:merchants` | Re-normalize stored merchant names after a normalizer change (dry run; `-- --apply` writes) |
 | `npm run turso:push` | Apply the schema to a fresh cloud database (see [DEPLOY.md](DEPLOY.md)) |

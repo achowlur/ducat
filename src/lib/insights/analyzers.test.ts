@@ -332,6 +332,40 @@ describe('detectRecurringCharges', () => {
     expect(detectRecurringCharges(txns).get('car wash club')?.cadence).toBe('WEEKLY');
   });
 
+  it('leaves rent and taxes out — recurring is not the same as subscribed', () => {
+    // Both have the exact shape the detector hunts for: stable descriptor,
+    // stable amount, monthly cadence. Neither is something you cancel, and
+    // listing them buries the two or three things that are.
+    const rent = monthly([2400, 2400, 2400], 'sunset ridge apartments').map((t) => ({
+      ...t,
+      categoryId: 'cat-rent',
+      categoryName: 'Rent & Housing',
+    }));
+    expect(detectRecurringCharges(rent).size).toBe(0);
+
+    const tax = monthly([500, 500, 500], 'irs usataxpymt').map((t) => ({
+      ...t,
+      categoryId: 'cat-taxes',
+      categoryName: 'Taxes',
+    }));
+    expect(detectRecurringCharges(tax).size).toBe(0);
+  });
+
+  it("demotes a rent portal's convenience fee, which is monthly but is not a plan", () => {
+    // Zego bills $7.88 a month: the shape of a subscription, the substance of
+    // paying rent. It is caught by its CATEGORY, not by its name, so any rent
+    // portal is handled without listing them all.
+    const zego = monthly([3.04, 3.04, 3.04], 'zego');
+    expect(detectRecurringCharges(zego).get('zego')?.cadence).toBe('MONTHLY');
+
+    const categorized = zego.map((t) => ({ ...t, categoryId: 'cat-rent', categoryName: 'Rent & Housing' }));
+    expect(detectRecurringCharges(categorized).size).toBe(0);
+  });
+
+  it('still reports an uncategorized recurring charge, which is the common case on first run', () => {
+    expect(detectRecurringCharges(monthly([9.99, 9.99, 9.99], 'spotify')).size).toBe(1);
+  });
+
   it('treats per-ride public transit fares as individual charges, but a monthly pass as recurring', () => {
     // Weekday commuter: flat $7.52 fare, Mon-Fri rides across two months.
     // Identical amounts, but ride gaps (1-3 days) sit below every cadence

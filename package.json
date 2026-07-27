@@ -17,6 +17,7 @@
     "import:csv": "tsx scripts/import-csv.ts",
     "import:balances": "tsx scripts/import-balances.ts",
     "health": "tsx scripts/health.ts",
+    "subs:audit": "tsx scripts/audit-subscriptions.ts",
     "repair:text": "tsx scripts/repair-text.ts",
     "repair:merchants": "tsx scripts/repair-merchants.ts",
     "rules:install": "tsx scripts/install-rule-pack.ts",

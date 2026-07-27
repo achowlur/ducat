@@ -136,6 +136,17 @@ export const PACK_RULES: PackRule[] = [
   regex(240, "Taxes", "\\busataxpymt\\b", "DESCRIPTION"),
   regex(240, "Taxes", "\\b(franchise tax bd|dept of revenue|department of revenue|dept of taxation)\\b", "DESCRIPTION"),
 
+  // Rent portals. These were deliberately held back before, on the grounds
+  // that a portal bills the operator's convenience FEE here ($7.88/month from
+  // Zego) while billing the whole rent for someone else, and arithmetic cannot
+  // tell which. That objection is about what the AMOUNT means, not about where
+  // it belongs: a rent portal's charge is the cost of paying rent under either
+  // reading, so Rent & Housing is correct both ways. What the objection was
+  // really protecting against — a $7.88 "subscription" you cannot cancel — is
+  // handled properly by NOT_SUBSCRIPTION_CATEGORIES in insights/recurring.ts.
+  // Word-bounded, like every other short name here.
+  regex(250, "Rent & Housing", "\\b(zego|paylease)\\b", "DESCRIPTION"),
+
   // --- Brands: order-sensitive pairs first (more specific = lower number)
   ...contains(500, "Dining", "uber eats", "ubereats", "doordash", "grubhub", "postmates"),
   ...contains(510, "Transport", "uber", "lyft"),

@@ -22,6 +22,24 @@ export const DEFAULT_RECURRING_OPTIONS: RecurringOptions = {
 
 const DAY_MS = 86_400_000;
 
+/**
+ * Recurring, but NOT subscriptions.
+ *
+ * Rent and taxes arrive on a cadence, in consistent amounts, from a stable
+ * descriptor — the exact shape the detector hunts for — but nobody manages
+ * them from a subscriptions list, and listing them buries the two or three
+ * things actually worth cancelling.
+ *
+ * This is also what settles the rent PORTAL. Zego (formerly PayLease) billed
+ * $7.88 every month, which has the shape of a subscription and the substance
+ * of paying rent: it is the convenience fee on a rent payment, not a service
+ * with a plan. Categorising it as Rent & Housing is right whether a portal
+ * bills the fee (as here) or the whole rent (as it does for others) — and
+ * excluding the category is what stops it being reported as something you
+ * could cancel.
+ */
+export const NOT_SUBSCRIPTION_CATEGORIES = new Set(['Rent & Housing', 'Taxes']);
+
 const CADENCE_BANDS: { cadence: RecurringCadence; min: number; max: number }[] = [
   { cadence: 'WEEKLY', min: 5.5, max: 8.5 },
   { cadence: 'BIWEEKLY', min: 12, max: 16 },
@@ -47,6 +65,7 @@ export function detectRecurringCharges(
   const byMerchant = new Map<string, TxnData[]>();
   for (const t of txns) {
     if (t.flow !== 'OUTFLOW') continue;
+    if (t.categoryName !== null && NOT_SUBSCRIPTION_CATEGORIES.has(t.categoryName)) continue;
     const merchant = t.normalizedMerchant.trim().toLowerCase();
     if (merchant === '') continue;
     const list = byMerchant.get(merchant) ?? [];
