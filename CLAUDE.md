@@ -218,6 +218,17 @@ regeneration.
   of DOM however many years accumulate, and `count` was already being queried,
   so total pages cost nothing. Every filter-changing link resets `page`, or it
   lands on a page that no longer exists.
+- In cloud mode a Turso round trip costs 20-25ms MINIMUM — measured on the
+  deployment, where a query returning ZERO rows took 34.8ms and an 8-row one
+  24.7ms. So what matters is the NUMBER of serialized round trips, not the size
+  of any of them: `/transactions` pays ~131ms for data, of which its one
+  serialized query (the reimbursement candidate pool) is ~68ms and the other six
+  cost 63ms TOGETHER because they run in one `Promise.all` — sequentially those
+  six would be 859ms. Never add a query that gates the others; if a filter needs
+  a value from the database, prefer a default that doesn't. Cold start is a
+  separate and larger cost: ~600-800ms of client init and TLS lands on whichever
+  query runs first, and Hobby has no provisioned concurrency to avoid it.
+  `/api/diag/timing` reports all of this from the deployment.
 - MEASURE TIME ON THE CLOUD, structure on localhost. Localhost has no network,
   no cold start, a `file:` database instead of HTTP round trips to Turso, and a
   desktop CPU instead of a phone — so every TIME number it gives is fiction, and
