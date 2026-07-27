@@ -279,6 +279,17 @@ regeneration.
     at another transaction, so nothing in memory can answer it.
   Normalize against the trivial queries in the same response when judging any
   of this; raw ms drift 2x between batches.
+- CODE ships with `git push`; DATA does not. There are TWO databases — local
+  `file:./data/ducat.db` and the cloud Turso one — and anything that writes
+  ROWS (retargeting a rule, recategorizing, `reapplyRules`, regenerating
+  insights) lands only on whichever `DATABASE_URL` was set. A green deploy says
+  nothing about it. This shipped a half-fix once already: Zego → Rent & Housing
+  was verified end to end on localhost, pushed, and the deployment still listed
+  Zego as a subscription because only the code half had travelled. So finish a
+  data change by running it against the cloud database too, and VERIFY on
+  `<your-deployment>.vercel.app` rather than localhost — that is where the data is
+  actually read. `npm run rules:retarget` prints which database it is about to
+  touch, first, for exactly this reason.
 - MEASURE TIME ON THE CLOUD, structure on localhost. Localhost has no network,
   no cold start, a `file:` database instead of HTTP round trips to Turso, and a
   desktop CPU instead of a phone — so every TIME number it gives is fiction, and
