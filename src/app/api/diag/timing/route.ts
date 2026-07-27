@@ -17,7 +17,7 @@ export const maxDuration = 60;
  * response headers — only middleware (which returns before the render) and
  * next.config (static) can. So this mirrors the queries `/transactions` issues
  * and reports them, and React's render time falls out by subtraction:
- * DevTools TTFB − `totalMs` − middleware ≈ render.
+ * DevTools TTFB − `pagePaysMs` − middleware ≈ render.
  *
  * Sends nothing anywhere. It is a read-only endpoint the operator queries,
  * session-gated like every other page (middleware allow-lists only
@@ -34,11 +34,104 @@ export const maxDuration = 60;
 const bootedAt = Date.now();
 
 const PAGE_SIZE = 100;
+const CANDIDATE_POOL_TAKE = 2000;
 
-async function timed<T>(name: string, fn: () => Promise<T>): Promise<{ name: string; ms: number; result: T }> {
+const round = (ms: number): number => Math.round(ms * 10) / 10;
+
+async function timed<T>(fn: () => Promise<T>): Promise<{ ms: number; result: T }> {
   const t0 = performance.now();
   const result = await fn();
-  return { name, ms: Math.round((performance.now() - t0) * 10) / 10, result };
+  return { ms: round(performance.now() - t0), result };
+}
+
+/**
+ * The six queries `/transactions` issues in its `Promise.all`, defined ONCE and
+ * run in both arrangements below.
+ *
+ * Defining them twice is exactly how this endpoint lied: the concurrent copy
+ * silently kept an `include: { category, account, reimburses }` that the
+ * sequential copy had already dropped, so a 9-statement block was being
+ * compared against a 7-statement one. That nearly shipped the conclusion that
+ * `Promise.all` makes things worse. One definition, two arrangements — the
+ * divergence is now structurally impossible rather than merely unlikely.
+ *
+ * Each returns the number of rows it fetched (0 where that is meaningless), so
+ * the report can state what came back without holding onto the rows.
+ */
+const PAGE_QUERIES: { name: string; run: () => Promise<number> }[] = [
+  {
+    name: "rows",
+    run: async () =>
+      (
+        await prisma.transaction.findMany({
+          select: {
+            id: true,
+            date: true,
+            amount: true,
+            flow: true,
+            description: true,
+            normalizedMerchant: true,
+            accountId: true,
+            categoryId: true,
+            categorySource: true,
+            reimbursesId: true,
+            reimburses: { select: { normalizedMerchant: true, description: true, date: true } },
+          },
+          orderBy: { date: "desc" },
+          take: PAGE_SIZE,
+        })
+      ).length,
+  },
+  { name: "count", run: () => prisma.transaction.count() },
+  { name: "categories", run: async () => (await prisma.category.findMany({ orderBy: { name: "asc" } })).length },
+  { name: "accounts", run: async () => (await prisma.account.findMany({ orderBy: { name: "asc" } })).length },
+  {
+    name: "dateRange",
+    run: async () => {
+      await prisma.transaction.aggregate({ _min: { date: true }, _max: { date: true } });
+      return 0;
+    },
+  },
+  {
+    name: "reviewPool",
+    run: async () =>
+      (
+        await prisma.transaction.findMany({
+          where: { categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" } },
+          select: { id: true, normalizedMerchant: true, description: true },
+        })
+      ).length,
+  },
+];
+
+/** The candidate pool, which the page cannot put in the group — its date window comes from the fetched rows. */
+const candidatePool = async (): Promise<number> =>
+  (
+    await prisma.transaction.findMany({
+      where: { flow: "OUTFLOW" },
+      select: {
+        id: true,
+        amount: true,
+        date: true,
+        categoryId: true,
+        normalizedMerchant: true,
+        description: true,
+      },
+      orderBy: { date: "desc" },
+      take: CANDIDATE_POOL_TAKE,
+    })
+  ).length;
+
+async function runSequentially(): Promise<number> {
+  const t0 = performance.now();
+  for (const q of PAGE_QUERIES) await q.run();
+  return round(performance.now() - t0);
+}
+
+async function runConcurrently(): Promise<number> {
+  const t0 = performance.now();
+  await Promise.all(PAGE_QUERIES.map((q) => q.run()));
+  return round(performance.now() - t0);
 }
 
 export async function GET(): Promise<Response> {
@@ -46,87 +139,39 @@ export async function GET(): Promise<Response> {
 
   // The first database call of a request absorbs connection setup, and whatever
   // runs first wears it. That is not a subtle effect: `rows` once reported
-  // 194.1ms in a response whose `parallelGroupMs` was 72.7ms — and the parallel
-  // group RUNS THAT SAME QUERY, so 194.1ms was never its intrinsic cost.
-  // Paying it here, on a query that touches no data, is what lets the seven
-  // below measure themselves. Timed rather than hidden: on a cold invocation
-  // this is where the ~600-800ms goes, and that belongs on the report.
-  const connect = await timed("connect", () => prisma.$queryRaw`SELECT 1`);
+  // 194.1ms in a response whose concurrent group — which runs that same query —
+  // took 72.7ms. Paying it here, on a query that touches no data, is what lets
+  // everything below measure itself. Timed rather than hidden: on a cold
+  // invocation this is where the ~600-800ms goes, and that belongs on the report.
+  const connect = await timed(() => prisma.$queryRaw`SELECT 1`);
 
-  // Individually and sequentially, so each round trip's own cost is visible.
-  const rows = await timed("rows", () =>
-    prisma.transaction.findMany({
-      // Mirrors the page: `category` is unused since the picker took over,
-      // `account` names come from the accounts array, and only `reimburses`
-      // still costs a relation query.
-      select: {
-        id: true,
-        date: true,
-        amount: true,
-        flow: true,
-        description: true,
-        normalizedMerchant: true,
-        accountId: true,
-        categoryId: true,
-        categorySource: true,
-        reimbursesId: true,
-        reimburses: { select: { normalizedMerchant: true, description: true, date: true } },
-      },
-      orderBy: { date: "desc" },
-      take: PAGE_SIZE,
-    }),
-  );
-  const count = await timed("count", () => prisma.transaction.count());
-  const categories = await timed("categories", () => prisma.category.findMany({ orderBy: { name: "asc" } }));
-  const accounts = await timed("accounts", () => prisma.account.findMany({ orderBy: { name: "asc" } }));
-  const dateRange = await timed("dateRange", () =>
-    prisma.transaction.aggregate({ _min: { date: true }, _max: { date: true } }),
-  );
-  const reviewPool = await timed("reviewPool", () =>
-    prisma.transaction.findMany({
-      where: { categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" } },
-      select: { id: true, normalizedMerchant: true, description: true },
-    }),
-  );
-  const pool = await timed("candidatePool", () =>
-    prisma.transaction.findMany({
-      where: { flow: "OUTFLOW" },
-      // Scalars only, matching the page. Category names are resolved there from
-      // the `categories` array rather than joined per row.
-      select: {
-        id: true,
-        amount: true,
-        date: true,
-        categoryId: true,
-        normalizedMerchant: true,
-        description: true,
-      },
-      orderBy: { date: "desc" },
-      take: 2000,
-    }),
-  );
-  const sequential = [rows, count, categories, accounts, dateRange, reviewPool, pool];
+  // --- A1: the six, one after another, with each one's own cost visible. -----
+  const perQuery: { name: string; ms: number; rows: number }[] = [];
+  const a1Start = performance.now();
+  for (const q of PAGE_QUERIES) {
+    const t = await timed(q.run);
+    perQuery.push({ name: q.name, ms: t.ms, rows: t.result });
+  }
+  const a1 = round(performance.now() - a1Start);
 
-  // And again in the shape the page actually uses, because six concurrent round
-  // trips cost about the slowest one rather than their sum — the difference
-  // between these two numbers IS the value of the Promise.all.
-  const parallel = await timed("parallelGroup", () =>
-    Promise.all([
-      prisma.transaction.findMany({
-        include: { category: true, account: true, reimburses: true },
-        orderBy: { date: "desc" },
-        take: PAGE_SIZE,
-      }),
-      prisma.transaction.count(),
-      prisma.category.findMany({ orderBy: { name: "asc" } }),
-      prisma.account.findMany({ orderBy: { name: "asc" } }),
-      prisma.transaction.aggregate({ _min: { date: true }, _max: { date: true } }),
-      prisma.transaction.findMany({
-        where: { categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" } },
-        select: { id: true, normalizedMerchant: true, description: true },
-      }),
-    ]),
-  );
+  // --- B1, B2, A2: the ordering experiment. ---------------------------------
+  // ABBA, not AB. Running sequential-then-concurrent once cannot distinguish
+  // "concurrent is slower" from "whatever runs second is slower" — page cache
+  // favours the second block, request-lifetime effects penalise it, and a
+  // single ordering confounds both with the thing being measured. With A at
+  // positions 1 and 4 and B at 2 and 3, both average position 2.5, so any
+  // drift that is linear across the request cancels out of the comparison.
+  const b1 = await runConcurrently();
+  const b2 = await runConcurrently();
+  const a2 = await runSequentially();
+
+  const sequentialMean = round((a1 + a2) / 2);
+  const concurrentMean = round((b1 + b2) / 2);
+
+  // Last, so it sits outside the experiment rather than between its blocks.
+  const pool = await timed(candidatePool);
+
+  const rowsOf = (name: string): number => perQuery.find((q) => q.name === name)?.rows ?? 0;
 
   const url = process.env.DATABASE_URL ?? "";
   const body = {
@@ -136,25 +181,36 @@ export async function GET(): Promise<Response> {
     // reading anything else here as typical.
     msSinceFunctionBoot: Date.now() - bootedAt,
     // The request's first database call, on a query that reads nothing. Large
-    // means this request established a connection; the seven below are then
-    // measuring themselves rather than inheriting it.
+    // means this request established a connection; everything below is then
+    // measuring itself rather than inheriting it.
     connectMs: connect.ms,
-    sequential: Object.fromEntries(sequential.map((s) => [s.name, s.ms])),
-    // Now a real "if these ran one after another" figure, which it was not
-    // while the first entry was carrying connection setup.
-    sequentialTotalMs: Math.round(sequential.reduce((sum, s) => sum + s.ms, 0) * 10) / 10,
-    parallelGroupMs: parallel.ms,
+    sequential: Object.fromEntries(perQuery.map((q) => [q.name, q.ms])),
     candidatePoolMs: pool.ms,
-    // What /transactions actually pays for data: the parallel group, then the
+    ordering: {
+      design: "ABBA: sequential, concurrent, concurrent, sequential — a linear drift across the request cancels",
+      sequentialMs: [a1, a2],
+      concurrentMs: [b1, b2],
+      sequentialMeanMs: sequentialMean,
+      concurrentMeanMs: concurrentMean,
+      // Above 1 means the Promise.all is earning its place; below 1 means the
+      // six queries contend rather than overlap and the page would be faster
+      // running them one after another.
+      concurrentSpeedup:
+        concurrentMean === 0 ? null : Math.round((sequentialMean / concurrentMean) * 100) / 100,
+    },
+    // What /transactions pays for data TODAY: the concurrent group, then the
     // candidate pool, which is serialized because it needs the fetched rows.
-    pagePaysMs: Math.round((parallel.ms + pool.ms) * 10) / 10,
+    pagePaysMs: round(concurrentMean + pool.ms),
+    // And what it would pay with the same queries run one after another, which
+    // is the decision `ordering` above is evidence for.
+    pageWouldPaySequentiallyMs: round(sequentialMean + pool.ms),
     rowsReturned: {
-      page: rows.result.length,
-      total: count.result,
-      categories: categories.result.length,
-      accounts: accounts.result.length,
-      reviewPool: reviewPool.result.length,
-      candidatePool: pool.result.length,
+      page: rowsOf("rows"),
+      total: rowsOf("count"),
+      categories: rowsOf("categories"),
+      accounts: rowsOf("accounts"),
+      reviewPool: rowsOf("reviewPool"),
+      candidatePool: pool.result,
     },
   };
 
@@ -163,10 +219,11 @@ export async function GET(): Promise<Response> {
       // DevTools renders this under Network → Timing → Server Timing.
       "Server-Timing": [
         `total;desc="data the page pays for";dur=${body.pagePaysMs}`,
-        `parallel;desc="6 concurrent queries";dur=${body.parallelGroupMs}`,
+        `concurrent;desc="6 queries in one Promise.all";dur=${concurrentMean}`,
+        `sequentialSix;desc="the same 6, one after another";dur=${sequentialMean}`,
         `pool;desc="candidate pool (serialized)";dur=${body.candidatePoolMs}`,
         `connect;desc="first call of the request";dur=${body.connectMs}`,
-        ...sequential.map((s) => `${s.name};dur=${s.ms}`),
+        ...perQuery.map((q) => `${q.name};dur=${q.ms}`),
       ].join(", "),
       "Cache-Control": "private, no-store",
     },
