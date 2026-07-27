@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { categorizeGroup, undoCategorizeGroup } from "../app/transactions/actions";
 import type { GroupUndo } from "../lib/sync/rulePack";
 import { TRANSFER_TARGET } from "../lib/sync/grouping";
-import type { CategoryOption } from "./CategoryCell";
+import type { CategoryOption } from "./CategoryPicker";
 
 export interface PayeeGroupView {
   key: string;

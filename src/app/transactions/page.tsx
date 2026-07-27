@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Prisma } from "../../generated/prisma/client";
-import { CategoryCell } from "../../components/CategoryCell";
+import { CategoryButton, CategoryPickerProvider } from "../../components/CategoryPicker";
 import { GroupedReview, type PayeeGroupView } from "../../components/GroupedReview";
 import { ReimburseControl } from "../../components/ReimburseControl";
 import { prisma } from "../../lib/prisma";
@@ -439,6 +439,9 @@ export default async function TransactionsPage({
       {groupMode ? (
         <GroupedReview groups={groups} categories={categoryOptions} />
       ) : (
+      // The category list crosses the wire ONCE, here, instead of being
+      // serialized into all ~228 rows that carry a control.
+      <CategoryPickerProvider categories={categoryOptions}>
       <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
@@ -491,12 +494,11 @@ export default async function TransactionsPage({
                     />
                   ) : (
                     <span className="inline-flex items-center gap-1.5">
-                      <CategoryCell
+                      <CategoryButton
                         transactionId={t.id}
                         merchant={t.normalizedMerchant}
                         categoryId={t.categoryId}
                         categorySource={t.categorySource}
-                        categories={categoryOptions}
                       />
                       {t.flow === "INFLOW" && (
                         <ReimburseControl inflowId={t.id} linked={null} candidates={candidatesFor(t)} />
@@ -527,6 +529,7 @@ export default async function TransactionsPage({
         </tbody>
       </table>
       </div>
+      </CategoryPickerProvider>
       )}
     </div>
   );
