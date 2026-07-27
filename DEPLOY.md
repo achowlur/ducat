@@ -37,9 +37,24 @@ data. But be clear-eyed about the trade-off:
 
 ```bash
 turso db create ducat
-turso db show ducat --url        # -> your DATABASE_URL (libsql://<db>-<org>.turso.io)
-turso db tokens create ducat     # -> your TURSO_AUTH_TOKEN
+turso db show ducat --url        # -> DATABASE_URL: libsql://<db>-<org>.<region>.turso.io
+turso db tokens create ducat     # -> TURSO_AUTH_TOKEN
 ```
+
+On Windows, do both in the dashboard instead: the CLI ships Darwin and Linux
+binaries only (checked against its release assets, not just the docs), so token
+creation is the second thing it can't do for you.
+
+Take the **database** token, not a **platform/API** token. The platform token
+manages your Turso account rather than this database, and using it produces an
+opaque auth failure at connect time rather than a useful message. Full
+read/write, since the app writes on every sync and categorization, and no
+expiry — an expired token also surfaces as confusing runtime errors.
+
+Pick a region close to where Vercel runs your functions, not to you: every
+route is server-rendered on demand, so each page view is several round trips
+from the function to Turso. Vercel's default is `iad1`, which pairs with
+Turso's `aws-us-east-1`.
 
 Encryption at rest is on by default. For bring-your-own-key encryption, see
 Turso's [encryption docs](https://docs.turso.tech/tursodb/encryption).
