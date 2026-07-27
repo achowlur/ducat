@@ -503,15 +503,49 @@ turned up so it isn't rediscovered:
 - ~~Donut navigation~~ — DONE, see the category-filter convention above.
 - ~~Another pass on subscription detection~~ — AUDITED, and the answer is
   DON'T. See the recurring-detection convention above.
-- **A public demo instance** with fabricated data. Blocked on a decision, not
-  on code: the mode-scoped HARD RULE says cloud mode MUST have the auth gate
-  and fails closed, so a login-less demo is an explicit amendment to that rule
-  and has to be documented as one. It also has to be genuinely read-only
-  (mutations blocked, not hidden, and no `SIMPLEFIN_ACCESS_URL`), on its own
-  Vercel project and Turso database. Most of the work is the DATA, not the
-  deployment: `db:seed` exists but demo fixtures need month-end snapshots per
-  investment account or net worth refuses to draw, plus enough history for
-  anomalies and subscriptions to fire, or the tour is a gallery of empty states.
+- **A public demo instance** — DESIGN AGREED 2026-07-27, DEFERRED on purpose.
+  Not blocked on anything technical any more; it waits until the app is
+  feature-stable, because a demo built against a moving app is a second thing
+  to keep in sync and every screen change would have to land twice. Build it
+  when the surface stops moving. The design, so it is not re-derived:
+  - **Published password, NOT a login-less demo.** The mode-scoped HARD RULE
+    requires the auth gate to be CONFIGURED; it says nothing about the password
+    being secret. So the demo sets `AUTH_PASSWORD_HASH`/`SESSION_SECRET`
+    normally and prints the password on the login page. This needs NO amendment
+    to the rule and — the real reason — NO change to `middleware.ts`,
+    `mode.ts` or `session.ts`, so a demo bypass that could ever be set on the
+    operator's own instance never exists. It also keeps crawlers from indexing
+    fabricated financial data, and the login page is the natural place to say
+    the data is invented.
+  - **Mutable, with a daily reset**, reversing the earlier "genuinely
+    read-only" position. What changed: there is no free-text persistence path.
+    Categories cannot be created from the UI and rule values derive from
+    existing merchant strings, and rule `matchValue` is not rendered anywhere,
+    so the worst a visitor can do — POSTing `createRuleFromMerchant("a", …)`
+    straight at the server action — is make the demo look wrong until it
+    resets. Vandalism is recoverable; offensive content shown to the next
+    visitor would not have been. Read-only would also have hidden the best
+    parts of the app, which are all mutations (category picker, grouped review,
+    reimbursement linking). If it is ever made read-only after all, layer it: a
+    read-only Turso token is the actual guarantee, and a write guard on the
+    Prisma client is the decent error message — never per-action guards, which
+    would be forgotten among 11 server actions.
+  - **Two years of history**, ~800-3888 transactions plus ~130 snapshots.
+  - The decisive constraint is that demo data DECAYS. Subscriptions vanish once
+    `isActive` sees them lapse, "this month" empties at the month boundary, and
+    net worth draws nothing without a snapshot INSIDE each period per
+    investment account. So fixtures must be generated RELATIVE to today and
+    regenerated on a schedule — which means the reset job is required whether
+    or not the demo is mutable, and is what makes mutability nearly free.
+  - Its own Vercel project and Turso database, no `SIMPLEFIN_ACCESS_URL`, and
+    it should REFUSE TO BOOT if that variable is set — the same fail-closed
+    idiom as the auth gate. Verified that no UI path accepts a SimpleFIN token;
+    the access URL is env-only, so the credential HARD RULE is safe by
+    construction.
+  - Rejected: a "try it" that shows optimistic UI and never persists. That is
+    hidden-not-blocked, and it lies to the visitor.
+  - The rule most likely to be broken LATER is the analytics one. A demo invites
+    "how many people tried it?" — the answer stays no.
 
 ## Backlog (agreed, not yet scheduled)
 
