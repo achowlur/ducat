@@ -499,6 +499,86 @@ money typography, and Overview's market-movement line.
 
 ## Backlog (agreed 2026-07-27, investigated, not yet built)
 
+**Rebuild /insights as "am I on track?" — DESIGNED 2026-07-27, agreed, not yet
+built.** The diagnosis first, because it is not what it looks like: the
+analyzers are fine. They are the most hardened code in the repo. The problem is
+that the TAB HAS NO EXCLUSIVE CONTENT — every insight type it renders has a
+better home elsewhere (SPENDING_BY_CATEGORY and CASH_FLOW_TREND on /trends,
+NET_WORTH_GROWTH on /trends and Overview, RECURRING_CHARGE on Overview with its
+annualised total, ANOMALY on Overview's signals). And `GROUPS` is keyed by
+`InsightType`, so it is organised around the ENGINE'S DATA MODEL rather than a
+question anyone asks. Every other tab answers something a person wants — how am
+I doing / how has this changed / what exactly happened / what do I have / can I
+trust this — and this one answers "what did the engine compute".
+
+Also settled: the "Ducat observes, it doesn't model" framing is WRONG and
+should not be repeated. The app already models and already projects —
+`annualisedTotal` is a forecast, `isActive` predicts a charge that didn't
+happen, renewal dates are stepped forward, anomalies are median/MAD inference,
+`marketGains` is attribution. The principle it actually holds is narrower:
+NEVER ASSERT WHAT THE EVIDENCE CANNOT SUPPORT, REFUSE RATHER THAN FABRICATE
+(`known:false`, active-period-only baselines, `pctDelta` null on a base ≤ 0).
+That permits projection and constrains it — and the lapse bound proves the
+point: when `annualisedTotal` billed a cancelled Netflix forever, the fix was
+to bound the projection by evidence, not to stop projecting.
+
+The design, so it is not re-derived:
+
+- **One question: "am I on track, and what needs attention?"** Backward and
+  forward are not two sections stacked — THE FORWARD CLAUSE IS WHAT EARNS A
+  CHANGE ITS PLACE. "Dining up 34%" is a number; "up 34%, third month rising,
+  ~$2,850.9/yr if it holds" is a decision. Anything that cannot state a forward
+  consequence probably does not belong, which is also the filter that stops
+  this becoming noise.
+- **Four slots, each refusing independently.** (A) where this month lands —
+  spent so far, still committed, what comparable months ran, on pace for.
+  (B) what changed, ranked across types, each with its consequence. (C) what is
+  already committed in the next 30 days, with dates. (D) "nothing needs
+  attention this month", explicitly and often.
+- **Rank slot B by DOLLARS AT STAKE over the next twelve months, not by
+  statistical unusualness**, with deviation only as a tiebreak. A 4x deviation
+  on a $31.1 charge matters less than a 3% drift on rent. This makes the
+  projection do work rather than decorate, and attacks the Dining-flood problem
+  from a different angle than the anomaly analyzer does.
+- **Refusals, reusing what exists:** no pace call before ~25% of the period has
+  elapsed (day 3 says nothing); only periods where the category was actually
+  active (the anomaly baseline rule); and nothing projected across a period
+  `periodCoverage` knows was incomplete. Projections get their own chip and
+  explicit wording — the moment a forecast reads like an observation the app is
+  asserting what it does not know.
+- **Historical periods show the projection BESIDE what happened** — "June: on
+  pace for $9,589.4 on day 18, landed at $9,392.43". That makes the forecast
+  accountable instead of decorative, is the falsifiability test made visible,
+  and gives the existing period selector a real job.
+
+Three decisions, agreed:
+1. **Overview narrows to STATE** (balances, net worth, what needs review);
+   /insights owns TRAJECTORY. Without this the two tabs answer the same
+   question again, which is how the current overlap happened.
+2. **Slot B is hard-capped at 3-4 items**, as a rule and not a default —
+   `maxPerBaseline: 1` is the precedent.
+3. **"On pace" compares to the SAME CALENDAR MONTH in prior years**, falling
+   back to a trailing average when there are too few. They disagree for
+   anything seasonal, and rent-dominated months make a trailing average look
+   stable while a December genuinely is not.
+
+Architecture: DO NOT STORE the digest — rank at render from stored insights
+plus one new forward analyzer. `generateInsights` runs synchronously inside
+server actions (the 4.1s lesson), so the digest must not add a pass; reuse the
+memoized period bounds and the anomaly analyzer's per-period category buckets.
+
+**Build C FIRST, then A, then B.** C is the forward-commitment number, and the
+hard part is already written and correct: `stepForward`/`addMonths` in
+`health/subscriptions.ts` already project a next-due date with month-end
+clamping, stepping from the ORIGIN so clamps never accumulate. The work is
+applying that to DETECTED charges, which today carry only `lastDate` and
+`cadence`. It is also the highest-confidence projection the app will ever make
+— observed cadence, observed amount, no assumption — which makes it the right
+place to establish how projections are chipped, worded and refused before doing
+it anywhere riskier. A needs C for its "still committed" clause; B needs both
+for its forward-impact ranking and is the highest noise risk, so it goes last,
+after decision 1 is implemented.
+
 Five items raised after the cloud deploy, with what investigating them already
 turned up so it isn't rediscovered:
 
