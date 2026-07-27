@@ -304,6 +304,51 @@ periods" anomaly baseline; and the
 the reimbursements-exceeded empty state, the grouped-review P2P tooltip, the
 money typography, and Overview's market-movement line.
 
+## Backlog (agreed 2026-07-27, investigated, not yet built)
+
+Five items raised after the cloud deploy, with what investigating them already
+turned up so it isn't rediscovered:
+
+- **`/transactions` is 10× slower than every other page** — 0.87s against a
+  local FILE database, where `/`, `/trends`, `/insights`, `/accounts` and
+  `/providers` are all 0.06–0.09s. Cause located: in `transactions/page.tsx`
+  the `candidatePool.map(...)` sits INSIDE `candidatesFor`, which is called per
+  inflow row, so 74 inflows × 470 outflows = 34,780 projections per load. Same
+  bug class the analyzer pass fixed, hiding in a page component. Cheap fix is
+  hoisting the map; the bigger one is computing candidates lazily, since all 74
+  are currently computed AND serialized into the HTML even when none is opened.
+  Measure in a PRODUCTION build before judging — 0.87s is a dev-mode number.
+- **Overview donut should link to `/trends`.** `MiniDonut` is not wrapped in
+  anything clickable. Slices already carry `categoryId`, so slice → filtered
+  transactions is the natural pair with the item below.
+- **Trends donut "Other" should open those transactions.** `TOP_SLICES = 3`, so
+  "Other" is everything ranked 4th and below (8 categories, $2005.74 in July
+  2026). Needs a multi-category filter — `?category=id1,id2,id3` →
+  `categoryId: { in: [...] }` — because today it takes one id or
+  `"uncategorized"`. The catch: which categories land in "Other" CHANGES BY
+  PERIOD, so the link must enumerate the ids for the month on screen rather
+  than pass a static `other` token. Prefer an inclusion list to an exclusion
+  one, or a category added later joins "Other" silently.
+- **Another pass on subscription detection.** The detector needs 3+
+  occurrences, amounts within 25%, and gaps inside a cadence band (monthly =
+  26–35 days); `TrackedSubscription` has 0 rows, so everything shown is
+  detected and nothing is registered by hand. Likely blind spots: annual plans
+  (3 occurrences = 3 years), anything varying more than 25%, and merchants
+  whose string shifts between charges. Do the read-only "what did it miss"
+  report — merchants with 3+ charges at regular gaps that are NOT reported —
+  before touching any threshold. (Zego is not a mystery: it is a rent-payment
+  portal, formerly PayLease, and the $7.88/month is its convenience FEE, not
+  rent — which is exactly why rent-portal rules deliberately did not ship.)
+- **A public demo instance** with fabricated data. Blocked on a decision, not
+  on code: the mode-scoped HARD RULE says cloud mode MUST have the auth gate
+  and fails closed, so a login-less demo is an explicit amendment to that rule
+  and has to be documented as one. It also has to be genuinely read-only
+  (mutations blocked, not hidden, and no `SIMPLEFIN_ACCESS_URL`), on its own
+  Vercel project and Turso database. Most of the work is the DATA, not the
+  deployment: `db:seed` exists but demo fixtures need month-end snapshots per
+  investment account or net worth refuses to draw, plus enough history for
+  anomalies and subscriptions to fire, or the tour is a gallery of empty states.
+
 ## Backlog (agreed, not yet scheduled)
 
 - **P2P review, still open:** (c) recurring-pattern detection on P2P (same
