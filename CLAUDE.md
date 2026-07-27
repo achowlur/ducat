@@ -183,6 +183,23 @@ regeneration.
   reaching back different distances, was everything — so every ordinary month
   scored as an infinite deviation and reported "vs $0 in a typical month".
   Rent, the most predictable expense there is, was flagged every month.
+- Anomalies RANK, they don't threshold. `deviation` decides which one survives
+  and the threshold only decides eligibility: `maxPerBaseline: 1` reports the
+  most unusual transaction per category (per merchant when uncategorized) per
+  period, ties broken on amount because a constant history caps every z at 99.
+  Before that the analyzer emitted everything above the line, which on real data
+  meant 114 of 132 transaction anomalies were Dining and one month had six
+  restaurant meals. The composition was HONEST — 321 of 470 outflows were Dining
+  — so no statistic fixed it: higher z, p90, p95 and absolute floors all left
+  Dining at 76-86%, and the tighter ones destroyed the findings worth having
+  (p95 dropped a $1707.95 one-off; a $100 floor dropped a $95 annual card fee AND a
+  $186.6 advisory fee). Also: displayed magnitude is a RANK, not a ratio —
+  `percentileOfHistory` renders as "higher than 96% of your Dining" via
+  `higherThan()`, rounded DOWN. "4.3× typical" invited reading the median as what
+  a dinner costs when 56% of Dining is under $51.83. Tried and failed, don't retry:
+  preferring a transaction's own MERCHANT history over its category moved 51 to
+  50, because dining spreads across many restaurants and almost none reaches
+  five prior visits.
 - Data coverage (`src/lib/insights/coverage.ts`): accounts have different
   history depths (a 90-day feed vs an 18-month CSV vs 5 years of brokerage
   history), so periods before an account's first transaction are UNDERSTATED,
