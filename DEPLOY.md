@@ -229,6 +229,50 @@ generated Prisma client is gitignored, so this step is what creates it on Vercel
   ```
   You should see the CSP and `Strict-Transport-Security` (HSTS is production-only).
 
+## Living with two copies
+
+Once the cloud instance is real, decide which one you write to — and write to
+only that one. The transaction data is self-healing either way (dedupe is
+`(accountId, externalId)`, and `externalId` is the feed's own id, so the same
+transaction lands identically in both), but everything you do BY HAND drifts:
+rules you create, MANUAL categorizations, insight dismissals. Those are the
+valuable part, and nothing reconciles them.
+
+Cloud is the natural primary — it has the cron and it's the one on your phone.
+So stop syncing locally, and leave the local database frozen as a realistic
+development fixture.
+
+### Back the cloud up
+
+```bash
+DATABASE_URL="libsql://…turso.io" TURSO_AUTH_TOKEN="…" npm run cloud:backup
+```
+
+Writes a dated file under `data/backups/` (gitignored) and verifies it against
+the cloud with the same row counts and aggregates `turso:copy` uses. Never
+overwrites an earlier one.
+
+Do this even though Turso takes its own backups. Free-plan point-in-time
+recovery reaches back **24 hours** — 10 days on Developer, 30 on Scaler, 90 on
+Pro — which covers "I just deleted the wrong thing" and nothing else. The
+failures this app has actually had were silent wrong numbers found days later.
+A local file is also a different failure domain: an account problem, a revoked
+token or a lapsed plan doesn't reach your disk.
+
+A backup is an ordinary Ducat database, so you can open one directly:
+
+```bash
+DATABASE_URL="file:./data/backups/ducat-2026-07-26-2145.db" npm run dev
+```
+
+### When the schema changes
+
+`prisma migrate deploy` can't target libSQL, and the cloud database has no
+`_prisma_migrations` table, so a new migration doesn't reach it on its own.
+Generate the delta against the deployed schema and apply it the same way
+`turso:push` applies the baseline. Worth doing calmly the first time rather
+than while something is broken.
+
 ## Revoke / roll back
 
 - Rotate `SESSION_SECRET` → invalidates all existing sessions immediately.

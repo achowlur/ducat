@@ -79,6 +79,7 @@ npm run import:csv -- <file.csv> --mapping=<chase-checking|chase-credit|wells-fa
 | `npm run repair:merchants` | Re-normalize stored merchant names after a normalizer change (dry run; `-- --apply` writes) |
 | `npm run turso:push` | Apply the schema to a fresh cloud database (see [DEPLOY.md](DEPLOY.md)) |
 | `npm run turso:copy` | Copy this database into a fresh cloud one (dry run; `-- --apply` writes) |
+| `npm run cloud:backup` | Pull the cloud database into a dated file under `data/backups/` |
 
 ## Where your data lives
 
