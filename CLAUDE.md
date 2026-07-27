@@ -278,6 +278,26 @@ regeneration.
   0.2 KB). What a big document actually costs is parse, DOM construction and
   React hydration on the client's CPU, which is why cutting ROWS helped and
   why compressing harder would not have.
+- The ledger's category control is ONE picker (`CategoryPicker.tsx`), not one
+  per row. A `<select>` per row cost 19 elements (select + 2 optgroups + 16
+  options) × 228 rows = 1672, which was 53.4% of the document; rendering the
+  list once on demand took `/transactions` from 3132 elements to 1728 and from
+  1465 `<option>` to 57. It renders in a PORTAL because the table's
+  `overflow-x` container clips the other axis too. Four bugs in it were
+  invisible in source and only appeared by driving the real page, so drive it
+  after any change: (1) `disabled` cannot hold focus, so disabling the trigger
+  during the write blurred to `<body>` and lost your place after every
+  categorization — it uses `aria-disabled` plus handler guards; (2) a popover
+  that assumes its own height runs off the screen (a 579px list, 275px down an
+  800px viewport), so it measures the room and caps `maxHeight`; (3)
+  `mouseenter` fires when a popover appears under a STATIONARY cursor, handing
+  the keyboard whichever option the mouse sat on — `mousemove` does not;
+  (4) the active option starts on the row's CURRENT category and, when
+  searching, on the first PREFIX match, because substring search is better than
+  native type-ahead ("housing" finds "Rent & Housing") but must not lose it
+  ("g" has to mean Gas, not Dining). `GroupedReview` deliberately keeps its
+  `<select>`: its choice is STAGED before a write that can rewrite dozens of
+  rows, which is a different contract, and it is not on the hot path.
 - Chart discipline (src/components/charts): charts are HAND-ROLLED SVG — no
   chart library, and no webfonts anywhere in the app (both would breach the CSP
   and the no-third-party rule). Axis scales must enclose the data (`niceTicks`
