@@ -61,7 +61,16 @@ export async function GET(): Promise<Response> {
   const pool = await timed("candidatePool", () =>
     prisma.transaction.findMany({
       where: { flow: "OUTFLOW" },
-      include: { category: true },
+      // Scalars only, matching the page. Category names are resolved there from
+      // the `categories` array rather than joined per row.
+      select: {
+        id: true,
+        amount: true,
+        date: true,
+        categoryId: true,
+        normalizedMerchant: true,
+        description: true,
+      },
       orderBy: { date: "desc" },
       take: 2000,
     }),

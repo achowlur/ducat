@@ -175,22 +175,38 @@ export default async function TransactionsPage({
               lte: new Date(Math.max(...inflowDates) + 3 * DAY_MS),
             },
           },
-          include: { category: true },
+          // Scalars only. This is the one query that cannot join the
+          // Promise.all — its date window comes from the fetched rows — so its
+          // round trip is paid in full, and `include: { category: true }` made
+          // it 67.6ms of the page's ~131ms data budget on the deployment. The
+          // only thing the join supplied was a category NAME, and `categories`
+          // is already in memory a few lines above.
+          select: {
+            id: true,
+            amount: true,
+            date: true,
+            categoryId: true,
+            normalizedMerchant: true,
+            description: true,
+          },
           orderBy: { date: "desc" },
           take: 2000,
         });
+  const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
+  const poolCategory = (categoryId: string | null): string | null =>
+    categoryId === null ? null : (categoryNameById.get(categoryId) ?? null);
   const poolById = new Map(candidatePool.map((o) => [o.id, o]));
+  // Identical for every inflow, so it is built once rather than per row.
+  const rankable = candidatePool.map((o) => ({
+    id: o.id,
+    amount: Number(o.amount),
+    date: o.date,
+    splittable: !UNSPLITTABLE.has(poolCategory(o.categoryId) ?? ""),
+  }));
   const candidatesFor = (inflow: { date: Date; amount: unknown }) =>
-    suggestReimbursements(
-      { amount: Number(inflow.amount), date: inflow.date },
-      candidatePool.map((o) => ({
-        id: o.id,
-        amount: Number(o.amount),
-        date: o.date,
-        splittable: !UNSPLITTABLE.has(o.category?.name ?? ""),
-      })),
-      { windowDays: WINDOW_DAYS },
-    ).flatMap((s) => {
+    suggestReimbursements({ amount: Number(inflow.amount), date: inflow.date }, rankable, {
+      windowDays: WINDOW_DAYS,
+    }).flatMap((s) => {
       const o = poolById.get(s.id);
       if (o === undefined) return [];
       return [{
@@ -198,7 +214,7 @@ export default async function TransactionsPage({
         label: titleCase(o.normalizedMerchant !== "" ? o.normalizedMerchant : o.description.toLowerCase()),
         date: isoDate(o.date),
         amount: Math.abs(Number(o.amount)),
-        category: o.category?.name ?? null,
+        category: poolCategory(o.categoryId),
         reason: s.reason,
         strong: s.strong,
       }];
