@@ -135,9 +135,19 @@ node -e "console.log('CRON_SECRET=' + require('crypto').randomBytes(32).toString
 
 ## 5 · Create the Vercel project and set env vars
 
-Import the repo in Vercel, then set these **Production** environment variables
-(Project → Settings → Environment Variables). Never put them in a committed file
-— Vercel injects them at runtime.
+Import the repo in Vercel, then set these environment variables (Project →
+Settings → Environment Variables). Never put them in a committed file — Vercel
+injects them at runtime.
+
+**Paste values only.** Step 4's generators print `.env` lines, not bare values:
+`auth:set-password` wraps its output in quotes and the CRON_SECRET one-liner
+prints a `CRON_SECRET=` prefix. Include either and it becomes part of the
+secret, so login fails and the cron 401s with nothing to indicate why.
+
+**Production only — not Preview.** Preview deployments would share this one
+Turso database, so a branch deploy would write to your real data. Left unset
+for Preview, a preview build has no `libsql://` URL, so it isn't in cloud mode
+and the localhost host-allowlist 403s it. Safe by default.
 
 | Variable | Value |
 | --- | --- |
@@ -151,6 +161,15 @@ Import the repo in Vercel, then set these **Production** environment variables
 
 Auth **fails closed**: a `libsql://` deployment without `AUTH_PASSWORD_HASH` +
 `SESSION_SECRET` refuses to serve rather than run open.
+
+Set these BEFORE the first deploy, or redeploy after adding them — Vercel
+applies env-var changes to new deployments, not running ones. Note that a
+successful build proves nothing here: no route is prerendered, so the build
+never reads the database or the auth vars. Only the running app does.
+
+While you're in Settings → Functions, check the region matches the one you gave
+Turso in step 1 (`iad1` pairs with `aws-us-east-1`). Every page view is several
+function → database round trips, so a mismatch is felt on every screen.
 
 ## 6 · Deploy
 
