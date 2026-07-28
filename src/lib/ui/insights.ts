@@ -13,7 +13,10 @@ import {
   type DetectedCharge,
 } from "../health/detectedSubscriptions";
 import { upcomingCommitments, type UpcomingCommitments } from "../health/commitments";
+import { computePace, type Pace } from "../insights/pace";
+import { periodCoverage, type PeriodCoverage } from "../insights/coverage";
 import { periodEndExclusive, periodStart } from "../insights/periods";
+import { getAccountCoverage } from "./coverage";
 import { monthlyRows, ofType } from "./insightRows";
 import { higherThan, money, monthLabel, pct, titleCase } from "./format";
 
@@ -45,6 +48,14 @@ export interface InsightsPageData {
    * beats printing a number that means something other than it appears to.
    */
   commitments: UpcomingCommitments | null;
+  /**
+   * Where the month lands. Null for the same reason `commitments` is — it is a
+   * question about the month you are living in — and carries its own refusal
+   * when the month or the baseline is too thin to speak from.
+   */
+  pace: Pace | null;
+  /** Fetched here so the page doesn't read account coverage a second time. */
+  coverage: PeriodCoverage | null;
 }
 
 function renderAnomaly(p: AnomalyPayload): InsightRow["text"] {
@@ -166,11 +177,56 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // on screen is the one we are living in. On June's page in July, "due in the
   // next 30 days" would be a July number under a June heading.
   const now = new Date();
-  const viewingCurrentPeriod =
-    now >= periodStart(period) && now < periodEndExclusive(period);
+  const periodEnd = periodEndExclusive(period);
+  const viewingCurrentPeriod = now >= periodStart(period) && now < periodEnd;
   const detected = mergeDetectedSubscriptions(ofType<DetectedCharge>(monthly, "RECURRING_CHARGE").map((r) => r.payload));
   const commitments =
     viewingCurrentPeriod && detected.length > 0 ? upcomingCommitments(detected, now) : null;
+
+  const accountCoverage = await getAccountCoverage();
+  const coverageOf = (p: string): PeriodCoverage | null => {
+    if (accountCoverage.length === 0) return null;
+    try {
+      return periodCoverage(p, accountCoverage);
+    } catch {
+      return null; // unparseable key — nothing useful to say
+    }
+  };
+  const shown = coverageOf(period);
+
+  // Baseline coverage travels WITH the number rather than filtering it out.
+  // Excluding incomplete periods was the first instinct and it is wrong here:
+  // the newest card was opened part-way through this very month, so every prior
+  // period counts as incomplete and the pace call would go dark for months.
+  const spendingRows = ofType<SpendingByCategoryPayload>(monthly, "SPENDING_BY_CATEGORY");
+  const thisPeriod = spendingRows.find((r) => r.period === period);
+  const priors = spendingRows
+    .filter((r) => r.period < period)
+    .map((r) => {
+      const c = coverageOf(r.period);
+      return {
+        period: r.period,
+        total: r.payload.totalSpending,
+        coverage: c === null ? undefined : { covered: c.covered, total: c.total },
+      };
+    });
+
+  let pace: Pace | null = null;
+  if (viewingCurrentPeriod && thisPeriod !== undefined) {
+    // Committed to the END OF THIS MONTH, which is a different window from the
+    // rolling 30 days above — it is the floor under this month's projection,
+    // not the same question.
+    const daysLeft = Math.max(0, Math.ceil((periodEnd.getTime() - now.getTime()) / 86_400_000));
+    const dueBeforeMonthEnd =
+      detected.length > 0 ? upcomingCommitments(detected, now, daysLeft).total : 0;
+    pace = computePace({
+      period,
+      now,
+      spentSoFar: thisPeriod.payload.totalSpending,
+      committedRemaining: dueBeforeMonthEnd,
+      priors,
+    });
+  }
 
   return {
     period,
@@ -180,5 +236,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     groups: groups.filter((g) => g.rows.length > 0),
     dismissedCount: inPeriod.filter((r) => r.dismissed).length,
     commitments,
+    pace,
+    coverage: shown !== null && !shown.complete ? shown : null,
   };
 }

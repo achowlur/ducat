@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { CoverageNotice } from "../../components/CoverageNotice";
 import { DismissButton } from "../../components/DismissButton";
-import { getPeriodCoverage } from "../../lib/ui/coverage";
 import { getInsightsPageData, type InsightRow } from "../../lib/ui/insights";
 import { money, shortDate, titleCase } from "../../lib/ui/format";
 
@@ -74,8 +73,61 @@ export default async function InsightsPage({
       </div>
 
       <div className="pt-3">
-        <CoverageNotice coverage={await getPeriodCoverage(data.period)} />
+        <CoverageNotice coverage={data.coverage} />
       </div>
+
+      {/* Where the month lands. The refusals render rather than hide: "too
+          early to call" is a more useful thing to read than a missing box, and
+          the facts either side of the projection survive it. */}
+      {data.pace !== null && (
+        <section className="mt-4 border-b border-ink pb-3">
+          <p className="text-[0.95rem] leading-relaxed">
+            <span className="font-money tabular text-faint">
+              Day {data.pace.dayOfPeriod} of {data.pace.daysInPeriod}.
+            </span>{" "}
+            <span className="font-money tabular font-semibold">{money(data.pace.spentSoFar)}</span> spent
+            {data.pace.committedRemaining > 0 && (
+              <>
+                {", "}
+                <span className="font-money tabular">{money(data.pace.committedRemaining)}</span> due before
+                month end
+              </>
+            )}
+            .{" "}
+            {data.pace.refusal === "TOO_EARLY" ? (
+              <span className="text-faint">Too early in the month to say where it lands.</span>
+            ) : data.pace.refusal === "NO_BASELINE" ? (
+              <span className="text-faint">
+                No comparable month to project from yet — {data.pace.basisCount === 0 ? "none" : "too few"} with
+                complete data.
+              </span>
+            ) : (
+              <>
+                <span className="text-faint">
+                  {data.pace.basis === "SAME_MONTH"
+                    ? `A typical ${data.periodLabel.split(" ")[0]} ran `
+                    : "The last few months ran "}
+                  <span className="font-money tabular">{money(data.pace.typical ?? 0)}</span>
+                  {data.pace.basis === "SAME_MONTH" ? ` (${data.pace.basisCount} prior years)` : ""}
+                  {/* Visibly incomplete beats silently wrong: a baseline drawn
+                      from before an account existed is understated, so the
+                      projection leans low and says so. */}
+                  {data.pace.basisMissingAccounts > 0 &&
+                    `, before ${data.pace.basisMissingAccounts} of your accounts existed — so this leans low`}
+                  {" — "}
+                </span>
+                <span className="whitespace-nowrap rounded-[2px] bg-chip px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-acc">
+                  Projected
+                </span>{" "}
+                <span className="font-money tabular font-semibold">
+                  ~{money(data.pace.projected ?? 0)}
+                </span>{" "}
+                <span className="text-faint">if the rest of the month is ordinary.</span>
+              </>
+            )}
+          </p>
+        </section>
+      )}
 
       {/* The only forward-looking figure in the app, and the only thing on this
           tab that appears nowhere else. Chipped "projected" because a forecast
