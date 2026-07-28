@@ -308,6 +308,29 @@ regeneration.
   `<your-deployment>.vercel.app` rather than localhost — that is where the data is
   actually read. `npm run rules:retarget` prints which database it is about to
   touch, first, for exactly this reason.
+- The two databases also differ in WHICH ROWS EXIST AT ALL, so localhost can
+  hide a code path rather than merely lag it. Deleting Overview's subscriptions
+  block was verified green on localhost, where `TrackedSubscription` is empty —
+  and the cloud holds two, one of them (`link.com`, $3.89/mo) registered but
+  NEVER detected as recurring, because it has too few charges. That row's only
+  display in the whole app was the block being deleted, so the change made
+  declared money invisible and the local run could not have shown it. The
+  general form: before deleting a surface, check what the CLOUD has that
+  reaches it, not just what localhost renders. An empty table locally is not
+  evidence that a branch is dead.
+- Two different notions of "the same service" exist and only one is right for
+  matching a REGISTERED subscription to a charge. `brandOf` takes the leading
+  word, which is correct for folding detector output ("verizon" vs "verizon
+  paymentrec urring …") and wrong here: you register "Coursera" and the bank
+  writes "coursera.org", sharing no first word. The subscription's own
+  `merchantPattern` already decides which transactions are its charges, so it
+  is the fold too — `matchesSubscription` in `health/subscriptions.ts`, used by
+  `reconcileSubscription` itself so there is one definition. This matters
+  because the commitments panel now totals detected and registered together:
+  failing to relate them does not merely look untidy, it bills one service
+  twice. Detected wins a tie (observed beats asserted) and a registered item is
+  marked "declared", because the panel's stated premise is that cadence and
+  amount are both observed and that is not true of one you typed in.
 - MEASURE TIME ON THE CLOUD, structure on localhost. Localhost has no network,
   no cold start, a `file:` database instead of HTTP round trips to Turso, and a
   desktop CPU instead of a phone — so every TIME number it gives is fiction, and
@@ -551,8 +574,11 @@ money typography, and Overview's market-movement line.
 
 ## Backlog (agreed 2026-07-27, investigated, not yet built)
 
-**Rebuild /insights as "am I on track?" — DESIGNED 2026-07-27, agreed, not yet
-built.** The diagnosis first, because it is not what it looks like: the
+**Rebuild /insights as "am I on track?" — DESIGNED 2026-07-27, BUILT 2026-07-28.**
+All four slots ship (`insights/digest.ts`, `insights/pace.ts`,
+`health/commitments.ts`) and decision 1 is implemented: Overview carries state
+only. The design below is kept because it is what constrains changes to it.
+The diagnosis first, because it is not what it looks like: the
 analyzers are fine. They are the most hardened code in the repo. The problem is
 that the TAB HAS NO EXCLUSIVE CONTENT — every insight type it renders has a
 better home elsewhere (SPENDING_BY_CATEGORY and CASH_FLOW_TREND on /trends,
@@ -606,7 +632,9 @@ The design, so it is not re-derived:
 Three decisions, agreed:
 1. **Overview narrows to STATE** (balances, net worth, what needs review);
    /insights owns TRAJECTORY. Without this the two tabs answer the same
-   question again, which is how the current overlap happened.
+   question again, which is how the current overlap happened. DONE 2026-07-28 —
+   the signals column, the subscriptions block and the price-drift/renewal
+   chips are gone, and Overview dropped a query with them.
 2. **Slot B is hard-capped at 3-4 items**, as a rule and not a default —
    `maxPerBaseline: 1` is the precedent.
 3. **"On pace" compares to the SAME CALENDAR MONTH in prior years**, falling
