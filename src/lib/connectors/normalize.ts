@@ -69,6 +69,20 @@ const TRANSACTION_TYPE = /\b(paymentrec urring|payment recurring|web pmts|payrol
 const MIN_MERCHANT = 3;
 
 /**
+ * Whether a string carries one of the bank's bookkeeping markers.
+ *
+ * Exported so the repair can ask the question without owning a second copy of
+ * the list. A connector sometimes supplies a PAYEE the bank has already mangled
+ * — "HarborwayMgmt WEB BQXRT" for a description that plainly reads
+ * "PL*HarborwayMgmt WEB PMTS 070226 BQXRT8 Marlowe Brennan" — and re-running
+ * the normalizer over that payee can never recover what it never contained.
+ * The description can, but only where it is demonstrably the better source.
+ */
+export function hasTransactionType(raw: string): boolean {
+  return TRANSACTION_TYPE.test(raw.toLowerCase());
+}
+
+/**
  * Conservative merchant normalization: lowercase, unwrap payment-processor
  * prefixes, strip reference/card number noise, cut the bank's bookkeeping
  * columns, collapse whitespace. Deliberately does not try to be clever —

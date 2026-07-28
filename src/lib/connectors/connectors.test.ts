@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CsvConnector } from './csv';
 import { CSV_MAPPINGS } from './csvMappings';
 import { parseCsv } from './csvParser';
-import { normalizeMerchant, sanitizeBankText } from './normalize';
+import { hasTransactionType, normalizeMerchant, sanitizeBankText } from './normalize';
 import { inferAccountType } from './simplefin';
 
 describe('parseCsv', () => {
@@ -86,6 +86,34 @@ describe('normalizeMerchant', () => {
   it('keeps a marker that IS the name rather than emptying the string', () => {
     expect(normalizeMerchant('PAYROLL SERVICES INC')).toBe('payroll services inc');
     expect(normalizeMerchant('AUTOPAY SYSTEMS')).toBe('autopay systems');
+  });
+
+  it('reports whether text carries a bookkeeping marker at all', () => {
+    // The repair asks this before preferring a description over a stored payee,
+    // so it must be false for ordinary rows or it would start rewriting them.
+    expect(hasTransactionType('PL*HarborwayMgmt WEB PMTS 070226 BQXRT8 Marlowe Brennan')).toBe(true);
+    expect(hasTransactionType('VERIZON PAYMENTREC URRING 1000000000001 MARLOWE BRENNAN')).toBe(true);
+    expect(hasTransactionType('PURCHASE AUTHORIZED ON 07/08 SHELL OIL 57444199 #4821')).toBe(false);
+    expect(hasTransactionType('RIVER BAKERY FAIRVIEW IL')).toBe(false);
+  });
+
+  it('recovers a payee the bank mangled before the connector ever saw it', () => {
+    // SimpleFIN supplied "HarborwayMgmt WEB BQXRT" for this description, so the
+    // marker was never in the stored merchant and re-normalizing it was a
+    // no-op. The description still has it.
+    const description = 'PL*HarborwayMgmt WEB PMTS   070226 BQXRT8          Marlowe Brennan';
+    expect(normalizeMerchant('harborwaymgmt web bqxrt marlowe brennan')).toBe(
+      'harborwaymgmt web bqxrt marlowe brennan',
+    );
+    expect(normalizeMerchant(description)).toBe('harborwaymgmt');
+  });
+
+  it('leaves a row whose feed payee is BETTER than its description', () => {
+    // The length test is what keeps the fallback narrow: this description
+    // normalizes to something longer and worse than the payee, so it loses.
+    const fromPayee = normalizeMerchant('SHELL OIL 57444199');
+    const fromDescription = normalizeMerchant('PURCHASE AUTHORIZED ON 07/08 SHELL OIL 57444199 #4821');
+    expect(fromDescription.length).toBeGreaterThan(fromPayee.length);
   });
 
   it('leaves a name that merely ends in a processor token alone', () => {

@@ -19,7 +19,7 @@
  * what lets the newly-visible names pick up better ones.
  */
 import 'dotenv/config';
-import { normalizeMerchant } from '../src/lib/connectors/normalize';
+import { hasTransactionType, normalizeMerchant } from '../src/lib/connectors/normalize';
 import { prisma } from '../src/lib/prisma';
 
 const APPLY = process.argv.includes('--apply');
@@ -27,10 +27,48 @@ const APPLY = process.argv.includes('--apply');
 /** Same floor the grouped review uses: shorter than this matches everything. */
 const MIN_RULE_VALUE = 3;
 
+/**
+ * Re-running the normalizer over a stored merchant can only ever reduce what is
+ * already there, and a connector sometimes hands over a payee the bank has
+ * already mangled: three rent-portal charges arrived as "harborwaymgmt web
+ * bqxrt marlowe brennan" from a description that plainly reads "PL*HarborwayMgmt
+ * WEB PMTS 070226 BQXRT8 Marlowe Brennan". The marker was never in the payee, so
+ * there was nothing left to match, and nine sibling rows collapsed while those
+ * three did not.
+ *
+ * The description can rescue them, but only where it is the SAME NAME with the
+ * bookkeeping cut off — which is a prefix test, not a length one. Length alone
+ * looked reasonable and was wrong on the first dry run: it rewrote a clean
+ * "chase credit card" into the bank's abbreviation "chase credit crd", one
+ * character shorter and plainly worse. A prefix cannot do that, because the two
+ * spellings diverge at "car"/"crd", while "harborwaymgmt" is a prefix of
+ * "harborwaymgmt web bqxrt marlowe brennan" exactly as it should be.
+ *
+ * Ordinary rows never reach the test at all: no marker in the description, no
+ * substitution. That is what keeps a feed's good payee ("shell oil") from being
+ * replaced by its own descriptor.
+ */
+function bestMerchant(stored: string, description: string): string {
+  const fromStored = normalizeMerchant(stored);
+  if (!hasTransactionType(description)) return fromStored;
+  const fromDescription = normalizeMerchant(description);
+  if (fromDescription.length < MIN_RULE_VALUE) return fromStored;
+  // Shorter AND a prefix: the same payee, with the bank's columns removed.
+  return fromDescription.length < fromStored.length && fromStored.startsWith(fromDescription)
+    ? fromDescription
+    : fromStored;
+}
+
 async function main(): Promise<void> {
-  const txns = await prisma.transaction.findMany({ select: { id: true, normalizedMerchant: true } });
+  const txns = await prisma.transaction.findMany({
+    select: { id: true, normalizedMerchant: true, description: true },
+  });
   const txnFixes = txns
-    .map((t) => ({ id: t.id, was: t.normalizedMerchant, now: normalizeMerchant(t.normalizedMerchant) }))
+    .map((t) => ({
+      id: t.id,
+      was: t.normalizedMerchant,
+      now: bestMerchant(t.normalizedMerchant, t.description),
+    }))
     .filter((f) => f.now !== f.was && f.now !== '');
 
   const rules = await prisma.rule.findMany({
