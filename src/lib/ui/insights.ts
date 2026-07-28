@@ -8,6 +8,8 @@ import type {
 } from "../../types/contracts";
 import { prisma } from "../prisma";
 import {
+  annualisedTotal,
+  brandOf,
   isActive,
   mergeDetectedSubscriptions,
   type DetectedCharge,
@@ -37,8 +39,11 @@ export interface InsightsPageData {
   periodLabel: string;
   prevPeriod: string | null;
   nextPeriod: string | null;
-  /** Grouped in display order; empty groups omitted. */
-  groups: { title: string; rows: InsightRow[] }[];
+  /**
+   * Grouped in display order; empty groups omitted. `note` is a figure for the
+   * group as a whole, right-aligned against its heading.
+   */
+  groups: { title: string; note: string | null; rows: InsightRow[] }[];
   dismissedCount: number;
   /**
    * What is already committed over the next 30 days — the one forward-looking
@@ -120,11 +125,13 @@ function renderAnomaly(p: AnomalyPayload): InsightRow["text"] {
     : `${p.categoryName ?? "Category"} total ${money(p.amount)} — ${higherThan(p.percentileOfHistory, "prior months")} (median ${money(p.typicalAmount)})`;
 }
 
-function renderRecurring(p: RecurringChargePayload): InsightRow["text"] {
+function renderRecurring(p: RecurringChargePayload, tracked: boolean): InsightRow["text"] {
   const price = p.priceIncreased
     ? `raised to ${money(p.lastAmount)} (was ${money(p.previousAverageAmount ?? p.averageAmount)})`
     : `${money(p.averageAmount)} ${p.cadence.toLowerCase()}`;
-  return `${titleCase(p.merchant)} — ${price} · ${p.occurrences} charges · last ${p.lastDate}`;
+  return `${titleCase(p.merchant)} — ${price} · ${p.occurrences} charges · last ${p.lastDate}${
+    tracked ? " · registered" : ""
+  }`;
 }
 
 function renderNetWorth(p: NetWorthGrowthPayload): InsightRow["text"] {
@@ -145,9 +152,12 @@ function renderCashFlow(p: CashFlowTrendPayload): InsightRow["text"] {
   }`;
 }
 
+/** Named because the annualised total is hung off this group by title. */
+const RECURRING_TITLE = "Recurring charges";
+
 const GROUPS: { type: InsightType; title: string }[] = [
   { type: "ANOMALY", title: "Anomalies" },
-  { type: "RECURRING_CHARGE", title: "Recurring charges" },
+  { type: "RECURRING_CHARGE", title: RECURRING_TITLE },
   { type: "NET_WORTH_GROWTH", title: "Net worth" },
   { type: "CASH_FLOW_TREND", title: "Cash flow" },
   { type: "SPENDING_BY_CATEGORY", title: "Spending by category" },
@@ -155,7 +165,10 @@ const GROUPS: { type: InsightType; title: string }[] = [
 
 const LAPSED_TITLE = "No longer charging";
 
-function toRow(row: { id: string; type: string; payload: unknown; dismissed: boolean }): InsightRow {
+function toRow(
+  row: { id: string; type: string; payload: unknown; dismissed: boolean },
+  trackedBrands: Set<string>,
+): InsightRow {
   const type = row.type as InsightType;
   switch (type) {
     case "ANOMALY": {
@@ -170,7 +183,7 @@ function toRow(row: { id: string; type: string; payload: unknown; dismissed: boo
         dismissed: row.dismissed,
         chip: p.priceIncreased ? "Price up" : "Recurring",
         tone: p.priceIncreased ? "neg" : "neutral",
-        text: renderRecurring(p),
+        text: renderRecurring(p, trackedBrands.has(brandOf(p.merchant))),
       };
     }
     case "NET_WORTH_GROWTH": {
@@ -190,8 +203,14 @@ function toRow(row: { id: string; type: string; payload: unknown; dismissed: boo
 }
 
 export async function getInsightsPageData(requestedPeriod?: string): Promise<InsightsPageData | null> {
-  const monthly = monthlyRows(await prisma.insight.findMany());
+  const [insightRows, trackedRows] = await Promise.all([
+    prisma.insight.findMany(),
+    prisma.trackedSubscription.findMany({ select: { name: true } }),
+  ]);
+  const monthly = monthlyRows(insightRows);
   if (monthly.length === 0) return null;
+  const trackedNames = trackedRows.map((t) => t.name);
+  const trackedBrands = new Set(trackedNames.map(brandOf));
 
   const available = [...new Set(monthly.map((r) => r.period))].sort();
   const period =
@@ -216,16 +235,18 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
 
   const groups = GROUPS.map((g) => ({
     title: g.title,
+    note: null as string | null,
     rows: inPeriod
       .filter((r) => r.type === g.type && !lapsed(r))
-      .map(toRow)
+      .map((r) => toRow(r, trackedBrands))
       .sort((a, b) => Number(a.dismissed) - Number(b.dismissed)),
   }));
   groups.push({
     title: LAPSED_TITLE,
+    note: null,
     rows: inPeriod
       .filter(lapsed)
-      .map(toRow)
+      .map((r) => toRow(r, trackedBrands))
       .sort((a, b) => Number(a.dismissed) - Number(b.dismissed)),
   });
 
@@ -238,6 +259,25 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   const detected = mergeDetectedSubscriptions(ofType<DetectedCharge>(monthly, "RECURRING_CHARGE").map((r) => r.payload));
   const commitments =
     viewingCurrentPeriod && detected.length > 0 ? upcomingCommitments(detected, now) : null;
+
+  // What the live recurring set costs a year. It moved here when Overview
+  // narrowed to state, and it is a PROJECTION — so it is gated to the period
+  // being lived in, like the pace call and the commitments panel, rather than
+  // printed under a historical heading where it would describe a year that is
+  // partly already over.
+  //
+  // Totalled over the MERGED set while the rows below are per-insight: one
+  // subscription reaching the analyzer under three merchant strings is three
+  // rows but one bill, and the sum of the rows would be triple the truth. The
+  // two agree on this database (2 active charges, 2 after merge) and the merge
+  // is what keeps them agreeing when they stop.
+  const activeThisPeriod = inPeriod
+    .filter((r) => r.type === "RECURRING_CHARGE" && !lapsed(r))
+    .map((r) => r.payload as unknown as DetectedCharge);
+  const recurringGroup = groups.find((g) => g.title === RECURRING_TITLE);
+  if (recurringGroup !== undefined && viewingCurrentPeriod && activeThisPeriod.length > 0) {
+    recurringGroup.note = `${money(annualisedTotal(mergeDetectedSubscriptions(activeThisPeriod, trackedNames)))}/yr`;
+  }
 
   const accountCoverage = await getAccountCoverage();
   const coverageOf = (p: string): PeriodCoverage | null => {

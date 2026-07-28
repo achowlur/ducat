@@ -219,9 +219,14 @@ export default async function InsightsPage({
 
       {visibleGroups.map((group) => (
         <section key={group.title} className="pt-5">
-          <h3 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
-            {group.title}
-          </h3>
+          <div className="mb-2 flex items-baseline justify-between gap-3">
+            <h3 className="text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
+              {group.title}
+            </h3>
+            {group.note !== null && (
+              <span className="font-money text-[0.75rem] tabular text-faint">{group.note}</span>
+            )}
+          </div>
           {group.rows.map((row) => (
             <div
               key={row.id}

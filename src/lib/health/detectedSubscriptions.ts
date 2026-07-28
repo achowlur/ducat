@@ -26,8 +26,15 @@ export interface DetectedSubscription extends DetectedCharge {
   tracked: boolean;
 }
 
-/** Leading word is the brand; the rest is the bank's payment-reference noise. */
-function brandOf(merchant: string): string {
+/**
+ * Leading word is the brand; the rest is the bank's payment-reference noise.
+ *
+ * Exported because /insights flags a row as registered against the same
+ * folding: a TrackedSubscription is named by hand ("Verizon") while the row it
+ * covers carries whatever the bank wrote, so anything comparing the two has to
+ * reduce both the way the dedupe does or the flag silently never matches.
+ */
+export function brandOf(merchant: string): string {
   return merchant.trim().toLowerCase().split(/[\s*]+/)[0] ?? merchant;
 }
 

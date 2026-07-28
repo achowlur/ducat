@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { MiniDonut } from "../components/MiniDonut";
 import { SyncNowButton } from "../components/SyncNowButton";
-import { amount, dateTime, money, pct, titleCase } from "../lib/ui/format";
-import { getOverviewData, type Signal } from "../lib/ui/overview";
+import { amount, dateTime, money, pct } from "../lib/ui/format";
+import { getOverviewData } from "../lib/ui/overview";
 import { transactionsHref } from "../lib/ui/categoryFilter";
 
 export const dynamic = "force-dynamic";
@@ -20,12 +20,6 @@ const TYPE_LABEL: Record<string, string> = {
   LOAN: "Loan",
 };
 
-const CHIP_CLASS: Record<Signal["tone"], string> = {
-  neg: "bg-neg text-paper",
-  pos: "bg-pos text-paper",
-  neutral: "bg-chip text-acc",
-};
-
 const DONUT_COLORS = ["bg-chart1", "bg-chart2", "bg-pie3", "bg-pie4"];
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -40,8 +34,6 @@ export default async function OverviewPage() {
   const data = await getOverviewData();
   const simplefinConfigured = (process.env.SIMPLEFIN_ACCESS_URL ?? "") !== "";
   const simplefin = data.health.find((h) => h.connectorType === "SIMPLEFIN");
-  const drifted = data.subscriptions.filter((s) => s.priceDrift !== null);
-  const nextRenewal = data.subscriptions.find((s) => s.priceDrift === null && s.daysUntilNextPayment <= 45);
 
   return (
     <>
@@ -69,17 +61,6 @@ export default async function OverviewPage() {
                 live status — it lives on /providers, where it is explained. */}
             {simplefin.trustCard.displayName} — {simplefin.reasons[0]} · {simplefin.accountCount}{" "}
             account{simplefin.accountCount === 1 ? "" : "s"}
-          </span>
-        )}
-        {drifted.map((s) => (
-          <span key={s.id} className="font-semibold text-neg">
-            {s.name} charged {money(s.lastCharge?.amount ?? 0)} vs {money(s.expectedAmount)} expected (
-            {pct(s.priceDrift?.deltaPct ?? 0)})
-          </span>
-        ))}
-        {nextRenewal !== undefined && (
-          <span>
-            {nextRenewal.name} renews in {nextRenewal.daysUntilNextPayment} days
           </span>
         )}
         {(data.lastSyncAt !== null || simplefinConfigured) && (
@@ -183,63 +164,6 @@ export default async function OverviewPage() {
               )}
             </tbody>
           </table>
-
-          <div className="mt-6">
-            <div className="mb-2.5 flex items-baseline justify-between">
-              <SectionTitle>Subscriptions &amp; recurring</SectionTitle>
-              {data.detectedSubscriptions.length > 0 && (
-                <span className="font-money text-[0.75rem] text-faint">
-                  {money(data.subscriptionsAnnual)}/yr
-                </span>
-              )}
-            </div>
-
-            {data.detectedSubscriptions.length === 0 && data.subscriptions.length === 0 && (
-              <p className="text-[0.85rem] text-faint">
-                No recurring charges detected yet — they surface once a merchant repeats.
-              </p>
-            )}
-
-            {/* Everything the engine found, not just what was registered by hand. */}
-            {data.detectedSubscriptions.map((s) => (
-              <div
-                key={`${s.merchant}-${s.cadence}`}
-                className="flex justify-between border-b border-rule py-1.5 text-[0.85rem] last:border-b-0"
-              >
-                <span>
-                  {titleCase(s.merchant)}{" "}
-                  <span className="text-[0.72rem] text-faint">
-                    {s.cadence.toLowerCase()} · {s.occurrences}×{s.tracked ? " · registered" : ""}
-                  </span>
-                </span>
-                {s.priceIncreased ? (
-                  <span className="font-money font-semibold tabular text-neg">
-                    {money(s.lastAmount)} · raised from {money(s.averageAmount)}
-                  </span>
-                ) : (
-                  <span className="font-money tabular">{money(s.averageAmount)}</span>
-                )}
-              </div>
-            ))}
-
-            {data.subscriptions.map((s) => (
-              <div key={s.id} className="flex justify-between border-b border-rule py-1.5 text-[0.85rem] last:border-b-0">
-                <span>
-                  {s.name} <span className="text-[0.72rem] text-faint">{s.cadence.toLowerCase()}</span>
-                </span>
-                {s.priceDrift === null ? (
-                  <span className="font-money tabular">
-                    {money(s.expectedAmount)} · renews {s.nextPaymentDate.toISOString().slice(5, 10)} (
-                    {s.daysUntilNextPayment}d)
-                  </span>
-                ) : (
-                  <span className="font-money font-semibold tabular text-neg">
-                    {money(s.lastCharge?.amount ?? 0)} charged · {money(s.expectedAmount)} expected
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
         </section>
 
         <section className="border-rule py-5 md:border-l md:pl-7">
@@ -259,7 +183,7 @@ export default async function OverviewPage() {
               </div>
               {/* Stacked below md: sharing a row with the legend squeezed the
                   donut to 76px, with a 5px total in the hole. */}
-              <div className="mb-5 flex flex-col items-start gap-4 md:flex-row md:items-center">
+              <div className="flex flex-col items-start gap-4 md:flex-row md:items-center">
                 {/* Bigger and centred on a phone, where it is the only graphic
                     in a 327px column — at 170px its ring is barely 108px wide
                     (the viewBox carries ~31px of padding a side) and it read as
@@ -296,19 +220,6 @@ export default async function OverviewPage() {
               </div>
             </>
           )}
-
-          <SectionTitle>This month&apos;s signals</SectionTitle>
-          {data.signals.length === 0 && <p className="text-[0.85rem] text-faint">Nothing unusual.</p>}
-          {data.signals.map((s, i) => (
-            <div key={i} className="flex gap-2.5 border-b border-rule py-2 text-[0.85rem] last:border-b-0">
-              <span
-                className={`mt-0.5 self-start whitespace-nowrap rounded-[2px] px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] ${CHIP_CLASS[s.tone]}`}
-              >
-                {s.chip}
-              </span>
-              <span>{s.text}</span>
-            </div>
-          ))}
         </section>
       </div>
     </>
