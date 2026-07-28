@@ -7,9 +7,14 @@ import type {
   SpendingByCategoryPayload,
 } from "../../types/contracts";
 import { prisma } from "../prisma";
-import { isActive } from "../health/detectedSubscriptions";
-import { periodEndExclusive } from "../insights/periods";
-import { monthlyRows } from "./insightRows";
+import {
+  isActive,
+  mergeDetectedSubscriptions,
+  type DetectedCharge,
+} from "../health/detectedSubscriptions";
+import { upcomingCommitments, type UpcomingCommitments } from "../health/commitments";
+import { periodEndExclusive, periodStart } from "../insights/periods";
+import { monthlyRows, ofType } from "./insightRows";
 import { higherThan, money, monthLabel, pct, titleCase } from "./format";
 
 export interface InsightRow {
@@ -30,6 +35,16 @@ export interface InsightsPageData {
   /** Grouped in display order; empty groups omitted. */
   groups: { title: string; rows: InsightRow[] }[];
   dismissedCount: number;
+  /**
+   * What is already committed over the next 30 days — the one forward-looking
+   * figure on the page.
+   *
+   * NULL when the question does not apply: browsing a past month, where "the
+   * next 30 days" would be measured from now and answer nothing about the month
+   * on screen, or a database with nothing recurring detected at all. Refusing
+   * beats printing a number that means something other than it appears to.
+   */
+  commitments: UpcomingCommitments | null;
 }
 
 function renderAnomaly(p: AnomalyPayload): InsightRow["text"] {
@@ -147,6 +162,16 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
       .sort((a, b) => Number(a.dismissed) - Number(b.dismissed)),
   });
 
+  // Commitments look FORWARD from now, so they only make sense while the period
+  // on screen is the one we are living in. On June's page in July, "due in the
+  // next 30 days" would be a July number under a June heading.
+  const now = new Date();
+  const viewingCurrentPeriod =
+    now >= periodStart(period) && now < periodEndExclusive(period);
+  const detected = mergeDetectedSubscriptions(ofType<DetectedCharge>(monthly, "RECURRING_CHARGE").map((r) => r.payload));
+  const commitments =
+    viewingCurrentPeriod && detected.length > 0 ? upcomingCommitments(detected, now) : null;
+
   return {
     period,
     periodLabel: monthLabel(period),
@@ -154,5 +179,6 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     nextPeriod: idx < available.length - 1 ? available[idx + 1] : null,
     groups: groups.filter((g) => g.rows.length > 0),
     dismissedCount: inPeriod.filter((r) => r.dismissed).length,
+    commitments,
   };
 }

@@ -3,6 +3,7 @@ import { CoverageNotice } from "../../components/CoverageNotice";
 import { DismissButton } from "../../components/DismissButton";
 import { getPeriodCoverage } from "../../lib/ui/coverage";
 import { getInsightsPageData, type InsightRow } from "../../lib/ui/insights";
+import { money, shortDate, titleCase } from "../../lib/ui/format";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,55 @@ export default async function InsightsPage({
       <div className="pt-3">
         <CoverageNotice coverage={await getPeriodCoverage(data.period)} />
       </div>
+
+      {/* The only forward-looking figure in the app, and the only thing on this
+          tab that appears nowhere else. Chipped "projected" because a forecast
+          that reads like an observation is the app asserting what it does not
+          know — cadence and amount are observed, the charge itself has not
+          happened. */}
+      {data.commitments !== null && (
+        <section className="mt-4 border-l-2 border-acc bg-chip px-3 py-2.5">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="whitespace-nowrap rounded-[2px] bg-chip px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-acc">
+              Projected
+            </span>
+            <h3 className="text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
+              Already committed — next {data.commitments.windowDays} days
+            </h3>
+            <span className="ml-auto font-money text-[0.95rem] font-semibold tabular">
+              {money(data.commitments.total)}
+            </span>
+          </div>
+
+          {data.commitments.items.length === 0 ? (
+            <p className="pt-1.5 text-[0.85rem] text-faint">
+              Nothing recurring falls due in the next {data.commitments.windowDays} days.
+            </p>
+          ) : (
+            <ul className="grid gap-1 pt-2">
+              {data.commitments.items.map((c) => (
+                <li
+                  key={`${c.merchant}-${c.dueDate.toISOString()}`}
+                  className="grid grid-cols-[1fr_auto_auto] items-baseline gap-x-3 text-[0.85rem] max-md:py-1"
+                >
+                  <span className="truncate">
+                    {titleCase(c.merchant)}
+                    {c.priceIncreased && (
+                      <span className="ml-1.5 text-[0.66rem] uppercase tracking-[0.06em] text-neg">
+                        price up
+                      </span>
+                    )}
+                  </span>
+                  <span className="whitespace-nowrap font-money text-[0.72rem] text-faint">
+                    {c.daysAway === 0 ? "today" : `in ${c.daysAway}d`} · {shortDate(c.dueDate)}
+                  </span>
+                  <span className="text-right font-money tabular">{money(c.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {visibleGroups.length === 0 && (
         <p className="py-6 text-[0.85rem] text-faint">Nothing to show for {data.periodLabel}.</p>
