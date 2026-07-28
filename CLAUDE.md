@@ -501,6 +501,23 @@ regeneration.
   matchValue, so check what the shorter value newly matches before applying the
   repair — `wf credit card auto pay` became `wf credit card`, which was safe
   only because it newly matched zero rows.
+- `ABBREVIATIONS` (same file) holds exactly one entry, `crd` → `card`, and the
+  bar for a second is that it MEASURABLY splits a payee. Chase's descriptor says
+  "CHASE CREDIT CRD EPAY" while the feed reports the payee as "Chase Credit
+  Card", so 67 rows for one card sat under two names with no prefix relating
+  them — which is why the repair's prefix test correctly refused to merge them
+  and an explicit expansion was needed instead. It runs BEFORE the truncation so
+  an abbreviation next to a marker still expands. "fid bkg svc llc" is left
+  alone deliberately: every source spells it the same way, so expanding it would
+  invent a name none of them ever used.
+- `repair:merchants` may fall back to the DESCRIPTION, but only when it carries
+  a transaction-type marker AND yields a string that is both shorter than the
+  stored merchant and a PREFIX of it. The prefix half is load-bearing and was
+  added after a dry run caught the length-only version rewriting a clean "chase
+  credit card" into the bank's own "chase credit crd" — one character shorter
+  and plainly worse. Needed because a connector sometimes supplies a payee the
+  bank already mangled ("HarborwayMgmt WEB BQXRT"), so the marker is not in the
+  stored string and re-normalizing it is a no-op by construction.
 - `normalizeMerchant` strips payment-processor prefixes (`tst*`, `sq *`,
   `slice*`, `dd *`, `py *`, `spo*`, `gdp*`, `fiv*`, `uep*`, `pl*`, `cl *`,
   `wl *`) so the real merchant is reachable by brand rules and groups by
@@ -627,6 +644,19 @@ turned up so it isn't rediscovered:
   are currently computed AND serialized into the HTML even when none is opened.
   Measure in a PRODUCTION build before judging — 0.87s is a dev-mode number.
 - ~~Donut navigation~~ — DONE, see the category-filter convention above.
+- **Merchant strings are still SHATTERED for internal transfers**, measured but
+  deliberately not fixed. Grouping every distinct merchant by its first two
+  words: `online transfer` is 251 merchant strings across 262 rows, `fid bkg`
+  (Fidelity ACH) is 27 across 27, `zelle to`/`zelle from` 49 across 49 — one
+  merchant per row, because each carries its own reference code. Fidelity's
+  reads "FID BKG SVC LLC  MONEYLINE  260401 Y0000000000US1G MARLOWE BRENNAN",
+  so a `moneyline` marker would collapse all 27 to "fid bkg svc llc". Left
+  alone for now on two grounds: CLAUDE.md already records a decision not to
+  ship anything institution-specific like a brokerage's ACH descriptor, and the
+  impact is cosmetic — those rows are all flagged TRANSFER and excluded from
+  every spending analytic, while the Zelle rows already DISPLAY correctly
+  through `merchantLabel`'s payee path whatever is stored. Do it only if the
+  ledger reads badly; it is two more markers plus the same repair.
 - ~~Another pass on subscription detection~~ — AUDITED, and the answer is
   DON'T. See the recurring-detection convention above.
 - **A public demo instance** — DESIGN AGREED 2026-07-27, DEFERRED on purpose.
