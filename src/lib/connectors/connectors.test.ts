@@ -60,7 +60,8 @@ describe('normalizeMerchant', () => {
     );
     expect(normalizeMerchant('HARBORWAYMGMT WEB PMTS XKPVW8 MARLOWE BRENNAN')).toBe('harborwaymgmt');
     expect(normalizeMerchant('PINEGROVEHEALTH PAYROLL XXXXX0003 BRENNAN MARLOWE')).toBe('pinegrovehealth');
-    expect(normalizeMerchant('CHASE CREDIT CRD EPAY MARLOWE BRENNAN')).toBe('chase credit crd');
+    // 'crd' expands before the cut, so this lands on the same name the feed uses.
+    expect(normalizeMerchant('CHASE CREDIT CRD EPAY MARLOWE BRENNAN')).toBe('chase credit card');
     expect(normalizeMerchant('WF CREDIT CARD AUTO PAY BRENNAN,MARLOWE')).toBe('wf credit card');
   });
 
@@ -114,6 +115,21 @@ describe('normalizeMerchant', () => {
     const fromPayee = normalizeMerchant('SHELL OIL 57444199');
     const fromDescription = normalizeMerchant('PURCHASE AUTHORIZED ON 07/08 SHELL OIL 57444199 #4821');
     expect(fromDescription.length).toBeGreaterThan(fromPayee.length);
+  });
+
+  it("expands an abbreviation the bank's own payee field spells out", () => {
+    // 67 rows, one card, two names: CSV rows kept the descriptor's "CRD" while
+    // the feed reported the payee as "Chase Credit Card".
+    expect(normalizeMerchant('CHASE CREDIT CRD EPAY       260321 1000000002      MARLOWE')).toBe(
+      'chase credit card',
+    );
+    expect(normalizeMerchant('Chase Credit Card')).toBe('chase credit card');
+  });
+
+  it('leaves an abbreviation that splits nothing alone', () => {
+    // "fid bkg svc llc" is spelled the same way by every source, so expanding
+    // it would invent a name none of them ever used.
+    expect(normalizeMerchant('FID BKG SVC LLC')).toBe('fid bkg svc llc');
   });
 
   it('leaves a name that merely ends in a processor token alone', () => {

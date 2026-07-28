@@ -65,6 +65,20 @@ const PROCESSOR_PREFIX = /\b(tst|sq|slice|dd|py|spo|gdp|fiv|uep|pl|cl|wl)\s*\*\s
  */
 const TRANSACTION_TYPE = /\b(paymentrec urring|payment recurring|web pmts|payroll|epay|auto pay|autopay)\b/;
 
+/**
+ * Abbreviations the bank uses that its own payee field spells out, which is
+ * enough to split one payee in two: Chase's descriptor says "CHASE CREDIT CRD
+ * EPAY" while the feed reports the payee as "Chase Credit Card", so CSV rows
+ * landed on "chase credit crd" and feed rows on "chase credit card" — 67 rows
+ * under two names for one card.
+ *
+ * Only `crd` earns a place: it is the sole abbreviation measured to split a
+ * payee across the real data. Others exist in these descriptors ("fid bkg svc
+ * llc") and are left alone precisely because they are spelled consistently,
+ * and expanding them would invent a name no source ever used.
+ */
+const ABBREVIATIONS: [RegExp, string][] = [[/\bcrd\b/g, 'card']];
+
 /** Below this the prefix is not a name, so the marker is part of one. */
 const MIN_MERCHANT = 3;
 
@@ -89,7 +103,7 @@ export function hasTransactionType(raw: string): boolean {
  * rules can re-categorize what this misses.
  */
 export function normalizeMerchant(raw: string): string {
-  const cleaned = raw
+  let cleaned = raw
     .toLowerCase()
     .replace(PROCESSOR_PREFIX, ' ')
     .replace(/#\s*\d+/g, ' ') // "#1234" store/check numbers
@@ -97,6 +111,11 @@ export function normalizeMerchant(raw: string): string {
     .replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, ' ') // embedded dates
     .replace(/\s+/g, ' ')
     .trim();
+
+  // Before the truncation, so an abbreviation sitting next to a marker still
+  // expands: "chase credit crd epay" has to become "chase credit card" and not
+  // "chase credit crd".
+  for (const [pattern, full] of ABBREVIATIONS) cleaned = cleaned.replace(pattern, full);
 
   const marker = TRANSACTION_TYPE.exec(cleaned);
   if (marker === null || marker.index < MIN_MERCHANT) return cleaned;
