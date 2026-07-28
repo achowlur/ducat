@@ -3,6 +3,8 @@ import type { Prisma } from "../../generated/prisma/client";
 import { CategoryButton, CategoryPickerProvider } from "../../components/CategoryPicker";
 import { GroupedReview, type PayeeGroupView } from "../../components/GroupedReview";
 import { ReimburseControl } from "../../components/ReimburseControl";
+import { SubscribeButton } from "../../components/SubscribeButton";
+import { draftSubscription } from "../../lib/health/registerSubscription";
 import { prisma } from "../../lib/prisma";
 import { periodEndExclusive, periodStart } from "../../lib/insights/periods";
 import { suggestReimbursements } from "../../lib/insights/suggestReimbursements";
@@ -136,7 +138,7 @@ export default async function TransactionsPage({
     ? { ...where, categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" } }
     : where;
 
-  const [rows, total, categories, accounts, dateRange, reviewPool] = await Promise.all([
+  const [rows, total, categories, accounts, dateRange, reviewPool, trackedSubs] = await Promise.all([
     prisma.transaction.findMany({
       where: listWhere,
       // A relation `include` is a ROUND TRIP, and this query had three of them
@@ -175,11 +177,27 @@ export default async function TransactionsPage({
       where: { ...where, categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" } },
       select: { id: true, normalizedMerchant: true, description: true },
     }),
+    // Which merchants are already tracked, so the row can show it rather than
+    // let you register the same one twice. A tiny table, and it joins the group
+    // rather than gating it.
+    prisma.trackedSubscription.findMany({ select: { merchantPattern: true } }),
   ]);
 
   // The account column, without joining Account onto every row: `accounts` is
   // the whole table and `accountId` is a required FK, so this cannot miss.
   const accountNameById = new Map(accounts.map((a) => [a.id, a.name]));
+
+  // The pattern a row WOULD be tracked under, derived exactly as the action
+  // derives it, so "already tracked" is decided by the same rule that writes.
+  const trackedPatterns = new Set(trackedSubs.map((s) => s.merchantPattern));
+  const subscriptionPattern = (t: { normalizedMerchant: string; description: string; amount: unknown; date: Date }) =>
+    draftSubscription({
+      normalizedMerchant: t.normalizedMerchant,
+      description: t.description,
+      amount: Number(t.amount),
+      date: t.date,
+      cadence: "MONTHLY",
+    })?.merchantPattern ?? null;
 
   // Every month with data, newest first — the period select's options, and the
   // month-stepping links below.
@@ -570,8 +588,19 @@ export default async function TransactionsPage({
                         categoryId={t.categoryId}
                         categorySource={t.categorySource}
                       />
-                      {t.flow === "INFLOW" && (
+                      {t.flow === "INFLOW" ? (
                         <ReimburseControl inflowId={t.id} linked={null} candidates={candidatesFor(t)} />
+                      ) : (
+                        (() => {
+                          const pattern = subscriptionPattern(t);
+                          return (
+                            <SubscribeButton
+                              transactionId={t.id}
+                              merchantPattern={pattern}
+                              tracked={pattern !== null && trackedPatterns.has(pattern)}
+                            />
+                          );
+                        })()
                       )}
                     </span>
                   )}

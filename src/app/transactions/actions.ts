@@ -7,6 +7,17 @@ import { generateInsights } from "../../lib/insights/engine";
 import { reapplyRules, type GroupUndo } from "../../lib/sync/rulePack";
 import { requireSession } from "../../lib/auth/requireSession";
 import { TRANSFER_TARGET } from "../../lib/sync/grouping";
+import { draftSubscription } from "../../lib/health/registerSubscription";
+import type { RecurringCadence } from "../../types/contracts";
+
+/** Guarded because a server action's arguments arrive from the client. */
+const CADENCES = new Set<RecurringCadence>([
+  "WEEKLY",
+  "BIWEEKLY",
+  "MONTHLY",
+  "QUARTERLY",
+  "YEARLY",
+]);
 
 /**
  * Manually assign (or clear) a transaction's category. Manual assignments
@@ -179,6 +190,66 @@ export async function linkReimbursement(inflowId: string, outflowId: string): Pr
   await generateInsights(prisma);
   revalidatePath("/transactions");
   revalidateInsightPages();
+}
+
+/**
+ * Track a transaction's merchant as a subscription.
+ *
+ * Detection needs three occurrences at a regular cadence, which structurally
+ * cannot cover an annual plan (three yearly charges need three years) or a
+ * merchant whose descriptor shifts between charges — `npm run subs:audit`
+ * names the annual case as the detector's one honest gap. Registering is the
+ * door for both, and it is what makes the next renewal date and cent-exact
+ * price drift available from the FIRST charge rather than the third.
+ */
+export async function registerSubscription(
+  transactionId: string,
+  cadence: RecurringCadence,
+): Promise<void> {
+  await requireSession();
+  if (!CADENCES.has(cadence)) throw new Error(`Unknown cadence "${cadence}".`);
+
+  const txn = await prisma.transaction.findUniqueOrThrow({
+    where: { id: transactionId },
+    select: { normalizedMerchant: true, description: true, amount: true, date: true },
+  });
+  const draft = draftSubscription({
+    normalizedMerchant: txn.normalizedMerchant,
+    description: txn.description,
+    amount: Number(txn.amount),
+    date: txn.date,
+    cadence,
+  });
+  if (draft === null) {
+    throw new Error(
+      "This row can't be tracked: a subscription needs an outflow with a merchant name of at least three characters.",
+    );
+  }
+
+  // Re-registering the same merchant updates it rather than listing it twice,
+  // the same shape `upsertRule` uses — the pattern is the identity.
+  const existing = await prisma.trackedSubscription.findFirst({
+    where: { merchantPattern: draft.merchantPattern },
+  });
+  if (existing === null) {
+    await prisma.trackedSubscription.create({ data: { ...draft, enabled: true } });
+  } else {
+    await prisma.trackedSubscription.update({
+      where: { id: existing.id },
+      data: { ...draft, enabled: true },
+    });
+  }
+
+  revalidatePath("/transactions");
+  revalidatePath("/");
+}
+
+/** Stop tracking. Nothing else is touched — the transactions keep their category. */
+export async function unregisterSubscription(merchantPattern: string): Promise<void> {
+  await requireSession();
+  await prisma.trackedSubscription.deleteMany({ where: { merchantPattern } });
+  revalidatePath("/transactions");
+  revalidatePath("/");
 }
 
 export async function unlinkReimbursement(inflowId: string): Promise<void> {
