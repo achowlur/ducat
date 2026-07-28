@@ -12,7 +12,13 @@ import {
   useTransition,
 } from "react";
 import { createPortal } from "react-dom";
-import { createRuleFromMerchant, setTransactionCategory } from "../app/transactions/actions";
+import {
+  createRuleFromMerchant,
+  registerSubscription,
+  setTransactionCategory,
+  unregisterSubscription,
+} from "../app/transactions/actions";
+import type { RecurringCadence } from "../types/contracts";
 
 export interface CategoryOption {
   id: string;
@@ -421,24 +427,48 @@ function Picker({
   );
 }
 
+/** Cadences a subscription can be declared at; the one thing a single charge can't tell you. */
+const CADENCES: { value: RecurringCadence; label: string }[] = [
+  { value: "WEEKLY", label: "wk" },
+  { value: "MONTHLY", label: "mo" },
+  { value: "QUARTERLY", label: "qtr" },
+  { value: "YEARLY", label: "yr" },
+];
+
 /**
  * The per-row control: a button, the ✎ that marks a manual assignment, and the
  * `rule` toggle. Three or four elements, against the 19 the select cost.
+ *
+ * `rule` opens a two-item menu rather than going straight to the picker,
+ * because both things you can say about a MERCHANT — categorize all of them,
+ * or track it as a subscription — belong behind one affordance. Subscription
+ * tracking had its own permanent button for a while and that was the wrong
+ * economics: a control on all ~228 rows for something used a handful of times a
+ * year. Nothing renders until the menu is opened, so a row nobody is editing
+ * pays for none of it.
  */
 export function CategoryButton({
   transactionId,
   merchant,
   categoryId,
   categorySource,
+  subscriptionPattern,
+  subscriptionTracked,
 }: {
   transactionId: string;
   merchant: string;
   categoryId: string | null;
   categorySource: string;
+  /** Null when this row can't be tracked — no merchant, or too short to match safely. */
+  subscriptionPattern: string | null;
+  subscriptionTracked: boolean;
 }) {
   const { nameOf, openPicker, target, pendingId } = usePicker();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const ruleRef = useRef<HTMLButtonElement>(null);
+  const [menu, setMenu] = useState<"closed" | "actions" | "cadence">("closed");
+  const [subPending, startSub] = useTransition();
+  const [subError, setSubError] = useState<string | null>(null);
 
   const open = target !== null && target.transactionId === transactionId;
   const pending = pendingId === transactionId;
@@ -498,23 +528,120 @@ export function CategoryButton({
           ✎
         </span>
       )}
-      {merchant !== "" && (
+      {subscriptionTracked && (
+        <span
+          className="text-[0.62rem] text-acc"
+          title="Tracked as a subscription — its renewal date and price changes are on Overview"
+        >
+          ↻
+        </span>
+      )}
+      {menu === "actions" && (
+        <span className="inline-flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => {
+              setMenu("closed");
+              show(true, "");
+            }}
+            className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+            title={`Categorize every "${merchant}" transaction, past and future`}
+          >
+            category
+          </button>
+          {subscriptionPattern !== null &&
+            (subscriptionTracked ? (
+              <button
+                type="button"
+                aria-disabled={subPending}
+                onClick={() => {
+                  if (subPending) return;
+                  startSub(async () => {
+                    await unregisterSubscription(subscriptionPattern);
+                    setMenu("closed");
+                  });
+                }}
+                className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-neg hover:text-neg"
+                title={`Stop tracking "${subscriptionPattern}" as a subscription`}
+              >
+                untrack
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setMenu("cadence")}
+                className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+                title="Track this merchant as a subscription — its renewal date and price changes, without waiting for the detector's three charges"
+              >
+                subscription
+              </button>
+            ))}
+          <button
+            type="button"
+            onClick={() => setMenu("closed")}
+            className="text-[0.62rem] text-faint hover:text-ink"
+            aria-label="Close merchant actions"
+          >
+            ×
+          </button>
+        </span>
+      )}
+      {menu === "cadence" && (
+        <span className="inline-flex items-center gap-1">
+          <span className="font-money text-[0.58rem] uppercase tracking-[0.05em] text-faint">billed every</span>
+          {CADENCES.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              aria-disabled={subPending}
+              onClick={() => {
+                if (subPending || subscriptionPattern === null) return;
+                setSubError(null);
+                startSub(async () => {
+                  try {
+                    await registerSubscription(transactionId, c.value);
+                    setMenu("closed");
+                  } catch (e) {
+                    setSubError(e instanceof Error ? e.message : "Could not track this one.");
+                  }
+                });
+              }}
+              className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+            >
+              {c.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setMenu("closed");
+              setSubError(null);
+            }}
+            className="text-[0.62rem] text-faint hover:text-ink"
+            aria-label="Cancel"
+          >
+            ×
+          </button>
+          {subError !== null && <span className="text-[0.62rem] text-neg">{subError}</span>}
+        </span>
+      )}
+      {merchant !== "" && menu === "closed" && (
         <button
           ref={ruleRef}
           type="button"
           aria-disabled={pending}
-          aria-haspopup="listbox"
-          aria-expanded={open && target.ruleMode}
+          aria-haspopup="menu"
+          aria-expanded={false}
           onClick={() => {
             if (pending) return;
-            show(true, "");
+            setMenu("actions");
           }}
           className={`rounded-[2px] border px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] ${
             open && target.ruleMode
               ? "border-acc bg-acc text-paper"
               : "border-rule text-faint hover:border-acc hover:text-acc"
           }`}
-          title={`Create a rule for every "${merchant}" transaction, past and future`}
+          title={`What should happen for every "${merchant}" transaction`}
         >
           rule
         </button>

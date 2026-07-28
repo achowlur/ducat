@@ -3,7 +3,6 @@ import type { Prisma } from "../../generated/prisma/client";
 import { CategoryButton, CategoryPickerProvider } from "../../components/CategoryPicker";
 import { GroupedReview, type PayeeGroupView } from "../../components/GroupedReview";
 import { ReimburseControl } from "../../components/ReimburseControl";
-import { SubscribeButton } from "../../components/SubscribeButton";
 import { draftSubscription } from "../../lib/health/registerSubscription";
 import { prisma } from "../../lib/prisma";
 import { periodEndExclusive, periodStart } from "../../lib/insights/periods";
@@ -582,25 +581,23 @@ export default async function TransactionsPage({
                     />
                   ) : (
                     <span className="inline-flex items-center gap-1.5">
-                      <CategoryButton
-                        transactionId={t.id}
-                        merchant={t.normalizedMerchant}
-                        categoryId={t.categoryId}
-                        categorySource={t.categorySource}
-                      />
-                      {t.flow === "INFLOW" ? (
+                      {(() => {
+                        // Outflows only: a subscription is something you are
+                        // billed for, so an inflow has nothing to declare.
+                        const pattern = t.flow === "OUTFLOW" ? subscriptionPattern(t) : null;
+                        return (
+                          <CategoryButton
+                            transactionId={t.id}
+                            merchant={t.normalizedMerchant}
+                            categoryId={t.categoryId}
+                            categorySource={t.categorySource}
+                            subscriptionPattern={pattern}
+                            subscriptionTracked={pattern !== null && trackedPatterns.has(pattern)}
+                          />
+                        );
+                      })()}
+                      {t.flow === "INFLOW" && (
                         <ReimburseControl inflowId={t.id} linked={null} candidates={candidatesFor(t)} />
-                      ) : (
-                        (() => {
-                          const pattern = subscriptionPattern(t);
-                          return (
-                            <SubscribeButton
-                              transactionId={t.id}
-                              merchantPattern={pattern}
-                              tracked={pattern !== null && trackedPatterns.has(pattern)}
-                            />
-                          );
-                        })()
                       )}
                     </span>
                   )}
