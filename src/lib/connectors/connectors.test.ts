@@ -43,9 +43,49 @@ describe('normalizeMerchant', () => {
     expect(normalizeMerchant('GDP*corner pie llc')).toBe('corner pie llc');
     expect(normalizeMerchant('FIV*TEAHOUSE')).toBe('teahouse');
     expect(normalizeMerchant('UEP*BASIL GARDEN')).toBe('basil garden');
-    expect(normalizeMerchant('PL*PAYLEASE WEB PMTS')).toBe('paylease web pmts');
+    // "web pmts" is the bank's transaction type, not part of the name.
+    expect(normalizeMerchant('PL*PAYLEASE WEB PMTS')).toBe('paylease');
     expect(normalizeMerchant('CL *CHASE TRAVEL')).toBe('chase travel');
     expect(normalizeMerchant('WL *STEAM PURCHASE')).toBe('steam purchase');
+  });
+
+  // A padded bank descriptor is columns: MERCHANT, transaction type,
+  // reference, account holder. Everything after the type belongs to the bank
+  // and the account, and it CHANGES per charge — which shatters one payee into
+  // many merchants. On real data "web pmts" produced 18 distinct merchants for
+  // a single rent portal, and Verizon arrived under three.
+  it("cuts the bank's bookkeeping columns off the merchant", () => {
+    expect(normalizeMerchant('VERIZON          PAYMENTREC URRING 1000000000001   MARLOWE BRENNAN')).toBe(
+      'verizon',
+    );
+    expect(normalizeMerchant('HARBORWAYMGMT WEB PMTS XKPVW8 MARLOWE BRENNAN')).toBe('harborwaymgmt');
+    expect(normalizeMerchant('PINEGROVEHEALTH PAYROLL XXXXX0003 BRENNAN MARLOWE')).toBe('pinegrovehealth');
+    expect(normalizeMerchant('CHASE CREDIT CRD EPAY MARLOWE BRENNAN')).toBe('chase credit crd');
+    expect(normalizeMerchant('WF CREDIT CARD AUTO PAY BRENNAN,MARLOWE')).toBe('wf credit card');
+  });
+
+  it('collapses the three strings one subscription arrived under', () => {
+    // The feed supplies a clean payee; a CSV of the same charge does not. Both
+    // have to land on the same merchant or the ledger lists one service three
+    // times and the recurring detector sees three separate ones.
+    const raw = 'VERIZON          PAYMENTREC URRING 1000000000001   MARLOWE BRENNAN';
+    expect(
+      new Set([
+        normalizeMerchant('VERIZON'),
+        normalizeMerchant(raw),
+        normalizeMerchant('verizon paymentrec urring first name last name'),
+      ]).size,
+    ).toBe(1);
+  });
+
+  it('is idempotent, since the repair re-runs it over already-normalized rows', () => {
+    const once = normalizeMerchant('HARBORWAYMGMT WEB PMTS XKPVW8 MARLOWE BRENNAN');
+    expect(normalizeMerchant(once)).toBe(once);
+  });
+
+  it('keeps a marker that IS the name rather than emptying the string', () => {
+    expect(normalizeMerchant('PAYROLL SERVICES INC')).toBe('payroll services inc');
+    expect(normalizeMerchant('AUTOPAY SYSTEMS')).toBe('autopay systems');
   });
 
   it('leaves a name that merely ends in a processor token alone', () => {

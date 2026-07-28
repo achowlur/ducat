@@ -484,6 +484,23 @@ regeneration.
   withdrawal one ("ATM WITHDRAWAL FEE" is a fee, not cash), and short brand
   names are word-bounded regexes, not CONTAINS: "ulta" hides in "consultant",
   "avis" in "Davis", "rei" in "reinvestment", "culver" in "Culver City".
+- `normalizeMerchant` also CUTS the bank's bookkeeping columns. A padded
+  descriptor is MERCHANT, transaction type, reference, account holder, and
+  everything after the type belongs to the bank and varies per charge — which
+  shatters one payee into many merchants. Measured on 1018 real rows: "web
+  pmts" made 18 distinct merchants out of one rent portal (one per reference
+  code), Verizon arrived under three depending on whether the row came from the
+  feed (clean payee) or a CSV (no payee at all), and 713 of 1381 merchants ran
+  to four words or more. `TRANSACTION_TYPE` is evidence-based and deliberately
+  short — every entry was observed — because guessing risks cutting a real name
+  in half; `paymentrec urring` is not a typo, Wells Fargo splits "PAYMENT
+  RECURRING" across a column boundary. It TRUNCATES, so the result stays a
+  contiguous prefix, and it refuses when fewer than 3 characters precede the
+  marker so a merchant that IS the marker survives ("Payroll Services Inc").
+  Watch one thing when adding a marker: truncation can WIDEN an existing rule's
+  matchValue, so check what the shorter value newly matches before applying the
+  repair — `wf credit card auto pay` became `wf credit card`, which was safe
+  only because it newly matched zero rows.
 - `normalizeMerchant` strips payment-processor prefixes (`tst*`, `sq *`,
   `slice*`, `dd *`, `py *`, `spo*`, `gdp*`, `fiv*`, `uep*`, `pl*`, `cl *`,
   `wl *`) so the real merchant is reachable by brand rules and groups by

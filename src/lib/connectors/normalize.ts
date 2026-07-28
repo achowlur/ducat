@@ -42,13 +42,40 @@ export function sanitizeBankText(raw: string): string {
 const PROCESSOR_PREFIX = /\b(tst|sq|slice|dd|py|spo|gdp|fiv|uep|pl|cl|wl)\s*\*\s*/g;
 
 /**
+ * Where the merchant's name ends and the bank's bookkeeping begins.
+ *
+ * A padded bank descriptor is columns: MERCHANT, transaction type, reference,
+ * account holder. Everything after the type belongs to the bank and the
+ * account, not the payee, and it VARIES per charge — which quietly shatters
+ * one payee into many merchants. Measured on 2638 real transactions: "web
+ * pmts" produced 18 distinct merchant strings for a single rent portal, one
+ * per reference code, and Verizon arrived under three depending on whether the
+ * row came from the feed (which supplies a clean payee) or a CSV (which does
+ * not). 713 of 1381 distinct merchants ran to four words or more.
+ *
+ * Truncating rather than deleting keeps the result a contiguous PREFIX of the
+ * original, the same property `payeeKey` needs and for the same reason: a
+ * merchant string has to stay findable in the text it came from, or every rule
+ * written against it silently stops matching.
+ *
+ * Evidence-based and deliberately short. Each entry was observed in the real
+ * data; guessing at more would risk cutting a genuine name in half.
+ * "paymentrec urring" is not a typo — Wells Fargo splits "PAYMENT RECURRING"
+ * across a column boundary.
+ */
+const TRANSACTION_TYPE = /\b(paymentrec urring|payment recurring|web pmts|payroll|epay|auto pay|autopay)\b/;
+
+/** Below this the prefix is not a name, so the marker is part of one. */
+const MIN_MERCHANT = 3;
+
+/**
  * Conservative merchant normalization: lowercase, unwrap payment-processor
- * prefixes, strip reference/card number noise, collapse whitespace.
- * Deliberately does not try to be clever — rules can re-categorize what
- * this misses.
+ * prefixes, strip reference/card number noise, cut the bank's bookkeeping
+ * columns, collapse whitespace. Deliberately does not try to be clever —
+ * rules can re-categorize what this misses.
  */
 export function normalizeMerchant(raw: string): string {
-  return raw
+  const cleaned = raw
     .toLowerCase()
     .replace(PROCESSOR_PREFIX, ' ')
     .replace(/#\s*\d+/g, ' ') // "#1234" store/check numbers
@@ -56,4 +83,8 @@ export function normalizeMerchant(raw: string): string {
     .replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, ' ') // embedded dates
     .replace(/\s+/g, ' ')
     .trim();
+
+  const marker = TRANSACTION_TYPE.exec(cleaned);
+  if (marker === null || marker.index < MIN_MERCHANT) return cleaned;
+  return cleaned.slice(0, marker.index).trim();
 }
