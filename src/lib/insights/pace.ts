@@ -75,6 +75,17 @@ export interface Pace {
 
 const DAY_MS = 86_400_000;
 
+/**
+ * Whether a period reaches back over enough of today's accounts to be compared
+ * with one. Exported so the digest's baselines are gated by the same rule —
+ * two answers to "is this month comparable?" on one screen would be one too
+ * many.
+ */
+export function isComparableBaseline(coverage?: { covered: number; total: number }): boolean {
+  if (coverage === undefined || coverage.total === 0) return true;
+  return coverage.covered / coverage.total >= MIN_BASELINE_COVERAGE;
+}
+
 function median(values: number[]): number {
   const s = [...values].sort((a, b) => a - b);
   const mid = Math.floor(s.length / 2);
@@ -133,11 +144,7 @@ export function computePace(input: {
   // Same calendar month in prior years first: a trailing average is stable
   // exactly because rent dominates it, which is what makes it blind to the
   // months that genuinely differ.
-  const comparable = priors.filter((p) => {
-    if (p.period >= period) return false;
-    if (p.coverage === undefined || p.coverage.total === 0) return true;
-    return p.coverage.covered / p.coverage.total >= MIN_BASELINE_COVERAGE;
-  });
+  const comparable = priors.filter((p) => p.period < period && isComparableBaseline(p.coverage));
 
   const month = monthOf(period);
   const sameMonth = comparable.filter((p) => monthOf(p.period) === month);

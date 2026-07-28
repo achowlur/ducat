@@ -13,7 +13,9 @@ import {
   type DetectedCharge,
 } from "../health/detectedSubscriptions";
 import { upcomingCommitments, type UpcomingCommitments } from "../health/commitments";
-import { computePace, type Pace } from "../insights/pace";
+import { computePace, isComparableBaseline, type Pace } from "../insights/pace";
+import { computeDigest, type DigestItem } from "../insights/digest";
+import { DEFAULT_RECURRING_OPTIONS } from "../insights/recurring";
 import { periodCoverage, type PeriodCoverage } from "../insights/coverage";
 import { periodEndExclusive, periodStart } from "../insights/periods";
 import { getAccountCoverage } from "./coverage";
@@ -56,6 +58,60 @@ export interface InsightsPageData {
   pace: Pace | null;
   /** Fetched here so the page doesn't read account coverage a second time. */
   coverage: PeriodCoverage | null;
+  /**
+   * The few things worth leading with, ranked by what they cost over a year.
+   * Empty is a real answer and gets said out loud, not hidden.
+   */
+  digest: DigestRow[];
+}
+
+export interface DigestRow {
+  chip: string;
+  tone: InsightRow["tone"];
+  /** What changed. */
+  text: string;
+  /** The forward consequence — what earned it the slot. */
+  consequence: string;
+  stake: number;
+}
+
+function renderDigest(item: DigestItem): DigestRow {
+  const perYear = `${money(item.stake)}/yr`;
+  switch (item.kind) {
+    case "CATEGORY_DRIFT":
+      return {
+        chip: "Trending up",
+        tone: "neg",
+        text: `${item.subject} ${money(item.amount)}, against ${money(item.baseline ?? 0)} in comparable months`,
+        consequence: `${perYear} if it holds`,
+        stake: item.stake,
+      };
+    case "PRICE_RISE":
+      return {
+        chip: "Price up",
+        tone: "neg",
+        text: `${titleCase(item.subject)} raised to ${money(item.amount)} from ${money(item.baseline ?? 0)}`,
+        consequence: `${perYear} more than before`,
+        stake: item.stake,
+      };
+    case "NEW_COMMITMENT":
+      return {
+        chip: "New",
+        tone: "neutral",
+        text: `${titleCase(item.subject)} ${money(item.amount)} — newly recognised as recurring`,
+        consequence: `${perYear} committed`,
+        stake: item.stake,
+      };
+    case "ONE_OFF":
+      return {
+        chip: "One-off",
+        tone: "neutral",
+        text: `${titleCase(item.subject)} ${money(item.amount)}, against ${money(item.baseline ?? 0)} typical`,
+        // Deliberately NOT annualised: it happened once, so once is the cost.
+        consequence: "one-off, not recurring",
+        stake: item.stake,
+      };
+  }
 }
 
 function renderAnomaly(p: AnomalyPayload): InsightRow["text"] {
@@ -211,6 +267,30 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
       };
     });
 
+  // Same comparability gate as the pace call, from the same function: two
+  // answers to "is this month comparable?" on one screen would be one too many.
+  const comparablePriors = spendingRows
+    .filter((r) => r.period < period)
+    .filter((r) => {
+      const c = coverageOf(r.period);
+      return isComparableBaseline(c === null ? undefined : { covered: c.covered, total: c.total });
+    })
+    .map((r) => r.payload);
+
+  const digest = computeDigest({
+    spending: thisPeriod?.payload ?? null,
+    priorSpending: comparablePriors,
+    // Dismissed rows do not get to lead the page — dismissing one is a
+    // statement that it does not need attention.
+    recurring: inPeriod
+      .filter((r) => r.type === "RECURRING_CHARGE" && !r.dismissed && !lapsed(r))
+      .map((r) => r.payload as unknown as RecurringChargePayload),
+    anomalies: inPeriod
+      .filter((r) => r.type === "ANOMALY" && !r.dismissed)
+      .map((r) => r.payload as unknown as AnomalyPayload),
+    minOccurrences: DEFAULT_RECURRING_OPTIONS.minOccurrences,
+  }).map(renderDigest);
+
   let pace: Pace | null = null;
   if (viewingCurrentPeriod && thisPeriod !== undefined) {
     // Committed to the END OF THIS MONTH, which is a different window from the
@@ -238,5 +318,6 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     commitments,
     pace,
     coverage: shown !== null && !shown.complete ? shown : null,
+    digest,
   };
 }

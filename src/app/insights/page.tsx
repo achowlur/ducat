@@ -76,6 +76,41 @@ export default async function InsightsPage({
         <CoverageNotice coverage={data.coverage} />
       </div>
 
+      {/* The lead: a few things ranked by what they cost over a year, rather
+          than five streams grouped by insight type with equal weight. The
+          stake is shown because it IS the running order — a reader who
+          disagrees with the ranking can see what it was based on. */}
+      {data.digest.length > 0 ? (
+        <section className="mt-4">
+          <h3 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
+            Worth your attention
+          </h3>
+          {data.digest.map((row, i) => (
+            <div
+              key={`${row.chip}-${i}`}
+              className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-b border-rule py-2 text-[0.85rem] last:border-b-0 max-md:py-3"
+            >
+              <span
+                className={`whitespace-nowrap rounded-[2px] px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] ${CHIP_CLASS[row.tone]}`}
+              >
+                {row.chip}
+              </span>
+              <span className="min-w-0 flex-1">{row.text}</span>
+              <span className="whitespace-nowrap font-money text-[0.78rem] tabular text-faint">
+                {row.consequence}
+              </span>
+            </div>
+          ))}
+        </section>
+      ) : (
+        /* Saying so is the point, not an empty state to be hidden: most months
+           should be quiet, and a digest that always finds four things is one
+           nobody will read by March. */
+        <p className="mt-4 text-[0.85rem] text-faint">
+          Nothing needs your attention in {data.periodLabel}.
+        </p>
+      )}
+
       {/* Where the month lands. The refusals render rather than hide: "too
           early to call" is a more useful thing to read than a missing box, and
           the facts either side of the projection survive it. */}
