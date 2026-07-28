@@ -65,6 +65,12 @@ export interface SubscriptionCharge {
 export interface SubscriptionStatus {
   id: string;
   name: string;
+  /**
+   * Case-insensitive substring that decides which charges are this
+   * subscription's. Carried on the status because it is the only reliable way
+   * to relate a hand-typed name to whatever the bank actually wrote.
+   */
+  merchantPattern: string;
   enabled: boolean;
   expectedAmount: number;
   cadence: RecurringCadence;

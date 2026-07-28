@@ -9,12 +9,12 @@ import type {
 import { prisma } from "../prisma";
 import {
   annualisedTotal,
-  brandOf,
   isActive,
   mergeDetectedSubscriptions,
   type DetectedCharge,
 } from "../health/detectedSubscriptions";
 import { upcomingCommitments, type UpcomingCommitments } from "../health/commitments";
+import { getSubscriptionStatuses, matchesSubscription } from "../health/subscriptions";
 import { computePace, isComparableBaseline, type Pace } from "../insights/pace";
 import { computeDigest, type DigestItem } from "../insights/digest";
 import { DEFAULT_RECURRING_OPTIONS } from "../insights/recurring";
@@ -167,7 +167,7 @@ const LAPSED_TITLE = "No longer charging";
 
 function toRow(
   row: { id: string; type: string; payload: unknown; dismissed: boolean },
-  trackedBrands: Set<string>,
+  isRegistered: (merchant: string) => boolean,
 ): InsightRow {
   const type = row.type as InsightType;
   switch (type) {
@@ -183,7 +183,7 @@ function toRow(
         dismissed: row.dismissed,
         chip: p.priceIncreased ? "Price up" : "Recurring",
         tone: p.priceIncreased ? "neg" : "neutral",
-        text: renderRecurring(p, trackedBrands.has(brandOf(p.merchant))),
+        text: renderRecurring(p, isRegistered(p.merchant)),
       };
     }
     case "NET_WORTH_GROWTH": {
@@ -203,14 +203,16 @@ function toRow(
 }
 
 export async function getInsightsPageData(requestedPeriod?: string): Promise<InsightsPageData | null> {
-  const [insightRows, trackedRows] = await Promise.all([
+  const [insightRows, registered] = await Promise.all([
     prisma.insight.findMany(),
-    prisma.trackedSubscription.findMany({ select: { name: true } }),
+    getSubscriptionStatuses(prisma),
   ]);
   const monthly = monthlyRows(insightRows);
   if (monthly.length === 0) return null;
-  const trackedNames = trackedRows.map((t) => t.name);
-  const trackedBrands = new Set(trackedNames.map(brandOf));
+  // Same predicate the commitments fold uses, so a row cannot read "registered"
+  // while the panel below bills it a second time as undetected.
+  const isRegistered = (merchant: string) =>
+    registered.some((s) => s.enabled && matchesSubscription(s.merchantPattern, merchant));
 
   const available = [...new Set(monthly.map((r) => r.period))].sort();
   const period =
@@ -238,7 +240,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     note: null as string | null,
     rows: inPeriod
       .filter((r) => r.type === g.type && !lapsed(r))
-      .map((r) => toRow(r, trackedBrands))
+      .map((r) => toRow(r, isRegistered))
       .sort((a, b) => Number(a.dismissed) - Number(b.dismissed)),
   }));
   groups.push({
@@ -246,7 +248,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     note: null,
     rows: inPeriod
       .filter(lapsed)
-      .map((r) => toRow(r, trackedBrands))
+      .map((r) => toRow(r, isRegistered))
       .sort((a, b) => Number(a.dismissed) - Number(b.dismissed)),
   });
 
@@ -258,7 +260,9 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   const viewingCurrentPeriod = now >= periodStart(period) && now < periodEnd;
   const detected = mergeDetectedSubscriptions(ofType<DetectedCharge>(monthly, "RECURRING_CHARGE").map((r) => r.payload));
   const commitments =
-    viewingCurrentPeriod && detected.length > 0 ? upcomingCommitments(detected, now) : null;
+    viewingCurrentPeriod && (detected.length > 0 || registered.length > 0)
+      ? upcomingCommitments(detected, registered, now)
+      : null;
 
   // What the live recurring set costs a year. It moved here when Overview
   // narrowed to state, and it is a PROJECTION — so it is gated to the period
@@ -276,7 +280,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     .map((r) => r.payload as unknown as DetectedCharge);
   const recurringGroup = groups.find((g) => g.title === RECURRING_TITLE);
   if (recurringGroup !== undefined && viewingCurrentPeriod && activeThisPeriod.length > 0) {
-    recurringGroup.note = `${money(annualisedTotal(mergeDetectedSubscriptions(activeThisPeriod, trackedNames)))}/yr`;
+    recurringGroup.note = `${money(annualisedTotal(mergeDetectedSubscriptions(activeThisPeriod)))}/yr`;
   }
 
   const accountCoverage = await getAccountCoverage();
@@ -337,8 +341,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     // rolling 30 days above — it is the floor under this month's projection,
     // not the same question.
     const daysLeft = Math.max(0, Math.ceil((periodEnd.getTime() - now.getTime()) / 86_400_000));
-    const dueBeforeMonthEnd =
-      detected.length > 0 ? upcomingCommitments(detected, now, daysLeft).total : 0;
+    const dueBeforeMonthEnd = upcomingCommitments(detected, registered, now, daysLeft).total;
     pace = computePace({
       period,
       now,

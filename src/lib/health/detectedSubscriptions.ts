@@ -29,12 +29,11 @@ export interface DetectedSubscription extends DetectedCharge {
 /**
  * Leading word is the brand; the rest is the bank's payment-reference noise.
  *
- * Exported because /insights flags a row as registered against the same
- * folding: a TrackedSubscription is named by hand ("Verizon") while the row it
- * covers carries whatever the bank wrote, so anything comparing the two has to
- * reduce both the way the dedupe does or the flag silently never matches.
+ * Deliberately NOT the way a hand-registered subscription is matched to a
+ * charge — "Coursera" and "coursera.org" share no first word, so that job
+ * belongs to `matchesSubscription` and its explicit merchantPattern.
  */
-export function brandOf(merchant: string): string {
+function brandOf(merchant: string): string {
   return merchant.trim().toLowerCase().split(/[\s*]+/)[0] ?? merchant;
 }
 

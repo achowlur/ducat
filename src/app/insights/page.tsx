@@ -201,6 +201,14 @@ export default async function InsightsPage({
                         price up
                       </span>
                     )}
+                    {/* The section's claim is that cadence and amount are both
+                        observed. For one you registered by hand they are what
+                        you said they were, so it says which. */}
+                    {c.source === "REGISTERED" && (
+                      <span className="ml-1.5 text-[0.66rem] uppercase tracking-[0.06em] text-faint">
+                        declared
+                      </span>
+                    )}
                   </span>
                   <span className="whitespace-nowrap font-money text-[0.72rem] text-faint">
                     {c.daysAway === 0 ? "today" : `in ${c.daysAway}d`} · {shortDate(c.dueDate)}

@@ -79,19 +79,30 @@ interface ChargeTxnLite {
   description: string;
 }
 
+/**
+ * The app's one answer to "does this text belong to that subscription?".
+ *
+ * Shared so the commitments panel folds a registered subscription onto the
+ * detected charge for the same service the same way this reconciliation picks
+ * up its transactions. Matching the two display NAMES instead does not work:
+ * you register "Coursera" and the bank writes "coursera.org", which no
+ * first-word fold relates — and once both lists feed one total, failing to
+ * relate them bills the same service twice.
+ */
+export function matchesSubscription(pattern: string, ...texts: string[]): boolean {
+  const p = pattern.toLowerCase();
+  return texts.some((t) => t.toLowerCase().includes(p));
+}
+
 /** Pure reconciliation of one subscription against candidate transactions. */
 export function reconcileSubscription(
   sub: TrackedSubLite,
   txns: ChargeTxnLite[],
   now: Date,
 ): SubscriptionStatus {
-  const pattern = sub.merchantPattern.toLowerCase();
   const charges: SubscriptionCharge[] = txns
     .filter(
-      (t) =>
-        t.amount < 0 &&
-        (t.normalizedMerchant.toLowerCase().includes(pattern) ||
-          t.description.toLowerCase().includes(pattern)),
+      (t) => t.amount < 0 && matchesSubscription(sub.merchantPattern, t.normalizedMerchant, t.description),
     )
     .map((t) => ({ transactionId: t.id, date: t.date, amount: round2(-t.amount) }))
     .sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -130,6 +141,7 @@ export function reconcileSubscription(
   return {
     id: sub.id,
     name: sub.name,
+    merchantPattern: sub.merchantPattern,
     enabled: sub.enabled,
     expectedAmount: sub.expectedAmount,
     cadence: sub.cadence,
