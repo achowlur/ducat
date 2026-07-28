@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { TransactionFlow } from '../../types/contracts';
-import { detectCategoryTotalAnomalies, detectTransactionAnomalies } from './anomalies';
+import {
+  detectCategoryTotalAnomalies,
+  detectTransactionAnomalies,
+  DEFAULT_ANOMALY_OPTIONS,
+} from './anomalies';
 import { computeCashFlowTrend } from './cashFlow';
 import { balanceAt, computeNetWorthGrowth } from './netWorth';
 import { detectRecurringCharges } from './recurring';
@@ -579,6 +583,61 @@ describe('detectTransactionAnomalies', () => {
     const [result] = detectTransactionAnomalies([...history, spike], '2026-07', 'MONTH');
     // $2332.56 exceeds all 8 historical Groceries amounts ($155.5–$209.93).
     expect(result.percentileOfHistory).toBe(1);
+  });
+
+  // A robust z-score assumes ONE population. A category can be two — moving a
+  // rent portal's $7.78 fee into Rent & Housing left 12 fees beside 11 rents, and
+  // the median of $170.02 described neither, so every rent scored z=36 against a
+  // "typical" of $88.95. Rank is distribution-free and cannot be fooled that
+  // way, which is also why the UI could already print the refutation:
+  // "higher than 67% of your Rent & Housing" is not an anomaly.
+  it('does not flag a routine payment in a category that holds two populations', () => {
+    const fees = Array.from({ length: 12 }, (_, i) =>
+      txn({ id: `fee${i}`, date: utc(2025, (i % 12) + 1, 2), amount: -3.04, categoryId: 'cat-rent', categoryName: 'Rent & Housing' }),
+    );
+    const rents = Array.from({ length: 11 }, (_, i) =>
+      txn({ id: `rent${i}`, date: utc(2025, (i % 11) + 1, 1), amount: -(1750 + i * 8), categoryId: 'cat-rent', categoryName: 'Rent & Housing' }),
+    );
+    const thisMonth = txn({ id: 'rent-now', date: utc(2026, 7, 1), amount: -1796, categoryId: 'cat-rent', categoryName: 'Rent & Housing' });
+
+    const result = detectTransactionAnomalies([...fees, ...rents, thisMonth], '2026-07', 'MONTH');
+    expect(result).toHaveLength(0);
+
+    // The z-score alone still finds it extraordinary — which is precisely why
+    // the rank gate has to be the thing that stops it.
+    const ungated = detectTransactionAnomalies([...fees, ...rents, thisMonth], '2026-07', 'MONTH', {
+      ...DEFAULT_ANOMALY_OPTIONS,
+      minPercentile: 0,
+    });
+    expect(ungated).toHaveLength(1);
+    expect(ungated[0].deviation).toBeGreaterThan(10);
+  });
+
+  it('still flags a payment that genuinely outruns the rest of its category', () => {
+    const fees = Array.from({ length: 12 }, (_, i) =>
+      txn({ id: `fee${i}`, date: utc(2025, (i % 12) + 1, 2), amount: -3.04, categoryId: 'cat-rent', categoryName: 'Rent & Housing' }),
+    );
+    const rents = Array.from({ length: 11 }, (_, i) =>
+      txn({ id: `rent${i}`, date: utc(2025, (i % 11) + 1, 1), amount: -(1750 + i * 8), categoryId: 'cat-rent', categoryName: 'Rent & Housing' }),
+    );
+    const doubled = txn({ id: 'rent-spike', date: utc(2026, 7, 1), amount: -5650, categoryId: 'cat-rent', categoryName: 'Rent & Housing' });
+
+    const result = detectTransactionAnomalies([...fees, ...rents, doubled], '2026-07', 'MONTH');
+    expect(result).toHaveLength(1);
+    expect(result[0].transactionId).toBe('rent-spike');
+  });
+
+  it('leaves the ranking alone — the gate decides eligibility, not the winner', () => {
+    const spikes = [
+      txn({ id: 'big', date: utc(2026, 7, 8), amount: -900, ...groceries }),
+      txn({ id: 'mid', date: utc(2026, 7, 9), amount: -400, ...groceries }),
+    ];
+    const gated = detectTransactionAnomalies([...history, ...spikes], '2026-07', 'MONTH');
+    const ungated = detectTransactionAnomalies([...history, ...spikes], '2026-07', 'MONTH', {
+      ...DEFAULT_ANOMALY_OPTIONS,
+      minPercentile: 0,
+    });
+    expect(gated.map((r) => r.transactionId)).toEqual(ungated.map((r) => r.transactionId));
   });
 });
 

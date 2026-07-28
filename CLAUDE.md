@@ -200,6 +200,24 @@ regeneration.
   preferring a transaction's own MERCHANT history over its category moved 51 to
   50, because dining spreads across many restaurants and almost none reaches
   five prior visits.
+- Anomalies also need a RANK GATE, because a robust z-score assumes ONE
+  population and a category can be two. Moving a rent portal's $7.78 convenience
+  fee into Rent & Housing left 12 fees beside 11 rents; the median ($170.02)
+  described neither, so every rent scored z=36 against a "typical" of $88.95
+  and was reported as extraordinary — the exact symptom the active-period
+  baseline rule was written to kill, arriving by a different route.
+  `minPercentile: 0.85` is an ELIGIBILITY gate and changes no ranking: z still
+  picks the winner per baseline, and anything both unusual AND rare is
+  untouched. Measured over 2638 real transactions it takes rent from 9 findings
+  to 1 — a $4,773.73 payment genuinely higher than 90% of its category — while
+  keeping the $1707.95 one-off and the $186.6 advisory fee. 0.9 kills the advisory fee,
+  which is why the bar is not higher. It is also self-consistency: the UI prints
+  the percentile AS the justification, so a finding reading "higher than 67% of
+  your Rent & Housing" was refuting its own headline. Tried and failed first,
+  don't retry: LOG-SPACE median/MAD. It is the theoretically appealing fix for
+  a heavy-tailed multiplicative quantity, and it destroys the good findings
+  before it touches rent — at z>=2.5 rent goes but the $1707.95 one-off and the $186.6
+  advisory fee go with it, and at z>=2.0 rent survives all 9 times.
 - Data coverage (`src/lib/insights/coverage.ts`): accounts have different
   history depths (a 90-day feed vs an 18-month CSV vs 5 years of brokerage
   history), so periods before an account's first transaction are UNDERSTATED,

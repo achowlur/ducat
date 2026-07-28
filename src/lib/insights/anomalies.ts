@@ -29,6 +29,31 @@ export interface AnomalyOptions {
    * decides which one survives; the threshold only decides eligibility.
    */
   maxPerBaseline: number;
+  /**
+   * Fraction of its own history a value must exceed to be eligible at all.
+   *
+   * A robust z-score assumes one population. A category can be two: moving a
+   * rent PORTAL's $7.78 convenience fee into Rent & Housing left 12 fees and 11
+   * rents in one bucket, whose median ($170.02) describes neither. Every rent
+   * payment then scored z=36 against a "typical" of $88.95 and was reported as
+   * extraordinary — the exact symptom ("rent, the most predictable expense
+   * there is, flagged every month") that the active-period baseline rule was
+   * introduced to kill, arriving by a different route.
+   *
+   * A RANK cannot be fooled that way: it is distribution-free, so bimodality,
+   * heavy tails and scale are all irrelevant. It is also what the UI already
+   * prints as the justification — "higher than 96% of your Dining" — so a
+   * finding below this bar was refuting its own headline.
+   *
+   * Deliberately an eligibility gate and NOT a change to the ranking: z still
+   * decides which candidate wins its baseline, and everything that was both
+   * unusual AND rare is untouched. Measured over 2638 real transactions, 0.85
+   * takes rent from 9 findings to 1 — the one being a $4,773.73 payment that
+   * really is higher than 90% of its category — while keeping the $1707.95 one-off
+   * and the $186.6 advisory fee. At 0.9 the advisory fee dies, which is why the
+   * bar is not higher.
+   */
+  minPercentile: number;
 }
 
 export const DEFAULT_ANOMALY_OPTIONS: AnomalyOptions = {
@@ -36,6 +61,7 @@ export const DEFAULT_ANOMALY_OPTIONS: AnomalyOptions = {
   minAmount: 50,
   minHistory: 5,
   maxPerBaseline: 1,
+  minPercentile: 0.85,
 };
 
 /**
@@ -101,8 +127,10 @@ export function detectTransactionAnomalies(
 
     const { typical, spread } = summarise(key, history);
     const z = robustZFrom(amount, typical, spread);
-    // A capped z from constant history still needs a real magnitude gap.
-    if (z < options.zThreshold || amount < typical * 1.5) continue;
+    const percentile = fractionBelow(amount, history);
+    // A capped z from constant history still needs a real magnitude gap, and
+    // nothing is anomalous while a fifth of its own category is bigger.
+    if (z < options.zThreshold || amount < typical * 1.5 || percentile < options.minPercentile) continue;
 
     const bucket = candidates.get(key) ?? [];
     bucket.push({
@@ -115,7 +143,7 @@ export function detectTransactionAnomalies(
       amount: round2(amount),
       typicalAmount: round2(typical),
       deviation: round2(z),
-      percentileOfHistory: round4(fractionBelow(amount, history)),
+      percentileOfHistory: round4(percentile),
     });
     candidates.set(key, bucket);
   }
@@ -193,7 +221,12 @@ export function detectCategoryTotalAnomalies(
 
     const z = robustZ(current, active);
     const typical = median(active);
-    if (z < options.zThreshold || current < typical * 1.5) continue;
+    const percentile = fractionBelow(current, active);
+    // A no-op on real data today — a category's monthly totals are one
+    // population, so everything reaching z >= 3.5 is already a record high —
+    // and applied anyway, so the same bimodality that broke the per-transaction
+    // baseline cannot arrive here unguarded.
+    if (z < options.zThreshold || current < typical * 1.5 || percentile < options.minPercentile) continue;
 
     anomalies.push({
       kind: 'CATEGORY_TOTAL',
@@ -205,7 +238,7 @@ export function detectCategoryTotalAnomalies(
       amount: round2(current),
       typicalAmount: round2(typical),
       deviation: round2(z),
-      percentileOfHistory: round4(fractionBelow(current, active)),
+      percentileOfHistory: round4(percentile),
     });
   }
   return anomalies;
