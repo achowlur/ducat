@@ -131,11 +131,27 @@ export async function undoCategorizeGroup(undo: GroupUndo): Promise<void> {
 export async function createRuleFromMerchant(
   merchant: string,
   categoryId: string,
+  /**
+   * DESCRIPTION for a P2P row, where the counterparty appears in the
+   * description and the merchant is the generic rail — a MERCHANT rule built
+   * from "zelle transfer" would categorize every P2P payment at once.
+   */
+  matchField: "MERCHANT" | "DESCRIPTION" = "MERCHANT",
 ): Promise<{ recategorized: number }> {
   await requireSession();
   const matchValue = merchant.trim().toLowerCase();
   if (matchValue === "") throw new Error("Merchant is empty — categorize this transaction manually instead.");
-  const { recategorized } = await upsertRule(matchValue, "MERCHANT", categoryId);
+  // Same floor as the grouped review: a CONTAINS rule at user priority outranks
+  // the whole pack, so a one- or two-character value is a wrecking ball.
+  if (matchValue.length < 3) {
+    throw new Error(
+      `"${matchValue}" is too short to make a rule from — it would match unrelated transactions.`,
+    );
+  }
+  if (matchField !== "MERCHANT" && matchField !== "DESCRIPTION") {
+    throw new Error("Unknown match field.");
+  }
+  const { recategorized } = await upsertRule(matchValue, matchField, categoryId);
   return { recategorized };
 }
 

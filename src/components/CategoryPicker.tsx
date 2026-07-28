@@ -47,6 +47,9 @@ export interface CategoryOption {
 interface Target {
   transactionId: string;
   merchant: string;
+  /** What a rule from this row matches on — see `merchantLabel`. */
+  ruleValue: string;
+  ruleField: "MERCHANT" | "DESCRIPTION";
   categoryId: string | null;
   /** Rule mode: the pick writes `merchant contains "X"` instead of one row. */
   ruleMode: boolean;
@@ -137,7 +140,7 @@ export function CategoryPickerProvider({
   const commit = useCallback(
     (categoryId: string | null) => {
       if (target === null) return;
-      const { transactionId, merchant, ruleMode, anchor } = target;
+      const { transactionId, ruleValue, ruleField, ruleMode, anchor } = target;
       setTarget(null);
       anchor.focus();
       setPendingId(transactionId);
@@ -145,7 +148,8 @@ export function CategoryPickerProvider({
         try {
           // Rule mode never offers "none" — a rule has to assign something —
           // so this branch cannot be reached with a null category.
-          if (ruleMode && categoryId !== null) await createRuleFromMerchant(merchant, categoryId);
+          if (ruleMode && categoryId !== null)
+            await createRuleFromMerchant(ruleValue, categoryId, ruleField);
           else await setTransactionCategory(transactionId, categoryId);
         } finally {
           setPendingId(null);
@@ -331,8 +335,17 @@ function Picker({
       >
         <div className="flex flex-col gap-1 border-b border-rule px-2 py-1.5">
           <span className="truncate font-money text-[0.6rem] uppercase tracking-[0.08em] text-faint">
-            {target.ruleMode ? "rule: merchant contains " : "categorize "}
-            <span className="text-acc">{target.merchant === "" ? "this transaction" : target.merchant}</span>
+            {/* States the rule it will actually write, field and all: for a
+                P2P row that is the DESCRIPTION and the counterparty, not the
+                merchant and the rail. */}
+            {target.ruleMode ? `rule: ${target.ruleField.toLowerCase()} contains ` : "categorize "}
+            <span className="text-acc">
+              {target.ruleMode
+                ? target.ruleValue
+                : target.merchant === ""
+                  ? "this transaction"
+                  : target.merchant}
+            </span>
           </span>
           <input
             ref={searchRef}
@@ -450,13 +463,19 @@ const CADENCES: { value: RecurringCadence; label: string }[] = [
 export function CategoryButton({
   transactionId,
   merchant,
+  ruleValue,
+  ruleField,
   categoryId,
   categorySource,
   subscriptionPattern,
   subscriptionTracked,
 }: {
   transactionId: string;
+  /** Display name — the payee for a P2P row, not the rail. */
   merchant: string;
+  /** What a rule from this row matches on, and where. */
+  ruleValue: string;
+  ruleField: "MERCHANT" | "DESCRIPTION";
   categoryId: string | null;
   categorySource: string;
   /** Null when this row can't be tracked — no merchant, or too short to match safely. */
@@ -477,7 +496,7 @@ export function CategoryButton({
   const show = (ruleMode: boolean, seed: string) => {
     const anchor = (ruleMode ? ruleRef.current : triggerRef.current) ?? triggerRef.current;
     if (anchor === null) return;
-    openPicker({ transactionId, merchant, categoryId, ruleMode, seed, anchor });
+    openPicker({ transactionId, merchant, ruleValue, ruleField, categoryId, ruleMode, seed, anchor });
   };
 
   return (

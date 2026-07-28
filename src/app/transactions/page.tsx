@@ -12,6 +12,7 @@ import { P2P_PATTERN } from "../../lib/sync/rulePack";
 import { amount, isoDate, money, monthLabel, titleCase } from "../../lib/ui/format";
 import { periodKey } from "../../lib/insights/periods";
 import { parseCategoryParam } from "../../lib/ui/categoryFilter";
+import { merchantLabel } from "../../lib/ui/merchantLabel";
 
 export const dynamic = "force-dynamic";
 // This page's actions are the slowest in the app: categorizing a group calls
@@ -548,7 +549,7 @@ export default async function TransactionsPage({
               <tr key={t.id} className={`border-b border-rule ${t.flow === "TRANSFER" ? "opacity-60" : ""}`}>
                 <td className="py-1.5 pr-3 font-money text-[0.78rem] tabular text-faint">{isoDate(t.date)}</td>
                 <td className="max-w-[150px] truncate py-1.5 pr-3 text-[0.85rem] md:max-w-[280px]" title={t.description}>
-                  {titleCase(t.normalizedMerchant !== "" ? t.normalizedMerchant : t.description.toLowerCase())}
+                  {merchantLabel(t).label}
                   {review && (
                     <span className="ml-2 rounded-[2px] bg-neg px-1 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.05em] text-paper">
                       review
@@ -585,10 +586,15 @@ export default async function TransactionsPage({
                         // Outflows only: a subscription is something you are
                         // billed for, so an inflow has nothing to declare.
                         const pattern = t.flow === "OUTFLOW" ? subscriptionPattern(t) : null;
+                        // One source for the label and the rule target, so the
+                        // row you read is the row you act on.
+                        const label = merchantLabel(t);
                         return (
                           <CategoryButton
                             transactionId={t.id}
-                            merchant={t.normalizedMerchant}
+                            merchant={label.label}
+                            ruleValue={label.ruleValue}
+                            ruleField={label.ruleField}
                             categoryId={t.categoryId}
                             categorySource={t.categorySource}
                             subscriptionPattern={pattern}
