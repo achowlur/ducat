@@ -1,23 +1,33 @@
 /**
- * One-off: categorize the two rows the 2026-07-28 sync left uncategorized, by
- * fixing the rules behind them rather than hand-setting the categories.
+ * One-off: correct the Mr Sage rule and give SimpleFIN's own charge a rule.
+ * Run once per instance and then delete this file.
  *
- * Run once per instance and then delete this file. It exists as a script, not
- * as a hand-run query, for the reason `retarget-rule.ts` does: DATA does not
- * ship with git push, so a rule fixed on the laptop leaves the cloud instance —
- * the one actually being read — saying the old thing. It prints WHICH database
- * it is about to touch before doing anything, and is a dry run unless given
- * `--apply`.
+ * It exists as a script, not a hand-run query, for the reason
+ * `retarget-rule.ts` does: DATA does not ship with git push, so a rule fixed on
+ * the laptop leaves the cloud instance — the one actually being read — saying
+ * the old thing. It prints WHICH database it is about to touch before doing
+ * anything, is a dry run unless given `--apply`, and is idempotent.
  *
- * 1. `mr sage` matched MERCHANT, and the merchant string differs by SOURCE: the
- *    CSV row normalized to "mr sage" while the feed's clean payee normalized to
- *    "sage", so a rule the operator had already created silently stopped
- *    matching its own restaurant. Both DESCRIPTIONS carry "mr sage", which is
- *    the raw bank text and the thing that does not move.
- * 2. SimpleFIN's own subscription had no rule. Keyed on `simplefin` and not on
- *    `link.com` deliberately: "LINK.COM*" is a payment-rail prefix of exactly
- *    the shape normalizeMerchant already strips for Toast and Square, so a rule
- *    on the rail would break the day that prefix is added to the strip list.
+ * Three things are wrong with the Mr Sage rule and they are independent:
+ *
+ * 1. WRONG FIELD. It matched MERCHANT, and the merchant string differs by
+ *    SOURCE: the CSV row normalized to "mr sage" while the feed's clean payee
+ *    normalized to "sage", so a rule the operator had already created silently
+ *    stopped matching its own shop. Both DESCRIPTIONS carry "mr sage", which is
+ *    raw bank text and does not move.
+ * 2. WRONG VALUE, if built from the merchant. A rule on the bare token "sage"
+ *    is CONTAINS, so it matches any merchant with those four letters anywhere
+ *    in it — a restaurant with sage in its name, but also "Sagebrush",
+ *    which is a bar, a salon and a cinema. Same hazard CLAUDE.md already
+ *    records for "ulta" inside "consultant" and "rei" inside "reinvestment".
+ *    Any rule whose value is exactly "sage" is DISABLED here, not deleted, so
+ *    the change is visible and reversible.
+ * 3. WRONG CATEGORY. Mr Sage is a grocery shop, not a restaurant.
+ *
+ * The SimpleFIN charge is keyed on `simplefin` and NOT on `link.com`
+ * deliberately: "LINK.COM*" is a payment-rail prefix of exactly the shape
+ * normalizeMerchant already strips for Toast and Square, so a rule on the rail
+ * would break the day that prefix is added to the strip list.
  *
  *   npx tsx scripts/fix-sage-simplefin-rules.ts
  *   npx tsx scripts/fix-sage-simplefin-rules.ts --apply
@@ -27,7 +37,9 @@ import { reapplyRules } from '../src/lib/sync/rulePack';
 import { generateInsights } from '../src/lib/insights/engine';
 
 const SAGE_VALUE = 'mr sage';
+const SAGE_CATEGORY = 'Groceries';
 const SIMPLEFIN_VALUE = 'simplefin';
+const SIMPLEFIN_CATEGORY = 'Subscriptions';
 
 async function main(): Promise<void> {
   const apply = process.argv.includes('--apply');
@@ -36,34 +48,90 @@ async function main(): Promise<void> {
   console.log(`\nDatabase: ${where}`);
   console.log(apply ? 'Mode: APPLY\n' : 'Mode: DRY RUN (pass --apply to write)\n');
 
-  const subscriptions = await prisma.category.findFirst({ where: { name: 'Subscriptions' } });
-  if (subscriptions === null) {
-    console.error('No "Subscriptions" category in this database — aborting.');
+  const groceries = await prisma.category.findFirst({ where: { name: SAGE_CATEGORY } });
+  const subscriptions = await prisma.category.findFirst({ where: { name: SIMPLEFIN_CATEGORY } });
+  if (groceries === null || subscriptions === null) {
+    console.error(`Missing category ${SAGE_CATEGORY} or ${SIMPLEFIN_CATEGORY} — aborting.`);
     process.exitCode = 1;
     return;
   }
 
-  const sageRule = await prisma.rule.findFirst({ where: { matchValue: SAGE_VALUE, enabled: true } });
-  if (sageRule === null) {
-    console.log(`1. No enabled rule with matchValue "${SAGE_VALUE}" — nothing to fix.`);
-  } else if (sageRule.matchField === 'DESCRIPTION') {
-    console.log(`1. Rule "${SAGE_VALUE}" already matches DESCRIPTION — already fixed.`);
-  } else {
-    console.log(`1. p${sageRule.priority}: ${sageRule.matchField} ${sageRule.matchOperator} "${sageRule.matchValue}"`);
-    console.log(`      -> DESCRIPTION ${sageRule.matchOperator} "${sageRule.matchValue}"`);
+  // Everything sage-shaped, so no rule hides behind the one being fixed.
+  const sageRules = (await prisma.rule.findMany({ orderBy: { priority: 'asc' } })).filter((r) =>
+    r.matchValue.toLowerCase().includes('sage'),
+  );
+  console.log(`Rules mentioning "sage": ${sageRules.length}`);
+  for (const r of sageRules) {
+    console.log(`   p${r.priority} ${r.matchField} ${r.matchOperator} "${r.matchValue}" enabled=${r.enabled}`);
+  }
+
+  // 1 + 3: the real rule, pointed at the right field and the right category.
+  const target = sageRules.find((r) => r.matchValue.toLowerCase() === SAGE_VALUE);
+  if (target === undefined) {
+    console.log(`\n1. No rule with matchValue "${SAGE_VALUE}" — creating one.`);
     if (apply) {
-      await prisma.rule.update({ where: { id: sageRule.id }, data: { matchField: 'DESCRIPTION' } });
-      console.log('      WRITTEN');
+      await prisma.rule.create({
+        data: {
+          priority: 50,
+          matchField: 'DESCRIPTION',
+          matchOperator: 'CONTAINS',
+          matchValue: SAGE_VALUE,
+          setCategoryId: groceries.id,
+          enabled: true,
+        },
+      });
+    }
+  } else {
+    const fieldOk = target.matchField === 'DESCRIPTION';
+    const catOk = target.setCategoryId === groceries.id;
+    console.log(
+      `\n1. p${target.priority} "${target.matchValue}": field ${target.matchField}${fieldOk ? ' (ok)' : ' -> DESCRIPTION'}, category ${catOk ? 'already ' + SAGE_CATEGORY : '-> ' + SAGE_CATEGORY}`,
+    );
+    if (apply && (!fieldOk || !catOk)) {
+      await prisma.rule.update({
+        where: { id: target.id },
+        data: { matchField: 'DESCRIPTION', setCategoryId: groceries.id, enabled: true },
+      });
     }
   }
 
-  const existing = await prisma.rule.findFirst({
+  // 2: the over-broad one, if the UI's merchant-derived rule was used.
+  const bare = sageRules.filter((r) => r.matchValue.trim().toLowerCase() === 'sage' && r.enabled);
+  if (bare.length === 0) {
+    console.log('\n2. No bare "sage" rule — nothing over-broad to disable.');
+  } else {
+    for (const r of bare) {
+      console.log(`\n2. DISABLE p${r.priority} ${r.matchField} CONTAINS "sage" — matches "sagebrush" and any restaurant with sage in its name`);
+      if (apply) await prisma.rule.update({ where: { id: r.id }, data: { enabled: false } });
+    }
+  }
+
+  // A MANUAL category outranks every rule, so a row hand-set while the rule was
+  // wrong would keep the wrong answer forever. Only Mr Sage's own rows, and
+  // each one is named before it is touched.
+  const manual = await prisma.transaction.findMany({
+    where: { categorySource: 'MANUAL', description: { contains: SAGE_VALUE } },
+    select: { id: true, date: true, amount: true, description: true },
+  });
+  console.log(`\n3. MANUAL rows blocking the rule: ${manual.length}`);
+  for (const m of manual) {
+    console.log(`   ${m.date.toISOString().slice(0, 10)} ${m.amount} ${m.description} -> released to the rule`);
+    if (apply) {
+      await prisma.transaction.update({
+        where: { id: m.id },
+        data: { categoryId: null, categorySource: 'AGGREGATOR' },
+      });
+    }
+  }
+
+  // SimpleFIN's own subscription.
+  const simplefin = await prisma.rule.findFirst({
     where: { matchValue: SIMPLEFIN_VALUE, matchField: 'DESCRIPTION', matchOperator: 'CONTAINS' },
   });
-  if (existing !== null) {
-    console.log(`\n2. Rule DESCRIPTION CONTAINS "${SIMPLEFIN_VALUE}" already exists — skipping.`);
+  if (simplefin !== null) {
+    console.log(`\n4. Rule DESCRIPTION CONTAINS "${SIMPLEFIN_VALUE}" already exists — skipping.`);
   } else {
-    console.log(`\n2. CREATE p50 DESCRIPTION CONTAINS "${SIMPLEFIN_VALUE}" -> Subscriptions`);
+    console.log(`\n4. CREATE p50 DESCRIPTION CONTAINS "${SIMPLEFIN_VALUE}" -> ${SIMPLEFIN_CATEGORY}`);
     if (apply) {
       await prisma.rule.create({
         data: {
@@ -75,21 +143,7 @@ async function main(): Promise<void> {
           enabled: true,
         },
       });
-      console.log('      WRITTEN');
     }
-  }
-
-  const pool = async () =>
-    prisma.transaction.findMany({
-      where: { categoryId: null, flow: { not: 'TRANSFER' }, reimbursesId: null },
-      select: { date: true, amount: true, description: true },
-      orderBy: { date: 'desc' },
-    });
-
-  const before = await pool();
-  console.log(`\nUncategorized before: ${before.length}`);
-  for (const p of before) {
-    console.log(`   ${p.date.toISOString().slice(0, 10)} ${String(p.amount).padStart(9)}  ${p.description}`);
   }
 
   if (!apply) {
@@ -97,17 +151,25 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Rules only ever WRITE, so this returns each row as it was; regenerating
-  // insights in the same run is what keeps categories and insight rows from
-  // disagreeing, the same contract retarget-rule.ts holds.
   const { changed } = await reapplyRules(prisma);
   console.log(`\nreapplyRules: ${changed} row(s) rewritten`);
 
-  const after = await pool();
-  console.log(`Uncategorized after: ${after.length}`);
-  for (const p of after) {
-    console.log(`   ${p.date.toISOString().slice(0, 10)} ${String(p.amount).padStart(9)}  ${p.description}`);
+  const cats = await prisma.category.findMany();
+  const byId = new Map(cats.map((c) => [c.id, c.name]));
+  const sageRows = await prisma.transaction.findMany({
+    where: { description: { contains: SAGE_VALUE } },
+    select: { date: true, amount: true, categoryId: true, categorySource: true },
+    orderBy: { date: 'desc' },
+  });
+  console.log('Mr Sage rows now:');
+  for (const k of sageRows) {
+    console.log(`   ${k.date.toISOString().slice(0, 10)} ${String(k.amount).padStart(9)}  ${byId.get(k.categoryId ?? '') ?? 'UNCATEGORIZED'} / ${k.categorySource}`);
   }
+
+  const left = await prisma.transaction.count({
+    where: { categoryId: null, flow: { not: 'TRANSFER' }, reimbursesId: null },
+  });
+  console.log(`Uncategorized: ${left}`);
 
   const insights = await generateInsights(prisma, { granularity: 'MONTH' });
   console.log(`Insights regenerated: ${insights.created} across ${insights.periods.length} periods`);
