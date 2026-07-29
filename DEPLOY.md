@@ -231,7 +231,7 @@ generated Prisma client is gitignored, so this step is what creates it on Vercel
 ## 7 · Verify the deployment
 
 - **Auth:** open the URL → you should hit the login screen. Enter your password.
-- **Cron:** Vercel → Project → Cron Jobs lists `/api/cron/sync` (daily 08:00 UTC).
+- **Cron:** Vercel → Project → Cron Jobs lists `/api/cron/sync` (daily 03:00 UTC).
   Trigger it manually, or:
   ```bash
   curl -H "Authorization: Bearer <CRON_SECRET>" https://<your-deployment>.vercel.app/api/cron/sync

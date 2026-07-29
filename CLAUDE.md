@@ -438,10 +438,31 @@ regeneration.
   is the general lesson: a pack rule cannot fix an instance the operator has
   already hand-tuned, so simulate against the real rule set before assuming a
   pack change lands.
+- The CRON HOUR decides how fresh the deployment's balances are, because a
+  SimpleFIN `balance-date` is when the UPSTREAM last observed the balance, not
+  when we synced — and `BalanceSnapshot` is keyed `(accountId, date)`, so a
+  sync against an unrefreshed account upserts the SAME row and "Snapshots
+  written: 21" is not evidence that 21 balances moved. Measured 2026-07-28: Wells
+  Fargo publishes ~22:00 UTC and Fidelity ~09:00 UTC, against a cron at 08:00
+  UTC — so the deployment stored yesterday's Wells Fargo balance every single
+  day, and missed Fidelity's by 51 minutes. Moved to `0 3 * * *` (23:00 EDT),
+  which is after both. Re-measure before changing it again: the fix is to run
+  AFTER the institutions publish, and which hour that is depends on which
+  institutions are connected.
 - Provider health (`src/lib/health/`) derives status from LOCAL signals ONLY —
   last sync outcome, feed errors, stale balance dates, transaction-volume gaps.
   No network call on launch, ever. Adding a connector also means adding its
-  trust card in `providers.ts`.
+  trust card in `providers.ts`. `isStale` is HARDCODED false in the SimpleFIN
+  connector — it exists for CSV, which reports 0/stale with no running-balance
+  column — so the ONLY thing that catches a frozen feed connection is health's
+  `staleBalanceDays: 5`. Five is deliberate and should stay: a Friday balance
+  that does not move until Monday is three days old and perfectly normal, so a
+  tighter bar would cry wolf every weekend. The cost is that a genuinely
+  stalled connection is silent for five days, which is the accepted trade —
+  and the per-account "snapshot <date>" on Overview is what makes it visible
+  before then. Observed 2026-07-28: Chase frozen since Saturday with the feed
+  itself returning `errors: []`, i.e. the aggregator serving a stale balance
+  without flagging it — exactly risk 1 on the SimpleFIN trust card.
 - Dates vs INSTANTS are formatted differently and both are deliberate. A
   transaction date, a month label and a projected renewal date are pinned to
   `timeZone: "UTC"`, because the feed mixes noon UTC, 04:00 (midnight Eastern)
