@@ -156,16 +156,21 @@ export const PACK_RULES: PackRule[] = [
   ...contains(510, "Groceries", "kroger", "safeway", "albertsons", "aldi", "trader joe", "whole foods", "wholefds", "wegmans", "publix", "food lion", "giant eagle", "sprouts", "winco", "costco", "sam's club", "wm supercenter", "walmart", "wal-mart", "instacart", "h-e-b", "heb #"),
 
   ...contains(520, "Dining", "mcdonald", "chipotle", "starbucks", "dunkin", "subway", "taco bell", "chick-fil-a", "wendy", "burger king", "domino", "pizza hut", "papa john", "panera", "five guys", "in-n-out", "shake shack", "kfc", "popeyes", "olive garden", "applebee", "chili's", "ihop", "denny"),
-  ...contains(520, "Gas", "shell", "chevron", "exxon", "marathon", "speedway", "circle k", "7-eleven", "wawa", "quiktrip", "pilot travel", "casey's"),
+  // "exxonmobil" is listed BESIDE "exxon", not instead of it. A CONTAINS match
+  // may no longer run into a longer word, so the prefix alone stopped reaching
+  // the one-word spelling — and editing the shipped value would install a
+  // second rule while leaving the original enabled everywhere the pack has
+  // already run. Every pack value ending mid-word needs the same treatment.
+  ...contains(520, "Gas", "shell", "chevron", "exxon", "exxonmobil", "marathon", "speedway", "circle k", "7-eleven", "wawa", "quiktrip", "pilot travel", "casey's"),
   // "mobil" as a substring would swallow T-Mobile; word-bounded, it still
-  // catches "MOBIL 7645" while "EXXONMOBIL" lands via the exxon rule.
+  // catches "MOBIL 7645".
   regex(520, "Gas", "\\bmobil\\b"),
   ...contains(520, "Subscriptions", "netflix", "spotify", "hulu", "disney plus", "disney+", "hbo max", "youtube premium", "youtubepremium", "apple.com/bill", "adobe", "dropbox", "icloud", "google one", "playstation network", "xbox game", "nintendo online", "patreon", "openai", "planet fitness", "la fitness", "equinox", "ymca"),
   ...contains(520, "Shopping", "ebay", "etsy", "best buy", "home depot", "lowes", "ikea", "wayfair", "macys", "nordstrom", "tj maxx", "tjmaxx", "marshalls", "ross stores", "old navy", "target"),
-  ...contains(520, "Utilities", "comcast", "xfinity", "verizon", "at&t", "t-mobile", "tmobile", "spectrum", "cox comm", "pg&e", "con edison", "coned", "national grid", "duke energy"),
-  ...contains(520, "Travel", "airbnb", "marriott", "hilton", "hyatt", "expedia", "booking.com", "vrbo", "delta air", "united air", "american airlines", "southwest air", "alaska air", "jetblue", "spirit air", "amtrak"),
+  ...contains(520, "Utilities", "comcast", "xfinity", "verizon", "at&t", "t-mobile", "tmobile", "spectrum", "cox comm", "cox communications", "pg&e", "con edison", "coned", "national grid", "duke energy"),
+  ...contains(520, "Travel", "airbnb", "marriott", "hilton", "hyatt", "expedia", "booking.com", "vrbo", "delta air", "delta airlines", "united air", "united airlines", "american airlines", "southwest air", "southwest airlines", "alaska air", "alaska airlines", "jetblue", "spirit air", "spirit airlines", "amtrak"),
   ...contains(520, "Health", "cvs", "walgreens", "rite aid", "kaiser", "quest diagnostics", "labcorp"),
-  ...contains(520, "Entertainment", "amc theat", "regal cinemas", "cinemark", "ticketmaster", "stubhub", "steam purchase", "steampowered", "epic games"),
+  ...contains(520, "Entertainment", "amc theat", "amc theatre", "regal cinemas", "cinemark", "ticketmaster", "stubhub", "steam purchase", "steampowered", "epic games"),
   // "MACY'S 0000 ANYTOWN IL" is what the statement says, and
   // "macys" above never matched it — only macys.com, which writes it the
   // other way. Both spellings occur in one account's history.
@@ -179,7 +184,7 @@ export const PACK_RULES: PackRule[] = [
   ...contains(525, "Groceries", "harris teeter", "hy-vee", "meijer", "stop & shop", "shoprite", "acme markets", "ralphs", "fred meyer", "king soopers", "jewel-osco", "lidl", "grocery outlet", "foodmart", "key food"),
   ...contains(525, "Shopping", "kohl", "jcpenney", "dillard", "famous footwear", "foot locker", "sephora", "bath & body", "victoria's secret", "american eagle", "hollister", "abercrombie", "urban outfitters", "uniqlo", "forever 21", "banana republic", "lululemon", "under armour", "dick's sporting", "academy sports", "bass pro", "cabela", "michaels stores", "hobby lobby", "joann", "party city", "barnes & noble", "gamestop", "b&h photo", "micro center", "newegg", "staples", "office depot", "petco", "petsmart", "tractor supply", "ace hardware", "menards", "harbor freight", "world market", "big lots", "dollar general", "dollar tree", "family dollar", "swarovski"),
   ...contains(525, "Transport", "trc tapgo", "e-zpass", "sunpass", "fastrak", "spothero", "parkmobile", "paybyphone", "citi bike", "zipcar", "sound transit", "clipper card", "ventra"),
-  ...contains(525, "Travel", "hertz", "enterprise rent", "budget rent", "alamo rent", "priceline", "hotels.com", "orbitz", "travelocity", "holiday inn", "hampton inn", "best western", "la quinta", "motel 6", "days inn", "wyndham", "sheraton", "frontier air", "allegiant air", "hawaiian air", "air canada", "lufthansa", "british airways", "greyhound", "flixbus", "megabus", "global entry", "chase travel"),
+  ...contains(525, "Travel", "hertz", "enterprise rent", "budget rent", "budget rental", "alamo rent", "alamo rental", "priceline", "hotels.com", "orbitz", "travelocity", "holiday inn", "hampton inn", "best western", "la quinta", "motel 6", "days inn", "wyndham", "sheraton", "frontier air", "frontier airlines", "allegiant air", "hawaiian air", "hawaiian airlines", "air canada", "lufthansa", "british airways", "greyhound", "flixbus", "megabus", "global entry", "chase travel"),
   ...contains(525, "Health", "duane reade", "walgreen", "minuteclinic", "zocdoc", "goodrx", "teladoc", "lenscrafters", "warby parker", "pearle vision", "aspen dental", "delta dental", "blue cross", "blue shield"),
   // "blizzard *" rather than the bare word: a Dairy Queen Blizzard is dinner.
   ...contains(525, "Entertainment", "silverspot", "alamo drafthouse", "fandango", "atom tickets", "dave & buster", "topgolf", "chuck e cheese", "sky zone", "bowlero", "six flags", "cedar point", "universal studios", "walt disney world", "disneyland", "seaworld", "busch gardens", "blizzard *", "riot games", "roblox", "nintendo", "eventbrite", "seatgeek", "vivid seats"),

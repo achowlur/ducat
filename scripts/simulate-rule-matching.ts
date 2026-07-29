@@ -1,8 +1,14 @@
 /**
  * What changes if CONTAINS stops cutting into words.
  *
- * Read-only. Runs the SAME matcher twice — once as shipped, once with
- * `LETTER_BOUNDARY` — and reports every disagreement. Nothing is written.
+ * Read-only. Runs the SAME matcher twice — once with `SUBSTRING`, the older
+ * and wider behaviour, once with `LETTER_BOUNDARY`, which now ships — and
+ * reports every disagreement. Nothing is written.
+ *
+ * Kept after the change landed, because it is the instrument for the next one:
+ * a new rule, a widened value or a normalization change can all reintroduce an
+ * over-match, and this is what measures it. Read the direction accordingly —
+ * PASS 1's "was" column is the retired behaviour, not the current one.
  *
  * The honest difficulty is that real transactions are the wrong instrument for
  * most of this question. A collision only shows up once you happen to shop at a

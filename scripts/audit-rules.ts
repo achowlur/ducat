@@ -45,10 +45,13 @@ function classify(merchant: string, value: string): Kind {
   if (m === v) return 'EXACT';
   const at = m.indexOf(v);
   if (at < 0) return 'WORD'; // matched via DESCRIPTION, not the merchant
-  const alnum = (c: string) => /[a-z0-9]/.test(c);
-  const cutBefore = alnum(v[0] ?? ' ') && at > 0 && alnum(m[at - 1] ?? ' ');
+  // LETTERS, matching containsAtLetterBoundary exactly. Digit adjacency is a
+  // store number and the matcher allows it deliberately, so reporting it here
+  // would flag behaviour that is working as designed.
+  const letter = (c: string) => /[a-z]/.test(c);
+  const cutBefore = letter(v[0] ?? ' ') && at > 0 && letter(m[at - 1] ?? ' ');
   const cutAfter =
-    alnum(v[v.length - 1] ?? ' ') && at + v.length < m.length && alnum(m[at + v.length] ?? ' ');
+    letter(v[v.length - 1] ?? ' ') && at + v.length < m.length && letter(m[at + v.length] ?? ' ');
   return cutBefore || cutAfter ? 'MIDWORD' : 'WORD';
 }
 

@@ -518,6 +518,41 @@ regeneration.
   does not upgrade it — it installs a second rule and leaves the original
   enabled in every database that already ran the pack. Add a new rule at the
   next priority instead (why `901`/`911`/`951` exist beside `900`/`910`/`950`).
+- CONTAINS never cuts a word (`containsAtLetterBoundary` in `rules.ts`), and
+  the two edges are NOT symmetric. A letter BEFORE the value is always a
+  coincidence — no merchant name starts half way through a brand — so
+  "star|bucks", "grim|aldi", "gr|uber" and "bomb|shell" are refused
+  outright. A letter AFTER is ambiguous, because "trader joe|s" is an
+  inflection while "sage|brush" is a different word, so exactly ONE trailing
+  letter is allowed: two lets "kohl" claim "kohler", one still reaches the
+  "kohls" it was written for. LETTER and not alphanumeric is the whole design —
+  banks decorate with DIGITS ("410a hanover food center", "heb #1234",
+  "blizzard *us1000000001") and those must keep matching. Why it exists: the
+  rule button derives its value from the merchant string, so a short merchant
+  became a wildcard, and that failure is SILENT while the opposite one leaves a
+  row shouting on Overview. Measured before shipping (`npm run rules:simulate`,
+  which keeps both matchers so the comparison never drifts): one real row
+  changed and no category moved — Starbucks simply stopped being claimed by
+  a user's "bucks" rule — against 1,659 constructed collisions removed across
+  579 rule values, and zero losses over 3,292 decorated-merchant probes.
+  The consequence for `rulePack.ts`: a value that ENDS MID-WORD no longer
+  reaches the longer spelling on its own, so the full form must be listed
+  BESIDE it, never instead of it (`installRulePack` keys on matchValue, so
+  editing one installs a second rule and leaves the original enabled). That is
+  why `exxonmobil`, `amc theatre`, `delta airlines`, `cox communications` and
+  `alamo rental` sit next to their truncated forms, pinned by their own describe
+  block in `rulePack.test.ts`. Anyone adding a value that stops mid-word owes an
+  entry there. `npm run rules:audit` reports any rule still matching mid-word;
+  it should stay at zero.
+- The pack's OWN corpus tests caught this, not the simulation against 1,030
+  real transactions — three of them failed on plurals ("trader joes",
+  "jimmy johns") when the rule was still symmetric. Real data cannot find this
+  class: it only holds the spellings this operator has actually been billed
+  under, and a merchant you have never visited cannot collide with anything.
+  More months of the same data would not have helped either, since the
+  ten-thousandth transaction is drawn from the same ~515 merchants as the
+  first. Generated probes and the curated corpus are the instruments here;
+  transaction volume is not one.
 - Rule bands in `rulePack.ts`: `1-99` user, `200-299` structural (bank and
   brokerage bookkeeping descriptors — card payments, ATM cash, distributions,
   taxes), `500-529` brands, `900-999` generic words, `995` payment rail.

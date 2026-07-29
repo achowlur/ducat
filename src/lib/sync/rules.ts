@@ -74,7 +74,10 @@ function collapse(value: string): string {
 }
 
 /**
- * CONTAINS, but a match may never cut into a LETTER sequence.
+ * CONTAINS, but a match may never cut into a LETTER sequence. This is what
+ * every CONTAINS rule in the app now does — pack, user and UI-created alike,
+ * which is the point: fixing the matcher fixes every rule at once, including
+ * the ones the rule button has not written yet.
  *
  * Plain CONTAINS makes a short rule value a wildcard: "sage" claims
  * "sagebrush", "aldi" claims "grimaldi's", "uber" claims "gruber". That
@@ -94,9 +97,34 @@ function collapse(value: string): string {
  * in "*" or "#" is anchored by construction and its right-hand side is never
  * tested.
  *
+ * The two edges are NOT symmetric, and the rule pack is what proved it. A
+ * letter BEFORE the value means the value is the tail of a longer word, which
+ * is always a coincidence — no merchant name begins half way through a brand
+ * ("star|bucks", "grim|aldi", "gr|uber", "bomb|shell"). That is refused
+ * outright. A letter AFTER means the value is a PREFIX, which is ambiguous:
+ * "trader joe|s" and "jimmy john|s" are the same brand inflected, while
+ * "sage|brush" and "steam|boat" are different words. Length separates them —
+ * a plural is one letter, a different word is not — so a trailing run of at
+ * most INFLECTION_MAX letters is allowed and anything longer is refused. Two
+ * was tried first and lets "kohl" claim "kohler", while one still reaches the
+ * "kohls" it was written for.
+ *
+ * Found by the pack's own corpus tests, not by simulating against real
+ * transactions: three of them failed on plurals the first time this shipped as
+ * a symmetric rule. Real data could not have caught it, because it only holds
+ * the spellings this operator has actually been billed under.
+ *
+ * The asymmetry also matters for how the PACK is written. It deliberately uses
+ * truncated prefixes — "delta air", "amc theat", "alamo rent", "exxon" — which
+ * a right-edge restriction is hostile to, while the left-edge restriction costs
+ * them nothing. Any pack value ending mid-word now needs its full form listed
+ * beside it, which is why "exxonmobil" and "amc theatre" exist.
+ *
  * Every occurrence is scanned, not just the first — a value can appear once
  * mid-word and once cleanly in the same merchant, and the clean one counts.
  */
+const INFLECTION_MAX = 1;
+
 export function containsAtLetterBoundary(haystack: string, needle: string): boolean {
   if (needle === '') return false;
   const isLetter = (c: string | undefined): boolean => c !== undefined && /[a-z]/.test(c);
@@ -105,23 +133,30 @@ export function containsAtLetterBoundary(haystack: string, needle: string): bool
   for (let from = 0; ; ) {
     const at = haystack.indexOf(needle, from);
     if (at < 0) return false;
-    const cutBefore = headCuts && isLetter(haystack[at - 1]);
-    const cutAfter = tailCuts && isLetter(haystack[at + needle.length]);
-    if (!cutBefore && !cutAfter) return true;
     from = at + 1;
+    if (headCuts && isLetter(haystack[at - 1])) continue;
+    const end = at + needle.length;
+    if (!tailCuts || !isLetter(haystack[end])) return true;
+    let run = 0;
+    while (isLetter(haystack[end + run])) run += 1;
+    if (run <= INFLECTION_MAX) return true;
   }
 }
 
 /**
- * How CONTAINS decides a match. `SUBSTRING` is the shipped behaviour;
- * `LETTER_BOUNDARY` refuses a match that cuts into a word. Selectable so the
- * two can be compared over real data by running the SAME matcher twice rather
- * than a copy of it — audit-subscriptions re-implements the recurring gates and
- * drifted from them, and that is the mistake this parameter exists to avoid.
+ * How CONTAINS decides a match. `LETTER_BOUNDARY` is the shipped behaviour;
+ * `SUBSTRING` is the older, wider one, kept only so `rules:simulate` can
+ * compare the two by running the SAME matcher twice rather than a copy of it —
+ * audit-subscriptions re-implements the recurring gates and drifted from them,
+ * and that is the mistake this parameter exists to avoid.
  */
 export type ContainsMode = 'SUBSTRING' | 'LETTER_BOUNDARY';
 
-function matches(rule: RuleData, txn: RuleTxn, containsMode: ContainsMode = 'SUBSTRING'): boolean {
+function matches(
+  rule: RuleData,
+  txn: RuleTxn,
+  containsMode: ContainsMode = 'LETTER_BOUNDARY',
+): boolean {
   if (rule.matchField === 'AMOUNT') {
     // Numeric comparisons run against the SIGNED amount: "GT -50" means
     // outflows smaller than $129.59, "LT -500" means outflows over $500.
@@ -173,7 +208,7 @@ function matches(rule: RuleData, txn: RuleTxn, containsMode: ContainsMode = 'SUB
 export function applyRules(
   rules: RuleData[],
   txns: RuleTxn[],
-  containsMode: ContainsMode = 'SUBSTRING',
+  containsMode: ContainsMode = 'LETTER_BOUNDARY',
 ): RuleApplication[] {
   const active = rules.filter((r) => r.enabled).sort((a, b) => a.priority - b.priority);
   const applications: RuleApplication[] = [];

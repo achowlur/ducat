@@ -278,3 +278,49 @@ describe("P2P review flag", () => {
     expect(categorize("VENMO *GROCERY MONEY")).toBeNull(); // even with a tempting word...
   });
 });
+
+/**
+ * Pack values that end mid-word, and the fuller spellings they must still
+ * reach. CONTAINS may no longer run a match into a longer word, so a truncated
+ * prefix like "exxon" or "amc theat" stops reaching "EXXONMOBIL" and "AMC
+ * THEATRES" on its own — the full form has to be listed beside it.
+ *
+ * These are pinned separately from the main corpus because they are a CLASS,
+ * not a handful of brands: anyone adding a pack value that stops mid-word owes
+ * an entry here, and the failure it guards against is silent (the charge simply
+ * goes uncategorized) rather than loud.
+ */
+describe("starter pack: values that end mid-word keep their full spellings", () => {
+  const BOTH_SPELLINGS: [raw: string, expected: string][] = [
+    ["EXXON 4471", "Gas"],
+    ["EXXONMOBIL 97534514", "Gas"],
+    ["AMC THEAT 0382", "Entertainment"],
+    ["AMC THEATRES 034", "Entertainment"],
+    ["DELTA AIR LINES 0062", "Travel"],
+    ["DELTA AIRLINES 0062", "Travel"],
+    ["UNITED AIRLINES 016", "Travel"],
+    ["ALASKA AIRLINES 027", "Travel"],
+    ["SPIRIT AIRLINES 487", "Travel"],
+    ["COX COMM 8841", "Utilities"],
+    ["COX COMMUNICATIONS", "Utilities"],
+    ["ALAMO RENT A CAR", "Travel"],
+    ["ALAMO RENTAL 8823", "Travel"],
+  ];
+
+  it.each(BOTH_SPELLINGS)("%s → %s", (raw, expected) => {
+    expect(categorize(raw)).toBe(expected);
+  });
+
+  // The plural case the matcher handles on its own, so no pack entry is
+  // needed — one trailing letter is an inflection, not a different word.
+  const INFLECTED: [raw: string, expected: string][] = [
+    ["TRADER JOES 058", "Groceries"],
+    ["JIMMY JOHNS - 2001", "Dining"],
+    ["PAPA JOHNS 04412", "Dining"],
+    ["DOMINOS 8842", "Dining"],
+  ];
+
+  it.each(INFLECTED)("%s → %s without a pack entry of its own", (raw, expected) => {
+    expect(categorize(raw)).toBe(expected);
+  });
+});
