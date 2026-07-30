@@ -35,6 +35,7 @@ const DAY_MS = 86_400_000;
 interface AccountLite {
   id: string;
   name: string;
+  type: string;
   balanceDate: Date;
   isStale: boolean;
 }
@@ -65,7 +66,23 @@ export function findStaleAccounts(
  * Pure signal: accounts whose recent transaction volume collapsed vs their
  * own history — the fingerprint of an upstream feed silently dropping data
  * (accounts still listed, balances may even update, transactions missing).
+ *
+ * INVESTMENT accounts are exempt, because transaction volume is not a liveness
+ * signal for them and pretending otherwise cries wolf most of the year. Their
+ * rows are overwhelmingly DIVIDEND RECEIVED, which arrive in quarter-end
+ * clusters: one real brokerage account here ran 52 transactions in June and 2
+ * in July, so a rolling 30-day window against a flat monthly mean flagged it
+ * every off-quarter month. Widening the window does not fix it either — it
+ * drags the BASELINE back into the CSV-backfilled era, which captured every
+ * trade and statement line where the live feed does not, and at 90 days two
+ * accounts landed within 0.03 of the threshold instead of one over it.
+ *
+ * Nothing is lost by the exemption. A dead brokerage feed stops refreshing the
+ * BALANCE, which `findStaleAccounts` catches in five days — sooner than a
+ * volume gap could, and without depending on whether a dividend was due.
  */
+const GAP_EXEMPT_TYPES = new Set(['INVESTMENT']);
+
 export function findGappedAccounts(
   accounts: AccountLite[],
   txns: TxnLite[],
@@ -76,6 +93,7 @@ export function findGappedAccounts(
   const signals: GappedAccountSignal[] = [];
 
   for (const account of accounts) {
+    if (GAP_EXEMPT_TYPES.has(account.type)) continue;
     const own = txns.filter((t) => t.accountId === account.id);
     const historical = own.filter((t) => t.date.getTime() < windowStart);
     if (historical.length === 0) continue;
@@ -174,7 +192,7 @@ export async function getProviderHealth(
   for (const connectorType of connectorTypes) {
     const accounts = await prisma.account.findMany({
       where: { connectorType },
-      select: { id: true, name: true, balanceDate: true, isStale: true },
+      select: { id: true, name: true, type: true, balanceDate: true, isStale: true },
     });
     const lastLog = await prisma.syncLog.findFirst({
       where: { connectorType },

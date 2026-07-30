@@ -462,7 +462,24 @@ regeneration.
   and the per-account "snapshot <date>" on Overview is what makes it visible
   before then. Observed 2026-07-28: Chase frozen since Saturday with the feed
   itself returning `errors: []`, i.e. the aggregator serving a stale balance
-  without flagging it — exactly risk 1 on the SimpleFIN trust card.
+  without flagging it — exactly risk 1 on the SimpleFIN trust card. (It
+  recovered on its own the next day, after 3.3 days — which is why the bar is
+  5 and not 3: a tighter one would have sent the operator into a bank
+  re-authentication flow for a connection that was fine.)
+- INVESTMENT accounts are EXEMPT from transaction-gap detection
+  (`GAP_EXEMPT_TYPES` in `health/health.ts`). Their rows are overwhelmingly
+  DIVIDEND RECEIVED, which arrive in quarter-end clusters, so volume is not a
+  liveness signal: a real Fidelity account ran 52 transactions in June and 2 in
+  July and was flagged "dropped off: 2 in the last 30 days vs ~25.7/month"
+  every off-quarter month. Widening the window is the obvious fix and it is
+  WRONG — measured at 30/60/90/120 days, it drags the BASELINE back into the
+  CSV-backfilled era, which captured every trade and statement line where the
+  live feed does not, so at 90 days two accounts sat at ratios 0.26 and 0.28
+  against a 0.25 threshold (one nudge from firing) and at 120 days the same
+  account flagged again for a different reason. Nothing is lost by exempting
+  them: a dead brokerage feed stops refreshing the BALANCE, which
+  `staleBalanceDays: 5` catches sooner than a 30-day volume window could and
+  without depending on whether a dividend happened to be due.
 - Dates vs INSTANTS are formatted differently and both are deliberate. A
   transaction date, a month label and a projected renewal date are pinned to
   `timeZone: "UTC"`, because the feed mixes noon UTC, 04:00 (midnight Eastern)

@@ -7,7 +7,7 @@ const NOW = utc(2026, 7, 12);
 
 describe('findStaleAccounts', () => {
   const account = (id: string, balanceDate: Date) => ({
-    id, name: id, balanceDate, isStale: false,
+    id, name: id, type: 'DEPOSITORY', balanceDate, isStale: false,
   });
 
   it('flags accounts whose balance date fell behind, worst first', () => {
@@ -23,7 +23,7 @@ describe('findStaleAccounts', () => {
 
 describe('findGappedAccounts', () => {
   const opts = { gapWindowDays: 30, gapMinTypicalPerMonth: 4, gapThresholdRatio: 0.25 };
-  const account = { id: 'a1', name: 'Checking', balanceDate: NOW, isStale: false };
+  const account = { id: 'a1', name: 'Checking', type: 'DEPOSITORY', balanceDate: NOW, isStale: false };
 
   const steadyHistory = (perMonth: number, months: number) => {
     const txns = [];
@@ -62,6 +62,24 @@ describe('findGappedAccounts', () => {
     ];
     expect(findGappedAccounts([account], sparse, NOW, opts)).toHaveLength(0);
     void steadyHistory;
+  });
+
+  /**
+   * Brokerage rows are overwhelmingly dividends, which arrive in quarter-end
+   * clusters, so volume is not a liveness signal there. This exact shape — a
+   * heavy June and an empty July — flagged a real Fidelity account every
+   * off-quarter month. A dead brokerage feed is caught by the stale BALANCE
+   * check instead, in five days rather than thirty.
+   */
+  it('exempts an investment account whose dividends cluster at quarter end', () => {
+    // Year-end and Q1 distributions, then a quiet Q2 — the shape that fired.
+    const txns = [];
+    for (const [y, m] of [[2025, 12], [2026, 3]] as const) {
+      for (let i = 0; i < 20; i++) txns.push({ accountId: 'a1', date: utc(y, m, 1 + i) });
+    }
+    // Same rows, same silence: flagged as a card, ignored as a brokerage.
+    expect(findGappedAccounts([{ ...account, type: 'CREDIT' }], txns, NOW, opts)).toHaveLength(1);
+    expect(findGappedAccounts([{ ...account, type: 'INVESTMENT' }], txns, NOW, opts)).toHaveLength(0);
   });
 });
 
