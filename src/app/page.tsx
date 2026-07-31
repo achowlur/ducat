@@ -61,24 +61,44 @@ function BalanceGroup({
   );
 }
 
+interface ReviewItem {
+  text: string;
+  detail: string;
+  href?: string;
+  /** Costs money to ignore, rather than merely being worth knowing. */
+  urgent?: boolean;
+}
+
 export default async function OverviewPage() {
   const data = await getOverviewData();
   const simplefinConfigured = (process.env.SIMPLEFIN_ACCESS_URL ?? "") !== "";
   const simplefin = data.health.find((h) => h.connectorType === "SIMPLEFIN");
 
+  // Derived from fields the page already has — no extra query. Urgent first,
+  // and uncategorized rows outrank a stale balance because they silently
+  // understate every spending total while a stale balance is merely old.
+  const behind = data.accounts.filter((a) => a.stale || a.balanceLagDays >= STALE_DISPLAY_DAYS);
+  const reviewItems: ReviewItem[] = [
+    ...(data.uncategorizedCount > 0
+      ? [
+          {
+            text: `${data.uncategorizedCount} uncategorized transaction${data.uncategorizedCount === 1 ? "" : "s"}`,
+            detail: "spending totals are incomplete until these are cleared",
+            href: "/transactions?category=uncategorized&group=1",
+            urgent: true,
+          },
+        ]
+      : []),
+    ...behind.map((a) => ({
+      text: `${a.name} is ${a.balanceLagDays} days behind`,
+      detail: a.stale ? "the feed has stopped refreshing this balance" : "balance did not move on the last sync",
+      urgent: a.stale,
+    })),
+  ];
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-x-8 gap-y-1 border-b border-rule py-2 text-[0.78rem] text-faint">
-        {data.uncategorizedCount > 0 && (
-          <Link
-            href="/transactions?category=uncategorized&group=1"
-            className="rounded-[2px] bg-neg px-2 py-1 font-semibold text-paper hover:opacity-90"
-            title="Spending analytics are incomplete until every transaction has a category — click to clear them in bulk, grouped by payee"
-          >
-            {data.uncategorizedCount} uncategorized transaction{data.uncategorizedCount === 1 ? "" : "s"} — fix
-            first ↗
-          </Link>
-        )}
         {simplefin !== undefined && (
           <span>
             <span
@@ -104,9 +124,10 @@ export default async function OverviewPage() {
         )}
       </div>
 
-      {/* Headline, then the three groups, then the detail. The page reads
-          top-down as one answer getting more specific, rather than as two
-          columns where the second ran out 300px above the first. */}
+      {/* Headline, then the detail, then the groups as a closing total. A
+          ledger totals at the FOOT of the column it sums, and the band sitting
+          between the headline and the accounts read as an interruption of the
+          two things it belongs between. */}
       <section className="pt-5">
         <SectionTitle>Net worth — {data.periodLabel}</SectionTitle>
         {data.netWorth === null ? (
@@ -145,42 +166,6 @@ export default async function OverviewPage() {
               )}
             </p>
           </>
-        )}
-      </section>
-
-      {/* Held, invested, owed. The runway hangs off CASH rather than floating
-          under the table, because it is a statement about that number and
-          nothing else on the page. */}
-      <section className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4 border-y border-rule py-4 sm:grid-cols-3">
-        <BalanceGroup
-          label="Cash"
-          value={data.balances.cash}
-          note={
-            data.runway === null ? (
-              `${data.balances.cashAccounts} account${data.balances.cashAccounts === 1 ? "" : "s"}`
-            ) : (
-              <span title={`Your last ${data.runway.basisMonths} complete months ran ${money(data.runway.low)} to ${money(data.runway.high)}`}>
-                <span className="mr-1.5 whitespace-nowrap rounded-[2px] bg-chip px-1 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.08em] text-acc">
-                  Projected
-                </span>
-                <span className="font-money font-semibold text-ink">{data.runway.months} months</span> at{" "}
-                {money(data.runway.monthlySpending)}/mo
-              </span>
-            )
-          }
-        />
-        <BalanceGroup
-          label="Investments"
-          value={data.balances.investments}
-          note={`${data.accounts.filter((a) => !a.isCash && a.balance >= 0).length} accounts`}
-        />
-        {data.balances.debtAccounts > 0 && (
-          <BalanceGroup
-            label="Owed"
-            value={data.balances.debt}
-            negative
-            note={`${data.balances.debtAccounts} card${data.balances.debtAccounts === 1 ? "" : "s"}`}
-          />
         )}
       </section>
 
@@ -295,8 +280,86 @@ export default async function OverviewPage() {
               </div>
             </>
           )}
+
+          {/* The third thing Overview owns, after balances and net worth. It
+              used to exist only as a red banner in the header when the count
+              was non-zero, which meant the page said NOTHING when everything
+              was fine — and "all clear" is indistinguishable from "not checked"
+              if it is never stated. So this renders in both states, and the
+              quiet one is the point. */}
+          <div className="mt-6">
+            <SectionTitle>Needs review</SectionTitle>
+            {reviewItems.length === 0 ? (
+              <p className="text-[0.85rem] text-faint">
+                Nothing needs review — every transaction is categorized and every balance is current.
+              </p>
+            ) : (
+              <ul className="grid gap-2">
+                {reviewItems.map((item) => (
+                  <li key={item.text}>
+                    {item.href === undefined ? (
+                      <span
+                        className={`block border-l-2 py-1 pl-2.5 text-[0.85rem] ${
+                          item.urgent ? "border-neg" : "border-rule"
+                        }`}
+                      >
+                        <span className="font-semibold">{item.text}</span>{" "}
+                        <span className="text-[0.78rem] text-faint">{item.detail}</span>
+                      </span>
+                    ) : (
+                      <Link
+                        href={item.href}
+                        className={`block border-l-2 py-1 pl-2.5 text-[0.85rem] hover:bg-chip ${
+                          item.urgent ? "border-neg" : "border-rule"
+                        }`}
+                      >
+                        <span className="font-semibold">{item.text}</span>{" "}
+                        <span className="text-[0.78rem] text-faint">{item.detail} →</span>
+                      </Link>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </section>
       </div>
+
+      {/* Held, invested, owed. The runway hangs off CASH rather than floating
+          under the table, because it is a statement about that number and
+          nothing else on the page. */}
+      <section className="grid grid-cols-2 gap-x-6 gap-y-4 border-t-2 border-ink py-4 sm:grid-cols-3">
+        <BalanceGroup
+          label="Cash"
+          value={data.balances.cash}
+          note={
+            data.runway === null ? (
+              `${data.balances.cashAccounts} account${data.balances.cashAccounts === 1 ? "" : "s"}`
+            ) : (
+              <span title={`Your last ${data.runway.basisMonths} complete months ran ${money(data.runway.low)} to ${money(data.runway.high)}`}>
+                <span className="mr-1.5 whitespace-nowrap rounded-[2px] bg-chip px-1 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.08em] text-acc">
+                  Projected
+                </span>
+                <span className="font-money font-semibold text-ink">{data.runway.months} months</span> at{" "}
+                {money(data.runway.monthlySpending)}/mo
+              </span>
+            )
+          }
+        />
+        <BalanceGroup
+          label="Investments"
+          value={data.balances.investments}
+          note={`${data.accounts.filter((a) => !a.isCash && a.balance >= 0).length} accounts`}
+        />
+        {data.balances.debtAccounts > 0 && (
+          <BalanceGroup
+            label="Owed"
+            value={data.balances.debt}
+            negative
+            note={`${data.balances.debtAccounts} card${data.balances.debtAccounts === 1 ? "" : "s"}`}
+          />
+        )}
+      </section>
     </>
   );
 }
