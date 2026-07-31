@@ -434,6 +434,25 @@ regeneration.
   production serves in 87 ms). For time, read the deployed app: DevTools →
   Network → Timing gives TTFB and Content Download, and the numbers that matter
   are TTFB (server + round trips) and whatever happens after it (hydration).
+- An unchanged Next build id is NOT evidence a deploy has not landed, and
+  reading it that way cost a wrong call. Vercel reuses the build output when the
+  app source is unchanged, so a push of `scripts/`, CLAUDE.md or a package.json
+  alias redeploys under the SAME `?_rsc=` id — which is the expected result for
+  exactly the pushes this repo makes most often, not a stalled build. There is
+  nothing to cross-check it against either: App Router chunk paths carry no
+  build id. The deployment being doubted was Ready in production 24 minutes
+  before the question was raised, built in 50s. So do not try to infer deploy
+  state from the served page. ASK THE OPERATOR to read the Vercel dashboard and
+  report the deployment's status, commit and build time — it takes them ten
+  seconds and it is the only authoritative answer. The served page still
+  verifies the app WORKS (pages render, `/api/diag/timing` answers, row counts
+  agree); it just cannot say which build is serving.
+- Browsing is limited to the IN-APP browser (`preview_start` /
+  `mcp__Claude_Browser__*`), pointed at `<your-deployment>.vercel.app` or localhost.
+  Never drive the operator's real Chrome or read their existing tabs and
+  sessions, for this or anything else. When something genuinely needs an
+  authenticated session the in-app browser does not have — the Vercel
+  dashboard, Turso's console — ASK, and never enter credentials anywhere.
 - Page cost on this app is DOM SIZE, not server time and not bytes on the wire.
   `/transactions` built a 1.1 MB document (952 KB of markup across 300 rows,
   3705 `<option>` elements because every row renders the whole category list)
