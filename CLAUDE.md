@@ -1019,15 +1019,16 @@ turned up so it isn't rediscovered:
 
 ## Backlog (agreed, not yet scheduled)
 
-- **Savings goals on /insights — TABLED 2026-07-31, come back to it.** Agreed
-  in principle; the design below is what was settled so it is not re-derived.
+- **Savings goals on /insights — BUILT 2026-07-31.** The design below is what
+  shipped, kept because it constrains changes to it.
   The shape is a declared target with a horizon — "House deposit, $155,503.76 by
   Jun 2028" — shown against the observed savings rate: saved so far, rate, the
   date it lands, and how that compares to the target date. It reuses
   `CASH_FLOW_TREND` for the rate and the `computeRunway` arithmetic in
-  `ui/liquidity.ts`, and it inherits the same refusals — too few complete
-  months, or a savings rate at or below zero, and it says so rather than
-  printing a fantasy date. Chipped `PROJECTED` like every other forecast.
+  `ui/liquidity.ts` (a test pins the two windows equal), and it inherits the
+  same refusals — too few complete months, or a savings rate at or below zero,
+  and it says so rather than printing a fantasy date. Chipped `PROJECTED` like
+  every other forecast.
   What was REJECTED, and why, because it is the obvious thing to ask for next:
   PER-CATEGORY MONTHLY BUDGETS. The pace call already answers "am I spending
   more than usual" from the operator's own history and needs no configuration,
@@ -1038,11 +1039,24 @@ turned up so it isn't rediscovered:
   the app cannot infer a house deposit target, so declaring it adds information
   the data does not contain. That is the test for whether something earns
   configuration.
-  Two decisions still open: whether "saved" tracks cash, net worth, or a
-  nominated set of accounts (the `cash.additionalAccountIds` work makes the
-  last one cheap and it is the current preference), and whether a slipping goal
-  reaches Overview — preference is NO, it stays on /insights, because Overview
-  carries state and a goal is trajectory.
+  Both open decisions settled at build time. (1) "Saved" is a NOMINATED SET OF
+  ACCOUNTS, declared per goal: cash as a whole breathes by a rent cycle and
+  counts the emergency fund toward the house; net worth drags in market noise
+  and the snapshot machinery. Declarations live in the `Setting` key
+  `goals.savings` (`npm run goals`, same needle-resolution as `accounts:cash`),
+  so a goal is a DATA change run once per database and no schema touched
+  either one. The RATE stays the app-wide `CASH_FLOW_TREND` net — transfers
+  are excluded from cash flow, so moving money INTO the fund cannot inflate
+  the rate that projects it; the projection therefore assumes future net
+  savings reach the fund, and when two goals both project, the panel says the
+  shared-rate assumption out loud once. (2) A slipping goal does NOT reach
+  Overview — Overview carries state and just shed its projections; the panel
+  renders on /insights only, gated to the month being lived in like pace and
+  commitments, since saved and the rate are measured from now. The analyzer is
+  a pure function over plain arrays (`insights/goals.ts`); a reached goal is a
+  fact and refuses nothing, and every refusal keeps the facts either side of
+  it — saved, target, and the negative rate that IS the reason there is no
+  date.
 
 - **P2P review, still open:** (c) recurring-pattern detection on P2P (same
   payee, same amount, monthly) to pre-fill rule suggestions; (d) an explicit

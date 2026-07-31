@@ -75,6 +75,7 @@ npm run import:csv -- <file.csv> --mapping=<chase-checking|chase-credit|wells-fa
 | `npm run import:csv` | Import a CSV (see above) |
 | `npm run rules:retarget` | Point rules at a different category and re-apply (dry run; `-- --apply` writes) — names the database first |
 | `npm run rules:install` | Install the starter category-rule pack |
+| `npm run goals` | Declare savings goals shown on /insights (`-- --add --name=… --target=… --by=YYYY-MM --accounts=…`) — names the database first |
 | `npm run health` | Print the provider-health panel (no network) |
 | `npm run subs:audit` | Report what subscription detection missed and which gate rejected it (read-only) |
 | `npm run repair:text` | Strip undecodable characters from imported names/descriptions (dry run; `-- --apply` writes) |

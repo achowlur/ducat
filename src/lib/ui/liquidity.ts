@@ -87,9 +87,14 @@ export function summariseBalances(
   };
 }
 
-/** Complete months to average spending over, and the fewest that will do. */
-const RUNWAY_MONTHS = 6;
-const RUNWAY_MIN_MONTHS = 3;
+/**
+ * Complete months to average spending over, and the fewest that will do.
+ * Exported because the savings-goal rate (insights/goals.ts) averages the same
+ * window — two notions of "recent complete months" on one app would drift, and
+ * a test pins them equal.
+ */
+export const RUNWAY_MONTHS = 6;
+export const RUNWAY_MIN_MONTHS = 3;
 
 export interface Runway {
   months: number;

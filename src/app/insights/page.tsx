@@ -2,7 +2,8 @@ import Link from "next/link";
 import { CoverageNotice } from "../../components/CoverageNotice";
 import { DismissButton } from "../../components/DismissButton";
 import { getInsightsPageData, type InsightRow } from "../../lib/ui/insights";
-import { money, shortDate, titleCase } from "../../lib/ui/format";
+import { GOAL_RATE_MIN_MONTHS, type GoalAssessment } from "../../lib/insights/goals";
+import { money, monthLabel, shortDate, titleCase } from "../../lib/ui/format";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,100 @@ const CHIP_CLASS: Record<InsightRow["tone"], string> = {
   pos: "bg-pos text-paper",
   neutral: "bg-chip text-acc",
 };
+
+/**
+ * One definition for the chip every forecast on this page wears. Three panels
+ * carry it now (pace, commitments, goals), and the moment a forecast reads
+ * like an observation the app is asserting what it does not know.
+ */
+const PROJECTED_CHIP =
+  "whitespace-nowrap rounded-[2px] bg-chip px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-acc";
+
+/**
+ * One declared goal against the observed savings rate. Every refusal renders
+ * rather than hides, and the facts either side of the projection — saved,
+ * target, the rate itself — survive all of them.
+ */
+function GoalRow({ g }: { g: GoalAssessment }) {
+  const monthsWord = (n: number) => (n === 1 ? "month" : "months");
+  return (
+    <div className="border-b border-rule py-2.5 text-[0.85rem] last:border-b-0 max-md:py-3">
+      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+        <span className="font-semibold">{g.goal.name}</span>
+        <span className="font-money tabular">
+          <span className="font-semibold">{money(g.saved)}</span>
+          <span className="text-faint"> of {money(g.goal.target)}</span>
+        </span>
+        <span className="text-faint">
+          {Math.floor(g.progress * 100)}% · by {monthLabel(g.goal.targetMonth)}
+        </span>
+        {g.accountNames.length > 0 && (
+          <span className="ml-auto font-money text-[0.72rem] text-faint">
+            {g.accountNames.join(" + ")}
+          </span>
+        )}
+      </div>
+      <p className="pt-1 leading-relaxed text-faint">
+        {g.reached ? (
+          <>
+            <span
+              className={`whitespace-nowrap rounded-[2px] px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] ${CHIP_CLASS.pos}`}
+            >
+              Reached
+            </span>{" "}
+            <span className="font-money tabular text-ink">{money(g.saved)}</span> against the{" "}
+            <span className="font-money tabular">{money(g.goal.target)}</span> target.
+          </>
+        ) : g.refusal === "NO_ACCOUNTS" ? (
+          <>
+            None of the accounts this goal nominates exist any more — re-point it with{" "}
+            <span className="font-money">npm run goals</span>.
+          </>
+        ) : g.refusal === "TOO_FEW_MONTHS" ? (
+          g.basisMonths === 0 ? (
+            "No complete months of cash-flow history yet — nothing to project a landing date from."
+          ) : (
+            `Only ${g.basisMonths} complete ${monthsWord(g.basisMonths)} of cash-flow history — too few to project a landing date (${GOAL_RATE_MIN_MONTHS} needed).`
+          )
+        ) : g.refusal === "RATE_NOT_POSITIVE" ? (
+          <>
+            Averaged over your last {g.basisMonths} complete months you are not saving (
+            <span className="font-money tabular">{money(g.monthlyRate ?? 0)}</span>/mo net), so there is
+            no landing date worth printing.
+          </>
+        ) : (
+          <>
+            Saving <span className="font-money tabular text-ink">~{money(g.monthlyRate ?? 0)}</span>/mo
+            over your last {g.basisMonths} complete months (lowest{" "}
+            <span className="font-money tabular">{money(g.rateLow ?? 0)}</span>, highest{" "}
+            <span className="font-money tabular">{money(g.rateHigh ?? 0)}</span>) —{" "}
+            <span className={PROJECTED_CHIP}>Projected</span>{" "}
+            {(g.monthsToTarget ?? 0) > 600 ? (
+              "lands more than 50 years out at this rate — far behind target."
+            ) : (
+              <>
+                lands <span className="font-semibold text-ink">~{monthLabel(g.landsMonth ?? "")}</span>
+                {" — "}
+                {g.deltaMonths === 0
+                  ? "on target."
+                  : g.deltaMonths !== null && g.deltaMonths < 0
+                    ? `${-g.deltaMonths} ${monthsWord(-g.deltaMonths)} ahead of target.`
+                    : `${g.deltaMonths ?? 0} ${monthsWord(g.deltaMonths ?? 0)} behind target.`}
+              </>
+            )}
+          </>
+        )}
+        {g.missingAccounts > 0 && g.refusal !== "NO_ACCOUNTS" && (
+          <span className="text-neg">
+            {" "}
+            {g.missingAccounts} nominated {g.missingAccounts === 1 ? "account" : "accounts"} no longer{" "}
+            {g.missingAccounts === 1 ? "exists" : "exist"} — saved is understated.
+          </span>
+        )}
+      </p>
+    </div>
+  );
+}
 
 export default async function InsightsPage({
   searchParams,
@@ -151,7 +246,7 @@ export default async function InsightsPage({
                     `, before ${data.pace.basisMissingAccounts} of your accounts existed — so this leans low`}
                   {" — "}
                 </span>
-                <span className="whitespace-nowrap rounded-[2px] bg-chip px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-acc">
+                <span className={PROJECTED_CHIP}>
                   Projected
                 </span>{" "}
                 <span className="font-money tabular font-semibold">
@@ -172,7 +267,7 @@ export default async function InsightsPage({
       {data.commitments !== null && (
         <section className="mt-4 border-l-2 border-acc bg-chip px-3 py-2.5">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="whitespace-nowrap rounded-[2px] bg-chip px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-acc">
+            <span className={PROJECTED_CHIP}>
               Projected
             </span>
             <h3 className="text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
@@ -217,6 +312,32 @@ export default async function InsightsPage({
                 </li>
               ))}
             </ul>
+          )}
+        </section>
+      )}
+
+      {/* Declared targets against the observed savings rate. Gated to the
+          month being lived in like the two projections above — saved and the
+          rate are measured from now, so under a historical heading the panel
+          would lie. The rate is the app-wide CASH_FLOW_TREND net rather than
+          the fund's own growth: transfers are excluded from cash flow, so
+          moving money into a nominated account cannot inflate the rate that
+          projects it. Absent entirely when no goal is declared — opt-in
+          config, not a health question every instance has. */}
+      {data.goals.length > 0 && (
+        <section className="mt-4">
+          <h3 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
+            Savings goals
+          </h3>
+          {data.goals.map((g) => (
+            <GoalRow key={g.goal.id} g={g} />
+          ))}
+          {/* Two dates from one rate are each honest alone and optimistic
+              together; the assumption gets said once, not hidden. */}
+          {data.goals.filter((g) => g.landsMonth !== null).length >= 2 && (
+            <p className="pt-1.5 text-[0.72rem] text-faint">
+              Each date assumes the full savings rate goes to that goal.
+            </p>
           )}
         </section>
       )}

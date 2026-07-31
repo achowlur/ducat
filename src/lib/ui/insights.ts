@@ -17,6 +17,7 @@ import { upcomingCommitments, type UpcomingCommitments } from "../health/commitm
 import { getSubscriptionStatuses, matchesSubscription } from "../health/subscriptions";
 import { computePace, isComparableBaseline, type Pace } from "../insights/pace";
 import { computeDigest, type DigestItem } from "../insights/digest";
+import { assessGoals, parseGoals, SAVINGS_GOALS_KEY, type GoalAssessment } from "../insights/goals";
 import { DEFAULT_RECURRING_OPTIONS } from "../insights/recurring";
 import { periodCoverage, type PeriodCoverage } from "../insights/coverage";
 import { periodEndExclusive, periodStart } from "../insights/periods";
@@ -68,6 +69,14 @@ export interface InsightsPageData {
    * Empty is a real answer and gets said out loud, not hidden.
    */
   digest: DigestRow[];
+  /**
+   * Declared savings goals against the observed savings rate. Empty when none
+   * are declared — the section is opt-in config, not a health question every
+   * instance has, so there is no quiet state to print. Gated to the current
+   * period like pace and commitments: saved and the rate are measured from
+   * now, and a projection under a historical heading would lie.
+   */
+  goals: GoalAssessment[];
 }
 
 export interface DigestRow {
@@ -203,9 +212,14 @@ function toRow(
 }
 
 export async function getInsightsPageData(requestedPeriod?: string): Promise<InsightsPageData | null> {
-  const [insightRows, registered] = await Promise.all([
+  const [insightRows, registered, goalSetting, accountRows] = await Promise.all([
     prisma.insight.findMany(),
     getSubscriptionStatuses(prisma),
+    prisma.setting.findUnique({ where: { key: SAVINGS_GOALS_KEY } }),
+    // Balances for the goal funds. Unconditional rather than gated on the
+    // setting existing: a gate costs about its own round trip anyway, and
+    // this joins the concurrent group instead.
+    prisma.account.findMany({ select: { id: true, name: true, balance: true } }),
   ]);
   const monthly = monthlyRows(insightRows);
   if (monthly.length === 0) return null;
@@ -357,6 +371,22 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     });
   }
 
+  // Complete months only — the period on screen is the current one whenever
+  // this runs, so everything before it is complete. Same shape Overview feeds
+  // computeRunway, with `net` where runway takes `totalSpending`.
+  const declaredGoals = parseGoals(goalSetting?.value ?? null);
+  const goals =
+    viewingCurrentPeriod && declaredGoals.length > 0
+      ? assessGoals({
+          goals: declaredGoals,
+          accounts: accountRows.map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) })),
+          completeMonthlyNet: ofType<CashFlowTrendPayload>(monthly, "CASH_FLOW_TREND")
+            .filter((r) => r.period < period)
+            .map((r) => r.payload.net),
+          now,
+        })
+      : [];
+
   return {
     period,
     periodLabel: monthLabel(period),
@@ -368,5 +398,6 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     pace,
     coverage: shown !== null && !shown.complete ? shown : null,
     digest,
+    goals,
   };
 }
