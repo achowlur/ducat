@@ -243,6 +243,38 @@ generated Prisma client is gitignored, so this step is what creates it on Vercel
   ```
   You should see the CSP and `Strict-Transport-Security` (HSTS is production-only).
 
+## Upgrading to a newer version
+
+`git push` deploys the code. It does **not** touch your data, and a newer
+version can ship categorization rules your database has never seen — the app
+keeps using the old set, the deploy is green, and the only symptom is
+transactions landing in the wrong category. So after pulling a new version, run
+this once **per database**:
+
+```bash
+npm run upgrade
+```
+
+It installs any pack rules that are missing and regenerates insights. It is
+idempotent, creates only what is absent, and never edits a rule you have
+changed yourself — a hand-tuned rule at priority ≤50 still outranks the whole
+pack. `npm run upgrade -- --check` reports the gap without writing.
+
+For the cloud instance, point the two Turso variables at it for that one
+command, in a throwaway terminal you then close:
+
+```bash
+DATABASE_URL="libsql://…turso.io" TURSO_AUTH_TOKEN="…" npm run upgrade
+```
+
+You do not have to remember: Overview's **Needs review** panel counts the
+missing rules and names this command whenever a database is behind. It says
+nothing when there is nothing to do.
+
+What this does **not** cover is a schema change. Prisma migrations still have
+to be applied to Turso by hand — see the note at the end of step 2 — because
+`prisma migrate deploy` cannot reach a libSQL database over HTTP.
+
 ## Living with two copies
 
 Once the cloud instance is real, decide which one you write to — and write to

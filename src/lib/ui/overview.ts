@@ -13,6 +13,7 @@
 import type { NetWorthGrowthPayload, SpendingByCategoryPayload } from "../../types/contracts";
 import { prisma } from "../prisma";
 import { getProviderHealth } from "../health/health";
+import { pendingPackRules } from "../sync/rulePack";
 import type { ProviderHealth } from "../health/types";
 import {
   computeRunway,
@@ -76,6 +77,13 @@ export interface OverviewData {
    * until this is zero.
    */
   uncategorizedCount: number;
+  /**
+   * Pack rules the shipped code defines that this database does not have. A
+   * pack change arrives with `git pull` and reaches the data through nothing,
+   * so without surfacing this an instance runs old categorization rules and
+   * nothing anywhere says so.
+   */
+  pendingPackRules: number;
 }
 
 const TYPE_ORDER: Record<string, number> = { DEPOSITORY: 0, INVESTMENT: 1, CREDIT: 2, LOAN: 3 };
@@ -84,8 +92,16 @@ export async function getOverviewData(): Promise<OverviewData> {
   // Everything this page needs, read once and in parallel. It used to issue
   // its queries one after another — four of them full scans of the Insight
   // table, with RECURRING_CHARGE fetched twice over.
-  const [insightRows, accountRows, snapshots, uncategorizedCount, lastOk, health, cashAccountIds] =
-    await Promise.all([
+  const [
+    insightRows,
+    accountRows,
+    snapshots,
+    uncategorizedCount,
+    lastOk,
+    health,
+    cashAccountIds,
+    packDrift,
+  ] = await Promise.all([
       prisma.insight.findMany(),
       prisma.account.findMany(),
       prisma.balanceSnapshot.groupBy({ by: ["accountId"], _max: { date: true } }),
@@ -95,6 +111,7 @@ export async function getOverviewData(): Promise<OverviewData> {
       prisma.syncLog.findFirst({ where: { ok: true }, orderBy: { finishedAt: "desc" } }),
       getProviderHealth(prisma),
       readCashAccountIds(prisma),
+      pendingPackRules(prisma),
     ]);
 
   const monthly = monthlyRows(insightRows);
@@ -152,6 +169,7 @@ export async function getOverviewData(): Promise<OverviewData> {
       health,
       lastSyncAt: null,
       uncategorizedCount,
+      pendingPackRules: packDrift,
     };
   }
 
@@ -172,5 +190,6 @@ export async function getOverviewData(): Promise<OverviewData> {
     health,
     lastSyncAt: lastOk?.finishedAt ?? null,
     uncategorizedCount,
+    pendingPackRules: packDrift,
   };
 }

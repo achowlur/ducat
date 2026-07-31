@@ -94,6 +94,17 @@ export default async function OverviewPage() {
       detail: a.stale ? "the feed has stopped refreshing this balance" : "balance did not move on the last sync",
       urgent: a.stale,
     })),
+    // Code and data upgrade separately, and only one of them tells you. A pack
+    // change arrives with `git pull`; the rules stay as they were until someone
+    // runs the installer, and a green deploy looks identical either way.
+    ...(data.pendingPackRules > 0
+      ? [
+          {
+            text: `${data.pendingPackRules} categorization rule${data.pendingPackRules === 1 ? "" : "s"} not installed`,
+            detail: "this app version ships rules your database doesn't have — run npm run upgrade",
+          },
+        ]
+      : []),
   ];
 
   return (

@@ -20,7 +20,7 @@ import { computeDigest, type DigestItem } from "../insights/digest";
 import { DEFAULT_RECURRING_OPTIONS } from "../insights/recurring";
 import { periodCoverage, type PeriodCoverage } from "../insights/coverage";
 import { periodEndExclusive, periodStart } from "../insights/periods";
-import { getAccountCoverage } from "./coverage";
+import { getAccountCoverage, getPeriodCoverage } from "./coverage";
 import { monthlyRows, ofType } from "./insightRows";
 import { higherThan, money, monthLabel, pct, titleCase } from "./format";
 
@@ -292,7 +292,13 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
       return null; // unparseable key — nothing useful to say
     }
   };
-  const shown = coverageOf(period);
+  // The DISPLAYED notice comes from getPeriodCoverage, which loads what each
+  // short account actually contributed. coverageOf is kept for the baseline
+  // maths below, which only needs covered/total — but using it for the notice
+  // too meant every gap fell through to NO_DATA, so /insights called July
+  // "understated by an unknown amount" while /trends called the same month
+  // "not directly comparable … contributing $104.32". One month, two claims.
+  const shown = await getPeriodCoverage(period);
 
   // Baseline coverage travels WITH the number rather than filtering it out.
   // Excluding incomplete periods was the first instinct and it is wrong here:

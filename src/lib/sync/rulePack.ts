@@ -253,6 +253,32 @@ export interface InstallResult {
  * skipped), then retroactively applies ALL enabled rules to existing
  * non-MANUAL transactions and regenerates insights.
  */
+/**
+ * How far this database is behind the pack the CODE ships.
+ *
+ * Exists because a pack change reaches an existing install through NOTHING. It
+ * arrives with `git pull`, a green deploy says the app is current, and the
+ * rules keep categorizing by the old set until somebody remembers to run
+ * `rules:install`. That is not hypothetical: the `zego|paylease` rule was added
+ * to the pack and was still missing from BOTH databases weeks later, found only
+ * because an unrelated command happened to print the delta.
+ *
+ * Keyed exactly as `installRulePack` keys it, by matchField|matchOperator|
+ * matchValue, so the count it reports is the count that command would create.
+ * One query, no writes.
+ */
+export async function pendingPackRules(prisma: PrismaClient): Promise<number> {
+  const [existingRules, categoryCount] = await Promise.all([
+    prisma.rule.findMany({ select: { matchField: true, matchOperator: true, matchValue: true } }),
+    prisma.category.count(),
+  ]);
+  // A database with no categories has not been set up at all; the pack notice
+  // would be the least of it, and the empty-state copy already covers that.
+  if (categoryCount === 0) return 0;
+  const known = new Set(existingRules.map((r) => `${r.matchField}|${r.matchOperator}|${r.matchValue}`));
+  return PACK_RULES.filter((r) => !known.has(`${r.matchField}|${r.matchOperator}|${r.matchValue}`)).length;
+}
+
 export async function installRulePack(prisma: PrismaClient): Promise<InstallResult> {
   // Existence is decided in memory against one read of each table. Asking the
   // database ~190 separate "does this already exist?" questions is the whole

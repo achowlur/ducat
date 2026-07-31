@@ -341,6 +341,19 @@ regeneration.
   tell is the `since` date: it is derived from that instance's own last sync,
   so it fingerprints the database more reliably than remembering what the shell
   has set.
+- CODE and DATA upgrade separately, and only one of them announces itself. A
+  pack change arrives with `git pull` and reaches an existing database through
+  NOTHING: the app keeps categorizing by the old rule set, a green deploy looks
+  identical, and the only symptom is rows landing in the wrong category. The
+  `zego|paylease` rule sat uninstalled on BOTH databases for weeks and was
+  found only because an unrelated command happened to print the delta. So
+  `pendingPackRules` (`sync/rulePack.ts`) counts what the shipped pack defines
+  and this database lacks — keyed exactly as `installRulePack` keys it, so the
+  number IS what that command would create — and Overview's review panel names
+  `npm run upgrade`. Deliberately NOT auto-applied on sync: rule changes can
+  move money between categories, and this codebase's grain is visible over
+  silent. Anything that must be run once per database belongs in that panel,
+  not only in a README nobody re-reads.
 - The two databases also differ in WHICH ROWS EXIST AT ALL, so localhost can
   hide a code path rather than merely lag it. Deleting Overview's subscriptions
   block was verified green on localhost, where `TrackedSubscription` is empty —

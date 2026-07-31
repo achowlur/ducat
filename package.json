@@ -29,7 +29,8 @@
     "cloud:backup": "tsx scripts/cloud-backup.ts",
     "rules:audit": "tsx scripts/audit-rules.ts",
     "rules:simulate": "tsx scripts/simulate-rule-matching.ts",
-    "accounts:cash": "tsx scripts/set-cash-accounts.ts"
+    "accounts:cash": "tsx scripts/set-cash-accounts.ts",
+    "upgrade": "tsx scripts/upgrade.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
