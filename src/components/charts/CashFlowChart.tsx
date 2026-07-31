@@ -13,7 +13,7 @@ interface MonthFlow {
 }
 
 const VIEW_W = 520;
-const VIEW_H = 210;
+const VIEW_H = 226;
 const PLOT_TOP = 16;
 const PLOT_BOTTOM = 182;
 const PLOT_LEFT = 8;
@@ -44,6 +44,29 @@ export function CashFlowChart({ months }: { months: MonthFlow[] }) {
   const pairX = (i: number) => PLOT_LEFT + slot * i + slot / 2 - BAR_W - PAIR_GAP / 2;
 
   const latest = months.length - 1;
+
+  /**
+   * Two dozen months do not fit two dozen labels. At 26 months the plot gives
+   * each one about 17px and "Jun" needs 26, so every label was printed and they
+   * ran together into "JunJulAugSep…" — and with no year marker the three
+   * different Junes were indistinguishable. Thin the labels to what fits, and
+   * step from the END so the newest month is always one of them.
+   */
+  const MIN_LABEL_PX = 26;
+  const labelStep = Math.max(1, Math.ceil(MIN_LABEL_PX / slot));
+  const labelled = (i: number) => (latest - i) % labelStep === 0;
+
+  // Where each year begins, for the divider and the year caption. The first
+  // month is a year start too, so the earliest span is captioned as well.
+  const yearOf = (i: number) => months[i].period.slice(0, 4);
+  const yearStarts = months
+    .map((_, i) => i)
+    .filter((i) => i === 0 || yearOf(i) !== yearOf(i - 1));
+  const yearSpans = yearStarts.map((start, n) => ({
+    year: yearOf(start),
+    start,
+    end: n + 1 < yearStarts.length ? yearStarts[n + 1] - 1 : latest,
+  }));
   // The static label must never touch a mark: place it above EVERY bar's
   // top, and clamp x so the text stays inside the plot, clear of the axis
   // labels. A dashed leader ties it back to the spending bar it describes.
@@ -82,6 +105,31 @@ export function CashFlowChart({ months }: { months: MonthFlow[] }) {
         ))}
         <line x1={PLOT_LEFT} y1={PLOT_BOTTOM} x2={PLOT_RIGHT} y2={PLOT_BOTTOM} stroke="var(--ink)" strokeWidth="1" />
 
+        {/* Year band. Without it "Jun" appears three times on this axis with
+            nothing to say which Jun, which makes every month label a guess. */}
+        {yearSpans.map((s) => (
+          <g key={s.year}>
+            {s.start > 0 && (
+              <line
+                x1={PLOT_LEFT + slot * s.start}
+                y1={PLOT_TOP}
+                x2={PLOT_LEFT + slot * s.start}
+                y2={PLOT_BOTTOM + 17}
+                stroke="var(--rule)"
+                strokeWidth="1"
+              />
+            )}
+            <text
+              x={PLOT_LEFT + slot * s.start + (slot * (s.end - s.start + 1)) / 2}
+              y={PLOT_BOTTOM + 27}
+              textAnchor="middle"
+              className="fill-[var(--faint)] font-money text-[10px] font-semibold"
+            >
+              {s.year}
+            </text>
+          </g>
+        ))}
+
         {months.map((m, i) => {
           const x = pairX(i);
           const dim = hovered !== null && hovered !== i;
@@ -107,9 +155,16 @@ export function CashFlowChart({ months }: { months: MonthFlow[] }) {
                 rx="2"
                 fill="var(--chart1)"
               />
-              <text x={PLOT_LEFT + slot * i + slot / 2} y={PLOT_BOTTOM + 14} textAnchor="middle" className="fill-[var(--faint)] font-money text-[10px]">
-                {m.label}
-              </text>
+              {labelled(i) && (
+                <text
+                  x={PLOT_LEFT + slot * i + slot / 2}
+                  y={PLOT_BOTTOM + 13}
+                  textAnchor="middle"
+                  className="fill-[var(--faint)] font-money text-[10px]"
+                >
+                  {m.label}
+                </text>
+              )}
             </g>
           );
         })}

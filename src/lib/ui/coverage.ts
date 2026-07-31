@@ -1,5 +1,6 @@
 import { prisma } from "../prisma";
 import { periodCoverage, type AccountCoverage, type PeriodCoverage } from "../insights/coverage";
+import { periodEndExclusive, periodStart } from "../insights/periods";
 
 /** Each account's earliest transaction — how far back its history actually reaches. */
 export async function getAccountCoverage(): Promise<AccountCoverage[]> {
@@ -15,14 +16,36 @@ export async function getAccountCoverage(): Promise<AccountCoverage[]> {
   }));
 }
 
-/** Coverage for one period, or null when there's nothing to warn about. */
+/**
+ * Coverage for one period, or null when there's nothing to warn about.
+ *
+ * Loads what each short account actually contributed, because a count of
+ * accounts is not a magnitude: the notice once shouted about a transit card
+ * holding $104.32 of a $11,009.59 month in exactly the tone it would use for a
+ * missing mortgage. The extra query only runs when coverage is incomplete, so
+ * a fully-covered period still costs one round trip.
+ */
 export async function getPeriodCoverage(period: string): Promise<PeriodCoverage | null> {
   if (period === "") return null;
   const accounts = await getAccountCoverage();
   if (accounts.length === 0) return null;
   try {
-    const coverage = periodCoverage(period, accounts);
-    return coverage.complete ? null : coverage;
+    const rough = periodCoverage(period, accounts);
+    if (rough.complete) return null;
+
+    const spend = await prisma.transaction.groupBy({
+      by: ["accountId"],
+      where: {
+        flow: "OUTFLOW",
+        date: { gte: periodStart(period), lt: periodEndExclusive(period) },
+      },
+      _sum: { amount: true },
+    });
+    const byAccount = new Map(spend.map((s) => [s.accountId, Math.abs(Number(s._sum.amount ?? 0))]));
+    return periodCoverage(
+      period,
+      accounts.map((a) => ({ ...a, periodSpending: byAccount.get(a.accountId) ?? 0 })),
+    );
   } catch {
     return null; // unparseable period key — nothing useful to say
   }

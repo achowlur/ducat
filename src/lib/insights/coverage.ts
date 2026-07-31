@@ -18,6 +18,29 @@ export interface AccountCoverage {
   name: string;
   /** Null when the account has no transactions at all. */
   firstTransaction: Date | null;
+  /** What this account contributed to the period being asked about. */
+  periodSpending?: number;
+}
+
+/**
+ * An account that does not reach back across the whole period, and what that
+ * costs. The two cases are NOT the same claim and were reported as one:
+ *
+ *   STARTED_MID_PERIOD — the period straddles the account's first transaction.
+ *     Its data IS in the totals, just not for the whole period, so nothing is
+ *     missing and the period merely is not comparable with earlier ones. The
+ *     dollars are known exactly.
+ *   NO_DATA — the account's history begins after this period ended, so it
+ *     contributed nothing. Here the totals really are understated, by an
+ *     amount that cannot be known.
+ */
+export type CoverageGapKind = 'STARTED_MID_PERIOD' | 'NO_DATA';
+
+export interface CoverageGap {
+  name: string;
+  kind: CoverageGapKind;
+  /** Known contribution to this period; 0 for NO_DATA, where the shortfall is unknowable. */
+  contributed: number;
 }
 
 export interface PeriodCoverage {
@@ -25,8 +48,11 @@ export interface PeriodCoverage {
   covered: number;
   total: number;
   complete: boolean;
-  /** Names of accounts whose history starts after this period began. */
-  missing: string[];
+  gaps: CoverageGap[];
+  /** Summed known contribution of the straddling accounts. */
+  contributedByPartial: number;
+  /** True when at least one account has no data for the period at all. */
+  hasUnknownShortfall: boolean;
 }
 
 /** An account covers a period only if its history starts at or before the period does. */
@@ -36,12 +62,25 @@ function covers(account: AccountCoverage, start: Date): boolean {
 
 export function periodCoverage(period: string, accounts: AccountCoverage[]): PeriodCoverage {
   const start = periodStart(period);
-  const missing = accounts.filter((a) => !covers(a, start)).map((a) => a.name);
+  const gaps: CoverageGap[] = accounts
+    .filter((a) => !covers(a, start))
+    .map((a) => {
+      const contributed = a.periodSpending ?? 0;
+      // Contributing anything at all means its history began inside the
+      // period, which is a different — and much weaker — claim than absence.
+      const kind: CoverageGapKind = contributed > 0 ? 'STARTED_MID_PERIOD' : 'NO_DATA';
+      return { name: a.name, kind, contributed };
+    });
+
   return {
     period,
-    covered: accounts.length - missing.length,
+    covered: accounts.length - gaps.length,
     total: accounts.length,
-    complete: missing.length === 0,
-    missing,
+    complete: gaps.length === 0,
+    gaps,
+    contributedByPartial: Math.round(
+      gaps.filter((g) => g.kind === 'STARTED_MID_PERIOD').reduce((s, g) => s + g.contributed, 0) * 100,
+    ) / 100,
+    hasUnknownShortfall: gaps.some((g) => g.kind === 'NO_DATA'),
   };
 }

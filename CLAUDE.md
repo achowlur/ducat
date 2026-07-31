@@ -218,6 +218,30 @@ regeneration.
   a heavy-tailed multiplicative quantity, and it destroys the good findings
   before it touches rent — at z>=2.5 rent goes but the $1707.95 one-off and the $186.6
   advisory fee go with it, and at z>=2.0 rent survives all 9 times.
+- A coverage gap is TWO claims, not one, and `CoverageNotice` made only the
+  harsher one. An account that STARTED MID-PERIOD is in the totals and known to
+  the penny — nothing is missing, the period merely is not comparable with
+  earlier ones. An account with NO DATA for the period understates it by an
+  amount nobody can compute. The first version said "totals here exclude
+  <account>", which was FALSE for the first case, and reported a COUNT of
+  accounts rather than an amount — so a transit card holding $104.32 of a
+  $11,009.59 month raised the same amber banner a missing mortgage would.
+  `periodCoverage` now classifies each gap and sums the known contribution;
+  only NO_DATA earns amber. Report dollars, not account counts: the magnitude
+  is what tells the reader whether to care, and it needs no tuned threshold to
+  decide for them.
+- Chart axes must survive their own history length. The cash-flow chart printed
+  all 26 month labels into a 460px plot — about 17px each where "Jun" needs 26 —
+  so they ran together as "JunJulAugSep…", and with no year marker the three
+  different Junes were indistinguishable. Labels are thinned to what fits
+  (stepping from the END so the newest month is always labelled) and a year
+  band with dividers sits beneath. Any axis whose length grows with history
+  needs the same treatment.
+- Two charts on one page with DIFFERENT ranges read as a bug unless the shorter
+  one says why. Net worth spans 7 months against cash flow's 26 because it
+  refuses a period it cannot fully know, and the explanation was gated behind
+  `netWorth.length < 3` — so at 7 months the reader saw a mismatch and no
+  reason. It now names its own range and the comparison whenever it is shorter.
 - Data coverage (`src/lib/insights/coverage.ts`): accounts have different
   history depths (a 90-day feed vs an 18-month CSV vs 5 years of brokerage
   history), so periods before an account's first transaction are UNDERSTATED,

@@ -68,8 +68,12 @@ export default async function TrendsPage({
           <p className="mb-3 text-[0.75rem] text-faint">
             {/* "Hover or tap for detail" promised something a phone cannot do:
                 there is no hover, and a tap on a slice navigates. */}
-            Transfers excluded. Tap or click a slice or row to open those transactions; hover a slice for
-            its exact share.
+            {/* The stepper sits in this section's header but scopes only this
+                section, while the two charts are all-history. Nothing said so,
+                which invites reading ‹ › as a page-wide control. */}
+            <span className="text-ink">{data.periodLabel} only</span> — the charts alongside and below cover
+            all history. Transfers excluded. Tap or click a slice or row to open those transactions; hover a
+            slice for its exact share.
             {data.credited > 0 && (
               <>
                 {" "}
@@ -96,13 +100,13 @@ export default async function TrendsPage({
                     <th className="py-1 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       Category
                     </th>
-                    <th className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                    <th className="py-1 pl-4 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       Spent
                     </th>
-                    <th className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                    <th className="py-1 pl-4 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       vs prev
                     </th>
-                    <th className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                    <th className="py-1 pl-4 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       Share
                     </th>
                   </tr>
@@ -126,9 +130,9 @@ export default async function TrendsPage({
                           {c.label}
                         </Link>
                       </td>
-                      <td className="py-1.5 text-right font-money text-[0.85rem] tabular">{amount(c.spending)}</td>
+                      <td className="py-1.5 pl-4 text-right font-money text-[0.85rem] tabular">{amount(c.spending)}</td>
                       <td
-                        className={`py-1.5 text-right font-money text-[0.78rem] tabular ${
+                        className={`py-1.5 pl-4 text-right font-money text-[0.78rem] tabular ${
                           c.deltaPct === null
                             ? "text-faint"
                             : c.deltaPct > 0.005
@@ -148,7 +152,7 @@ export default async function TrendsPage({
                             ? `×${(1 + c.deltaPct).toFixed(1)}`
                             : pct(c.deltaPct)}
                       </td>
-                      <td className="py-1.5 text-right font-money text-[0.78rem] tabular text-faint">
+                      <td className="py-1.5 pl-4 text-right font-money text-[0.78rem] tabular text-faint">
                         {c.share === null ? "—" : `${Math.round(c.share * 100)}%`}
                       </td>
                     </tr>
@@ -178,8 +182,28 @@ export default async function TrendsPage({
       <section>
         <SectionTitle>Net worth</SectionTitle>
         <p className="mb-3 text-[0.75rem] text-faint">
-          Month-end, all accounts. Hover or tap a month for exact figures; months marked estimated lack a balance snapshot
-          for at least one account.
+          Month-end, all accounts
+          {data.netWorth.length > 0 && (
+            <>
+              {" "}
+              — <span className="text-ink">{data.netWorth[0].label}</span> to{" "}
+              <span className="text-ink">{data.netWorth[data.netWorth.length - 1].label}</span>
+            </>
+          )}
+          . Hover or tap a month for exact figures; months marked estimated lack a balance snapshot for at
+          least one account.
+          {/* Two charts on one page spanning different ranges reads as a bug
+              unless the shorter one says why it is shorter. Net worth REFUSES a
+              month it cannot fully know, so its line is a record of when
+              snapshots begin, not of when the money did. */}
+          {data.netWorth.length > 0 && data.netWorth.length < data.cashFlow.length && (
+            <>
+              {" "}
+              Shorter than cash flow above ({data.netWorth.length} months against {data.cashFlow.length})
+              because a month appears only once every account has a balance snapshot inside it — earlier
+              months are refused rather than estimated.
+            </>
+          )}
         </p>
         {data.netWorth.length < 3 && (
           <p className="mb-3 border-l-2 border-chart2 bg-chip/50 px-2.5 py-1.5 text-[0.75rem] text-faint">
