@@ -451,13 +451,24 @@ regeneration.
   SimpleFIN `balance-date` is when the UPSTREAM last observed the balance, not
   when we synced — and `BalanceSnapshot` is keyed `(accountId, date)`, so a
   sync against an unrefreshed account upserts the SAME row and "Snapshots
-  written: 21" is not evidence that 21 balances moved. Measured 2026-07-28: Wells
-  Fargo publishes ~22:00 UTC and Fidelity ~09:00 UTC, against a cron at 08:00
-  UTC — so the deployment stored yesterday's Wells Fargo balance every single
-  day, and missed Fidelity's by 51 minutes. Moved to `0 3 * * *` (23:00 EDT),
-  which is after both. Re-measure before changing it again: the fix is to run
-  AFTER the institutions publish, and which hour that is depends on which
-  institutions are connected.
+  written: 21" is not evidence that 21 balances moved. Measured off the stored
+  balance-dates, which ARE the publish times: Fidelity ~08:38 UTC, Chase
+  ~16:52, Wells Fargo ~21:59. Settled at `0 23 * * *`, and the reasoning is
+  not "after the latest one" but MINIMISE THE OLDEST — score each candidate
+  hour by the age of the worst-served institution at that moment. 23:00 gives
+  14.4h, against 18.4h at 03:00 and 23.4h at 08:00. 22:00 scores marginally
+  better at 13.4h and is REJECTED: it clears Wells Fargo by about a minute, and
+  WF was observed publishing at 22:00:59, so that hour would have missed it
+  outright. An hour of margin is worth an hour of theoretical freshness.
+  Two wrong hours preceded it and both were wrong the same way — fixing the
+  institution that prompted the complaint while pushing another one a full day
+  back. 08:00 missed Fidelity by 51 minutes; 03:00 fixed Wells Fargo and put
+  the cron BEFORE Fidelity's morning publish, so the deployment served a
+  two-day-old brokerage balance. Score all of them or repeat the mistake.
+  What no cron hour can fix: Fidelity publishes ~08:38 UTC, which is before
+  the US open, so its balance is the PREVIOUS trading day's close. One day of
+  lag on investment balances is inherent to the feed; the cron only controls
+  whether a second day is added on top.
 - Provider health (`src/lib/health/`) derives status from LOCAL signals ONLY —
   last sync outcome, feed errors, stale balance dates, transaction-volume gaps.
   No network call on launch, ever. Adding a connector also means adding its
