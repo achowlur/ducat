@@ -100,13 +100,13 @@ export default async function TrendsPage({
                     <th className="py-1 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       Category
                     </th>
-                    <th className="py-1 pl-4 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                    <th className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       Spent
                     </th>
-                    <th className="py-1 pl-4 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                    <th className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       vs prev
                     </th>
-                    <th className="py-1 pl-4 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                    <th className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       Share
                     </th>
                   </tr>
@@ -130,9 +130,9 @@ export default async function TrendsPage({
                           {c.label}
                         </Link>
                       </td>
-                      <td className="py-1.5 pl-4 text-right font-money text-[0.85rem] tabular">{amount(c.spending)}</td>
+                      <td className="py-1.5 text-right font-money text-[0.85rem] tabular">{amount(c.spending)}</td>
                       <td
-                        className={`py-1.5 pl-4 text-right font-money text-[0.78rem] tabular ${
+                        className={`py-1.5 text-right font-money text-[0.78rem] tabular ${
                           c.deltaPct === null
                             ? "text-faint"
                             : c.deltaPct > 0.005
@@ -152,7 +152,7 @@ export default async function TrendsPage({
                             ? `×${(1 + c.deltaPct).toFixed(1)}`
                             : pct(c.deltaPct)}
                       </td>
-                      <td className="py-1.5 pl-4 text-right font-money text-[0.78rem] tabular text-faint">
+                      <td className="py-1.5 text-right font-money text-[0.78rem] tabular text-faint">
                         {c.share === null ? "—" : `${Math.round(c.share * 100)}%`}
                       </td>
                     </tr>

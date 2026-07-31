@@ -18,7 +18,15 @@ interface MonthValue {
  * both widths: 940 units squeezed into a 327px phone renders 10px type at 4px.
  * Each breakpoint gets its own plot, sized so the scale factor stays near 1.
  */
-const DESKTOP = { w: 940, h: 220 };
+/**
+ * Desktop is deliberately taller than wide-and-flat. At 220 the plot area was
+ * ~170px for a range that spans tens of thousands, so a real month-to-month
+ * move rendered as a few pixels and the line read as almost flat — the shape
+ * of the data was being hidden by the aspect ratio rather than by the numbers.
+ * Mobile keeps its own height: it is already narrow, so the line is steep
+ * enough without help.
+ */
+const DESKTOP = { w: 940, h: 320 };
 const MOBILE = { w: 340, h: 250 };
 
 /**
