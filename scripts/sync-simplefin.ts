@@ -4,6 +4,7 @@ import { runSync } from '../src/lib/sync/sync';
 import { prisma } from '../src/lib/prisma';
 import type { PeriodGranularity } from '../src/types/contracts';
 import { arg } from './args';
+import { printDatabase } from './database-label';
 
 /**
  * Usage: npm run sync:simplefin [-- --since=YYYY-MM-DD] [-- --granularity=MONTH]
@@ -25,6 +26,10 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   const granularity = arg('granularity')?.toUpperCase() as PeriodGranularity | undefined;
+
+  // Before the network call, not after: a sync pointed at the wrong database
+  // should be obvious while it is still running, not once it has written.
+  printDatabase();
 
   const connector = new SimplefinConnector(accessUrl);
   const result = await runSync(prisma, connector, { since, granularity });

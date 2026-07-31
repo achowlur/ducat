@@ -39,6 +39,7 @@
  */
 import { prisma } from '../src/lib/prisma';
 import { applyRules, toRuleTxns, type RuleData, type RuleTxn } from '../src/lib/sync/rules';
+import { databaseLabel } from './database-label';
 
 const MONEY = (n: number): string => `$${n.toFixed(2)}`;
 
@@ -81,8 +82,7 @@ function probe(rules: RuleData[], text: string): RuleTxn {
 }
 
 async function main(): Promise<void> {
-  const url = process.env.DATABASE_URL ?? 'file:./data/ducat.db';
-  console.log(`\nDatabase: ${url.startsWith('libsql://') ? `CLOUD — ${new URL(url).host}` : `LOCAL — ${url}`}`);
+  console.log(`\nDatabase: ${databaseLabel()}`);
   console.log('Read-only simulation. Nothing is written.\n');
 
   const [ruleRows, txnRows, categories] = await Promise.all([

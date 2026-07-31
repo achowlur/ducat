@@ -25,6 +25,7 @@
 import { prisma } from '../src/lib/prisma';
 import { reapplyRules } from '../src/lib/sync/rulePack';
 import { generateInsights } from '../src/lib/insights/engine';
+import { databaseLabel } from './database-label';
 
 function flag(name: string): string | null {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
@@ -63,9 +64,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const url = process.env.DATABASE_URL ?? 'file:./data/ducat.db';
-  const where = url.startsWith('libsql://') ? `CLOUD — ${new URL(url).host}` : `LOCAL — ${url}`;
-  console.log(`\nDatabase: ${where}`);
+  console.log(`\nDatabase: ${databaseLabel()}`);
 
   const category =
     categoryName === null ? null : await prisma.category.findFirst({ where: { name: categoryName } });

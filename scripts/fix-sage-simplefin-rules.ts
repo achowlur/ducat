@@ -35,6 +35,7 @@
 import { prisma } from '../src/lib/prisma';
 import { reapplyRules } from '../src/lib/sync/rulePack';
 import { generateInsights } from '../src/lib/insights/engine';
+import { databaseLabel } from './database-label';
 
 const SAGE_VALUE = 'mr sage';
 const SAGE_CATEGORY = 'Groceries';
@@ -43,9 +44,7 @@ const SIMPLEFIN_CATEGORY = 'Subscriptions';
 
 async function main(): Promise<void> {
   const apply = process.argv.includes('--apply');
-  const url = process.env.DATABASE_URL ?? 'file:./data/ducat.db';
-  const where = url.startsWith('libsql://') ? `CLOUD — ${new URL(url).host}` : `LOCAL — ${url}`;
-  console.log(`\nDatabase: ${where}`);
+  console.log(`\nDatabase: ${databaseLabel()}`);
   console.log(apply ? 'Mode: APPLY\n' : 'Mode: DRY RUN (pass --apply to write)\n');
 
   const groceries = await prisma.category.findFirst({ where: { name: SAGE_CATEGORY } });

@@ -306,8 +306,17 @@ regeneration.
   Zego as a subscription because only the code half had travelled. So finish a
   data change by running it against the cloud database too, and VERIFY on
   `<your-deployment>.vercel.app` rather than localhost — that is where the data is
-  actually read. `npm run rules:retarget` prints which database it is about to
-  touch, first, for exactly this reason.
+  actually read. EVERY script that writes rows prints which database it is
+  about to touch, first, for exactly this reason — one definition in
+  `scripts/database-label.ts`. `sync:simplefin` was the last one without it and
+  the omission cost an hour: a shell still holding the cloud `DATABASE_URL`
+  from an earlier command ran a "local" sync against Turso, which reported
+  `0 imported` because Turso already had everything, while local sat two
+  transactions and several balances behind. `0 imported` does not say WHICH
+  database is up to date, and the label is what disambiguates it. The other
+  tell is the `since` date: it is derived from that instance's own last sync,
+  so it fingerprints the database more reliably than remembering what the shell
+  has set.
 - The two databases also differ in WHICH ROWS EXIST AT ALL, so localhost can
   hide a code path rather than merely lag it. Deleting Overview's subscriptions
   block was verified green on localhost, where `TrackedSubscription` is empty —

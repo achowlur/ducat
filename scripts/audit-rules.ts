@@ -26,6 +26,7 @@
  */
 import { prisma } from '../src/lib/prisma';
 import { applyRules, toRuleTxns, type RuleData } from '../src/lib/sync/rules';
+import { databaseLabel } from './database-label';
 
 type Kind = 'EXACT' | 'WORD' | 'MIDWORD';
 
@@ -56,8 +57,7 @@ function classify(merchant: string, value: string): Kind {
 }
 
 async function main(): Promise<void> {
-  const url = process.env.DATABASE_URL ?? 'file:./data/ducat.db';
-  console.log(`\nDatabase: ${url.startsWith('libsql://') ? `CLOUD — ${new URL(url).host}` : `LOCAL — ${url}`}\n`);
+  console.log(`\nDatabase: ${databaseLabel()}\n`);
 
   const [ruleRows, txnRows, categories] = await Promise.all([
     prisma.rule.findMany({ where: { enabled: true } }),

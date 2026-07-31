@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { prisma } from '../src/lib/prisma';
 import { CASH_ACCOUNTS_KEY, readCashAccountIds } from '../src/lib/ui/liquidity';
+import { databaseLabel } from './database-label';
 
 /**
  * Which non-DEPOSITORY accounts count as spendable cash.
@@ -24,8 +25,7 @@ function flag(name: string): string | null {
 }
 
 async function main(): Promise<void> {
-  const url = process.env.DATABASE_URL ?? 'file:./data/ducat.db';
-  console.log(`\nDatabase: ${url.startsWith('libsql://') ? `CLOUD — ${new URL(url).host}` : `LOCAL — ${url}`}\n`);
+  console.log(`\nDatabase: ${databaseLabel()}\n`);
 
   const accounts = await prisma.account.findMany({ orderBy: { institution: 'asc' } });
   const current = await readCashAccountIds(prisma);
