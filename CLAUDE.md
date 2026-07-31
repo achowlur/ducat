@@ -466,6 +466,29 @@ regeneration.
   recovered on its own the next day, after 3.3 days — which is why the bar is
   5 and not 3: a tighter one would have sent the operator into a bank
   re-authentication flow for a connection that was fine.)
+- "Counts as cash" is NOT the account type (`ui/liquidity.ts`). A brokerage
+  account can hold a money-market balance that is spendable tomorrow, and one
+  here does: it grows ~$142.55/month with no transaction behind it, which is
+  interest. Retyping it DEPOSITORY is the obvious move and it is WRONG — cash
+  and credit are exempt from the snapshot rule in `netWorth.ts` BECAUSE
+  transactions fully explain them, and this account's do not, so net worth
+  would start reconstructing it from trades and drift. Liquidity and
+  market-valuation are two different questions about one account, and the
+  override (`Setting` key `cash.additionalAccountIds`, set by
+  `npm run accounts:cash`) answers only the first. It is a Setting and not a
+  column because it is per-instance operator config and a schema change has to
+  be applied to the cloud database by hand.
+- Overview's per-account "Nd behind" measures the balance against the LAST
+  SYNC, not against now. The two failures are different and only one belongs on
+  a row: if nothing has synced for a week every balance is a week old, which is
+  the sync's problem and the header already says so. What a row can say that
+  the header cannot is "the sync ran and this account did not move" — how Chase
+  looked while frozen, fresh everywhere else and four days behind there.
+  Measured from now instead, it marked 18 of 21 rows the moment local fell two
+  days behind, which is noise. The chip at `staleBalanceDays` is the alarm; the
+  faint text from `STALE_DISPLAY_DAYS` is legibility only, and the gap between
+  them is deliberate — a frozen connection is visible on day 2 and shouted
+  about on day 6.
 - INVESTMENT accounts are EXEMPT from transaction-gap detection
   (`GAP_EXEMPT_TYPES` in `health/health.ts`). Their rows are overwhelmingly
   DIVIDEND RECEIVED, which arrive in quarter-end clusters, so volume is not a

@@ -14,6 +14,14 @@ import type { NetWorthGrowthPayload, SpendingByCategoryPayload } from "../../typ
 import { prisma } from "../prisma";
 import { getProviderHealth } from "../health/health";
 import type { ProviderHealth } from "../health/types";
+import {
+  computeRunway,
+  countsAsCash,
+  readCashAccountIds,
+  summariseBalances,
+  type BalanceSummary,
+  type Runway,
+} from "./liquidity";
 import { monthLabel, shortDate } from "./format";
 import { monthlyRows, ofType } from "./insightRows";
 import { spendingBreakdown, type DonutSliceData } from "./spendingBreakdown";
@@ -26,7 +34,28 @@ export interface AccountRow {
   balance: number;
   snapshotBacked: boolean;
   snapshotDate: string | null;
+  /**
+   * How far behind this balance already was when we LAST SYNCED — not how long
+   * ago that was. Measured against the sync rather than against now because
+   * the two failures are different and only one belongs on a row: if nothing
+   * has synced for a week every balance is a week old, which is the sync's
+   * problem and the header already says so. What a row can say that the header
+   * cannot is "the sync ran and this account did not move", which is exactly
+   * how Chase looked while its connection was frozen — fresh everywhere else,
+   * four days behind here.
+   *
+   * Shown from `STALE_DISPLAY_DAYS` up; that is a LEGIBILITY threshold, not a
+   * health one. The alarm stays with health's tuned `staleBalanceDays`.
+   */
+  balanceLagDays: number;
+  /** Health has flagged this balance as stale — the tuned threshold, not the display one. */
+  stale: boolean;
+  /** True when this balance is counted as spendable cash. */
+  isCash: boolean;
 }
+
+/** Below this the lag is not worth printing; see AccountRow.balanceLagDays. */
+export const STALE_DISPLAY_DAYS = 2;
 
 export interface OverviewData {
   period: string; // e.g. "2026-07"
@@ -35,6 +64,10 @@ export interface OverviewData {
   accounts: AccountRow[];
   estimatedCount: number;
   donut: { slices: DonutSliceData[]; total: number } | null;
+  /** Held, invested and owed, so the balance table does not have to be added up by eye. */
+  balances: BalanceSummary;
+  /** Months of cash at recent spending; null when the evidence refuses. */
+  runway: Runway | null;
   health: ProviderHealth[];
   lastSyncAt: Date | null;
   /**
@@ -51,16 +84,18 @@ export async function getOverviewData(): Promise<OverviewData> {
   // Everything this page needs, read once and in parallel. It used to issue
   // its queries one after another — four of them full scans of the Insight
   // table, with RECURRING_CHARGE fetched twice over.
-  const [insightRows, accountRows, snapshots, uncategorizedCount, lastOk, health] = await Promise.all([
-    prisma.insight.findMany(),
-    prisma.account.findMany(),
-    prisma.balanceSnapshot.groupBy({ by: ["accountId"], _max: { date: true } }),
-    prisma.transaction.count({
-      where: { categoryId: null, flow: { not: "TRANSFER" }, reimbursesId: null },
-    }),
-    prisma.syncLog.findFirst({ where: { ok: true }, orderBy: { finishedAt: "desc" } }),
-    getProviderHealth(prisma),
-  ]);
+  const [insightRows, accountRows, snapshots, uncategorizedCount, lastOk, health, cashAccountIds] =
+    await Promise.all([
+      prisma.insight.findMany(),
+      prisma.account.findMany(),
+      prisma.balanceSnapshot.groupBy({ by: ["accountId"], _max: { date: true } }),
+      prisma.transaction.count({
+        where: { categoryId: null, flow: { not: "TRANSFER" }, reimbursesId: null },
+      }),
+      prisma.syncLog.findFirst({ where: { ok: true }, orderBy: { finishedAt: "desc" } }),
+      getProviderHealth(prisma),
+      readCashAccountIds(prisma),
+    ]);
 
   const monthly = monthlyRows(insightRows);
   // ofType is oldest-first, the order charts plot in. This page reads the
@@ -70,20 +105,39 @@ export async function getOverviewData(): Promise<OverviewData> {
   const latest = netWorthAll[netWorthAll.length - 1] ?? null;
   const period = latest?.period ?? null;
   const snapshotByAccount = new Map(snapshots.map((s) => [s.accountId, s._max.date]));
+  // Health already decided which balances are stale, on its own tuned bar.
+  // Re-deriving it here would be a second threshold to keep in step.
+  const staleIds = new Set(health.flatMap((h) => h.staleAccounts.map((s) => s.accountId)));
+  const syncedAt = lastOk?.finishedAt?.getTime() ?? null;
   const accounts: AccountRow[] = accountRows
     .map((a) => {
       const snapDate = snapshotByAccount.get(a.id) ?? null;
+      const balance = Number(a.balance);
       return {
         id: a.id,
         name: a.name,
         institution: a.institution,
         type: a.type,
-        balance: Number(a.balance),
+        balance,
         snapshotBacked: snapDate !== null,
         snapshotDate: snapDate === null ? null : shortDate(snapDate),
+        balanceLagDays:
+          syncedAt === null ? 0 : Math.max(0, Math.floor((syncedAt - a.balanceDate.getTime()) / 86_400_000)),
+        stale: staleIds.has(a.id),
+        isCash: countsAsCash({ id: a.id, type: a.type, balance }, cashAccountIds),
       };
     })
     .sort((a, b) => (TYPE_ORDER[a.type] ?? 9) - (TYPE_ORDER[b.type] ?? 9) || b.balance - a.balance);
+
+  const balances = summariseBalances(accounts, cashAccountIds);
+  // Complete months only, and the app's OWN spending figure — the same
+  // totalSpending /trends and /insights print, so no third definition appears.
+  const spendingSeries = ofType<SpendingByCategoryPayload>(monthly, "SPENDING_BY_CATEGORY");
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const runway = computeRunway(
+    balances.cash,
+    spendingSeries.filter((s) => s.period < thisMonth).map((s) => s.payload.totalSpending),
+  );
 
   if (period === null) {
     return {
@@ -93,6 +147,8 @@ export async function getOverviewData(): Promise<OverviewData> {
       accounts,
       estimatedCount: 0,
       donut: null,
+      balances,
+      runway,
       health,
       lastSyncAt: null,
       uncategorizedCount,
@@ -111,6 +167,8 @@ export async function getOverviewData(): Promise<OverviewData> {
     accounts,
     estimatedCount: latest.payload.estimatedAccountIds.length,
     donut,
+    balances,
+    runway,
     health,
     lastSyncAt: lastOk?.finishedAt ?? null,
     uncategorizedCount,

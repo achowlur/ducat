@@ -2,7 +2,7 @@ import Link from "next/link";
 import { MiniDonut } from "../components/MiniDonut";
 import { SyncNowButton } from "../components/SyncNowButton";
 import { amount, dateTime, money, pct } from "../lib/ui/format";
-import { getOverviewData } from "../lib/ui/overview";
+import { getOverviewData, STALE_DISPLAY_DAYS } from "../lib/ui/overview";
 import { transactionsHref } from "../lib/ui/categoryFilter";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +27,25 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
     <h3 className="mb-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
       {children}
     </h3>
+  );
+}
+
+/** A grouping row in the balance table: quieter than the net-worth total. */
+function SubTotal({ label, note, value }: { label: string; note?: string; value: number }) {
+  return (
+    <tr className="border-t border-rule">
+      <td className="py-1.5 text-[0.78rem] text-faint">
+        {label} {note !== undefined && <span className="text-[0.7rem]">{note}</span>}
+      </td>
+      <td />
+      <td
+        className={`w-px whitespace-nowrap py-1.5 pl-3 text-right font-money text-[0.78rem] tabular ${
+          value < 0 ? "font-semibold text-neg" : "text-faint"
+        }`}
+      >
+        {amount(value)}
+      </td>
+    </tr>
   );
 }
 
@@ -137,6 +156,21 @@ export default async function OverviewPage() {
                       {a.institution}
                       {a.snapshotBacked ? ` · snapshot ${a.snapshotDate}` : ""}
                     </span>
+                    {/* A frozen connection is silent for five days, and the
+                        only thing that showed Chase had stopped was this date
+                        in grey. The age is printed once it is old enough to
+                        mean anything; the chip waits for health's tuned bar. */}
+                    {a.stale ? (
+                      <span className="ml-2 whitespace-nowrap rounded-[2px] bg-neg px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.06em] text-paper">
+                        {a.balanceLagDays}d behind
+                      </span>
+                    ) : (
+                      a.balanceLagDays >= STALE_DISPLAY_DAYS && (
+                        <span className="ml-2 whitespace-nowrap text-[0.66rem] uppercase tracking-[0.06em] text-chart2">
+                          {a.balanceLagDays}d behind
+                        </span>
+                      )
+                    )}
                   </td>
                   {/* Six-figure balances squeeze the flexible columns; pin the
                       numeric and type columns to their content and let the
@@ -153,6 +187,18 @@ export default async function OverviewPage() {
                   </td>
                 </tr>
               ))}
+              {/* Held / invested / owed, so the reader is not adding a column
+                  of signed numbers by eye to answer "what do I owe". Grouped
+                  from rows already fetched — no extra query. */}
+              <SubTotal label="Cash" note={`${data.balances.cashAccounts} accounts`} value={data.balances.cash} />
+              <SubTotal label="Investments" value={data.balances.investments} />
+              {data.balances.debtAccounts > 0 && (
+                <SubTotal
+                  label="Owed"
+                  note={`${data.balances.debtAccounts} account${data.balances.debtAccounts === 1 ? "" : "s"}`}
+                  value={data.balances.debt}
+                />
+              )}
               {data.netWorth !== null && (
                 <tr>
                   <td className="border-t-2 border-ink py-1.5 font-semibold">Net worth</td>
@@ -164,6 +210,24 @@ export default async function OverviewPage() {
               )}
             </tbody>
           </table>
+
+          {/* The one forward-looking number on this page, so it is chipped and
+              worded like one. The SPREAD is printed beside it deliberately: the
+              mean is drawn from months running {low}–{high}, and a single
+              figure would read as steadier than the underlying months are. */}
+          {data.runway !== null && (
+            <p className="mt-3 text-[0.78rem] text-faint">
+              <span className="mr-2 whitespace-nowrap rounded-[2px] bg-chip px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.08em] text-acc">
+                Projected
+              </span>
+              <span className="font-money text-[0.95rem] font-semibold tabular text-ink">
+                {data.runway.months}
+              </span>{" "}
+              months of cash at {money(data.runway.monthlySpending)}/month — the average of your
+              last {data.runway.basisMonths} complete months, which ran {money(data.runway.low)} to{" "}
+              {money(data.runway.high)}.
+            </p>
+          )}
         </section>
 
         <section className="border-rule py-5 md:border-l md:pl-7">
