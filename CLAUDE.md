@@ -354,6 +354,52 @@ regeneration.
   move money between categories, and this codebase's grain is visible over
   silent. Anything that must be run once per database belongs in that panel,
   not only in a README nobody re-reads.
+- CODE and DATA upgrade separately, and so does SCHEMA — `npm run schema:push`
+  is the third one. `prisma migrate deploy` cannot reach libSQL over HTTP, so a
+  column added in a release reached the cloud only when someone remembered to
+  hand-write the ALTER, and a green deploy says nothing because the build never
+  opens the database: the first symptom is a PrismaClientValidationError on
+  whichever page reads the new field. It diffs `prisma/schema.prisma` against
+  what the database ACTUALLY has, prints the delta, and writes only with
+  `--apply`. It only ever ADDS — CREATE TABLE, ADD COLUMN, CREATE INDEX. A
+  dropped column, a changed type or nullability, an added or removed foreign key
+  (so adding a RELATION is refused — that is a table constraint and needs a
+  rebuild), and anything that could be a RENAME are refused with the row count
+  at stake printed beside them, and ONE refusal blocks the whole run including
+  the additive part: a half-applied schema is harder to reason about than one
+  nothing has touched. An empty database is sent back to `turso:push`, using the
+  same filter that command uses so the two cannot disagree about which one you
+  are supposed to run. Both sides of the comparison go through ONE parser
+  (`scripts/schema-delta.ts`) — the desired schema from Prisma's `--from-empty`
+  script, the actual one from the CREATE statements SQLite kept in
+  `sqlite_master`, which are byte-identical for a database built by
+  `turso:push`. Two readers would let the two disagree about nothing at all, and
+  a schema tool that invents a delta is worse than one that finds none. The
+  parser bug worth not repeating: slicing a statement to the end of its INPUT
+  rather than the end of its STATEMENT swept every following statement into the
+  first one's tail, which passes the identity test and fails only once the two
+  sides differ.
+- Whether a column can be ADDED depends on whether that table is EMPTY, which is
+  why the delta takes row counts before it classifies anything. Measured against
+  libSQL 3.45.1, not read from the documentation, which describes all five
+  limits as unconditional and is wrong about three: PRIMARY KEY and UNIQUE are
+  refused always, while NOT NULL with no default, a non-constant default
+  (`CURRENT_TIMESTAMP`, which is what `@default(now())` compiles to) and
+  REFERENCES with a non-NULL default are refused ONLY once the table has rows.
+  So the same command can apply cleanly against local and refuse against the
+  cloud and be right both times — `TrackedSubscription` is empty here and holds
+  two rows there, which is the localhost-hides-a-path hazard arriving in the
+  schema tooling. A row-blind answer is wrong on one of the databases whichever
+  way it goes. An unknown count reads as "has rows", so forgetting to pass one
+  is over-strict rather than over-permissive. Related, and it costs a usage dump
+  when you meet it: `prisma migrate diff --from-url` was REMOVED in Prisma 7 —
+  the replacement is `--from-config-datasource`, which takes the URL from
+  `prisma.config.ts`, i.e. from `DATABASE_URL`. That is the escape hatch the
+  refusal prints: `npm run cloud:backup`, then diff the schema against the
+  BACKUP FILE, and Prisma writes the table rebuilds this cannot do. It also
+  DROPS what `schema:push` refuses to drop, rows and all — pointed at a diverged
+  fixture it emitted `DROP TABLE` for a table that had merely been renamed — so
+  it is read before it is run.
 - The two databases also differ in WHICH ROWS EXIST AT ALL, so localhost can
   hide a code path rather than merely lag it. Deleting Overview's subscriptions
   block was verified green on localhost, where `TrackedSubscription` is empty —
@@ -708,9 +754,16 @@ regeneration.
   Card", so 67 rows for one card sat under two names with no prefix relating
   them — which is why the repair's prefix test correctly refused to merge them
   and an explicit expansion was needed instead. It runs BEFORE the truncation so
-  an abbreviation next to a marker still expands. "fid bkg svc llc" is left
-  alone deliberately: every source spells it the same way, so expanding it would
-  invent a name none of them ever used.
+  an abbreviation next to a marker still expands. "fid bkg svc llc" was left alone on the
+  grounds that every source spells it the same way — which is now FALSE for the
+  payee and was measured so 2026-07-31: the live feed names it "Fidelity
+  Brokerage Services" against the CSV's "fid bkg svc llc", 70 rows to 3. So it
+  MEETS this list's own bar (it measurably splits a payee) and an expansion
+  would use a name a source really does use. Still unfixed, and if that family
+  is ever addressed an `ABBREVIATIONS` entry is the instrument, NOT a
+  `moneyline` TRANSACTION_TYPE marker: measured, the marker collapses 27 strings
+  to one and STILL leaves the payee split two ways, because `bestMerchant`'s
+  prefix test correctly refuses to substitute across the two spellings.
 - `repair:merchants` may fall back to the DESCRIPTION, but only when it carries
   a transaction-type marker AND yields a string that is both shorter than the
   stored merchant and a PREFIX of it. The prefix half is load-bearing and was
@@ -850,19 +903,55 @@ turned up so it isn't rediscovered:
   are currently computed AND serialized into the HTML even when none is opened.
   Measure in a PRODUCTION build before judging — 0.87s is a dev-mode number.
 - ~~Donut navigation~~ — DONE, see the category-filter convention above.
-- **Merchant strings are still SHATTERED for internal transfers**, measured but
-  deliberately not fixed. Grouping every distinct merchant by its first two
-  words: `online transfer` is 251 merchant strings across 262 rows, `fid bkg`
-  (Fidelity ACH) is 27 across 27, `zelle to`/`zelle from` 49 across 49 — one
-  merchant per row, because each carries its own reference code. Fidelity's
-  reads "FID BKG SVC LLC  MONEYLINE  260401 Y0000000000US1G MARLOWE BRENNAN",
-  so a `moneyline` marker would collapse all 27 to "fid bkg svc llc". Left
-  alone for now on two grounds: CLAUDE.md already records a decision not to
-  ship anything institution-specific like a brokerage's ACH descriptor, and the
-  impact is cosmetic — those rows are all flagged TRANSFER and excluded from
-  every spending analytic, while the Zelle rows already DISPLAY correctly
-  through `merchantLabel`'s payee path whatever is stored. Do it only if the
-  ledger reads badly; it is two more markers plus the same repair.
+- **Merchant strings are SHATTERED for internal transfers — RE-MEASURED
+  2026-07-31, and the answer is LEAVE IT.** Counts are flat to the row against
+  the first measurement: `online transfer` 251 merchant strings / 262 rows,
+  `fid bkg` (Fidelity ACH) 27 / 27, `zelle to`+`zelle from` 49 / 49, one
+  merchant per row because each carries its own reference code. Two facts
+  decide it. First the set is FROZEN: every shattered row is `source=CSV`
+  (2024-06-28 → 2026-04-26), and the feed took over on 2026-04-27 supplying a
+  clean payee for the IDENTICAL descriptor — "FID BKG SVC LLC  MONEYLINE …"
+  stores as "fidelity brokerage services" — so in the feed era only 5 of 238
+  distinct merchants exceed 30 characters and this cannot grow on its own.
+  Second, STORED is not DISPLAYED: running the real `merchantLabel` over all
+  2,677 rows, 391 rows display bank bookkeeping but 136 are TRANSFER and only
+  SIX non-TRANSFER rows read badly. Zero Zelle rows are among them — 49 stored
+  strings collapse to 75 labels, "zelle to tess on ref # wfct0000000m" renders
+  "Zelle To Tess". And the damage is all archive: pages 1-2 of the ledger (the
+  newest 200 rows) hold zero shattered rows and zero labels over 40 characters,
+  while page 10 holds 57 of 100. Every badly-reading row is dimmed at
+  `opacity-60`, renders a plain "transfer" span instead of a category control,
+  is excluded from every analytic, and carries its full text in the row
+  tooltip — the label is decoration on a row that carries no decision.
+  The blast radius was simulated and is CLEAN, which is worth recording because
+  it means cost is not what stops this: 438 rows rewritten, 0 of 548 MERCHANT
+  rule values shortened (the `wf credit card auto pay` hazard is empty here —
+  the rules holding these rows TRANSFER are all DESCRIPTION rules, which
+  `repair:merchants` never touches), 0 rows changing category or flow, 341
+  grouped-review keys unchanged.
+  DO NOT SHIP a third marker `authorized on`. "purchase authorized on macy's
+  560 7875 plaza springfield il … card 1234" truncates to "purchase", and
+  `MIN_MERCHANT = 3` does not refuse it because 8 characters precede — two rows
+  lose their merchant outright (Macy's $418.10 Shopping, Bocaview Optical $101.08
+  Health). Wells Fargo puts the merchant AFTER the type in that layout,
+  inverting the assumption the whole list is built on. Already pinned by
+  `connectors.test.ts:97`.
+  `ref #` is also not a one-line addition: `TRANSACTION_TYPE` is `\b(a|b|c)\b`,
+  and a `ref\s*#` entry inside that wrapper fires only when the bank omits the
+  space after `#` — 31 of 166 Zelle rows against 46 for the unwrapped form, same
+  bank, same rail, two behaviours decided by a printed space. Correct is a
+  LEADING `\b` only, as `payeeKey`'s `NOISE_MARKERS` already writes it.
+  What would flip this, in likelihood order: (1) a CSV backfill — "deeper
+  history" is on the backlog and CSV is the only path to it, at ~5.6 shattered
+  strings per backfilled month; (2) the feed dropping the payee, which one row
+  on 2026-04-27 already hints is not stable (it arrived as "wells fargo" for
+  the same descriptor shape) — that would put shattered rows on page 1 within a
+  month, and it is the thing to watch; (3) any other reason to restructure
+  `TRANSACTION_TYPE`'s regex, in which case `ref #` buys 249 of the 319 labels
+  at a measured-zero blast radius and is worth doing opportunistically.
+  `moneyline` is not worth it either way — it fixes 27 frozen rows and zero
+  future ones, and only ever fires for someone backfilling a Wells Fargo CSV
+  that contains a Fidelity ACH.
 - ~~Another pass on subscription detection~~ — AUDITED, and the answer is
   DON'T. See the recurring-detection convention above.
 - **A public demo instance** — DESIGN AGREED 2026-07-27, DEFERRED on purpose.
