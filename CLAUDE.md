@@ -829,6 +829,31 @@ turned up so it isn't rediscovered:
 
 ## Backlog (agreed, not yet scheduled)
 
+- **Savings goals on /insights — TABLED 2026-07-31, come back to it.** Agreed
+  in principle; the design below is what was settled so it is not re-derived.
+  The shape is a declared target with a horizon — "House deposit, $155,503.76 by
+  Jun 2028" — shown against the observed savings rate: saved so far, rate, the
+  date it lands, and how that compares to the target date. It reuses
+  `CASH_FLOW_TREND` for the rate and the `computeRunway` arithmetic in
+  `ui/liquidity.ts`, and it inherits the same refusals — too few complete
+  months, or a savings rate at or below zero, and it says so rather than
+  printing a fantasy date. Chipped `PROJECTED` like every other forecast.
+  What was REJECTED, and why, because it is the obvious thing to ask for next:
+  PER-CATEGORY MONTHLY BUDGETS. The pace call already answers "am I spending
+  more than usual" from the operator's own history and needs no configuration,
+  so a budget replaces observed evidence with a typed number — less evidence,
+  not more. And twelve categories times every month is a wall of red that
+  trains the reader to ignore it, which is the same flooding failure the
+  anomaly pass spent real effort escaping. A savings goal is different in kind:
+  the app cannot infer a house deposit target, so declaring it adds information
+  the data does not contain. That is the test for whether something earns
+  configuration.
+  Two decisions still open: whether "saved" tracks cash, net worth, or a
+  nominated set of accounts (the `cash.additionalAccountIds` work makes the
+  last one cheap and it is the current preference), and whether a slipping goal
+  reaches Overview — preference is NO, it stays on /insights, because Overview
+  carries state and a goal is trajectory.
+
 - **P2P review, still open:** (c) recurring-pattern detection on P2P (same
   payee, same amount, monthly) to pre-fill rule suggestions; (d) an explicit
   "P2P — Unreviewed" bucket so analytics are visibly-incomplete rather than
