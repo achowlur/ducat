@@ -30,22 +30,34 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** A grouping row in the balance table: quieter than the net-worth total. */
-function SubTotal({ label, note, value }: { label: string; note?: string; value: number }) {
+/**
+ * One of the three balance groups. These were rows inside the account table
+ * first, which was the mistake: a summary figure in the same table, the same
+ * alignment and a fainter grey reads as another account, so "what do I owe"
+ * stayed invisible even though the number was on screen. A figure that answers
+ * a different question needs to look like it.
+ */
+function BalanceGroup({
+  label,
+  value,
+  note,
+  negative,
+}: {
+  label: string;
+  value: number;
+  note?: React.ReactNode;
+  negative?: boolean;
+}) {
   return (
-    <tr className="border-t border-rule">
-      <td className="py-1.5 text-[0.78rem] text-faint">
-        {label} {note !== undefined && <span className="text-[0.7rem]">{note}</span>}
-      </td>
-      <td />
-      <td
-        className={`w-px whitespace-nowrap py-1.5 pl-3 text-right font-money text-[0.78rem] tabular ${
-          value < 0 ? "font-semibold text-neg" : "text-faint"
-        }`}
+    <div>
+      <div className="text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-faint">{label}</div>
+      <div
+        className={`font-money text-[1.25rem] tabular ${negative === true ? "font-semibold text-neg" : ""}`}
       >
         {amount(value)}
-      </td>
-    </tr>
+      </div>
+      {note !== undefined && <div className="mt-0.5 text-[0.72rem] text-faint">{note}</div>}
+    </div>
   );
 }
 
@@ -92,47 +104,89 @@ export default async function OverviewPage() {
         )}
       </div>
 
+      {/* Headline, then the three groups, then the detail. The page reads
+          top-down as one answer getting more specific, rather than as two
+          columns where the second ran out 300px above the first. */}
+      <section className="pt-5">
+        <SectionTitle>Net worth — {data.periodLabel}</SectionTitle>
+        {data.netWorth === null ? (
+          <p className="text-faint">No insights yet. Run a sync or seed fixture data, then generate insights.</p>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <span className="font-money text-[2.1rem] tabular">{money(data.netWorth.netWorth)}</span>
+              {data.netWorth.growthRate !== null && (
+                <span
+                  className={`font-money whitespace-nowrap text-[0.95rem] font-semibold ${
+                    data.netWorth.growthRate >= 0 ? "text-pos" : "text-neg"
+                  }`}
+                >
+                  {data.netWorth.growthRate >= 0 ? "▲" : "▼"} {pct(data.netWorth.growthRate).slice(1)} vs last
+                  month
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-[0.75rem] text-faint">
+              {data.netWorth.marketGains !== null && data.netWorth.marketGains !== 0 && (
+                <>
+                  <span
+                    className={`font-money font-semibold ${data.netWorth.marketGains > 0 ? "text-pos" : "text-neg"}`}
+                  >
+                    {money(data.netWorth.marketGains)}
+                  </span>{" "}
+                  of this month&apos;s change is investment market movement (not income).{" "}
+                </>
+              )}
+              {data.estimatedCount > 0 && (
+                <>
+                  {data.estimatedCount} of {data.accounts.length} balances reconstructed from transactions
+                  (no snapshot).
+                </>
+              )}
+            </p>
+          </>
+        )}
+      </section>
+
+      {/* Held, invested, owed. The runway hangs off CASH rather than floating
+          under the table, because it is a statement about that number and
+          nothing else on the page. */}
+      <section className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4 border-y border-rule py-4 sm:grid-cols-3">
+        <BalanceGroup
+          label="Cash"
+          value={data.balances.cash}
+          note={
+            data.runway === null ? (
+              `${data.balances.cashAccounts} account${data.balances.cashAccounts === 1 ? "" : "s"}`
+            ) : (
+              <span title={`Your last ${data.runway.basisMonths} complete months ran ${money(data.runway.low)} to ${money(data.runway.high)}`}>
+                <span className="mr-1.5 whitespace-nowrap rounded-[2px] bg-chip px-1 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.08em] text-acc">
+                  Projected
+                </span>
+                <span className="font-money font-semibold text-ink">{data.runway.months} months</span> at{" "}
+                {money(data.runway.monthlySpending)}/mo
+              </span>
+            )
+          }
+        />
+        <BalanceGroup
+          label="Investments"
+          value={data.balances.investments}
+          note={`${data.accounts.filter((a) => !a.isCash && a.balance >= 0).length} accounts`}
+        />
+        {data.balances.debtAccounts > 0 && (
+          <BalanceGroup
+            label="Owed"
+            value={data.balances.debt}
+            negative
+            note={`${data.balances.debtAccounts} card${data.balances.debtAccounts === 1 ? "" : "s"}`}
+          />
+        )}
+      </section>
+
       <div className="grid grid-cols-1 md:grid-cols-[1.12fr_0.88fr]">
         <section className="py-5 md:pr-7">
-          <SectionTitle>Net worth — {data.periodLabel}</SectionTitle>
-          {data.netWorth === null ? (
-            <p className="text-faint">No insights yet. Run a sync or seed fixture data, then generate insights.</p>
-          ) : (
-            <>
-              <div className="flex items-baseline gap-4">
-                <span className="font-money text-[2.1rem] tabular">{money(data.netWorth.netWorth)}</span>
-                {data.netWorth.growthRate !== null && (
-                  <span
-                    className={`font-money text-[0.95rem] font-semibold ${
-                      data.netWorth.growthRate >= 0 ? "text-pos" : "text-neg"
-                    }`}
-                  >
-                    {data.netWorth.growthRate >= 0 ? "▲" : "▼"} {pct(data.netWorth.growthRate).slice(1)} vs last
-                    month
-                  </span>
-                )}
-              </div>
-              <p className="mb-4 mt-1 text-[0.75rem] text-faint">
-                {data.netWorth.marketGains !== null && data.netWorth.marketGains !== 0 && (
-                  <>
-                    <span
-                      className={`font-money font-semibold ${data.netWorth.marketGains > 0 ? "text-pos" : "text-neg"}`}
-                    >
-                      {money(data.netWorth.marketGains)}
-                    </span>{" "}
-                    of this month&apos;s change is investment market movement (not income).{" "}
-                  </>
-                )}
-                {data.estimatedCount > 0 && (
-                  <>
-                    {data.estimatedCount} of {data.accounts.length} balances reconstructed from transactions
-                    (no snapshot).
-                  </>
-                )}
-              </p>
-            </>
-          )}
-
+          <SectionTitle>Accounts</SectionTitle>
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-ink">
@@ -140,7 +194,7 @@ export default async function OverviewPage() {
                   Account
                 </th>
                 <th className="w-px whitespace-nowrap py-1 pl-3 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
-                  Type
+                  As of
                 </th>
                 <th className="w-px whitespace-nowrap py-1 pl-3 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                   Balance
@@ -151,32 +205,28 @@ export default async function OverviewPage() {
               {data.accounts.map((a) => (
                 <tr key={a.id} className="border-b border-rule">
                   <td className="py-1.5 text-[0.85rem]">
-                    {a.name}{" "}
-                    <span className="text-[0.72rem] text-faint">
-                      {a.institution}
-                      {a.snapshotBacked ? ` · snapshot ${a.snapshotDate}` : ""}
+                    <span className="block leading-tight">{a.name}</span>
+                    <span className="text-[0.7rem] text-faint">
+                      {a.institution} · {TYPE_LABEL[a.type] ?? a.type}
                     </span>
-                    {/* A frozen connection is silent for five days, and the
-                        only thing that showed Chase had stopped was this date
-                        in grey. The age is printed once it is old enough to
-                        mean anything; the chip waits for health's tuned bar. */}
+                  </td>
+                  {/* Freshness gets a COLUMN rather than a badge appended to the
+                      name. A frozen connection is silent for five days, and the
+                      only thing that showed Chase had stopped was a date buried
+                      in grey text beside the account name — findable only if you
+                      already suspected it. A column is scannable down the page,
+                      and it is present whether or not anything is late, so the
+                      absence of a warning is itself visible. */}
+                  <td className="w-px whitespace-nowrap py-1.5 pl-3 text-[0.72rem] text-faint">
                     {a.stale ? (
-                      <span className="ml-2 whitespace-nowrap rounded-[2px] bg-neg px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.06em] text-paper">
+                      <span className="rounded-[2px] bg-neg px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.06em] text-paper">
                         {a.balanceLagDays}d behind
                       </span>
+                    ) : a.balanceLagDays >= STALE_DISPLAY_DAYS ? (
+                      <span className="font-semibold text-chart2">{a.balanceLagDays}d behind</span>
                     ) : (
-                      a.balanceLagDays >= STALE_DISPLAY_DAYS && (
-                        <span className="ml-2 whitespace-nowrap text-[0.66rem] uppercase tracking-[0.06em] text-chart2">
-                          {a.balanceLagDays}d behind
-                        </span>
-                      )
+                      (a.snapshotDate ?? "—")
                     )}
-                  </td>
-                  {/* Six-figure balances squeeze the flexible columns; pin the
-                      numeric and type columns to their content and let the
-                      account name absorb the remaining width instead. */}
-                  <td className="w-px whitespace-nowrap py-1.5 pl-3 text-[0.72rem] text-faint">
-                    {TYPE_LABEL[a.type] ?? a.type}
                   </td>
                   <td
                     className={`w-px whitespace-nowrap py-1.5 pl-3 text-right font-money text-[0.85rem] tabular ${
@@ -187,47 +237,8 @@ export default async function OverviewPage() {
                   </td>
                 </tr>
               ))}
-              {/* Held / invested / owed, so the reader is not adding a column
-                  of signed numbers by eye to answer "what do I owe". Grouped
-                  from rows already fetched — no extra query. */}
-              <SubTotal label="Cash" note={`${data.balances.cashAccounts} accounts`} value={data.balances.cash} />
-              <SubTotal label="Investments" value={data.balances.investments} />
-              {data.balances.debtAccounts > 0 && (
-                <SubTotal
-                  label="Owed"
-                  note={`${data.balances.debtAccounts} account${data.balances.debtAccounts === 1 ? "" : "s"}`}
-                  value={data.balances.debt}
-                />
-              )}
-              {data.netWorth !== null && (
-                <tr>
-                  <td className="border-t-2 border-ink py-1.5 font-semibold">Net worth</td>
-                  <td className="border-t-2 border-ink" />
-                  <td className="w-px whitespace-nowrap border-t-2 border-ink py-1.5 pl-3 text-right font-money text-[0.85rem] font-semibold tabular">
-                    {amount(data.netWorth.netWorth)}
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
-
-          {/* The one forward-looking number on this page, so it is chipped and
-              worded like one. The SPREAD is printed beside it deliberately: the
-              mean is drawn from months running {low}–{high}, and a single
-              figure would read as steadier than the underlying months are. */}
-          {data.runway !== null && (
-            <p className="mt-3 text-[0.78rem] text-faint">
-              <span className="mr-2 whitespace-nowrap rounded-[2px] bg-chip px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.08em] text-acc">
-                Projected
-              </span>
-              <span className="font-money text-[0.95rem] font-semibold tabular text-ink">
-                {data.runway.months}
-              </span>{" "}
-              months of cash at {money(data.runway.monthlySpending)}/month — the average of your
-              last {data.runway.basisMonths} complete months, which ran {money(data.runway.low)} to{" "}
-              {money(data.runway.high)}.
-            </p>
-          )}
         </section>
 
         <section className="border-rule py-5 md:border-l md:pl-7">

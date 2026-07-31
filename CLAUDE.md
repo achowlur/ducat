@@ -498,6 +498,16 @@ regeneration.
   `npm run accounts:cash`) answers only the first. It is a Setting and not a
   column because it is per-instance operator config and a schema change has to
   be applied to the cloud database by hand.
+- Overview's shape is HEADLINE → GROUPS → DETAIL, and the grouping figures are
+  NOT table rows. Cash/Investments/Owed shipped first as subtotal rows inside
+  the account table and the operator reported them missing while looking
+  straight at them: same table, same alignment, a fainter grey, so a summary
+  answering a different question read as another account. They are now a band
+  of three figures under the net-worth headline, with the runway hanging off
+  CASH because it is a statement about that number and nothing else. Balance
+  freshness likewise gets its own COLUMN rather than a badge appended to the
+  account name — a column is scannable down the page and is present whether or
+  not anything is late, so the absence of a warning is visible too.
 - Overview's per-account "Nd behind" measures the balance against the LAST
   SYNC, not against now. The two failures are different and only one belongs on
   a row: if nothing has synced for a week every balance is a week old, which is
