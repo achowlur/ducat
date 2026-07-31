@@ -16,25 +16,10 @@
  */
 import 'dotenv/config';
 import { createClient } from '@libsql/client';
-import { execFileSync } from 'node:child_process';
-import { createRequire } from 'node:module';
-
-/** The schema as one SQL script, derived from schema.prisma (not replayed from
- * prisma/migrations), so it is current by construction. Invoked directly rather
- * than through npm, which prepends its own banner to stdout.
- *
- * Runs Prisma's JS entrypoint under this same node, not `.bin/prisma`: since
- * the CVE-2024-27980 mitigation, Node refuses to spawn a Windows `.cmd` shim
- * without `shell: true`, and passing arguments through a shell is a worse
- * trade than resolving the entrypoint. */
-function baselineSql(): string {
-  const entry = createRequire(import.meta.url).resolve('prisma/build/index.js');
-  return execFileSync(
-    process.execPath,
-    [entry, 'migrate', 'diff', '--from-empty', '--to-schema', 'prisma/schema.prisma', '--script'],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
-  );
-}
+// One definition of "the schema as SQL", shared with cloud:backup and
+// schema:push. A second copy of it here drifted from that one for a while and
+// nothing would have noticed until the two produced different schemas.
+import { baselineSql } from './copyDatabase';
 
 async function main(): Promise<void> {
   const url = process.env.DATABASE_URL;
@@ -62,6 +47,10 @@ async function main(): Promise<void> {
       console.error(`  ${tables.join(', ')}`);
       console.error('\nA baseline only applies to an EMPTY database. If this is a fresh Turso');
       console.error('database you meant to reset, destroy and recreate it, then re-run.');
+      console.error('\nIf you meant to apply a schema CHANGE to a database already in use,');
+      console.error('that is the other command — it takes the delta and applies only what');
+      console.error('SQLite can add safely:');
+      console.error('  DATABASE_URL="…" TURSO_AUTH_TOKEN="…" npm run schema:push');
       process.exitCode = 1;
       return;
     }

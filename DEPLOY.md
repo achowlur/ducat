@@ -98,9 +98,10 @@ replaying `prisma/migrations/`, so it is current by construction — verified to
 produce a schema identical to applying every migration in order.
 
 Note for later: the cloud database gets no `_prisma_migrations` table, and
-`prisma migrate deploy` can't reach it, so a *future* schema change means
-generating just the delta and applying it the same way. Nothing reads that
-table at runtime, so this only matters when you next change the schema.
+`prisma migrate deploy` can't reach it, so a *future* schema change goes through
+`npm run schema:push` instead — see [When the schema changes](#when-the-schema-changes).
+Nothing reads that table at runtime, so its absence only matters in that it
+rules out the usual migration path.
 
 ## 3 · Seed the starter categorization pack
 
@@ -271,9 +272,10 @@ You do not have to remember: Overview's **Needs review** panel counts the
 missing rules and names this command whenever a database is behind. It says
 nothing when there is nothing to do.
 
-What this does **not** cover is a schema change. Prisma migrations still have
-to be applied to Turso by hand — see the note at the end of step 2 — because
-`prisma migrate deploy` cannot reach a libSQL database over HTTP.
+What this does **not** cover is a schema change — that is the other command,
+[`npm run schema:push`](#when-the-schema-changes). Run both after a version that
+changes the schema: `schema:push` gives the database the new columns, `upgrade`
+gives it the new rules.
 
 ## Living with two copies
 
@@ -314,10 +316,57 @@ DATABASE_URL="file:./data/backups/ducat-2026-07-26-2145.db" npm run dev
 ### When the schema changes
 
 `prisma migrate deploy` can't target libSQL, and the cloud database has no
-`_prisma_migrations` table, so a new migration doesn't reach it on its own.
-Generate the delta against the deployed schema and apply it the same way
-`turso:push` applies the baseline. Worth doing calmly the first time rather
-than while something is broken.
+`_prisma_migrations` table, so a new migration doesn't reach it on its own. A
+green deploy tells you nothing either way — the build never opens the database.
+The first symptom is a `PrismaClientValidationError` on whichever page reads the
+new field.
+
+```bash
+DATABASE_URL="libsql://…turso.io" TURSO_AUTH_TOKEN="…" npm run schema:push
+DATABASE_URL="libsql://…turso.io" TURSO_AUTH_TOKEN="…" npm run schema:push -- --apply
+```
+
+Dry run first, like `turso:copy`. It compares `prisma/schema.prisma` against
+what that database actually has and prints two lists: what it **will apply**,
+and what it **cannot**. Nothing is written without `--apply`, and it is safe to
+run twice — apply it, run it again, and it reports nothing to do.
+
+It only ever adds. SQLite can create a table, add a column and create an index;
+it has no `ALTER COLUMN` and no way to drop a constraint, so **a dropped column,
+a changed type, a changed nullability, an added or removed foreign key, and
+anything that might be a rename are all refused**, with the row count at stake
+printed beside each. One refusal blocks the whole run, including the additive
+part — a half-applied schema is harder to reason about than one nothing has
+touched.
+
+Two things worth knowing before you meet them:
+
+- **Whether a column can be added depends on whether that table is empty.**
+  SQLite takes a `NOT NULL` column with no default, or one defaulting to
+  `CURRENT_TIMESTAMP` (which is what `@default(now())` compiles to), only into a
+  table with no rows. So the same command can apply cleanly against your local
+  database and refuse against the cloud, and it is right both times — it reports
+  the state of the database in front of it.
+- **A refusal is not a dead end.** Prisma will write the rebuild for you if you
+  point it at a *copy* of the database rather than at Turso:
+
+  ```bash
+  npm run cloud:backup
+  DATABASE_URL="file:./data/backups/<file>" npx prisma migrate diff \
+      --from-config-datasource --to-schema prisma/schema.prisma --script
+  ```
+
+  Note `--from-config-datasource`, not `--from-url`: that flag was removed in
+  Prisma 7, and its replacement takes the URL from `prisma.config.ts`, i.e. from
+  `DATABASE_URL`. The script it prints contains the twelve-step table rebuilds —
+  and it *drops* what `schema:push` refuses to drop, rows and all, so read it
+  before running any of it.
+
+An empty database is sent back to `turso:push` instead: a baseline is one
+statement per table and applies in one go, where a column-by-column delta
+against nothing is just a slower way to reach the same place.
+
+Worth doing calmly the first time rather than while something is broken.
 
 ## Revoke / roll back
 
