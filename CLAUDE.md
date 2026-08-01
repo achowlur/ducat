@@ -567,6 +567,15 @@ regeneration.
   back. 08:00 missed Fidelity by 51 minutes; 03:00 fixed Wells Fargo and put
   the cron BEFORE Fidelity's morning publish, so the deployment served a
   two-day-old brokerage balance. Score all of them or repeat the mistake.
+  CONFIRMED on the deployment 2026-07-31: the first firing under the new hour
+  landed at 23:18 UTC and all eight accounts carried the SAME day's
+  balance-date for the first time, the three Wells Fargo rows moving Jul 30 →
+  Jul 31. The balances themselves did not change — what the hour buys is a
+  fresher observation DATE, not different money, which is the same distinction
+  the "Snapshots written: 21" warning above makes. Lateness is now measured over
+  four observed firings (08:19, 08:08, 03:43, 03:19, and this one at 23:18):
+  Vercel Hobby fires WITHIN the hour, 8-43 minutes late, never early — so the
+  firing is identifiable by its minute, and an off-cron row is a manual sync.
   What no cron hour can fix: Fidelity publishes ~08:38 UTC, which is before
   the US open, so its balance is the PREVIOUS trading day's close. One day of
   lag on investment balances is inherent to the feed; the cron only controls
