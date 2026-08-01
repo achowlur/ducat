@@ -92,3 +92,20 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   (`selectPeriod` in `ui/periodNav.ts`, evidence in ui-and-pages.md), so the
   panel renders from day 1 and its absence once again means the Setting is
   missing, not the month. The first half stands: --add still duplicates.
+- The RECONCILIATION LINE on cash goals (built 2026-08-01, the same day the
+  operator caught the gap by reading their own panel): the projected landing
+  divides the FUND's shortfall by the WHOLE savings rate, which silently
+  assumes every saved dollar stays in cash. Measured over Feb-Jul 2026, the
+  rate was $7,859.47/mo while cash itself grew $3,285.69/mo mean — the gap is
+  a standing $3,628.42/mo transfer to the actively-invested brokerage
+  (structural) plus card-payment timing (washes out; the structural pace is
+  ~rate minus transfer, ~$4,232.29/mo). At the observed pace the $298.05k goal
+  lands years later than the panel's headline date. The shared-rate footnote
+  only renders with two or more projecting goals, so a SINGLE cash goal
+  stated no assumption anywhere on screen — the reconciliation line is the
+  only sentence that does, which is why the root rule says never to remove
+  it. Computed by the caller (ui/insights.ts) as one gated aggregate over
+  cash-account transactions across the rate's own window — transactions
+  fully explain cash accounts (the netWorth exemption), so the signed sum IS
+  the growth; nominated funds get null because theirs can hold investment
+  accounts, where that arithmetic would fabricate.

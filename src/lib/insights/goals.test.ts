@@ -294,6 +294,32 @@ describe('assessGoals', () => {
     expect(a.refusal).toBeNull();
   });
 
+  it('carries observed cash growth onto cash goals only — the reconciliation line', () => {
+    const out = assessGoals({
+      goals: [goal({ id: 'cash-goal', cash: true, accountIds: [] }), goal({ id: 'nominated' })],
+      accounts,
+      cashAccounts: [{ id: 'chk', name: 'Checking', balance: 16_000 }],
+      observedCashGrowth: 3285.686,
+      completeMonthlyNet: NETS,
+      now: NOW,
+    });
+    expect(out[0].observedFundGrowth).toBe(3285.69); // rounded like every money figure
+    // A nominated fund can hold investment accounts, whose balances
+    // transactions cannot explain — no number is honest there.
+    expect(out[1].observedFundGrowth).toBeNull();
+  });
+
+  it('omits the reconciliation when the caller could not compute it', () => {
+    const [a] = assessGoals({
+      goals: [goal({ cash: true, accountIds: [] })],
+      accounts,
+      cashAccounts: [{ id: 'chk', name: 'Checking', balance: 16_000 }],
+      completeMonthlyNet: NETS,
+      now: NOW,
+    });
+    expect(a.observedFundGrowth).toBeNull();
+  });
+
   it('assesses every goal against the one shared rate, in declaration order', () => {
     const out = assessGoals({
       goals: [goal(), goal({ id: 'car', name: 'Car', target: 20_000, accountIds: ['mm'] })],

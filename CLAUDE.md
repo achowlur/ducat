@@ -217,6 +217,10 @@ regeneration.
   clamps to months with rows PLUS that month (selectPeriod in
   ui/periodNav.ts), so the panel renders from day 1 and its absence means
   the Setting is missing, not the month.
+- A cash goal prints its RECONCILIATION beside the projected landing —
+  observed cash growth over the same window the rate averages — because the
+  rate assumes every saved dollar stays in cash, and with a single goal
+  nothing else states that assumption. Never remove it to "declutter".
 
 ## Rules — UI & pages → docs/conventions/ui-and-pages.md
 

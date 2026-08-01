@@ -121,6 +121,13 @@ function GoalRow({ g }: { g: GoalAssessment }) {
                 )}
               </>
             )}
+            {g.observedFundGrowth !== null && (
+              <>
+                {" "}Cash itself grew{" "}
+                <span className="font-money tabular">~{money(g.observedFundGrowth)}</span>/mo over the
+                same window — the landing assumes the full rate reaches it.
+              </>
+            )}
           </>
         )}
         {g.missingAccounts > 0 && g.refusal !== "NO_ACCOUNTS" && (

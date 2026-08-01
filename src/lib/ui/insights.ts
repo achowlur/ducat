@@ -17,7 +17,7 @@ import { upcomingCommitments, type UpcomingCommitments } from "../health/commitm
 import { getSubscriptionStatuses, matchesSubscription } from "../health/subscriptions";
 import { computePace, isComparableBaseline, type Pace } from "../insights/pace";
 import { computeDigest, type DigestItem } from "../insights/digest";
-import { assessGoals, parseGoals, SAVINGS_GOALS_KEY, type GoalAssessment } from "../insights/goals";
+import { assessGoals, GOAL_RATE_MONTHS, parseGoals, SAVINGS_GOALS_KEY, type GoalAssessment } from "../insights/goals";
 import { DEFAULT_RECURRING_OPTIONS } from "../insights/recurring";
 import { periodCoverage, type PeriodCoverage } from "../insights/coverage";
 import { periodEndExclusive, periodStart } from "../insights/periods";
@@ -392,6 +392,32 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // computeRunway, with `net` where runway takes `totalSpending`.
   const declaredGoals = parseGoals(goalSetting?.value ?? null);
   const goalAccounts = accountRows.map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) }));
+  const cashAccountRows = accountRows.filter((a) =>
+    countsAsCash({ id: a.id, type: a.type, balance: Number(a.balance) }, cashIds),
+  );
+  const completeCashFlow = ofType<CashFlowTrendPayload>(monthly, "CASH_FLOW_TREND").filter(
+    (r) => r.period < period,
+  );
+
+  // The reconciliation a cash goal's projection owes: the rate assumes every
+  // saved dollar stays in cash, and a standing transfer out makes the landing
+  // optimistic — so measure what cash ACTUALLY did over the SAME window the
+  // rate averages. Transactions fully explain cash accounts (the netWorth
+  // exemption), so the sum of their signed amounts IS the growth. A gated
+  // round trip, only paid when a cash goal is declared on the current month.
+  let observedCashGrowth: number | null = null;
+  const basisKeys = completeCashFlow.map((r) => r.period).slice(-GOAL_RATE_MONTHS);
+  if (viewingCurrentPeriod && declaredGoals.some((g) => g.cash === true) && basisKeys.length > 0) {
+    const grown = await prisma.transaction.aggregate({
+      _sum: { amount: true },
+      where: {
+        accountId: { in: cashAccountRows.map((a) => a.id) },
+        date: { gte: periodStart(basisKeys[0]), lt: periodStart(period) },
+      },
+    });
+    observedCashGrowth = Number(grown._sum.amount ?? 0) / basisKeys.length;
+  }
+
   const goals =
     viewingCurrentPeriod && declaredGoals.length > 0
       ? assessGoals({
@@ -400,12 +426,9 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
           // The same cash definition Overview's CASH figure uses — resolved
           // here, at render, so a cash goal tracks whatever the operator's
           // declaration says TODAY, not what it said at declaration time.
-          cashAccounts: accountRows
-            .filter((a) => countsAsCash({ id: a.id, type: a.type, balance: Number(a.balance) }, cashIds))
-            .map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) })),
-          completeMonthlyNet: ofType<CashFlowTrendPayload>(monthly, "CASH_FLOW_TREND")
-            .filter((r) => r.period < period)
-            .map((r) => r.payload.net),
+          cashAccounts: cashAccountRows.map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) })),
+          completeMonthlyNet: completeCashFlow.map((r) => r.payload.net),
+          observedCashGrowth,
           now,
         })
       : [];

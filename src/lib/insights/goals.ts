@@ -113,6 +113,16 @@ export interface GoalAssessment {
   landsMonth: string | null;
   /** landsMonth − targetMonth in months: negative = ahead, positive = behind. */
   deltaMonths: number | null;
+  /**
+   * Cash goals only: the fund's OBSERVED mean monthly growth over the same
+   * window the rate averages — the reconciliation the projection owes. The
+   * rate assumes every saved dollar stays in cash; a standing transfer out
+   * (to investments here) makes the landing optimistic, and with a single
+   * goal nothing else on the panel states that assumption. Null for
+   * nominated goals: their funds can hold investment accounts, whose
+   * balances transactions cannot explain.
+   */
+  observedFundGrowth: number | null;
   refusal: GoalRefusal | null;
 }
 
@@ -162,10 +172,13 @@ export function assessGoals(input: {
    * `cash: true` goal. Resolved at render, never frozen at declaration, so
    * "whatever counts as cash" stays whatever the operator last declared. */
   cashAccounts?: readonly GoalAccount[];
+  /** Observed mean monthly growth of the cash fund over the rate's window,
+   * computed by the caller from cash-account transactions. */
+  observedCashGrowth?: number | null;
   completeMonthlyNet: readonly number[];
   now: Date;
 }): GoalAssessment[] {
-  const { goals, accounts, cashAccounts = [], completeMonthlyNet, now } = input;
+  const { goals, accounts, cashAccounts = [], observedCashGrowth = null, completeMonthlyNet, now } = input;
   const byId = new Map(accounts.map((a) => [a.id, a]));
 
   // One rate for every goal: it is the operator's savings rate, not a goal's.
@@ -199,6 +212,8 @@ export function assessGoals(input: {
       monthsToTarget: null as number | null,
       landsMonth: null as string | null,
       deltaMonths: null as number | null,
+      observedFundGrowth:
+        goal.cash === true && observedCashGrowth !== null ? round2(observedCashGrowth) : null,
       refusal: null as GoalRefusal | null,
     };
 

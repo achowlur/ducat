@@ -270,7 +270,9 @@ turned up so it isn't rediscovered:
   transfer runs. Transfers were excluded from the rate deliberately (so
   funding a goal cannot inflate it); the asymmetry is the accepted cost, and
   a reconciliation line ("cash grew $X over the window vs $Y projected") is
-  the honest follow-on if it ever needs fixing.
+  the honest follow-on if it ever needs fixing. BUILT 2026-08-01, the day the
+  operator caught the gap on the live panel — evidence in
+  docs/conventions/goals-and-insights.md.
 
 - **House-readiness model — DESIGNED 2026-08-01, NOT BUILT.** Answers "am I
   close enough to start looking?" — a READINESS signal, explicitly NOT lender
