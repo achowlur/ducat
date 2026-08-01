@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { prisma } from '../src/lib/prisma';
 import { parseGoals, SAVINGS_GOALS_KEY, type SavingsGoal } from '../src/lib/insights/goals';
+import { countsAsCash, readCashAccountIds } from '../src/lib/ui/liquidity';
 import { arg, hasFlag } from './args';
 import { databaseLabel } from './database-label';
 
@@ -16,8 +17,13 @@ import { databaseLabel } from './database-label';
  *
  *   npm run goals
  *   npm run goals -- --add --name="House deposit" --target=60000 --by=2028-06 --accounts="savings,money market"
- *   npm run goals -- --add --name="House deposit" --house-price=385000 --by=2028-06 --accounts="money market"
+ *   npm run goals -- --add --name="House deposit" --house-price=500000 --accounts=cash
  *   npm run goals -- --remove=house
+ *
+ * `--accounts=cash` nominates the operator's cash DEFINITION (DEPOSITORY
+ * accounts plus `accounts:cash` extras), resolved fresh at every render.
+ * `--by` is optional: the landing date is always PROJECTED from the observed
+ * rate; --by only adds the aspiration to compare it against.
  *
  * `--accounts` is comma-separated; each entry must uniquely match one account
  * by externalId or name fragment, the way `accounts:cash` resolves them.
@@ -59,6 +65,33 @@ async function main(): Promise<void> {
   const row = await prisma.setting.findUnique({ where: { key: SAVINGS_GOALS_KEY } });
   let goals = parseGoals(row?.value ?? null);
 
+  // parseGoals DROPS what it cannot read, and save() rewrites the whole
+  // array — so a write from a checkout older than the stored shape would
+  // silently delete the entries it dropped. Refuse instead: a goal this
+  // script cannot see is not a goal it may destroy.
+  if ((hasFlag('add') || arg('remove') !== undefined) && row !== null) {
+    const rawCount = (() => {
+      try {
+        const v: unknown = JSON.parse(row.value);
+        return Array.isArray(v) ? v.length : Number.NaN;
+      } catch {
+        return Number.NaN;
+      }
+    })();
+    if (!Number.isFinite(rawCount) || rawCount > goals.length) {
+      return fail(
+        'The stored goals.savings value holds entries this checkout cannot parse — refusing to\n' +
+          'rewrite it (--add/--remove would silently delete them). Update the checkout, or inspect\n' +
+          'the Setting by hand.',
+      );
+    }
+  }
+
+  // The cash definition, resolved once up front: the overlap notes below and
+  // the listing at the bottom both need it, and one resolution cannot drift.
+  const cashIds = await readCashAccountIds(prisma);
+  const cashAccounts = accounts.filter((a) => countsAsCash({ id: a.id, type: a.type, balance: Number(a.balance) }, cashIds));
+
   const resolveAccount = (needle: string) => {
     const n = needle.trim().toLowerCase();
     return accounts.filter(
@@ -67,11 +100,33 @@ async function main(): Promise<void> {
   };
 
   if (hasFlag('add')) {
+    // Same hazard as the numeric flags: a space-form string flag is invisible
+    // to arg() and would read as "absent" instead of refusing. Checked BEFORE
+    // the is-it-missing checks, or those fire first with the wrong diagnosis.
+    for (const f of ['name', 'by', 'accounts'] as const) {
+      if (arg(f) === undefined && hasFlag(f)) return fail(`--${f} takes the equals form: --${f}=VALUE.`);
+    }
     const name = arg('name')?.trim() ?? '';
-    const by = arg('by') ?? '';
-    const needles = (arg('accounts') ?? '').split(',').map((s) => s.trim()).filter((s) => s.length > 0);
-
     if (name.length === 0) return fail('--name is required.');
+    // OPTIONAL since 2026-08-01: the landing date is always projected; --by is
+    // only the aspiration to compare it against. Omitted, the panel prints the
+    // projection alone — "what Ducat says", not a date the operator invented.
+    const by = arg('by');
+    if (by !== undefined && !MONTH_KEY.test(by)) {
+      return fail('--by must be a month like 2028-06 (or omit it — the landing date is projected either way).');
+    }
+    const accountsRaw = (arg('accounts') ?? '').trim();
+    // The literal word "cash" nominates the operator's cash DEFINITION
+    // (DEPOSITORY accounts + accounts:cash extras), resolved fresh at every
+    // render — not the accounts that happen to count as cash today.
+    const isCash = accountsRaw.toLowerCase() === 'cash';
+    const needles = isCash ? [] : accountsRaw.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+    // "cash" demoted to a NEEDLE is a trap, not a keyword: on this very
+    // database it uniquely matches the Active CASH credit card, silently
+    // nominating a card at a negative balance as a savings fund.
+    if (!isCash && needles.some((n) => n.toLowerCase() === 'cash')) {
+      return fail('"cash" is the cash-definition keyword and cannot be one needle among several.\nUse --accounts=cash alone, or name the account more specifically.');
+    }
 
     // Two ways to state the target, never both: a dollar amount, or a house
     // price it is DERIVED from as cash needed — (down% + closing%) × price.
@@ -117,8 +172,9 @@ async function main(): Promise<void> {
       target = Number(targetArg);
     }
     if (!Number.isFinite(target) || target <= 0) return fail('--target (or --house-price) must be a positive dollar amount.');
-    if (!MONTH_KEY.test(by)) return fail('--by must be a month like 2028-06.');
-    if (needles.length === 0) return fail('--accounts is required: comma-separated account names or externalIds.');
+    if (!isCash && needles.length === 0) {
+      return fail('--accounts is required: comma-separated account names or externalIds, or the word "cash" for cash on hand.');
+    }
 
     const accountIds: string[] = [];
     for (const needle of needles) {
@@ -133,13 +189,18 @@ async function main(): Promise<void> {
       accountIds.push(hits[0].id);
     }
 
-    if (by < new Date().toISOString().slice(0, 7)) {
+    if (by !== undefined && by < new Date().toISOString().slice(0, 7)) {
       console.log(`Note: ${by} is already in the past — the goal will show as behind from day one.`);
     }
-    const shared = goals.filter((g) => g.accountIds.some((id) => accountIds.includes(id)));
+    // Overlap notes test REAL membership in the cash definition — a warning
+    // that fires for funds sharing no dollars trains the reader to skip it.
+    const inCash = (ids: readonly string[]) => ids.some((id) => cashAccounts.some((c) => c.id === id));
+    const shared = isCash
+      ? goals.filter((g) => g.cash === true || inCash(g.accountIds))
+      : goals.filter((g) => (g.cash === true ? inCash(accountIds) : g.accountIds.some((id) => accountIds.includes(id))));
     if (shared.length > 0) {
       console.log(
-        `Note: shares an account with ${shared.map((g) => `"${g.name}"`).join(', ')} — the same dollars will count as saved toward both.`,
+        `Note: shares dollars with ${shared.map((g) => `"${g.name}"`).join(', ')} — the same money will count as saved toward both.`,
       );
     }
 
@@ -147,8 +208,9 @@ async function main(): Promise<void> {
       id: slugify(name, new Set(goals.map((g) => g.id))),
       name,
       target,
-      targetMonth: by,
       accountIds,
+      ...(by !== undefined ? { targetMonth: by } : {}),
+      ...(isCash ? { cash: true } : {}),
     };
     goals = [...goals, goal];
     await save(goals);
@@ -177,11 +239,13 @@ async function main(): Promise<void> {
   const byId = new Map(accounts.map((a) => [a.id, a]));
   console.log('Savings goals:');
   for (const g of goals) {
-    const held = g.accountIds.map((id) => byId.get(id)).filter((a) => a !== undefined);
+    const held = g.cash === true ? cashAccounts : g.accountIds.map((id) => byId.get(id)).filter((a) => a !== undefined);
     const saved = held.reduce((s, a) => s + Number(a.balance), 0);
-    const missing = g.accountIds.length - held.length;
-    console.log(`  ${g.id}  ${g.name} — ${g.target.toFixed(2)} by ${g.targetMonth}`);
-    console.log(`      saved ${saved.toFixed(2)} across: ${held.map((a) => a.name).join(', ') || '(none)'}`);
+    const missing = g.cash === true ? 0 : g.accountIds.length - held.length;
+    console.log(`  ${g.id}  ${g.name} — ${g.target.toFixed(2)}${g.targetMonth !== undefined ? ` by ${g.targetMonth}` : ''}`);
+    console.log(
+      `      saved ${saved.toFixed(2)} across${g.cash === true ? ' cash on hand' : ''}: ${held.map((a) => a.name).join(', ') || '(none)'}`,
+    );
     if (missing > 0) console.log(`      MISSING: ${missing} nominated account(s) no longer exist`);
   }
 }

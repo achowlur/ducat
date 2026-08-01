@@ -44,7 +44,8 @@ function GoalRow({ g }: { g: GoalAssessment }) {
           <span className="text-faint"> of {money(g.goal.target)}</span>
         </span>
         <span className="text-faint">
-          {Math.floor(g.progress * 100)}% · by {monthLabel(g.goal.targetMonth)}
+          {Math.floor(g.progress * 100)}%
+          {g.goal.targetMonth === undefined ? "" : ` · by ${monthLabel(g.goal.targetMonth)}`}
         </span>
         {g.accountNames.length > 0 && (
           <span className="ml-auto font-money text-[0.72rem] text-faint">
@@ -64,10 +65,17 @@ function GoalRow({ g }: { g: GoalAssessment }) {
             <span className="font-money tabular">{money(g.goal.target)}</span> target.
           </>
         ) : g.refusal === "NO_ACCOUNTS" ? (
-          <>
-            None of the accounts this goal nominates exist any more — re-point it with{" "}
-            <span className="font-money">npm run goals</span>.
-          </>
+          g.goal.cash === true ? (
+            <>
+              Nothing counts as cash right now — declare cash accounts with{" "}
+              <span className="font-money">npm run accounts:cash</span>.
+            </>
+          ) : (
+            <>
+              None of the accounts this goal nominates exist any more — re-point it with{" "}
+              <span className="font-money">npm run goals</span>.
+            </>
+          )
         ) : g.refusal === "TOO_FEW_MONTHS" ? (
           g.basisMonths === 0 ? (
             "No complete months of cash-flow history yet — nothing to project a landing date from."
@@ -88,16 +96,29 @@ function GoalRow({ g }: { g: GoalAssessment }) {
             <span className="font-money tabular">{money(g.rateHigh ?? 0)}</span>) —{" "}
             <span className={PROJECTED_CHIP}>Projected</span>{" "}
             {(g.monthsToTarget ?? 0) > 600 ? (
-              "lands more than 50 years out at this rate — far behind target."
+              // deltaMonths still decides ahead/behind out here — a far-future
+              // aspiration can sit BEYOND a 50-year landing, and asserting
+              // "behind" against it would be false.
+              g.deltaMonths === null
+                ? "lands more than 50 years out at this rate."
+                : g.deltaMonths > 0
+                  ? "lands more than 50 years out at this rate — far behind target."
+                  : "lands more than 50 years out at this rate — and still not past the declared month."
             ) : (
               <>
                 lands <span className="font-semibold text-ink">~{monthLabel(g.landsMonth ?? "")}</span>
-                {" — "}
-                {g.deltaMonths === 0
-                  ? "on target."
-                  : g.deltaMonths !== null && g.deltaMonths < 0
-                    ? `${-g.deltaMonths} ${monthsWord(-g.deltaMonths)} ahead of target.`
-                    : `${g.deltaMonths ?? 0} ${monthsWord(g.deltaMonths ?? 0)} behind target.`}
+                {g.deltaMonths === null ? (
+                  "."
+                ) : (
+                  <>
+                    {" — "}
+                    {g.deltaMonths === 0
+                      ? "on target."
+                      : g.deltaMonths < 0
+                        ? `${-g.deltaMonths} ${monthsWord(-g.deltaMonths)} ahead of target.`
+                        : `${g.deltaMonths} ${monthsWord(g.deltaMonths)} behind target.`}
+                  </>
+                )}
               </>
             )}
           </>

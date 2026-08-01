@@ -1114,6 +1114,28 @@ turned up so it isn't rediscovered:
   loan-product-specific, but survives as roughly what down+closing+buffer
   totals, which is why 20+3 are the visible defaults rather than a constant
   buried in code.
+  AMENDED 2026-08-01, twice, both operator decisions made against evidence.
+  (1) `--accounts=cash` nominates the operator's cash DEFINITION (DEPOSITORY
+  plus `accounts:cash` extras), resolved fresh at every render, as a goal's
+  fund. This partially reverses the nominated-set decision above, and the
+  evidence is the transfer routing: savings observably accumulate ACROSS cash
+  (checking absorbed the monthly residual while the nominated fund received
+  nothing after its one-time seeding), so a single nominated account
+  understated saved by the whole checking balance. The costs the original
+  decision named — cash breathes by a rent cycle, the emergency fund counts
+  toward the house — were accepted with eyes open, and nominated goals remain
+  for anyone who wants the boundary. (2) `--by` is now OPTIONAL: the landing
+  date is always PROJECTED from the observed rate, and --by only declares the
+  aspiration to compare against; omitted, the panel prints the projection
+  alone and invents no ahead/behind. What neither change fixes, said here so
+  it is not rediscovered: the RATE is still income-minus-spending, and a
+  standing transfer OUT of cash into investments ($3,628.42/mo here) leaves cash
+  growing slower than the rate projects (~$4,232.29/mo observed against $7,860.72
+  projected), so even a cash goal's landing date reads optimistic while that
+  transfer runs. Transfers were excluded from the rate deliberately (so
+  funding a goal cannot inflate it); the asymmetry is the accepted cost, and
+  a reconciliation line ("cash grew $X over the window vs $Y projected") is
+  the honest follow-on if it ever needs fixing.
 
 - **House-readiness model — DESIGNED 2026-08-01, NOT BUILT.** Answers "am I
   close enough to start looking?" — a READINESS signal, explicitly NOT lender

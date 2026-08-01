@@ -21,6 +21,7 @@ import { assessGoals, parseGoals, SAVINGS_GOALS_KEY, type GoalAssessment } from 
 import { DEFAULT_RECURRING_OPTIONS } from "../insights/recurring";
 import { periodCoverage, type PeriodCoverage } from "../insights/coverage";
 import { periodEndExclusive, periodStart } from "../insights/periods";
+import { countsAsCash, readCashAccountIds } from "./liquidity";
 import { getAccountCoverage, getPeriodCoverage } from "./coverage";
 import { monthlyRows, ofType } from "./insightRows";
 import { higherThan, money, monthLabel, pct, titleCase } from "./format";
@@ -212,14 +213,18 @@ function toRow(
 }
 
 export async function getInsightsPageData(requestedPeriod?: string): Promise<InsightsPageData | null> {
-  const [insightRows, registered, goalSetting, accountRows] = await Promise.all([
+  const [insightRows, registered, goalSetting, accountRows, cashIds] = await Promise.all([
     prisma.insight.findMany(),
     getSubscriptionStatuses(prisma),
     prisma.setting.findUnique({ where: { key: SAVINGS_GOALS_KEY } }),
     // Balances for the goal funds. Unconditional rather than gated on the
     // setting existing: a gate costs about its own round trip anyway, and
-    // this joins the concurrent group instead.
-    prisma.account.findMany({ select: { id: true, name: true, balance: true } }),
+    // this joins the concurrent group instead. `type` is here so a cash goal
+    // can resolve the operator's cash definition from the same rows.
+    // Ordered like set-goals' listing: a cash goal's account names render in
+    // declaration-independent order, and unordered findMany is unspecified.
+    prisma.account.findMany({ select: { id: true, name: true, balance: true, type: true }, orderBy: { institution: 'asc' } }),
+    readCashAccountIds(prisma),
   ]);
   const monthly = monthlyRows(insightRows);
   if (monthly.length === 0) return null;
@@ -375,11 +380,18 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // this runs, so everything before it is complete. Same shape Overview feeds
   // computeRunway, with `net` where runway takes `totalSpending`.
   const declaredGoals = parseGoals(goalSetting?.value ?? null);
+  const goalAccounts = accountRows.map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) }));
   const goals =
     viewingCurrentPeriod && declaredGoals.length > 0
       ? assessGoals({
           goals: declaredGoals,
-          accounts: accountRows.map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) })),
+          accounts: goalAccounts,
+          // The same cash definition Overview's CASH figure uses — resolved
+          // here, at render, so a cash goal tracks whatever the operator's
+          // declaration says TODAY, not what it said at declaration time.
+          cashAccounts: accountRows
+            .filter((a) => countsAsCash({ id: a.id, type: a.type, balance: Number(a.balance) }, cashIds))
+            .map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) })),
           completeMonthlyNet: ofType<CashFlowTrendPayload>(monthly, "CASH_FLOW_TREND")
             .filter((r) => r.period < period)
             .map((r) => r.payload.net),

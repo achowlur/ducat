@@ -65,6 +65,32 @@ describe('parseGoals', () => {
   it('tolerates an empty account list — that refusal belongs to assessment', () => {
     expect(parseGoals(JSON.stringify([goal({ accountIds: [] })]))).toHaveLength(1);
   });
+
+  // 2026-08-01: targetMonth became optional (the landing date is always
+  // projected; --by is only the aspiration) and cash goals were added. Both
+  // shapes must round-trip parseGoals, and the OLD shape must keep parsing —
+  // during a deploy the database can hold either.
+  it('accepts a goal with no targetMonth', () => {
+    const raw = JSON.stringify([{ ...goal(), targetMonth: undefined }]);
+    const g = parseGoals(raw);
+    expect(g).toHaveLength(1);
+    expect(g[0].targetMonth).toBeUndefined();
+  });
+
+  it('accepts a cash goal with an empty nomination', () => {
+    const g = parseGoals(JSON.stringify([goal({ cash: true, accountIds: [] })]));
+    expect(g).toHaveLength(1);
+    expect(g[0].cash).toBe(true);
+  });
+
+  it('still drops a malformed targetMonth when one is present', () => {
+    expect(parseGoals(JSON.stringify([goal({ targetMonth: 'June 2028' })]))).toHaveLength(0);
+  });
+
+  it('drops a non-boolean cash flag rather than guessing at it', () => {
+    const raw = JSON.stringify([{ ...goal(), cash: 'yes' }]);
+    expect(parseGoals(raw)).toHaveLength(0);
+  });
 });
 
 describe('assessGoals', () => {
@@ -222,6 +248,50 @@ describe('assessGoals', () => {
     expect(a.progress).toBe(0);
     expect(a.saved).toBe(-200);
     expect(a.remaining).toBe(60_200);
+  });
+
+  it('draws a cash goal from the cash definition, ignoring accountIds entirely', () => {
+    const [a] = assessGoals({
+      goals: [goal({ cash: true, accountIds: ['deleted', 'irrelevant'] })],
+      accounts,
+      cashAccounts: [
+        { id: 'chk', name: 'Checking', balance: 16_000 },
+        { id: 'mm', name: 'Money Market', balance: 14_000 },
+      ],
+      completeMonthlyNet: NETS,
+      now: NOW,
+    });
+    expect(a.saved).toBe(30_000);
+    expect(a.accountNames).toEqual(['Checking', 'Money Market']);
+    // A definition cannot have missing ids — that failure mode belongs to
+    // nominated goals only.
+    expect(a.missingAccounts).toBe(0);
+    expect(a.refusal).toBeNull();
+  });
+
+  it('refuses a cash goal when nothing counts as cash', () => {
+    const [a] = assessGoals({
+      goals: [goal({ cash: true, accountIds: [] })],
+      accounts,
+      cashAccounts: [],
+      completeMonthlyNet: NETS,
+      now: NOW,
+    });
+    expect(a.refusal).toBe('NO_ACCOUNTS');
+  });
+
+  it('projects a landing date with no declared month, and refuses the comparison', () => {
+    const [a] = assessGoals({
+      goals: [goal({ targetMonth: undefined, accountIds: ['sav', 'mm'] })],
+      accounts,
+      completeMonthlyNet: NETS,
+      now: NOW,
+    });
+    // 36,000 / 2,000 = 18 months — the projection is Ducat's own date...
+    expect(a.landsMonth).toBe('2028-01');
+    // ...and with no aspiration declared there is no ahead/behind to invent.
+    expect(a.deltaMonths).toBeNull();
+    expect(a.refusal).toBeNull();
   });
 
   it('assesses every goal against the one shared rate, in declaration order', () => {

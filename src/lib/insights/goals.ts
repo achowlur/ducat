@@ -54,8 +54,26 @@ export interface SavingsGoal {
   name: string;
   /** Positive dollars. */
   target: number;
-  /** Month key "2028-06" — the month the target should be reached by. */
-  targetMonth: string;
+  /**
+   * Month key "2028-06" — the aspiration to compare the projection against.
+   * OPTIONAL since 2026-08-01: the landing date is always projected from the
+   * observed rate, and an operator who wants only what the data says declares
+   * no month at all — then there is no ahead/behind, just the landing.
+   */
+  targetMonth?: string;
+  /**
+   * True means the fund is CASH ON HAND — whatever the operator's cash
+   * definition resolves to at render (DEPOSITORY accounts plus
+   * `cash.additionalAccountIds`), passed in as `cashAccounts`. Added
+   * 2026-08-01, reversing the nominated-only design with evidence: the
+   * operator's savings observably accumulate ACROSS cash (checking took the
+   * monthly residual while the nominated fund received nothing after its
+   * one-time seeding), so a single nominated account systematically
+   * understated saved. The costs the original design named — cash breathes by
+   * a rent cycle, and the emergency fund counts toward the house — were
+   * accepted by the operator with eyes open. `accountIds` is ignored when set.
+   */
+  cash?: boolean;
   /** Nominated accounts whose balances count as this goal's fund. */
   accountIds: string[];
 }
@@ -114,8 +132,8 @@ function isGoal(v: unknown): v is SavingsGoal {
     typeof g.target === 'number' &&
     Number.isFinite(g.target) &&
     g.target > 0 &&
-    typeof g.targetMonth === 'string' &&
-    MONTH_KEY.test(g.targetMonth) &&
+    (g.targetMonth === undefined || (typeof g.targetMonth === 'string' && MONTH_KEY.test(g.targetMonth))) &&
+    (g.cash === undefined || typeof g.cash === 'boolean') &&
     Array.isArray(g.accountIds) &&
     g.accountIds.every((id) => typeof id === 'string')
   );
@@ -140,10 +158,14 @@ export function parseGoals(raw: string | null): SavingsGoal[] {
 export function assessGoals(input: {
   goals: SavingsGoal[];
   accounts: GoalAccount[];
+  /** The operator's cash definition, resolved by the caller — the fund of any
+   * `cash: true` goal. Resolved at render, never frozen at declaration, so
+   * "whatever counts as cash" stays whatever the operator last declared. */
+  cashAccounts?: readonly GoalAccount[];
   completeMonthlyNet: readonly number[];
   now: Date;
 }): GoalAssessment[] {
-  const { goals, accounts, completeMonthlyNet, now } = input;
+  const { goals, accounts, cashAccounts = [], completeMonthlyNet, now } = input;
   const byId = new Map(accounts.map((a) => [a.id, a]));
 
   // One rate for every goal: it is the operator's savings rate, not a goal's.
@@ -155,16 +177,18 @@ export function assessGoals(input: {
       : null;
 
   return goals.map((goal) => {
-    const held = goal.accountIds
-      .map((id) => byId.get(id))
-      .filter((a): a is GoalAccount => a !== undefined);
+    const held =
+      goal.cash === true
+        ? [...cashAccounts]
+        : goal.accountIds.map((id) => byId.get(id)).filter((a): a is GoalAccount => a !== undefined);
     const saved = round2(held.reduce((s, a) => s + a.balance, 0));
 
     const base = {
       goal,
       saved,
       accountNames: held.map((a) => a.name),
-      missingAccounts: goal.accountIds.length - held.length,
+      // A cash goal nominates a DEFINITION, not ids — nothing can go missing.
+      missingAccounts: goal.cash === true ? 0 : goal.accountIds.length - held.length,
       remaining: round2(goal.target - saved),
       progress: Math.min(1, Math.max(0, saved / goal.target)),
       reached: false,
@@ -204,7 +228,8 @@ export function assessGoals(input: {
       ...rate,
       monthsToTarget: Math.round(monthsToTarget * 10) / 10,
       landsMonth,
-      deltaMonths: monthIndex(landsMonth) - monthIndex(goal.targetMonth),
+      // No declared month means no ahead/behind — the projection stands alone.
+      deltaMonths: goal.targetMonth === undefined ? null : monthIndex(landsMonth) - monthIndex(goal.targetMonth),
     };
   });
 }
