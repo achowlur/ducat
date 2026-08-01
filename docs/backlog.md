@@ -274,7 +274,14 @@ turned up so it isn't rediscovered:
   operator caught the gap on the live panel — evidence in
   docs/conventions/goals-and-insights.md.
 
-- **House-readiness model — DESIGNED 2026-08-01, NOT BUILT.** Answers "am I
+- **House-readiness model — DESIGNED 2026-08-01, BUILT 2026-08-01.** Shipped as
+  designed — analyzer insights/readiness.ts, scripts/set-readiness.ts writing
+  the readiness.house Setting (npm run readiness), panel below savings goals,
+  gated like them; the worked example is pinned by tests within $5.18k of every
+  book number and the build/review deltas are recorded in
+  docs/conventions/goals-and-insights.md. The rate stays typed; the FRED
+  fetcher remains the opt-in follow-on. The design below is kept because it
+  constrains changes. Answers "am I
   close enough to start looking?" — a READINESS signal, explicitly NOT lender
   math: whether underwriting would approve is a question the model
   deliberately does not answer, like the tax cost of liquidation below.

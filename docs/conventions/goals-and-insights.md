@@ -109,3 +109,33 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   fully explain cash accounts (the netWorth exemption), so the signed sum IS
   the growth; nominated funds get null because theirs can hold investment
   accounts, where that arithmetic would fabricate.
+- The house-readiness panel (BUILT 2026-08-01, design in docs/backlog.md):
+  `insights/readiness.ts` is a pure function over the same complete-month
+  window goals and runway average (readiness.test.ts pins the parity), and
+  its tests REPRODUCE the design's worked numbers within $5k — $6,465.61
+  budget, ~$676k fund-limited, ~$880k through PMI, ~$999k/~$230k balanced —
+  so any reformulation that cannot hit them is wrong, not the book. Paid for
+  at build and review time: (1) PMI is strictly-below-threshold with a 1e-6
+  epsilon, not 1e-9 — the fund-limited price is round2'd, a half-cent of
+  rounding moves the down fraction ~4e-9 below the threshold, and at 1e-9
+  the no-PMI path itself picked up $336.92/mo of PMI it does not owe. (2) The
+  FLOOR_EXCEEDS_RESIDUAL refusal decides on the ROUNDED budget and folds −0
+  to +0 — deciding on the raw float let a 5e-11 residue print "$0.00/mo"
+  while claiming a budget exists. (3) The payment-limited price rounds DOWN,
+  never to nearest: a budget landing inside the PMI jump makes the bisection
+  converge to the supremum of the feasible set, and rounding UP by half a
+  cent crossed the discontinuity — the returned price cost the full PMI
+  increment more than the budget (adversarial review, reproduced at budget
+  $4,535.53 in the jump $4,376.55→$4,714.64). (4) Non-finite series values
+  refuse rather than compute — "NaN <= 0" is false, so NaN dodged the floor
+  refusal and printed a NaN budget beside a $0 PAYMENT-bound ceiling;
+  unreachable from JSON payloads today, guarded anyway. (5) The FUND is the
+  first declared goal's assessed `saved`, and the caller gates on
+  `refusal !== 'NO_ACCOUNTS'` — that refusal forces saved to 0 as BROKEN
+  CONFIG, and feeding it through rendered "the $0.00 fund caps you at
+  ~$0.00" as if it were a verdict. The housing subtraction matches the
+  category by NAME "Rent & Housing" (case-insensitive; absent means $0
+  housing, correct arithmetic) — the fixture seed names it plain "Rent", so
+  seeded databases show non-housing equal to total spending unless renamed.
+  Declaring is a DATA change: run `npm run readiness` once per database,
+  like goals, and it requires a declared goal to exist as the fund.

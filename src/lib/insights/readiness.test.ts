@@ -45,6 +45,36 @@ describe('rate window parity', () => {
   });
 });
 
+describe('adversarial-review regressions (2026-08-01)', () => {
+  it('a budget inside the PMI jump returns a price whose PITI still fits', () => {
+    // The jump spans PITI $4,376.55 → $4,714.64 at the fund-limited price;
+    // $4,535.53 lands inside it, so no price solves exactly. The bisection
+    // converges to the supremum, and rounding it UP crossed the discontinuity
+    // — the returned price cost the full PMI increment more than the budget.
+    // Floored, the contract holds: PITI at the returned price ≤ budget.
+    const a = assess({
+      completeMonthlyIncome: [18142.10, 18142.10, 18142.10, 18142.10, 18142.10, 18142.10],
+      completeMonthlyNonHousing: [8423.12, 8423.12, 8423.12, 8423.12, 8423.12, 8423.12], // budget 4535.52
+    });
+    expect(a.refusal).toBeNull();
+    expect(a.paymentLimitedPrice).not.toBeNull();
+    expect(monthlyPiti(a.paymentLimitedPrice ?? 0, BOOK, 155_503.76)).toBeLessThanOrEqual(4535.52);
+    // The jump sits AT the fund-limited price, so the fund binds here.
+    expect(a.bindingConstraint).toBe('FUND');
+  });
+
+  it('refuses a series carrying a non-finite value rather than printing NaN', () => {
+    // Unreachable from JSON-parsed payloads today (JSON cannot carry NaN) —
+    // defense in depth against a malformed payload after schema drift, where
+    // "NaN <= 0" dodging the floor refusal printed a NaN budget beside a $0
+    // ceiling labelled PAYMENT-bound.
+    const a = assess({ completeMonthlyIncome: [18142.10, NaN, 18142.10, 18142.10, 18142.10, 18142.10] });
+    expect(a.refusal).toBe('TOO_FEW_MONTHS');
+    expect(a.pitiBudget).toBeNull();
+    expect(a.paymentLimitedPrice).toBeNull();
+  });
+});
+
 describe('the book numbers — the design worked example must reproduce', () => {
   // The design entry records: PITI budget $6,465.61/mo; the $156k fund buys
   // ~$676k conventional with ~$2,100/mo of payment slack, ~$880k stretching

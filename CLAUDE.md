@@ -221,6 +221,13 @@ regeneration.
   observed cash growth over the same window the rate averages — because the
   rate assumes every saved dollar stays in cash, and with a single goal
   nothing else states that assumption. Never remove it to "declutter".
+- House readiness is a READINESS signal, never lender math: the residual
+  form (income − non-housing − declared floor) is canonical, non-housing is
+  built PER MONTH before averaging, the binding ceiling is named
+  FUND-limited (never "deposit-limited"), typed assumptions wear ASSUMED
+  chips with the rate's as-of date, and NO default rate lives in code —
+  absent `readiness.house` config, or no declared goal to be the fund,
+  means no panel.
 
 ## Rules — UI & pages → docs/conventions/ui-and-pages.md
 

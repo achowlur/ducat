@@ -463,7 +463,16 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // panel, exactly like no config.
   const readinessConfig = parseReadiness(readinessSetting?.value ?? null);
   let readiness: ReadinessAssessment | null = null;
-  if (viewingCurrentPeriod && readinessConfig !== null && goals.length > 0) {
+  // NO_ACCOUNTS forces the goal's saved to 0 as BROKEN CONFIG, not $0 saved —
+  // feeding it through would render "the $0.00 fund caps you at ~$0.00" as if
+  // that were a readiness verdict. A rate refusal on the goal is different:
+  // the fund's balance is still real, and readiness has its own refusals.
+  if (
+    viewingCurrentPeriod &&
+    readinessConfig !== null &&
+    goals.length > 0 &&
+    goals[0].refusal !== 'NO_ACCOUNTS'
+  ) {
     const spendingByPeriod = new Map(spendingRows.map((r) => [r.period, r.payload]));
     readiness = assessReadiness({
       config: readinessConfig,

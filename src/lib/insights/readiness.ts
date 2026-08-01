@@ -260,6 +260,14 @@ export function assessReadiness(input: {
 
   if (basisMonths < GOAL_RATE_MIN_MONTHS) return { ...base, refusal: 'TOO_FEW_MONTHS' };
 
+  // Defense in depth: stored payloads reach here JSON-parsed, and JSON cannot
+  // carry NaN — but a malformed payload after schema drift could. A non-finite
+  // mean dodges every comparison below ("NaN <= 0" is false), so it would sail
+  // past the floor refusal and print nonsense. Refuse instead.
+  if (![...income, ...nonHousing].every((n) => Number.isFinite(n))) {
+    return { ...base, refusal: 'TOO_FEW_MONTHS' };
+  }
+
   const mean = (xs: readonly number[]) => xs.reduce((s, n) => s + n, 0) / xs.length;
   const incomeMean = mean(income);
   const nonHousingMean = mean(nonHousing);
@@ -279,7 +287,12 @@ export function assessReadiness(input: {
   // 5e-11 residue print "$0.00/mo" while claiming a budget exists.
   if (facts.pitiBudget <= 0) return { ...base, ...facts, refusal: 'FLOOR_EXCEEDS_RESIDUAL' };
 
-  const paymentLimitedPrice = round2(paymentLimited(facts.pitiBudget, config, fund));
+  // Rounded DOWN, not to nearest: when the budget lands inside the PMI jump
+  // the bisection converges to the supremum of the feasible set, and rounding
+  // UP by half a cent crosses the discontinuity — the returned price would
+  // cost the full PMI increment more than the budget. Flooring keeps the
+  // contract: PITI at the returned price never exceeds the budget.
+  const paymentLimitedPrice = Math.floor(paymentLimited(facts.pitiBudget, config, fund) * 100) / 100;
 
   // Where the ceilings meet, the fund exactly covers down + closing — the down
   // fraction sits AT the threshold, so no PMI, and the price is linear in the
