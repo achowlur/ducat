@@ -218,6 +218,15 @@ export default async function InsightsPage({
             </div>
           ))}
         </section>
+      ) : data.emptyPeriod ? (
+        /* A month nothing has synced into yet — reachable so the forward
+           panels below can render on day 1. "Nothing needs your attention"
+           would claim the engine looked, and it has not: all clear cannot be
+           told from not checked if the difference is never stated. */
+        <p className="mt-4 text-[0.85rem] text-faint">
+          Nothing recorded for {data.periodLabel} yet — spending appears with the month&apos;s first
+          sync.
+        </p>
       ) : (
         /* Saying so is the point, not an empty state to be hidden: most months
            should be quiet, and a digest that always finds four things is one
@@ -363,7 +372,9 @@ export default async function InsightsPage({
         </section>
       )}
 
-      {visibleGroups.length === 0 && (
+      {/* Suppressed for the empty current month: the line above already says
+          why there is nothing, and two quiet lines saying it reads broken. */}
+      {visibleGroups.length === 0 && !data.emptyPeriod && (
         <p className="py-6 text-[0.85rem] text-faint">Nothing to show for {data.periodLabel}.</p>
       )}
 

@@ -24,6 +24,7 @@ import { periodEndExclusive, periodStart } from "../insights/periods";
 import { countsAsCash, readCashAccountIds } from "./liquidity";
 import { getAccountCoverage, getPeriodCoverage } from "./coverage";
 import { monthlyRows, ofType } from "./insightRows";
+import { selectPeriod } from "./periodNav";
 import { higherThan, money, monthLabel, pct, titleCase } from "./format";
 
 export interface InsightRow {
@@ -78,6 +79,14 @@ export interface InsightsPageData {
    * now, and a projection under a historical heading would lie.
    */
   goals: GoalAssessment[];
+  /**
+   * True when the period on screen has no insight rows at all — only the
+   * admitted current month can be in this state, since every other reachable
+   * period earned its place by having rows. The page words its quiet line
+   * differently here: "nothing needs attention" is a claim the engine LOOKED,
+   * and on a month nothing has synced yet it has not.
+   */
+  emptyPeriod: boolean;
 }
 
 export interface DigestRow {
@@ -227,18 +236,21 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     readCashAccountIds(prisma),
   ]);
   const monthly = monthlyRows(insightRows);
-  if (monthly.length === 0) return null;
+  // One `now` for the whole request: the period admission, the current-period
+  // gate and the commitment windows must agree on which month is being lived
+  // in, or a render straddling midnight could admit one month and gate another.
+  const now = new Date();
+  const selection = selectPeriod(
+    monthly.map((r) => r.period),
+    requestedPeriod,
+    now,
+  );
+  if (selection === null) return null;
+  const { period, prevPeriod, nextPeriod } = selection;
   // Same predicate the commitments fold uses, so a row cannot read "registered"
   // while the panel below bills it a second time as undetected.
   const isRegistered = (merchant: string) =>
     registered.some((s) => s.enabled && matchesSubscription(s.merchantPattern, merchant));
-
-  const available = [...new Set(monthly.map((r) => r.period))].sort();
-  const period =
-    requestedPeriod !== undefined && available.includes(requestedPeriod)
-      ? requestedPeriod
-      : available[available.length - 1];
-  const idx = available.indexOf(period);
 
   const inPeriod = monthly.filter((r) => r.period === period);
 
@@ -274,7 +286,6 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // Commitments look FORWARD from now, so they only make sense while the period
   // on screen is the one we are living in. On June's page in July, "due in the
   // next 30 days" would be a July number under a June heading.
-  const now = new Date();
   const periodEnd = periodEndExclusive(period);
   const viewingCurrentPeriod = now >= periodStart(period) && now < periodEnd;
   const detected = mergeDetectedSubscriptions(ofType<DetectedCharge>(monthly, "RECURRING_CHARGE").map((r) => r.payload));
@@ -402,8 +413,8 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   return {
     period,
     periodLabel: monthLabel(period),
-    prevPeriod: idx > 0 ? available[idx - 1] : null,
-    nextPeriod: idx < available.length - 1 ? available[idx + 1] : null,
+    prevPeriod,
+    nextPeriod,
     groups: groups.filter((g) => g.rows.length > 0),
     dismissedCount: inPeriod.filter((r) => r.dismissed).length,
     commitments,
@@ -411,5 +422,6 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     coverage: shown !== null && !shown.complete ? shown : null,
     digest,
     goals,
+    emptyPeriod: inPeriod.length === 0,
   };
 }

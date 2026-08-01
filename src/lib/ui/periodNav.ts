@@ -1,0 +1,58 @@
+import { periodKey } from "../insights/periods";
+
+/**
+ * Which months /insights can land on, and where the arrows lead.
+ *
+ * The list is derived from stored insight rows, and analyzers emit only ACTIVE
+ * periods — so on the 1st of a month, before anything has synced, the month
+ * being lived in has no rows and used to be unreachable: every request clamped
+ * back to the prior month, and the three forward-looking panels (pace,
+ * commitments, goals) were hidden on exactly the day they are most useful.
+ * "Due in the next 30 days" peaks in value on day 1, and none of those panels
+ * needs a row FROM the month itself — commitments read detected/registered
+ * subscriptions, goals read balances plus PRIOR months' cash flow.
+ *
+ * So the CURRENT CALENDAR MONTH is admitted even with no rows, and ONLY that:
+ * any other rowless month still clamps to the default. The default itself
+ * stays the latest month WITH rows — reaching the empty month is a step
+ * through `›`, not where the page opens.
+ *
+ * "Current month" comes from `periodKey`, i.e. UTC accessors, like every
+ * period bound in the app — a local-time month here could disagree with the
+ * engine's month boundary by a day.
+ */
+export interface PeriodSelection {
+  period: string;
+  prevPeriod: string | null;
+  nextPeriod: string | null;
+}
+
+/**
+ * @param withRows Periods of the stored MONTH-granularity insight rows, in any
+ *   order, duplicates fine — pass `rows.map((r) => r.period)`.
+ * @returns Null when no month has rows at all: a first-run database gets the
+ *   "no insights yet" page, not an empty month admitted by the boundary rule.
+ */
+export function selectPeriod(
+  withRows: readonly string[],
+  requested: string | undefined,
+  now: Date,
+): PeriodSelection | null {
+  const available = [...new Set(withRows)].sort();
+  if (available.length === 0) return null;
+
+  const current = periodKey(now, "MONTH");
+  const reachable = available.includes(current) ? available : [...available, current].sort();
+
+  const period =
+    requested !== undefined && reachable.includes(requested)
+      ? requested
+      : available[available.length - 1];
+  const idx = reachable.indexOf(period);
+
+  return {
+    period,
+    prevPeriod: idx > 0 ? reachable[idx - 1] : null,
+    nextPeriod: idx < reachable.length - 1 ? reachable[idx + 1] : null,
+  };
+}
