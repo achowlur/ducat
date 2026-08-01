@@ -1199,7 +1199,21 @@ turned up so it isn't rediscovered:
   income minus non-housing (the budget is ≤ 0 and it says so, naming the
   floor as the reason); nothing computed across coverage-incomplete periods.
 
-- **P2P review, still open:** (c) recurring-pattern detection on P2P (same
+- **User documentation before anyone else runs this — AUDITED 2026-08-01, NOT
+  WRITTEN.** Verdict: a stranger cannot follow everything today. README covers
+  setup, the trust model and both data-in paths, but its command table is
+  missing `upgrade`, `accounts:cash`, `rules:audit`, `rules:simulate`,
+  `import:balances` and `schema:push`, and the `goals` row predates the `cash`
+  keyword and optional `--by`. DEPLOY.md is current and battle-tested.
+  CLAUDE.md is institutional memory for maintainers and must never be what a
+  user is handed. Missing entirely: a first-run walkthrough (clone → seed or
+  claim SimpleFIN or import CSV → sync → what each tab answers), a CSV mapping
+  guide with real examples, the run-once-per-database lifecycle explained as a
+  concept (upgrade / schema:push / goals / accounts:cash — CODE ships with git
+  push, DATA does not, and a user who misses this ships half-fixes), and
+  troubleshooting for the traps already paid for (the AUTH_PASSWORD_HASH `:`
+  delimiter, db:seed wiping insights, the dev-server/.next corruption). Write
+  these as USER docs — README plus docs/ — not more of this file.
   payee, same amount, monthly) to pre-fill rule suggestions; (d) an explicit
   "P2P — Unreviewed" bucket so analytics are visibly-incomplete rather than
   silently wrong while the pile shrinks. (Bulk grouping-by-payee and
