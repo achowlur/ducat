@@ -597,6 +597,29 @@ regeneration.
   recovered on its own the next day, after 3.3 days — which is why the bar is
   5 and not 3: a tighter one would have sent the operator into a bank
   re-authentication flow for a connection that was fine.)
+- A read-only EXTERNAL DATA fetch (a mortgage-rate index, say) is NOT banned,
+  and misreading the rules that way nearly killed a legitimate feature
+  (2026-08-01). The HARD RULE bans analytics, telemetry, third-party CDNs and
+  LLM/AI calls — a GET that sends nothing personal is none of them — and the
+  data-locality line "the only outbound call is the SimpleFIN feed" is an
+  INVARIANT to amend deliberately when such a fetch ships, not a prohibition:
+  its purpose is that TRANSACTION DATA never leaves, and a rates fetch carries
+  none. What a fetcher must follow is the shape the codebase already uses:
+  fetch on SYNC, never on launch (provider health's rule above); store the
+  observation and render from the store (the BalanceSnapshot pattern); gate
+  behind an env var that FAILS CLOSED when absent (the SIMPLEFIN_ACCESS_URL
+  idiom — unset means the feature refuses or falls back to a typed value); key
+  via env only; and a trust card in `providers.ts`. The disclosure it owes,
+  precisely: the fetch sends the provider an IP, the API key (a persistent
+  account identity), the series requested, and — riding the sync — the
+  instance's sync schedule. None of that is transaction data, which is the
+  argument's core.
+  For rates specifically: FRED's API is free and keyed; prefer the DAILY
+  Optimal Blue lock series over weekly PMMS (application-based since late
+  2022, averaging a week and publishing Thursdays, so 0-6 days stale about
+  last week — locks and daily granularity are Optimal Blue's); verify
+  series IDs at build time; and even fetched, a typed personal quote OVERRIDES
+  the index — a national average is nobody's actual rate.
 - "Counts as cash" is NOT the account type (`ui/liquidity.ts`). A brokerage
   account can hold a money-market balance that is spendable tomorrow, and one
   here does: it grows ~$142.55/month with no transaction behind it, which is
@@ -609,6 +632,22 @@ regeneration.
   `npm run accounts:cash`) answers only the first. It is a Setting and not a
   column because it is per-instance operator config and a schema change has to
   be applied to the cloud database by hand.
+- `npm run goals -- --add` is NOT idempotent, and the duplicate it makes is
+  quiet: slugs dedupe ("house-deposit-2") but CONTENT does not, so re-adding
+  an existing goal doubles it and the same dollars count toward both. The
+  read-only listing the command prints IS the guard — read it before adding.
+  Paid for 2026-08-01: the cloud already held the goal (its data had been
+  carried over when the feature shipped), the panel gave no sign of it (next
+  bullet), and the re-add created a twin that had to be removed.
+- The goals panel is gated to the month being LIVED IN, and the period
+  selector clamps to the latest month that HAS insight rows — near a month
+  boundary those disagree and the panel is reachable from neither. Verified
+  2026-08-01: `?period=2026-08` clamped back to July until the first August
+  sync wrote August rows. So a goal declared near the boundary is INVISIBLE on
+  the deployment until the new month's first sync, and that absence reads
+  exactly like "the data never reached this database" — the misread that
+  caused the duplicate above. Check the Setting (`npm run goals` prints it)
+  before concluding anything from the panel's absence.
 - Overview's shape is HEADLINE → DETAIL → TOTAL, in that order, and the
   grouping figures are NOT table rows. Cash/Investments/Owed shipped first as
   subtotal rows inside the account table and the operator reported them missing
@@ -1066,6 +1105,77 @@ turned up so it isn't rediscovered:
   fact and refuses nothing, and every refusal keeps the facts either side of
   it — saved, target, and the negative rate that IS the reason there is no
   date.
+  A declaration HELPER was added 2026-08-01: `--house-price` (with `--down`
+  and `--closing`, defaulting 20 and 3) derives the target as CASH NEEDED —
+  (down% + closing%) × price — prints the arithmetic, and stores only the
+  resulting number. The derivation is evaluated once at declaration, in front
+  of the operator, and never re-runs at render; a bare "30% of the house" was
+  rejected as a stored formula because the percentage is market- and
+  loan-product-specific, but survives as roughly what down+closing+buffer
+  totals, which is why 20+3 are the visible defaults rather than a constant
+  buried in code.
+
+- **House-readiness model — DESIGNED 2026-08-01, NOT BUILT.** Answers "am I
+  close enough to start looking?" — a READINESS signal, explicitly NOT lender
+  math: whether underwriting would approve is a question the model
+  deliberately does not answer, like the tax cost of liquidation below.
+  REJECTED first, so they are not re-proposed: gross-income DTI (28/36) —
+  bank inflows are net of tax/401k, so observed data is the wrong shape for
+  lender rules and the right shape for something better; and
+  mortgage-as-share-of-observed-SPENDING — the denominator is the thing the
+  operator controls, so it punishes frugality (measured: 35% of July's $11,058.91
+  spending is $3,872.04, BELOW the $4,662.52 rent already carried in a month that
+  netted +$3,104.89).
+  The canonical form is the RESIDUAL:
+  PITI budget = observed net income − observed non-housing spending − declared
+  savings floor, all over the same 6-complete-month window runway and goals
+  use. Non-housing = total spending minus Rent & Housing PER MONTH, then
+  averaged — which makes the form REFUND-PROOF: June 2026's Rent & Housing is
+  −$401.85 (a reimbursement month), which distorts any "rent + savings rate"
+  form and cancels out of this one. That is why the residual form is canonical
+  and the rent+rate form is only a derived identity.
+  One declared knob: the savings floor — how much monthly saving must survive
+  the purchase — operator-set at $5,183.46/mo, stored as a Setting beside the
+  goal. Typed assumptions, each rendered with its value and chipped ASSUMED:
+  rate and term (typed, shown with its as-of date — the fetcher above is the
+  opt-in follow-on; never bake a default rate into code), property tax and
+  insurance as %/yr of price, PMI below 20% down, closing as % of price paid
+  from cash.
+  Outputs are TWO price ceilings with the binding one NAMED: fund-limited
+  (the no-PMI path — the fund covers down + closing) and payment-limited (the
+  amortization back-out, PMI included below 20% down). Worked at design time:
+  PITI budget $6,465.61/mo; the $156k target buys ~$676k conventional with
+  ~$2,100/mo of payment slack, ~$880k stretching through PMI; balancing the two
+  constraints wants ~$230k cash for ~$999k of house. The fund-limited ceiling
+  moves NOT AT ALL with the rate, so a live rate feed refines the non-binding
+  side — a polish, not a prerequisite.
+  Constraint wording is FUND-LIMITED, never "deposit-limited": the binding
+  constraint is the DECLARED FUND, and phrasing it as incapacity is factually
+  wrong for an operator holding a taxable brokerage that could fund a deposit
+  tomorrow. The model measures readiness OF THE DECLARED PLAN — that scoping
+  is what keeps the signal from reading "reached" at declaration for anyone
+  with a portfolio. LIQUIDATION-FUNDED deposits are out of scope with the
+  reason recorded: SimpleFIN supplies balances and transactions, not lots or
+  cost basis, so after-tax proceeds of a share sale are `known:false` and a
+  printed number would be fabricated; and whether to de-risk equities for a
+  house is a portfolio decision, not arithmetic. Supporting observed fact:
+  July 2026 alone moved the portfolio −$18,935.72 on market movement, which is
+  why money with a closing date migrates to cash-like instruments. The
+  VERIFIED transfer picture (2026-08-01 — the first draft of this entry got
+  the destination wrong, caught by recomputing against the database): the
+  fund was seeded ONCE, $51,355.89 into TOD (0006) on 2026-01-12, and has
+  grown only by money-market dividends since (~$142.55/mo, matching the
+  counts-as-cash convention above); every one of the fourteen standing
+  $3,628.42/mo transfers lands in the OTHER Individual account (0001), the
+  actively-invested one. So the DECLARED FUND currently receives no ongoing
+  contributions, and the goal's landing date leans entirely on the panel's
+  stated assumption that future net savings reach the fund — an assumption
+  today's transfer history contradicts. The transfers are TRANSFER-flagged on
+  both sides, so counting them as saving would double-count (the rate already
+  contains them as income-not-spent).
+  Refusals inherited whole: fewer than 3 complete months; floor at or above
+  income minus non-housing (the budget is ≤ 0 and it says so, naming the
+  floor as the reason); nothing computed across coverage-incomplete periods.
 
 - **P2P review, still open:** (c) recurring-pattern detection on P2P (same
   payee, same amount, monthly) to pre-fill rule suggestions; (d) an explicit
