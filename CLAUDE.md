@@ -224,10 +224,11 @@ regeneration.
 - House readiness is a READINESS signal, never lender math: the residual
   form (income − non-housing − declared floor) is canonical, non-housing is
   built PER MONTH before averaging, the binding ceiling is named
-  FUND-limited (never "deposit-limited"), typed assumptions wear ASSUMED
-  chips with the rate's as-of date, and NO default rate lives in code —
-  absent `readiness.house` config, or no declared goal to be the fund,
-  means no panel.
+  FUND-limited (never "deposit-limited"), typed assumptions collapse behind
+  ONE tap-to-open ASSUMED disclosure whose summary keeps the rate's as-of
+  date visible (a hidden rate must never read current forever), and NO
+  default rate lives in code — absent `readiness.house` config, or no
+  declared goal to be the fund, means no panel.
 
 ## Rules — UI & pages → docs/conventions/ui-and-pages.md
 

@@ -167,7 +167,9 @@ async function main(): Promise<void> {
       console.log(`Cash needed for a ${price.toFixed(2)} house:`);
       console.log(`  ${down}% down      ${downAmount.toFixed(2)}`);
       console.log(`  ${closing}% closing    ${closingAmount.toFixed(2)}`);
-      console.log(`  target        ${target.toFixed(2)} — stored as this number; the derivation is not kept.\n`);
+      console.log(`  target        ${target.toFixed(2)} — stored as this number.`);
+      console.log(`  The house price is kept as the declared aspiration (shown on /insights);`);
+      console.log(`  the percentages are not kept and nothing re-derives the target.\n`);
     } else {
       target = Number(targetArg);
     }
@@ -210,6 +212,7 @@ async function main(): Promise<void> {
       target,
       accountIds,
       ...(by !== undefined ? { targetMonth: by } : {}),
+      ...(priceArg !== undefined ? { housePrice: Number(priceArg) } : {}),
       ...(isCash ? { cash: true } : {}),
     };
     goals = [...goals, goal];

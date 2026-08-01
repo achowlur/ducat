@@ -64,7 +64,17 @@ function GoalRow({ g }: { g: GoalAssessment }) {
           </span>
         )}
       </div>
-      <p className="pt-1 leading-relaxed text-faint">
+      {/* Progress as FORM, not only figure — the % is scannable without
+          reading; honest width, no minimum, so 1% looks like 1%. */}
+      <div className="mt-1.5 h-[3px] w-full rounded-[1px] bg-chip">
+        <div
+          className={`h-full rounded-[1px] ${g.reached ? "bg-pos" : "bg-acc"}`}
+          // Floor, matching the printed % beside it — a bar one point wider
+          // than its own figure is the two-totals bug class in miniature.
+          style={{ width: `${Math.min(100, Math.floor(g.progress * 100))}%` }}
+        />
+      </div>
+      <div className="pt-1 leading-relaxed text-faint">
         {g.reached ? (
           <>
             <span
@@ -100,44 +110,51 @@ function GoalRow({ g }: { g: GoalAssessment }) {
             no landing date worth printing.
           </>
         ) : (
+          // The landing is the DECISION line and leads; the rate that produced
+          // it and the reconciliation each get their own quiet line below —
+          // same facts as before, ranked instead of run together.
           <>
-            Saving <span className="font-money tabular text-ink">~{money(g.monthlyRate ?? 0)}</span>/mo
-            over your last {g.basisMonths} complete months (lowest{" "}
-            <span className="font-money tabular">{money(g.rateLow ?? 0)}</span>, highest{" "}
-            <span className="font-money tabular">{money(g.rateHigh ?? 0)}</span>) —{" "}
-            <span className={PROJECTED_CHIP}>Projected</span>{" "}
-            {(g.monthsToTarget ?? 0) > 600 ? (
-              // deltaMonths still decides ahead/behind out here — a far-future
-              // aspiration can sit BEYOND a 50-year landing, and asserting
-              // "behind" against it would be false.
-              g.deltaMonths === null
-                ? "lands more than 50 years out at this rate."
-                : g.deltaMonths > 0
-                  ? "lands more than 50 years out at this rate — far behind target."
-                  : "lands more than 50 years out at this rate — and still not past the declared month."
-            ) : (
-              <>
-                lands <span className="font-semibold text-ink">~{monthLabel(g.landsMonth ?? "")}</span>
-                {g.deltaMonths === null ? (
-                  "."
+            <p>
+              <span className={PROJECTED_CHIP}>Projected</span>{" "}
+              <span className="text-ink">
+                {(g.monthsToTarget ?? 0) > 600 ? (
+                  // deltaMonths still decides ahead/behind out here — a
+                  // far-future aspiration can sit BEYOND a 50-year landing,
+                  // and asserting "behind" against it would be false.
+                  g.deltaMonths === null
+                    ? "lands more than 50 years out at this rate."
+                    : g.deltaMonths > 0
+                      ? "lands more than 50 years out at this rate — far behind target."
+                      : "lands more than 50 years out at this rate — and still not past the declared month."
                 ) : (
                   <>
-                    {" — "}
-                    {g.deltaMonths === 0
-                      ? "on target."
-                      : g.deltaMonths < 0
-                        ? `${-g.deltaMonths} ${monthsWord(-g.deltaMonths)} ahead of target.`
-                        : `${g.deltaMonths} ${monthsWord(g.deltaMonths)} behind target.`}
+                    lands <span className="font-semibold">~{monthLabel(g.landsMonth ?? "")}</span>
+                    {g.deltaMonths === null ? (
+                      "."
+                    ) : (
+                      <>
+                        {" — "}
+                        {g.deltaMonths === 0
+                          ? "on target."
+                          : g.deltaMonths < 0
+                            ? `${-g.deltaMonths} ${monthsWord(-g.deltaMonths)} ahead of target.`
+                            : `${g.deltaMonths} ${monthsWord(g.deltaMonths)} behind target.`}
+                      </>
+                    )}
                   </>
                 )}
-              </>
-            )}
+              </span>
+            </p>
+            <p className="pt-0.5">
+              Saving <span className="font-money tabular text-ink">~{money(g.monthlyRate ?? 0)}</span>
+              /mo over your last {g.basisMonths} complete months
+            </p>
             {g.observedFundGrowth !== null && (
-              <>
-                {" "}Cash itself grew{" "}
+              <p className="pt-0.5">
+                Cash itself grew{" "}
                 <span className="font-money tabular">~{money(g.observedFundGrowth)}</span>/mo over the
                 same window — the landing assumes the full rate reaches it.
-              </>
+              </p>
             )}
           </>
         )}
@@ -148,7 +165,7 @@ function GoalRow({ g }: { g: GoalAssessment }) {
             {g.missingAccounts === 1 ? "exists" : "exist"} — saved is understated.
           </span>
         )}
-      </p>
+      </div>
     </div>
   );
 }
@@ -177,7 +194,15 @@ function Money({ n, about = false }: { n: number; about?: boolean }) {
  * the panel silently leans on; the rate carries its as-of date so it cannot
  * read current forever.
  */
-function ReadinessBlock({ r, fundName }: { r: ReadinessAssessment; fundName: string | null }) {
+function ReadinessBlock({
+  r,
+  fundName,
+  targetHousePrice,
+}: {
+  r: ReadinessAssessment;
+  fundName: string | null;
+  targetHousePrice: number | null;
+}) {
   const c = r.config;
   const monthsWord = (n: number) => (n === 1 ? "month" : "months");
   const fundLabel = fundName === null ? "declared fund" : `${fundName} fund`;
@@ -209,57 +234,137 @@ function ReadinessBlock({ r, fundName }: { r: ReadinessAssessment; fundName: str
         </p>
       ) : (
         <>
-          <p className="text-[0.95rem] leading-relaxed">
-            Estimated mortgage budget{" "}
-            <span className="font-money tabular font-semibold">~{money(r.pitiBudget ?? 0)}</span>
-            /mo{" "}
-            <span className="text-faint">
-              — income <Money n={r.incomeMean ?? 0} about />
-              /mo minus non-housing spending <Money n={r.nonHousingMean ?? 0} about />
-              /mo minus the <Money n={c.savingsFloor} />
-              /mo savings floor you declared, over your last {r.basisMonths} complete{" "}
-              {monthsWord(r.basisMonths)}.
-            </span>
-          </p>
-          <p className="pt-1 leading-relaxed text-faint">
-            {r.bindingConstraint === "FUND" ? (
-              <>
-                <span className="font-semibold text-ink">Fund-limited:</span> {fundCaps}; your payment
-                budget could carry <Money n={r.paymentLimitedPrice ?? 0} about />.
-              </>
-            ) : (
-              <>
-                <span className="font-semibold text-ink">Payment-limited:</span> your payment budget
-                carries <Money n={r.paymentLimitedPrice ?? 0} about />; {fundCaps}.
-              </>
-            )}
+          {/* HEADLINE → DETAIL, Overview's shape, with no prose in between:
+              every figure the two removed sentences carried is either a band
+              cell or a ledger row — same facts, now in the forms a scanner
+              reads. The fund detail rides its cell as a sub-caption. */}
+          <div className="flex flex-wrap gap-x-9 gap-y-2.5">
+            <div>
+              <div className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-faint">
+                Estimated budget
+              </div>
+              <div className="font-money tabular text-[1.05rem] font-semibold">
+                ~{money(r.pitiBudget ?? 0)}
+                <span className="text-[0.8rem] font-normal text-faint">/mo</span>
+              </div>
+            </div>
+            <div>
+              <div className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-faint">
+                Ceiling today — {r.bindingConstraint === "FUND" ? "fund-limited" : "payment-limited"}
+              </div>
+              <div className="font-money tabular text-[1.05rem] font-semibold">
+                ~
+                {money(
+                  r.bindingConstraint === "FUND" ? r.fundLimitedPrice : (r.paymentLimitedPrice ?? 0),
+                )}
+              </div>
+              <div className="pt-0.5 text-[0.72rem] text-faint">
+                {r.bindingConstraint === "FUND"
+                  ? `${money(r.fund)} ${fundName === null ? "fund" : fundName} · ${c.downPct}% down + ${c.closingPct}% closing`
+                  : "at the estimated budget"}
+              </div>
+            </div>
+            <div>
+              <div className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-faint">
+                {r.bindingConstraint === "FUND" ? "Payment could carry" : "Fund caps at"}
+              </div>
+              <div className="font-money tabular text-[1.05rem]">
+                ~
+                {money(
+                  r.bindingConstraint === "FUND" ? (r.paymentLimitedPrice ?? 0) : r.fundLimitedPrice,
+                )}
+              </div>
+              <div className="pt-0.5 text-[0.72rem] text-faint">
+                {r.bindingConstraint === "FUND"
+                  ? "at the estimated budget"
+                  : `${money(r.fund)} ${fundName === null ? "fund" : fundName} · ${c.downPct}% down + ${c.closingPct}% closing`}
+              </div>
+            </div>
             {r.balancedPrice !== null && r.cashNeededAtBalance !== null && (
-              <>
-                {" "}
-                Balancing the two wants <Money n={r.cashNeededAtBalance} about /> cash for{" "}
-                <Money n={r.balancedPrice} about /> of house.
-              </>
+              <div>
+                <div className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-faint">
+                  Balanced target
+                </div>
+                <div className="font-money tabular text-[1.05rem]">
+                  ~{money(r.balancedPrice)}
+                </div>
+                <div className="pt-0.5 text-[0.72rem] text-faint">
+                  with ~{money(r.cashNeededAtBalance)} cash
+                </div>
+              </div>
             )}
-          </p>
+            {targetHousePrice !== null && (
+              <div>
+                <div className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-faint">
+                  Target house
+                </div>
+                <div className="font-money tabular text-[1.05rem]">{money(targetHousePrice)}</div>
+                <div className="pt-0.5 text-[0.72rem] text-faint">
+                  needs ~{money((targetHousePrice * (c.downPct + c.closingPct)) / 100)} cash at{" "}
+                  {c.downPct}% down + {c.closingPct}% closing
+                </div>
+              </div>
+            )}
+          </div>
+          {/* The budget's arithmetic as what it is — a ledger, totalled at the
+              foot of the column it sums. */}
+          <div className="mt-2.5 inline-block">
+            <table className="border-collapse text-[0.8rem]">
+              <tbody>
+                <tr>
+                  <td className="pr-8 text-faint">income</td>
+                  <td className="text-right font-money tabular">
+                    ~{money(r.incomeMean ?? 0)}
+                    <span className="text-faint">/mo</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td className="pr-8 text-faint">non-housing spending</td>
+                  <td className="text-right font-money tabular">
+                    −{money(r.nonHousingMean ?? 0)}
+                    <span className="text-faint">/mo</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td className="pr-8 text-faint">savings floor (declared)</td>
+                  <td className="text-right font-money tabular">
+                    −{money(c.savingsFloor)}
+                    <span className="text-faint">/mo</span>
+                  </td>
+                </tr>
+                <tr className="border-t border-rule">
+                  <td className="pr-8 pt-1 text-faint">estimated budget</td>
+                  <td className="pt-1 text-right font-money tabular font-semibold">
+                    ~{money(r.pitiBudget ?? 0)}
+                    <span className="font-normal text-faint">/mo</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="pt-1 text-[0.72rem] text-faint">
+              averaged over your last {r.basisMonths} complete {monthsWord(r.basisMonths)}
+            </p>
+          </div>
         </>
       )}
-      <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5 pt-2 text-[0.78rem] text-faint">
-        <span>
-          <span className={ASSUMED_CHIP}>Assumed</span> {c.ratePct}% / {c.termYears} yr (as of {c.asOf})
-        </span>
-        <span>
-          <span className={ASSUMED_CHIP}>Assumed</span> property tax {c.taxPctYr}%/yr
-        </span>
-        <span>
-          <span className={ASSUMED_CHIP}>Assumed</span> insurance {c.insurancePctYr}%/yr
-        </span>
-        <span>
-          <span className={ASSUMED_CHIP}>Assumed</span> PMI {c.pmiPctYr}%/yr below {c.downPct}% down
-        </span>
-        <span>
-          <span className={ASSUMED_CHIP}>Assumed</span> closing {c.closingPct}% of price
-        </span>
-      </p>
+      {/* The five typed values collapse behind one disclosure — tap/click on
+          any device, hover-preview via title on desktop. The AS-OF DATE stays
+          on the summary deliberately: it is the staleness alarm, and a hidden
+          rate must never be able to read current forever. */}
+      <details className="pt-2.5 text-[0.78rem] text-faint">
+        <summary
+          className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-2 [&::-webkit-details-marker]:hidden"
+          title={`${c.ratePct}% / ${c.termYears} yr · property tax ${c.taxPctYr}%/yr · insurance ${c.insurancePctYr}%/yr · PMI ${c.pmiPctYr}%/yr below ${c.downPct}% down · closing ${c.closingPct}% of price`}
+        >
+          <span className={ASSUMED_CHIP}>Assumed</span>
+          <span>rate, term, tax, insurance, PMI, closing · as of {c.asOf}</span>
+        </summary>
+        <p className="pt-1.5">
+          {c.ratePct}% / {c.termYears} yr · property tax {c.taxPctYr}%/yr · insurance{" "}
+          {c.insurancePctYr}%/yr · PMI {c.pmiPctYr}%/yr below {c.downPct}% down · closing{" "}
+          {c.closingPct}% of price
+        </p>
+      </details>
     </div>
   );
 }
@@ -514,6 +619,7 @@ export default async function InsightsPage({
           <ReadinessBlock
             r={data.readiness}
             fundName={data.goals.length > 0 ? data.goals[0].goal.name : null}
+            targetHousePrice={data.goals.length > 0 ? (data.goals[0].goal.housePrice ?? null) : null}
           />
         </section>
       )}

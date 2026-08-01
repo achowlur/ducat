@@ -139,3 +139,27 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   seeded databases show non-housing equal to total spending unless renamed.
   Declaring is a DATA change: run `npm run readiness` once per database,
   like goals, and it requires a declared goal to exist as the fund.
+- The readiness panel's PRESENTATION (two passes, 2026-08-01, operator-led):
+  the healthy path renders NO prose — decision figures are a label-over-figure
+  band (binding ceiling named IN its label), the budget's arithmetic is a
+  LEDGER totalled at the foot (Overview's idiom applied to a derivation), and
+  the five typed values collapse behind one native <details> disclosure with
+  a title-attribute hover preview. The as-of date stays on the collapsed
+  summary DELIBERATELY: it is the staleness alarm for a rate that would
+  otherwise read current forever while hidden — do not fold it in. The goals
+  rate line dropped its lowest/highest range from DISPLAY only; the analyzer
+  still computes both (rateLow/rateHigh stay on GoalAssessment) so nothing
+  downstream loses them. The goal's progress bar FLOORS its width to match
+  the printed % — bar and figure disagreeing by a point is the two-totals
+  bug class in miniature.
+- The declared HOUSE PRICE is kept on the goal (`housePrice`, optional,
+  2026-08-01 third pass) and renders as the readiness band's TARGET HOUSE
+  cell — the operator noticed the $1295.86k the whole feature orbits appeared
+  nowhere on screen. This does NOT reverse "the derivation is not kept":
+  what stays out is the FORMULA (the percentages, re-run at render); the
+  price is a declared aspiration stored like the target itself. The cell's
+  "needs ~$X cash" sub is computed from the READINESS config's down+closing
+  at render, so it tracks the panel's own assumptions rather than whatever
+  the helper used at declaration time — the two can legitimately differ if
+  the config changes, and the readiness assumptions are the ones every
+  other number on that panel already leans on.

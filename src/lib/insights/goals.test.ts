@@ -77,6 +77,15 @@ describe('parseGoals', () => {
     expect(g[0].targetMonth).toBeUndefined();
   });
 
+  it('keeps a declared house price and drops a malformed one', () => {
+    const kept = parseGoals(JSON.stringify([goal({ housePrice: 500_000 })]));
+    expect(kept[0].housePrice).toBe(500_000);
+    // A non-positive price is malformed config, dropped like any other.
+    expect(parseGoals(JSON.stringify([goal({ housePrice: -1 })]))).toHaveLength(0);
+    // Absent stays absent — the field is a declared aspiration, never derived.
+    expect(parseGoals(JSON.stringify([goal()]))[0].housePrice).toBeUndefined();
+  });
+
   it('accepts a cash goal with an empty nomination', () => {
     const g = parseGoals(JSON.stringify([goal({ cash: true, accountIds: [] })]));
     expect(g).toHaveLength(1);

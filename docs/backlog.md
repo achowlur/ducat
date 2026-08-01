@@ -243,7 +243,9 @@ turned up so it isn't rediscovered:
   A declaration HELPER was added 2026-08-01: `--house-price` (with `--down`
   and `--closing`, defaulting 20 and 3) derives the target as CASH NEEDED —
   (down% + closing%) × price — prints the arithmetic, and stores only the
-  resulting number. The derivation is evaluated once at declaration, in front
+  resulting number (plus, since the third pass, the house PRICE itself as a
+  declared aspiration — shown on the readiness band; the percentages are
+  still not kept). The derivation is evaluated once at declaration, in front
   of the operator, and never re-runs at render; a bare "30% of the house" was
   rejected as a stored formula because the percentage is market- and
   loan-product-specific, but survives as roughly what down+closing+buffer

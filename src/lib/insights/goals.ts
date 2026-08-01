@@ -54,6 +54,10 @@ export interface SavingsGoal {
   name: string;
   /** Positive dollars. */
   target: number;
+  /** The house price the target was derived from, kept as a DECLARED
+   * aspiration for display — the percentages that derived it are not kept
+   * and nothing re-runs the arithmetic at render. */
+  housePrice?: number;
   /**
    * Month key "2028-06" — the aspiration to compare the projection against.
    * OPTIONAL since 2026-08-01: the landing date is always projected from the
@@ -143,6 +147,7 @@ function isGoal(v: unknown): v is SavingsGoal {
     Number.isFinite(g.target) &&
     g.target > 0 &&
     (g.targetMonth === undefined || (typeof g.targetMonth === 'string' && MONTH_KEY.test(g.targetMonth))) &&
+    (g.housePrice === undefined || (typeof g.housePrice === 'number' && Number.isFinite(g.housePrice) && g.housePrice > 0)) &&
     (g.cash === undefined || typeof g.cash === 'boolean') &&
     Array.isArray(g.accountIds) &&
     g.accountIds.every((id) => typeof id === 'string')
