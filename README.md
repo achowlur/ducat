@@ -1,13 +1,21 @@
 # Ducat
 
-A local-only personal finance tracker with an insights engine. It runs entirely
-on your machine — **your financial data never leaves `127.0.0.1`.** You bring
-your own bank connection (a SimpleFIN token) or import CSVs; there is no hosted
-service, no account to create, and no third party that custodies your data.
+A local-first personal finance tracker with an insights engine. By default it
+runs entirely on your machine — **your financial data never leaves
+`127.0.0.1`.** You bring your own bank connection (a SimpleFIN token) or import
+CSVs; there is no hosted service, no account to create, and no third party that
+custodies your data. An **optional** single-tenant cloud deployment (your own
+Turso + Vercel, still nobody else's servers) is covered in
+[DEPLOY.md](DEPLOY.md).
+
+New here? [docs/getting-started.md](docs/getting-started.md) walks the first
+run end to end.
 
 ## Trust model
 
-These are enforced, not just promised:
+These are enforced, not just promised. They describe the default local mode;
+what changes in the optional cloud mode is spelled out in
+[DEPLOY.md](DEPLOY.md).
 
 - **Nothing leaves the machine.** The only outbound network call the app ever
   makes is to your SimpleFIN feed. A strict Content-Security-Policy
@@ -27,7 +35,8 @@ These are enforced, not just promised:
 ## Stack
 
 Next.js 15 (App Router) · TypeScript (strict) · Tailwind + shadcn/ui ·
-Prisma + SQLite. Charts are hand-rolled SVG (no chart library, no webfonts).
+Prisma + libSQL (a SQLite file locally; Turso in the optional cloud mode).
+Charts are hand-rolled SVG (no chart library, no webfonts).
 
 ## Setup
 
@@ -59,9 +68,14 @@ npm run sync:simplefin
 **Option C — import CSVs** (zero dependencies):
 
 ```bash
-npm run import:csv -- <file.csv> --mapping=<chase-checking|chase-credit|wells-fargo|fidelity> \
+npm run import:csv -- <file.csv> \
+  --mapping=<chase-checking|chase-credit|wells-fargo|wells-fargo-headerless|fidelity> \
   --name="<account>" --type=<DEPOSITORY|CREDIT|INVESTMENT|LOAN> --institution="<bank>"
 ```
+
+See [docs/csv-import.md](docs/csv-import.md) for the mappings, backfilling
+behind a live feed (`--external-id`, `--until`), and month-end balance
+snapshots for investment accounts.
 
 ## Useful commands
 
@@ -69,20 +83,33 @@ npm run import:csv -- <file.csv> --mapping=<chase-checking|chase-credit|wells-fa
 | --- | --- |
 | `npm run dev` | Dev server, bound to `127.0.0.1` |
 | `npm test` | Vitest suite |
-| `npm run db:seed` | Load deterministic fixture data (wipes insights) |
+| `npm run db:seed` | Load deterministic fixture data — destructive: wipes accounts, transactions, rules and insights; refuses over existing transactions without `-- --yes` |
 | `npm run insights:generate` | Regenerate insights (`-- --granularity=WEEK\|MONTH\|QUARTER\|YEAR`) |
-| `npm run sync:simplefin` | Sync from your SimpleFIN feed |
+| `npm run sync:simplefin` | Sync from your SimpleFIN feed — names the database first |
 | `npm run import:csv` | Import a CSV (see above) |
+| `npm run import:balances` | Import month-end balance snapshots for investment accounts (`-- --template [--months=N]` prints a fill-in CSV; `--dry-run` previews) |
+| `npm run upgrade` | After `git pull`, bring this database up to the checked-out code: install missing pack rules, regenerate insights (`-- --check` reports without writing) — names the database first |
 | `npm run rules:retarget` | Point rules at a different category and re-apply (dry run; `-- --apply` writes) — names the database first |
 | `npm run rules:install` | Install the starter category-rule pack |
-| `npm run goals` | Declare savings goals shown on /insights (`-- --add --name=… --target=… --by=YYYY-MM --accounts=…`) — names the database first |
+| `npm run rules:audit` | Report rules that match more merchants than the one they were built from (read-only) — names the database first |
+| `npm run rules:simulate` | Report every disagreement between the current and the retired CONTAINS matcher, over real rows plus generated probes (read-only) — names the database first |
+| `npm run goals` | List/declare savings goals shown on /insights (`-- --add --name=… --target=…` or `--house-price=… [--down=20 --closing=3]`, `--accounts=<list>` or `--accounts=cash`, optional `--by=YYYY-MM`; `--remove=…`) — names the database first |
+| `npm run accounts:cash` | List which accounts count as spendable cash; mark non-checking ones (`-- --add=…` / `-- --remove=…`) — names the database first |
 | `npm run health` | Print the provider-health panel (no network) |
 | `npm run subs:audit` | Report what subscription detection missed and which gate rejected it (read-only) |
 | `npm run repair:text` | Strip undecodable characters from imported names/descriptions (dry run; `-- --apply` writes) |
 | `npm run repair:merchants` | Re-normalize stored merchant names after a normalizer change (dry run; `-- --apply` writes) |
 | `npm run turso:push` | Apply the schema to a fresh cloud database (see [DEPLOY.md](DEPLOY.md)) |
+| `npm run schema:push` | Diff `prisma/schema.prisma` against a database that already has data and apply the additive part (dry run; `-- --apply` writes) — names the database first |
 | `npm run turso:copy` | Copy this database into a fresh cloud one (dry run; `-- --apply` writes) |
 | `npm run cloud:backup` | Pull the cloud database into a dated file under `data/backups/` |
+
+Commands marked "names the database first" print which database they are about
+to touch as their first line — read it. Code travels with `git pull`; data does
+not, so anything that writes rows or settings has to be run once **per
+database**. [docs/lifecycle.md](docs/lifecycle.md) explains the model, and
+[docs/troubleshooting.md](docs/troubleshooting.md) covers the common failure
+symptoms.
 
 ## Measuring performance
 
@@ -96,9 +123,12 @@ page's TTFB to get render time.
 
 Localhost is still the right place to measure *structure* — DOM node counts,
 how many queries a page issues, payload composition — since those are identical
-everywhere. Use `preview_start prod` for that, never `npm run dev`.
+everywhere. Measure against a production build (`npm run build`, then
+`npm run start`), never against `npm run dev` — and never build while the dev
+server is running (see [docs/troubleshooting.md](docs/troubleshooting.md)).
 
 ## Where your data lives
 
 `./data/ducat.db` (SQLite) — on your machine, gitignored. Delete it to start
-over.
+over. In the optional cloud mode it lives in your own Turso database instead
+(see [DEPLOY.md](DEPLOY.md)).

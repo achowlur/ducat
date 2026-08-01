@@ -1,0 +1,80 @@
+# Code, data, schema — three things that upgrade separately
+
+`git pull` (or a deploy) updates the **code**, and only the code. Two other
+things live in your **database** and do not travel with it:
+
+- **Data** — categorization rules, categories you created, manual
+  categorizations, settings like goals and the cash definition. A new version
+  can ship new pack rules; they reach your database through nothing at all
+  until you run the command below.
+- **Schema** — the table shapes themselves. A local database gets migrations
+  through `npx prisma migrate deploy`; a cloud (Turso) database cannot be
+  reached by that tool and needs `npm run schema:push`.
+
+Miss this and you ship half-fixes: the code is current, the deploy is green,
+and the only symptom is rows quietly landing in the wrong category — or a
+`PrismaClientValidationError` on the one page that reads a new column.
+
+## The run-once-per-database commands
+
+### `npm run upgrade` — after every `git pull`
+
+Installs any rule-pack rules this database is missing and regenerates
+insights. Idempotent: it creates only what is absent and never edits a rule
+you changed yourself (your own rules outrank the shipped pack anyway).
+`-- --check` reports the gap without writing.
+
+**How you know you need it:** Overview's "Needs review" panel counts the
+missing rules and names this command whenever a database is behind. It says
+nothing when there is nothing to do.
+
+### `npm run schema:push` — after a version that changes the schema
+
+Diffs `prisma/schema.prisma` against what the database actually has, prints
+the delta, and writes only with `-- --apply`. It only ever **adds** (tables,
+columns, indexes); anything destructive or ambiguous — dropped columns,
+changed types, possible renames — is refused with the row count at stake, and
+one refusal blocks the whole run. Safe to run twice: after applying, it
+reports nothing to do. An empty database is redirected to `turso:push`
+instead.
+
+**How you know you need it:** a `PrismaClientValidationError` ("Unknown
+field") on whichever page reads the new column. Run both commands after a
+version that changes the schema: `schema:push` for the columns, `upgrade` for
+the rules.
+
+### `npm run goals` and `npm run accounts:cash` — when you configure
+
+Savings goals and the "counts as cash" account list are per-instance settings
+stored in the database. Declaring a goal on your laptop does nothing for your
+cloud instance — run the command once against each database you want it on.
+Both print the current state when run with no flags; read that listing before
+adding, because re-adding an existing goal creates a duplicate rather than
+being ignored.
+
+## Running local + cloud: the two-database model
+
+If you deployed to your own cloud ([DEPLOY.md](../DEPLOY.md)), there are two
+databases, and every one of the commands above runs **twice** — once per
+database. The cloud run points the environment at Turso for that one command,
+in a throwaway terminal you then close:
+
+```bash
+DATABASE_URL="libsql://…turso.io" TURSO_AUTH_TOKEN="…" npm run upgrade
+```
+
+Two habits keep this honest:
+
+1. **Read the first line.** Every script that writes rows prints which
+   database it is about to touch before doing anything, e.g.
+   `Database: LOCAL — file:./data/ducat.db`. A shell can still be holding the
+   cloud URL from an earlier command, and "0 imported" does not tell you
+   which database is already up to date — the label does.
+2. **Verify where the data is read.** After a data change meant for the cloud
+   instance, check the deployed app, not localhost. A green deploy says
+   nothing about data.
+
+Once both instances are real, decide which one you write to and stick to it.
+Transactions self-heal (the dedupe key is the same on both sides), but rules,
+manual categorizations and dismissals drift apart with no way to reconcile
+them — [DEPLOY.md](../DEPLOY.md) covers this under "Living with two copies".
