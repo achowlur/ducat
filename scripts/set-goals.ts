@@ -15,11 +15,18 @@ import { databaseLabel } from './database-label';
  * config, so declaring is a DATA change and has to be run once per database.
  *
  *   npm run goals
- *   npm run goals -- --add --name="House deposit" --target=60000 --by=2028-06 --accounts=savings,money market
+ *   npm run goals -- --add --name="House deposit" --target=60000 --by=2028-06 --accounts="savings,money market"
+ *   npm run goals -- --add --name="House deposit" --house-price=385000 --by=2028-06 --accounts="money market"
  *   npm run goals -- --remove=house
  *
  * `--accounts` is comma-separated; each entry must uniquely match one account
  * by externalId or name fragment, the way `accounts:cash` resolves them.
+ *
+ * `--house-price` derives the target as CASH NEEDED — (--down + --closing)%
+ * of the price, defaulting 20 and 3 — prints the arithmetic, and stores only
+ * the resulting number. The percentages are flags, not constants, because a
+ * down payment is market- and loan-product-specific; what is stored is the
+ * dollar figure the operator saw and confirmed, never the formula.
  */
 
 const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -61,12 +68,55 @@ async function main(): Promise<void> {
 
   if (hasFlag('add')) {
     const name = arg('name')?.trim() ?? '';
-    const target = Number(arg('target'));
     const by = arg('by') ?? '';
     const needles = (arg('accounts') ?? '').split(',').map((s) => s.trim()).filter((s) => s.length > 0);
 
     if (name.length === 0) return fail('--name is required.');
-    if (!Number.isFinite(target) || target <= 0) return fail('--target must be a positive dollar amount.');
+
+    // Two ways to state the target, never both: a dollar amount, or a house
+    // price it is DERIVED from as cash needed — (down% + closing%) × price.
+    // The derivation runs once, here, in front of the operator; only the
+    // resulting number is stored, so nothing can re-derive it at render.
+    const targetArg = arg('target');
+    const priceArg = arg('house-price');
+    // A space-form flag ("--down 10") is a bare token arg() cannot see, and
+    // for down/closing the defaults would swallow it SILENTLY — the one
+    // malformed-flag path that stores a plausible wrong dollar figure instead
+    // of refusing. Caught loudly for all four numeric flags.
+    for (const f of ['target', 'house-price', 'down', 'closing'] as const) {
+      if (arg(f) === undefined && hasFlag(f)) return fail(`--${f} takes the equals form: --${f}=NUMBER.`);
+    }
+    if (targetArg !== undefined && priceArg !== undefined) {
+      return fail('Give --target OR --house-price, not both.');
+    }
+    if (targetArg === undefined && priceArg === undefined) {
+      return fail('One of --target or --house-price is required.');
+    }
+    if (priceArg === undefined && (arg('down') !== undefined || arg('closing') !== undefined)) {
+      return fail('--down/--closing only mean something with --house-price.');
+    }
+    let target: number;
+    if (priceArg !== undefined) {
+      const price = Number(priceArg);
+      const down = Number(arg('down') ?? '20');
+      const closing = Number(arg('closing') ?? '3');
+      if (!Number.isFinite(price) || price <= 0) return fail('--house-price must be a positive dollar amount.');
+      if (!Number.isFinite(down) || down <= 0 || down > 100) return fail('--down must be a percentage in (0, 100].');
+      if (!Number.isFinite(closing) || closing < 0 || closing > 100) return fail('--closing must be a percentage in [0, 100].');
+      // The target IS the sum of the two printed components. Rounding the
+      // combined percentage instead can disagree with them by a cent, and two
+      // totals on one screen is the June-donut bug class.
+      const downAmount = Math.round(price * down) / 100;
+      const closingAmount = Math.round(price * closing) / 100;
+      target = Math.round((downAmount + closingAmount) * 100) / 100;
+      console.log(`Cash needed for a ${price.toFixed(2)} house:`);
+      console.log(`  ${down}% down      ${downAmount.toFixed(2)}`);
+      console.log(`  ${closing}% closing    ${closingAmount.toFixed(2)}`);
+      console.log(`  target        ${target.toFixed(2)} — stored as this number; the derivation is not kept.\n`);
+    } else {
+      target = Number(targetArg);
+    }
+    if (!Number.isFinite(target) || target <= 0) return fail('--target (or --house-price) must be a positive dollar amount.');
     if (!MONTH_KEY.test(by)) return fail('--by must be a month like 2028-06.');
     if (needles.length === 0) return fail('--accounts is required: comma-separated account names or externalIds.');
 
