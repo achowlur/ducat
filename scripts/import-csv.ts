@@ -22,7 +22,7 @@ import { arg } from './args';
  *   matching the file's account number against known account names. Rows that
  *   don't match any account are skipped and reported — never guessed at.
  *
- * Mappings: chase-checking | chase-credit | wells-fargo | fidelity
+ * Mappings: chase-checking | chase-credit | wells-fargo | wells-fargo-headerless | fidelity
  *
  * --external-id identifies the account across imports: reuse the same value
  * when importing newer exports of the same account so transactions dedupe

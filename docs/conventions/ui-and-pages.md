@@ -119,3 +119,19 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   boundary. The zone comes from `DUCAT_TIMEZONE` and NOT `TZ`: Vercel refuses
   `TZ` as a reserved variable name, so the standard mechanism is unavailable
   exactly where it is needed. Unset locally, the machine's zone is used.
+- /insights admits the month being LIVED IN even before it has insight rows
+  (`selectPeriod` in `ui/periodNav.ts`) — and ONLY that month; every other
+  rowless period still clamps. The period list derives from stored rows and
+  analyzers emit only ACTIVE periods, so on the 1st of a month every request
+  including an explicit `?period=` clamped back to the prior month, hiding
+  pace, commitments and goals on exactly the day the forward-looking ones
+  answer the most — none of which needs a row FROM the month (commitments
+  read detected/registered subscriptions, goals read balances plus PRIOR
+  months' cash flow). The DEFAULT stays the latest month WITH rows: the
+  empty month is a step through `›`, not where the page opens. On it the
+  digest's quiet line says "nothing recorded yet", NOT "nothing needs your
+  attention" — the second is a claim the engine LOOKED, and all clear cannot
+  be told from not checked. One `now` drives both the admission and the
+  current-period gate, or a render straddling UTC midnight admits one month
+  and gates another — the two separate `new Date()` calls were a real latent
+  bug found during this fix (2026-08-01).

@@ -173,10 +173,10 @@ Import the repo in Vercel, then set these environment variables (Project →
 Settings → Environment Variables). Never put them in a committed file — Vercel
 injects them at runtime.
 
-**Paste values only.** Step 4's generators print `.env` lines, not bare values:
-`auth:set-password` wraps its output in quotes and the CRON_SECRET one-liner
-prints a `CRON_SECRET=` prefix. Include either and it becomes part of the
-secret, so login fails and the cron 401s with nothing to indicate why.
+**Paste values only.** `auth:set-password` prints `.env` lines with the values
+wrapped in quotes — include the quotes and they become part of the secret, so
+login fails with nothing to indicate why. The CRON_SECRET one-liner prints the
+bare hex value and is safe to paste as-is.
 
 **Production only — not Preview.** Preview deployments would share this one
 Turso database, so a branch deploy would write to your real data. Left unset

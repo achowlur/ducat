@@ -6,6 +6,7 @@ import { matchAccount } from '../src/lib/connectors/matchAccount';
 import { generateInsights } from '../src/lib/insights/engine';
 import { prisma } from '../src/lib/prisma';
 import { arg } from './args';
+import { databaseLabel } from './database-label';
 
 /**
  * Imports month-end balances as BalanceSnapshots — the only way to get real
@@ -115,6 +116,9 @@ async function emitTemplate(months: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // Every script that writes rows names its database first — this one was the
+  // last without the label.
+  console.log(`\nDatabase: ${databaseLabel()}\n`);
   const file = process.argv[2];
   const dryRun = process.argv.includes('--dry-run');
 

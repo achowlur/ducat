@@ -88,3 +88,7 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   exactly like "the data never reached this database" — the misread that
   caused the duplicate above. Check the Setting (`npm run goals` prints it)
   before concluding anything from the panel's absence.
+  FIXED 2026-08-01, second half: the lived-in month is now admitted rowless
+  (`selectPeriod` in `ui/periodNav.ts`, evidence in ui-and-pages.md), so the
+  panel renders from day 1 and its absence once again means the Setting is
+  missing, not the month. The first half stands: --add still duplicates.
