@@ -3,6 +3,7 @@ import { CoverageNotice } from "../../components/CoverageNotice";
 import { DismissButton } from "../../components/DismissButton";
 import { getInsightsPageData, type InsightRow } from "../../lib/ui/insights";
 import { GOAL_RATE_MIN_MONTHS, type GoalAssessment } from "../../lib/insights/goals";
+import { type ReadinessAssessment } from "../../lib/insights/readiness";
 import { money, monthLabel, shortDate, titleCase } from "../../lib/ui/format";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,16 @@ const CHIP_CLASS: Record<InsightRow["tone"], string> = {
  */
 const PROJECTED_CHIP =
   "whitespace-nowrap rounded-[2px] bg-chip px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-acc";
+
+/**
+ * The ASSUMED variant of the same chip family: for numbers the operator TYPED
+ * (the readiness panel's rate, term, tax, insurance, PMI, closing) rather than
+ * numbers projected from observation. Outlined where PROJECTED is filled, so
+ * the two claims stay distinguishable at a glance — a typed rate is a weaker
+ * claim than an observed cadence, and it should not wear the stronger chip.
+ */
+const ASSUMED_CHIP =
+  "whitespace-nowrap rounded-[2px] border border-rule px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-faint";
 
 /**
  * One declared goal against the observed savings rate. Every refusal renders
@@ -137,6 +148,117 @@ function GoalRow({ g }: { g: GoalAssessment }) {
             {g.missingAccounts === 1 ? "exists" : "exist"} — saved is understated.
           </span>
         )}
+      </p>
+    </div>
+  );
+}
+
+/** Dollar figure in the panel's money face, prefixed ~ where it is solved. */
+function Money({ n, about = false }: { n: number; about?: boolean }) {
+  return (
+    <span className="font-money tabular">
+      {about ? "~" : ""}
+      {money(n)}
+    </span>
+  );
+}
+
+/**
+ * House readiness: the estimated mortgage budget and the two price ceilings,
+ * the binding one named. A READINESS signal, deliberately NOT lender math —
+ * nothing here speaks of approval, and the constraint wording is FUND-limited,
+ * never "deposit-limited": the binding constraint is the DECLARED FUND, and
+ * phrasing it as incapacity is wrong for anyone holding a brokerage that could
+ * fund a deposit tomorrow (docs/backlog.md records the design).
+ *
+ * Refusals render rather than hide, and the fund-limited ceiling survives both
+ * of them — it depends on nothing refused. The typed assumptions always render
+ * with their values and ASSUMED chips, because they are what every number on
+ * the panel silently leans on; the rate carries its as-of date so it cannot
+ * read current forever.
+ */
+function ReadinessBlock({ r, fundName }: { r: ReadinessAssessment; fundName: string | null }) {
+  const c = r.config;
+  const monthsWord = (n: number) => (n === 1 ? "month" : "months");
+  const fundLabel = fundName === null ? "declared fund" : `${fundName} fund`;
+  const fundCaps = (
+    <>
+      the <Money n={r.fund} /> {fundLabel} caps you at <Money n={r.fundLimitedPrice} about /> (covering{" "}
+      {c.downPct}% down + {c.closingPct}% closing)
+    </>
+  );
+  return (
+    <div className="border-b border-rule py-2.5 text-[0.85rem] last:border-b-0 max-md:py-3">
+      {r.refusal === "TOO_FEW_MONTHS" ? (
+        <p className="leading-relaxed text-faint">
+          {r.basisMonths === 0
+            ? "No complete months of history yet"
+            : `Only ${r.basisMonths} complete ${monthsWord(r.basisMonths)} of history`}{" "}
+          — too few to average income and non-housing spending ({GOAL_RATE_MIN_MONTHS} needed). What
+          stands regardless: {fundCaps}.
+        </p>
+      ) : r.refusal === "FLOOR_EXCEEDS_RESIDUAL" ? (
+        <p className="leading-relaxed text-faint">
+          Income <Money n={r.incomeMean ?? 0} about />
+          /mo minus non-housing spending <Money n={r.nonHousingMean ?? 0} about />
+          /mo, over your last {r.basisMonths} complete {monthsWord(r.basisMonths)}, leaves no mortgage
+          budget once the <Money n={c.savingsFloor} />
+          /mo savings floor you declared is kept — it comes to{" "}
+          <span className="font-money tabular text-ink">{money(r.pitiBudget ?? 0)}</span>/mo, so the
+          floor is the reason there is no payment ceiling. What stands regardless: {fundCaps}.
+        </p>
+      ) : (
+        <>
+          <p className="text-[0.95rem] leading-relaxed">
+            Estimated mortgage budget{" "}
+            <span className="font-money tabular font-semibold">~{money(r.pitiBudget ?? 0)}</span>
+            /mo{" "}
+            <span className="text-faint">
+              — income <Money n={r.incomeMean ?? 0} about />
+              /mo minus non-housing spending <Money n={r.nonHousingMean ?? 0} about />
+              /mo minus the <Money n={c.savingsFloor} />
+              /mo savings floor you declared, over your last {r.basisMonths} complete{" "}
+              {monthsWord(r.basisMonths)}.
+            </span>
+          </p>
+          <p className="pt-1 leading-relaxed text-faint">
+            {r.bindingConstraint === "FUND" ? (
+              <>
+                <span className="font-semibold text-ink">Fund-limited:</span> {fundCaps}; your payment
+                budget could carry <Money n={r.paymentLimitedPrice ?? 0} about />.
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-ink">Payment-limited:</span> your payment budget
+                carries <Money n={r.paymentLimitedPrice ?? 0} about />; {fundCaps}.
+              </>
+            )}
+            {r.balancedPrice !== null && r.cashNeededAtBalance !== null && (
+              <>
+                {" "}
+                Balancing the two wants <Money n={r.cashNeededAtBalance} about /> cash for{" "}
+                <Money n={r.balancedPrice} about /> of house.
+              </>
+            )}
+          </p>
+        </>
+      )}
+      <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5 pt-2 text-[0.78rem] text-faint">
+        <span>
+          <span className={ASSUMED_CHIP}>Assumed</span> {c.ratePct}% / {c.termYears} yr (as of {c.asOf})
+        </span>
+        <span>
+          <span className={ASSUMED_CHIP}>Assumed</span> property tax {c.taxPctYr}%/yr
+        </span>
+        <span>
+          <span className={ASSUMED_CHIP}>Assumed</span> insurance {c.insurancePctYr}%/yr
+        </span>
+        <span>
+          <span className={ASSUMED_CHIP}>Assumed</span> PMI {c.pmiPctYr}%/yr below {c.downPct}% down
+        </span>
+        <span>
+          <span className={ASSUMED_CHIP}>Assumed</span> closing {c.closingPct}% of price
+        </span>
       </p>
     </div>
   );
@@ -376,6 +498,23 @@ export default async function InsightsPage({
               Each date assumes the full savings rate goes to that goal.
             </p>
           )}
+        </section>
+      )}
+
+      {/* House readiness — "am I close enough to start looking?". Gated like
+          goals: the month being lived in only, absent entirely without the
+          declared config (readiness.house) and a declared goal to be the
+          fund. A readiness signal, not lender math: no approval claims live
+          here, deliberately. */}
+      {data.readiness !== null && (
+        <section className="mt-4">
+          <h3 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
+            House readiness
+          </h3>
+          <ReadinessBlock
+            r={data.readiness}
+            fundName={data.goals.length > 0 ? data.goals[0].goal.name : null}
+          />
         </section>
       )}
 

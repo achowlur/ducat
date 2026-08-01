@@ -18,6 +18,13 @@ import { getSubscriptionStatuses, matchesSubscription } from "../health/subscrip
 import { computePace, isComparableBaseline, type Pace } from "../insights/pace";
 import { computeDigest, type DigestItem } from "../insights/digest";
 import { assessGoals, GOAL_RATE_MONTHS, parseGoals, SAVINGS_GOALS_KEY, type GoalAssessment } from "../insights/goals";
+import {
+  assessReadiness,
+  HOUSE_READINESS_KEY,
+  nonHousingSpending,
+  parseReadiness,
+  type ReadinessAssessment,
+} from "../insights/readiness";
 import { DEFAULT_RECURRING_OPTIONS } from "../insights/recurring";
 import { periodCoverage, type PeriodCoverage } from "../insights/coverage";
 import { periodEndExclusive, periodStart } from "../insights/periods";
@@ -79,6 +86,15 @@ export interface InsightsPageData {
    * now, and a projection under a historical heading would lie.
    */
   goals: GoalAssessment[];
+  /**
+   * House readiness: the PITI budget and the two price ceilings, computed
+   * from the declared config (`readiness.house`) against the first savings
+   * goal's fund. Null unless a config is declared AND a goal supplies the
+   * fund AND the period on screen is the one being lived in — the same
+   * opt-in-and-current gate as `goals`, because the means are measured from
+   * now and the fund is a live balance.
+   */
+  readiness: ReadinessAssessment | null;
   /**
    * True when the period on screen has no insight rows at all — only the
    * admitted current month can be in this state, since every other reachable
@@ -222,10 +238,11 @@ function toRow(
 }
 
 export async function getInsightsPageData(requestedPeriod?: string): Promise<InsightsPageData | null> {
-  const [insightRows, registered, goalSetting, accountRows, cashIds] = await Promise.all([
+  const [insightRows, registered, goalSetting, readinessSetting, accountRows, cashIds] = await Promise.all([
     prisma.insight.findMany(),
     getSubscriptionStatuses(prisma),
     prisma.setting.findUnique({ where: { key: SAVINGS_GOALS_KEY } }),
+    prisma.setting.findUnique({ where: { key: HOUSE_READINESS_KEY } }),
     // Balances for the goal funds. Unconditional rather than gated on the
     // setting existing: a gate costs about its own round trip anyway, and
     // this joins the concurrent group instead. `type` is here so a cash goal
@@ -433,6 +450,32 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
         })
       : [];
 
+  // House readiness: the residual form, built PER MONTH before averaging.
+  // Income comes from the same complete cash-flow months the goal rate uses;
+  // non-housing is that month's totalSpending minus its Rent & Housing row
+  // (nonHousingSpending — absent means $0 housing, a negative refund month
+  // pushes non-housing above the total, both correct arithmetic). A month
+  // with no spending row at all falls back to the cash-flow spending figure,
+  // which equals totalSpending by construction (both are the app's one net
+  // spending number), with housing unknown — i.e. $0, the same reading.
+  // The FUND is the FIRST declared goal's assessed balance — the model
+  // measures readiness of the declared plan, so no goal means no fund and no
+  // panel, exactly like no config.
+  const readinessConfig = parseReadiness(readinessSetting?.value ?? null);
+  let readiness: ReadinessAssessment | null = null;
+  if (viewingCurrentPeriod && readinessConfig !== null && goals.length > 0) {
+    const spendingByPeriod = new Map(spendingRows.map((r) => [r.period, r.payload]));
+    readiness = assessReadiness({
+      config: readinessConfig,
+      fund: goals[0].saved,
+      completeMonthlyIncome: completeCashFlow.map((r) => r.payload.income),
+      completeMonthlyNonHousing: completeCashFlow.map((r) => {
+        const s = spendingByPeriod.get(r.period);
+        return s === undefined ? r.payload.spending : nonHousingSpending(s);
+      }),
+    });
+  }
+
   return {
     period,
     periodLabel: monthLabel(period),
@@ -445,6 +488,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     coverage: shown !== null && !shown.complete ? shown : null,
     digest,
     goals,
+    readiness,
     emptyPeriod: inPeriod.length === 0,
   };
 }
