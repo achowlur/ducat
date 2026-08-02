@@ -40,6 +40,15 @@ describe("period selection admits and defaults to the month being lived in", () 
     expect(july).toEqual({ period: "2026-07", prevPeriod: "2026-06", nextPeriod: "2026-08" });
   });
 
+  it("keeps rows AHEAD of the lived-in month reachable without moving the default", () => {
+    // Clock skew or a future-dated import: the default still lands on the
+    // month being lived in, and the future rows wait one › away.
+    const skewOnly = selectPeriod(["2026-09"], undefined, AUG);
+    expect(skewOnly).toEqual({ period: "2026-08", prevPeriod: null, nextPeriod: "2026-09" });
+    const skewWithHistory = selectPeriod(["2026-07", "2026-09"], undefined, AUG);
+    expect(skewWithHistory).toEqual({ period: "2026-08", prevPeriod: "2026-07", nextPeriod: "2026-09" });
+  });
+
   it("returns null for a database with no insight rows at all — first run keeps its own page", () => {
     expect(selectPeriod([], "2026-08", AUG)).toBeNull();
     expect(selectPeriod([], undefined, AUG)).toBeNull();
