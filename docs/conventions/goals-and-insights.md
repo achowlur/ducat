@@ -163,3 +163,25 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   the helper used at declaration time — the two can legitimately differ if
   the config changes, and the readiness assumptions are the ones every
   other number on that panel already leans on.
+- The readiness RATE resolves typed-first (2026-08-02): resolveReadinessRate
+  fills an absent typed rate from the stored FRED observation, stamping asOf
+  with the OBSERVATION date — never fetchedAt, because the summary's as-of is
+  the staleness alarm and a fetch time would make a stalled series read
+  current. The stored config admits the rate pair wholly absent but never
+  halved or out-of-range: a mangled typed rate is corruption and parses to
+  null rather than silently falling through to the index. Rate-absence is
+  entered ONLY through set-readiness's --fetched-rate flag — a first
+  declaration that merely forgot --rate is refused, not opted in. With no
+  typed rate and no stored observation the resolver returns null and the
+  panel does not render, which is byte-for-byte the pre-fetcher behavior; the
+  typed path returns the stored config verbatim, pinned by a test asserting
+  toEqual on the book config, so an instance that never sets FRED_API_KEY
+  cannot be changed by this feature at all. When the fetched rate IS
+  operative the disclosure summary names the source and series ("rate (FRED
+  OBMMIC30YF)") beside the observation date — and the FUND-limited ceiling
+  does not move at all with the rate (verified to the cent across the
+  swap), which is the design's own claim that a live rate refines only the
+  non-binding side.
+- Since 2026-08-02 the period selector also DEFAULTS to the lived-in month
+  (evidence in ui-and-pages.md), so the goals and readiness panels are what
+  bare /insights opens on — the gating itself is unchanged.

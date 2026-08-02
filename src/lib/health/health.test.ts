@@ -3,6 +3,7 @@ import {
   deriveFredRateStatus,
   findGappedAccounts,
   findStaleAccounts,
+  getProviderHealth,
   isExpectedFeedNotice,
   DEFAULT_HEALTH_OPTIONS,
   RATE_STALE_DAYS,
@@ -62,6 +63,20 @@ describe('deriveFredRateStatus — the rate feed judged by its stored observatio
     );
     expect(s?.status).toBe('WARN');
     expect(s?.reasons).toEqual(['Last rate fetch failed: timed out', 'No rate observation stored yet']);
+  });
+
+  it("skips the Setting read entirely under scope: 'accounts' — Overview's round trip stays saved", async () => {
+    const prisma = {
+      setting: {
+        findUnique: () => {
+          throw new Error('the FRED Setting must not be read at accounts scope');
+        },
+      },
+      account: { findMany: async () => [] },
+      syncLog: { findFirst: async () => null },
+    } as unknown as Parameters<typeof getProviderHealth>[0];
+    const result = await getProviderHealth(prisma, { ...DEFAULT_HEALTH_OPTIONS, scope: 'accounts' }, NOW);
+    expect(result).toEqual([]);
   });
 });
 

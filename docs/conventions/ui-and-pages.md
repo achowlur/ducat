@@ -127,11 +127,70 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   pace, commitments and goals on exactly the day the forward-looking ones
   answer the most — none of which needs a row FROM the month (commitments
   read detected/registered subscriptions, goals read balances plus PRIOR
-  months' cash flow). The DEFAULT stays the latest month WITH rows: the
-  empty month is a step through `›`, not where the page opens. On it the
+  months' cash flow). The DEFAULT stayed the latest month WITH rows at
+  first — the empty month was a step through `›`, not where the page
+  opened — REVERSED 2026-08-02, next bullet. On the empty month the
   digest's quiet line says "nothing recorded yet", NOT "nothing needs your
   attention" — the second is a claim the engine LOOKED, and all clear cannot
   be told from not checked. One `now` drives both the admission and the
   current-period gate, or a render straddling UTC midnight admits one month
   and gates another — the two separate `new Date()` calls were a real latent
   bug found during this fix (2026-08-01).
+- The /insights DEFAULT was reversed on 2026-08-02: the page now opens on
+  the month being lived in, not the latest month with rows. When the
+  admission rule shipped (2026-08-01), the default deliberately stayed on
+  the latest month WITH rows, because the rowless current month held exactly
+  one quiet line — landing there would have opened the page on nothing. That
+  premise has expired: goals, the reconciliation line, house readiness, the
+  pace call and the commitments window have since made the current month the
+  page's RICHEST view, and every one of those panels is gated to exactly
+  that month — so the old default hid the page's best content every
+  month-start, on precisely the days the forward-looking panels answer the
+  most ("due in the next 30 days" peaks in value on day 1). Verified on real
+  data 2026-08-02: bare /insights on an August with zero rows renders
+  commitments, a goal with its projection and reconciliation, and the full
+  readiness band — against the one "nothing recorded yet" line the old
+  default was protecting the reader from. Prior months stay one `‹` away,
+  their full historical view intact. The admission clause is untouched: only
+  the lived-in month is admitted rowless, every other rowless period still
+  clamps (now to the lived-in default), and one `now` drives admission and
+  every current-period gate in a single render. The clock-skew case is
+  test-pinned: rows AHEAD of the lived-in month stay reachable through `›`
+  without moving the default.
+- Overview's net-worth headline is LIVE — the plain signed sum of current
+  account balances, the sign convention's own definition — and carries no
+  month label, because the old headline was the two-totals bug class on the
+  front page: it printed the latest NET_WORTH_GROWTH row's figure (July's,
+  all August long) directly above today's account table, two instants
+  presented as one state, coinciding on the 1st and drifting apart with
+  every sync. The month-over-month delta and the market-movement line
+  survive as CONTEXT, explicitly labeled ("July 2026: ▼ 2.36% ·
+  −$18,935.72 of July's change was investment market movement (not
+  income)"), read from the latest COMPLETE month's row — strictly before
+  the lived-in month even when a partial-month row exists, because a
+  partial month's growth figure drifts all month and the context's job is
+  to be a settled fact under a live headline. No row means the context
+  lines are absent and the live headline stands alone (the empty-series
+  rule); the market-movement line itself is verified load-bearing — it was
+  RELABELED with its month, never removed. The estimated-balances note
+  moved into the context and is scoped to the context's month: it
+  qualifies that month's insight figures, not the live sum, which is read
+  straight from the accounts and reconstructs nothing.
+- Overview's spending block shows the month being LIVED IN, never a past
+  month — the donut's hole says "this month", and in August it captioned
+  July's ring, the same lie in miniature. The block renders in the empty
+  state: "Nothing recorded for <month> yet — spending appears with the
+  month's first sync" (a coverage claim, deliberately not "nothing needs
+  attention" — the engine has not looked at a month no sync has reached),
+  with the latest complete month one quiet link away ("July: $11,060.02 →"
+  into /trends for that period). Both printed figures come through
+  spendingBreakdown, the single source of every printed total, so no
+  second summation exists. The "full breakdown →" link renders only when
+  the lived-in month has a row, because /trends silently clamps a period
+  it has no row for, and a link that lands somewhere it did not name is
+  worse than no link. A month whose reimbursements outran its spending
+  prints the net figure rather than a false "no spending". ONE `now` (UTC,
+  via periodKey) drives the page's current month, the runway's
+  complete-month cut and the context's completeness boundary — the runway
+  previously derived its own from a second `new Date()`, the same latent
+  straddle-midnight split /insights had already paid for.

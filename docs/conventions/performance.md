@@ -99,3 +99,25 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   transactions cost 4.1s instead of 0.15s. Both caches are safe because their
   keys are immutable and both statistics sort, so order in a bucket is
   irrelevant.
+- Reimbursement candidates travel ON OPEN (2026-08-02). The backlog's
+  "/transactions is 10× slower" entry resolved in two unequal halves. The
+  compute half (candidatePool.map inside candidatesFor) was already dead —
+  the 2026-07-27 commit “Stop joining categories into the reimbursement pool” hoisted it, and the hot path measures 2.5 ms. The serialization
+  half was the live bug: on a production build against 2,677 rows,
+  ?flow=INFLOW embedded 1047 candidate objects for 99 pickers nobody had
+  opened. Candidates now arrive via the suggestCandidates server action
+  (3 statements, paid only on open) and a row ships only its strong-match
+  hint: 446→375 KB (−16%), zero embedded candidates, loads still 9
+  statements, DOM unchanged at ~1,735 — proof again that the payload, not
+  the element count, was carrying the weight. The identity guarantee is
+  structural, not hopeful: page and action project through
+  makeCandidateFinder, and the action's narrow window returns exactly what
+  the page's shared pool returns because suggestReimbursements HARD-EXCLUDES
+  candidates outside [inflow − 45d, +3d] before amount evidence can rank
+  them, and filtering preserves order — reimburseCandidates.test.ts pins the
+  equivalence, order and wording, and an adversarial replay against every
+  unlinked inflow measured 214/214 byte-identical. Two bounds the identity
+  carries, added by that review: it holds only while a page's pool span
+  stays under REIMBURSE_POOL_TAKE (2000; largest observed 281), and both
+  pool queries order date desc THEN id desc so same-date SQL ties cannot
+  resolve differently between the wide and narrow forms.

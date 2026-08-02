@@ -95,7 +95,13 @@ after decision 1 is implemented.
 Five items raised after the cloud deploy, with what investigating them already
 turned up so it isn't rediscovered:
 
-- **`/transactions` is 10× slower than every other page** — 0.87s against a
+- **`/transactions` is 10× slower than every other page** — RESOLVED
+  2026-08-02, in two unequal halves (evidence in
+  docs/conventions/performance.md): the compute half below was already dead
+  (the 2026-07-27 commit “Stop joining categories into the reimbursement pool” had hoisted the projection; the hot path measures 2.5 ms), and
+  the live bug was SERIALIZATION — 1047 candidate objects embedded for 99
+  pickers nobody opened; candidates now travel on open. Original diagnosis
+  kept below. — 0.87s against a
   local FILE database, where `/`, `/trends`, `/insights`, `/accounts` and
   `/providers` are all 0.06–0.09s. Cause located: in `transactions/page.tsx`
   the `candidatePool.map(...)` sits INSIDE `candidatesFor`, which is called per
@@ -281,8 +287,9 @@ turned up so it isn't rediscovered:
   the readiness.house Setting (npm run readiness), panel below savings goals,
   gated like them; the worked example is pinned by tests within $5.18k of every
   book number and the build/review deltas are recorded in
-  docs/conventions/goals-and-insights.md. The rate stays typed; the FRED
-  fetcher remains the opt-in follow-on. The design below is kept because it
+  docs/conventions/goals-and-insights.md. The rate stays typed by default;
+  the FRED fetcher SHIPPED 2026-08-02 — opt-in via FRED_API_KEY, evidence
+  in docs/conventions/sync-and-data-ops.md. The design below is kept because it
   constrains changes. Answers "am I
   close enough to start looking?" — a READINESS signal, explicitly NOT lender
   math: whether underwriting would approve is a question the model

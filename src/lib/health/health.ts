@@ -21,6 +21,12 @@ export interface HealthOptions {
   gapMinTypicalPerMonth: number;
   /** Recent volume below this fraction of typical flags a gap. */
   gapThresholdRatio: number;
+  /**
+   * 'accounts' skips feed-style providers (FRED) and their Setting read.
+   * Overview consumes only per-account staleness, and on Turso the extra
+   * round trip is the cost, so it must not pay for a card it never renders.
+   */
+  scope?: "all" | "accounts";
 }
 
 export const DEFAULT_HEALTH_OPTIONS: HealthOptions = {
@@ -243,6 +249,7 @@ export async function getProviderHealth(
 
   for (const connectorType of connectorTypes) {
     if (connectorType === 'FRED') {
+      if (options.scope === 'accounts') continue;
       const row = await prisma.setting.findUnique({ where: { key: MORTGAGE_RATE_KEY } });
       const stored = parseMortgageRate(row?.value ?? null);
       const derived = deriveFredRateStatus(stored, now);

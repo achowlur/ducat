@@ -12,7 +12,7 @@
  */
 import type { NetWorthGrowthPayload, SpendingByCategoryPayload } from "../../types/contracts";
 import { prisma } from "../prisma";
-import { getProviderHealth } from "../health/health";
+import { DEFAULT_HEALTH_OPTIONS, getProviderHealth } from "../health/health";
 import { pendingPackRules } from "../sync/rulePack";
 import type { ProviderHealth } from "../health/types";
 import {
@@ -144,7 +144,9 @@ export async function getOverviewData(): Promise<OverviewData> {
         where: { categoryId: null, flow: { not: "TRANSFER" }, reimbursesId: null },
       }),
       prisma.syncLog.findFirst({ where: { ok: true }, orderBy: { finishedAt: "desc" } }),
-      getProviderHealth(prisma),
+      // Overview reads only per-account staleness from this — 'accounts'
+      // skips the FRED card's Setting read, a round trip it never renders.
+      getProviderHealth(prisma, { ...DEFAULT_HEALTH_OPTIONS, scope: "accounts" }),
       readCashAccountIds(prisma),
       pendingPackRules(prisma),
     ]);

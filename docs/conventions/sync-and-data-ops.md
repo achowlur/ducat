@@ -194,6 +194,40 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   last week — locks and daily granularity are Optimal Blue's); verify
   series IDs at build time; and even fetched, a typed personal quote OVERRIDES
   the index — a national average is nobody's actual rate.
+- BUILT 2026-08-02 (wave1/fred-rate): the FRED fetcher is that paragraph made
+  code, and the series was verified on the page the day it was hardcoded, not
+  from memory. OBMMIC30YF is "30-Year Fixed Rate Conforming Mortgage Index" —
+  Optimal Blue, DAILY, percent, computed from actual locked rates, observed
+  2026-07-30 = 6.651 with "Updated: Jul 31 7:04 AM CDT" — while MORTGAGE30US
+  (Freddie Mac PMMS) read 6.66 for the same date but is "Weekly, Ending
+  Thursday" and application-based since 2022-11-17, which is why the daily
+  lock series won. Three shapes worth keeping: FRED sends values as STRINGS
+  with "." for a day without a release, so the fetch asks for the newest 8
+  (sort_order=desc) and takes the first that parses in (0, 30] — a holiday
+  weekend of placeholders is data, not an error. The Setting (rates.mortgage)
+  stores the last observation AND the last failure side by side, because a
+  failed fetch must never cost the observation that still stands, and the
+  stored failure is what lets /providers say why the number stopped moving.
+  And FRED is a ProviderId, deliberately NOT a ConnectorType: it owes a trust
+  card and health, but widening ConnectorType would let a rates feed
+  masquerade as a transaction source everywhere Account.connectorType is
+  read. Health is the stored observation itself — RATE_STALE_DAYS: 7 on the
+  OBSERVATION date (daily series, one-business-day publication lag, so a long
+  holiday weekend legitimately reads 4-5 days old), the same reasoning as
+  staleBalanceDays: 5 one notch looser. Error strings are built from our own
+  text only: the request URL carries the API key, so no failure path may echo
+  the URL into anything stored or logged — probed adversarially with a marker
+  key through undici cause-chains, malformed bodies and keyed error bodies,
+  zero leaks. Two facts the adversarial review added: the /providers card
+  renders even BEFORE the key is set ("Not set up yet" plus the full trust
+  card) — that is the page's own readable-before-connecting doctrine, wanted,
+  so an operator reads the deal before opting in, and Overview passes
+  scope: 'accounts' to getProviderHealth so the card's Setting read costs it
+  no Turso round trip; and the fetch rides EVERY sync invocation, so a
+  multi-file CSV import fetches once per file — one GET per invocation was
+  accepted rather than plumbing a batch flag nothing else needed. The trust
+  banner's local-mode sentence now names both outbound calls; keep it in step
+  with any future fetcher.
 - INVESTMENT accounts are EXEMPT from transaction-gap detection
   (`GAP_EXEMPT_TYPES` in `health/health.ts`). Their rows are overwhelmingly
   DIVIDEND RECEIVED, which arrive in quarter-end clusters, so volume is not a

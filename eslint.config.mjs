@@ -18,6 +18,9 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // Claude Code session state — git worktrees under here carry their own
+      // .next output, which lint must never walk from this checkout.
+      ".claude/**",
     ],
   },
 ];

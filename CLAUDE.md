@@ -31,10 +31,13 @@ Mode-scoped (`DATABASE_URL` scheme selects the mode):
 - Server binding: LOCAL (`file:` URL) binds ONLY to 127.0.0.1 (package.json
   scripts + the middleware host-allowlist). CLOUD (`libsql://` URL) runs on the
   platform host and MUST have the auth gate configured — it fails closed.
-- Data locality: LOCAL — transaction data never leaves the machine (the only
-  outbound call is the SimpleFIN feed). CLOUD — data lives with the operator's
-  OWN Turso + Vercel (single-tenant, self-hosted); no third party custodies it
-  as a shared service. Opt-in trade-off documented in DEPLOY.md; E2E is deferred.
+- Data locality: LOCAL — transaction data never leaves the machine. Outbound
+  calls: the SimpleFIN feed, plus — ONLY when FRED_API_KEY is set — one FRED
+  rates GET per sync carrying the key and a series id, never financial data
+  (amended 2026-08-02; trust card on /providers). CLOUD — data lives with the
+  operator's OWN Turso + Vercel (single-tenant, self-hosted); no third party
+  custodies it as a shared service. Opt-in trade-off documented in DEPLOY.md;
+  E2E is deferred.
 
 ## Architecture
 
@@ -193,6 +196,13 @@ regeneration.
   store-then-render, gate on an env var that fails closed, key via env, and
   carry a trust card — and the data-locality invariant gets amended
   deliberately, in writing.
+- The FRED rate fetcher is that rule's first instance: rides the sync just
+  BEFORE insight regeneration (and skips when insights skip), fails closed
+  on a missing FRED_API_KEY (zero calls, zero writes), and NEVER fails the
+  sync — failures land in rates.mortgage beside the surviving last
+  observation; health reads only the stored observation's age
+  (RATE_STALE_DAYS: 7); Overview calls getProviderHealth at scope:
+  'accounts' so the card costs it no round trip.
 - INVESTMENT accounts are exempt from transaction-gap detection; balance
   staleness covers them.
 
@@ -229,6 +239,11 @@ regeneration.
   date visible (a hidden rate must never read current forever), and NO
   default rate lives in code — absent `readiness.house` config, or no
   declared goal to be the fund, means no panel.
+- The readiness rate resolves TYPED-FIRST: a typed rate always overrides
+  the fetched index; rate-absence is entered only via --fetched-rate; an
+  operative fetched rate names FRED and its series in the ASSUMED summary
+  and dates itself by the OBSERVATION date; no typed rate + no stored
+  observation = no panel, no invented rate.
 
 ## Rules — UI & pages → docs/conventions/ui-and-pages.md
 
@@ -239,10 +254,19 @@ regeneration.
 - /transactions PAGINATES — capping without paging is a data-visibility
   bug this repo shipped twice; every filter-changing link resets page.
 - /insights admits the month being LIVED IN before it has rows — and ONLY
-  that month; the DEFAULT stays the latest month with rows. The empty month
-  says "nothing recorded yet", never "nothing needs your attention" — all
-  clear cannot be told from not checked. ONE `now` drives both admission and
-  the current-period gate, or a render straddling UTC midnight splits them.
+  that month — and since 2026-08-02 DEFAULTS to it: every current-gated
+  panel (goals, readiness, pace, commitments) lives there, so opening on
+  the latest month with rows hid the page's best content every month-start.
+  Prior months stay one ‹ away. The empty month says "nothing recorded
+  yet", never "nothing needs your attention" — all clear cannot be told
+  from not checked. ONE `now` drives both admission and the current-period
+  gate, or a render straddling UTC midnight splits them.
+- Overview's net-worth HEADLINE is LIVE (the signed sum of account
+  balances) and carries NO month label; the MoM delta and market-movement
+  lines are context from the latest COMPLETE month's NET_WORTH_GROWTH row
+  and carry that month's name, surviving its absence. The spending block
+  shows the month being LIVED IN; empty says "nothing recorded yet" plus a
+  quiet prior-month link, and every printed total is spendingBreakdown's.
 - The ledger's category control is ONE picker in a PORTAL; drive the real
   page after any change to it — its four bugs were invisible in source.
   GroupedReview keeps its <select> deliberately.
@@ -274,6 +298,10 @@ regeneration.
 - MEASURE TIME ON THE CLOUD, structure on localhost — preview_start prod,
   never npm run dev, for any measurement.
 - Page cost is DOM SIZE (parse + hydration), not bytes on the wire.
+- Reimbursement candidates travel ON OPEN (suggestCandidates), never
+  serialized per ledger row; the collapsed hint and the opened list share
+  ONE projection path (makeCandidateFinder) — its wide-pool/narrow-pool
+  equivalence is pinned by test and holds under REIMBURSE_POOL_TAKE.
 - Analyzer cost is BUCKETING: period bounds memoized, per-period buckets
   computed once — generateInsights runs synchronously inside server actions.
 
