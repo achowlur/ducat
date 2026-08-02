@@ -1,36 +1,33 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { linkReimbursement, unlinkReimbursement } from "../app/transactions/actions";
-
-export interface ReimburseCandidate {
-  id: string;
-  label: string; // merchant/description
-  date: string; // ISO date
-  amount: number; // positive magnitude
-  category: string | null;
-  /** Why it was suggested: "exact amount", "1/3 of $90.00". */
-  reason: string;
-  /** Amount evidence is strong (exact or a clean split), not just proximity. */
-  strong: boolean;
-}
+import { linkReimbursement, suggestCandidates, unlinkReimbursement } from "../app/transactions/actions";
+import type { ReimburseCandidate } from "../lib/ui/reimburseCandidates";
 
 /**
  * Ties an inflow to the outflow it pays back. Collapsed: a "link" button, with
  * a dot when a strong match is waiting. Expanded: candidates ranked by amount
  * evidence first (see suggestReimbursements), each showing why it matched.
  * Linked: a chip naming the original, with unlink.
+ *
+ * The candidate LIST is fetched when the picker opens (`suggestCandidates`),
+ * not serialized into every row — a ledger page was carrying 400+ candidate
+ * objects in its HTML for pickers nobody opened. The collapsed state needs
+ * only `strongHint`, which the page still computes per row.
  */
 export function ReimburseControl({
   inflowId,
   linked,
-  candidates,
+  strongHint,
 }: {
   inflowId: string;
   linked: { label: string; date: string } | null;
-  candidates: ReimburseCandidate[];
+  /** The best strong candidate, for the collapsed button's dot and tooltip. */
+  strongHint: { label: string; reason: string } | null;
 }) {
   const [open, setOpen] = useState(false);
+  // null = not fetched yet (the picker shows a quiet loading line).
+  const [candidates, setCandidates] = useState<ReimburseCandidate[] | null>(null);
   const [pending, startTransition] = useTransition();
 
   if (linked !== null) {
@@ -50,22 +47,30 @@ export function ReimburseControl({
   }
 
   if (!open) {
-    const best = candidates.find((c) => c.strong);
     return (
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true);
+          // Refetched on every open: the pool can change between renders
+          // (a link elsewhere, a sync), and stale suggestions are worse
+          // than a beat of loading.
+          setCandidates(null);
+          startTransition(async () => {
+            setCandidates(await suggestCandidates(inflowId));
+          });
+        }}
         className={`rounded-[2px] border px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] ${
-          best === undefined
+          strongHint === null
             ? "border-rule text-faint hover:border-acc hover:text-acc"
             : "border-acc text-acc hover:bg-chip"
         }`}
         title={
-          best === undefined
+          strongHint === null
             ? "This money pays back an expense — link it so spending nets correctly"
-            : `Likely pays back ${best.label} (${best.reason})`
+            : `Likely pays back ${strongHint.label} (${strongHint.reason})`
         }
       >
-        link{best === undefined ? "" : " •"}
+        link{strongHint === null ? "" : " •"}
       </button>
     );
   }
@@ -76,10 +81,13 @@ export function ReimburseControl({
         <span className="mb-1 block text-[0.65rem] uppercase tracking-[0.08em] text-faint">
           Pays back which expense?
         </span>
-        {candidates.length === 0 && (
+        {candidates === null && (
+          <span className="block py-1 text-[0.75rem] text-faint">Looking for nearby outflows…</span>
+        )}
+        {candidates !== null && candidates.length === 0 && (
           <span className="block py-1 text-[0.75rem] text-faint">No nearby outflows found.</span>
         )}
-        {candidates.map((c) => (
+        {(candidates ?? []).map((c) => (
           <button
             key={c.id}
             disabled={pending}

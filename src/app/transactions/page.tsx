@@ -6,7 +6,12 @@ import { ReimburseControl } from "../../components/ReimburseControl";
 import { draftSubscription } from "../../lib/health/registerSubscription";
 import { prisma } from "../../lib/prisma";
 import { periodEndExclusive, periodStart } from "../../lib/insights/periods";
-import { suggestReimbursements } from "../../lib/insights/suggestReimbursements";
+import {
+  makeCandidateFinder,
+  REIMBURSE_LEAD_DAYS,
+  REIMBURSE_POOL_TAKE,
+  REIMBURSE_WINDOW_DAYS,
+} from "../../lib/ui/reimburseCandidates";
 import { groupByPayee } from "../../lib/sync/grouping";
 import { P2P_PATTERN } from "../../lib/sync/rulePack";
 import { amount, isoDate, money, monthLabel, titleCase } from "../../lib/ui/format";
@@ -43,22 +48,6 @@ function buildHref(params: Params, overrides: Partial<Params>): string {
   const qs = search.toString();
   return qs === "" ? "/transactions" : `/transactions?${qs}`;
 }
-
-/**
- * Expenses nobody splits with the friend who Venmo'd them. Without this the
- * reimbursement ranker will happily offer "1/6 of your $6,300.49 tax payment",
- * because the arithmetic works. Uncategorized outflows stay splittable — a
- * shared dinner often hasn't been categorized yet.
- */
-const UNSPLITTABLE = new Set([
-  "Rent & Housing",
-  "Taxes",
-  "Fees & Charges",
-  "Utilities",
-  "Subscriptions",
-  "Health",
-  "Cash & ATM",
-]);
 
 const FLOW_BADGE: Record<string, string> = {
   INFLOW: "text-pos",
@@ -217,9 +206,14 @@ export default async function TransactionsPage({
   // evidence (exact repayment, or a clean 1/n share of a split) leads, with
   // date proximity breaking ties — sorting by date alone puts last night's rent
   // payment above the dinner a $116.63 Zelle actually pays back.
+  //
+  // The page ranks every inflow but SERIALIZES only the strong-match hint the
+  // collapsed button renders; the full list is fetched when a picker opens
+  // (`suggestCandidates` in actions.ts), through the same finder, so what
+  // opens is what would have been embedded. A page of this ledger was
+  // carrying 400+ candidate objects in its HTML for pickers nobody opened.
   const inflowDates = rows.filter((t) => t.flow === "INFLOW").map((t) => t.date.getTime());
   const DAY_MS = 86_400_000;
-  const WINDOW_DAYS = 45;
   const candidatePool =
     inflowDates.length === 0
       ? []
@@ -227,8 +221,8 @@ export default async function TransactionsPage({
           where: {
             flow: "OUTFLOW",
             date: {
-              gte: new Date(Math.min(...inflowDates) - WINDOW_DAYS * DAY_MS),
-              lte: new Date(Math.max(...inflowDates) + 3 * DAY_MS),
+              gte: new Date(Math.min(...inflowDates) - REIMBURSE_WINDOW_DAYS * DAY_MS),
+              lte: new Date(Math.max(...inflowDates) + REIMBURSE_LEAD_DAYS * DAY_MS),
             },
           },
           // Scalars only. This is the one query that cannot join the
@@ -246,35 +240,19 @@ export default async function TransactionsPage({
             description: true,
           },
           orderBy: { date: "desc" },
-          take: 2000,
+          take: REIMBURSE_POOL_TAKE,
         });
   const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
-  const poolCategory = (categoryId: string | null): string | null =>
-    categoryId === null ? null : (categoryNameById.get(categoryId) ?? null);
-  const poolById = new Map(candidatePool.map((o) => [o.id, o]));
-  // Identical for every inflow, so it is built once rather than per row.
-  const rankable = candidatePool.map((o) => ({
-    id: o.id,
-    amount: Number(o.amount),
-    date: o.date,
-    splittable: !UNSPLITTABLE.has(poolCategory(o.categoryId) ?? ""),
-  }));
-  const candidatesFor = (inflow: { date: Date; amount: unknown }) =>
-    suggestReimbursements({ amount: Number(inflow.amount), date: inflow.date }, rankable, {
-      windowDays: WINDOW_DAYS,
-    }).flatMap((s) => {
-      const o = poolById.get(s.id);
-      if (o === undefined) return [];
-      return [{
-        id: o.id,
-        label: titleCase(o.normalizedMerchant !== "" ? o.normalizedMerchant : o.description.toLowerCase()),
-        date: isoDate(o.date),
-        amount: Math.abs(Number(o.amount)),
-        category: poolCategory(o.categoryId),
-        reason: s.reason,
-        strong: s.strong,
-      }];
-    });
+  const candidatesFor = makeCandidateFinder(
+    candidatePool.map((o) => ({ ...o, amount: Number(o.amount) })),
+    (categoryId) => (categoryId === null ? null : (categoryNameById.get(categoryId) ?? null)),
+  );
+  // The collapsed control's dot and tooltip: the FIRST strong candidate in
+  // ranked order, or nothing. This is all an unopened row ships.
+  const strongHintFor = (inflow: { date: Date; amount: unknown }) => {
+    const best = candidatesFor({ amount: Number(inflow.amount), date: inflow.date }).find((c) => c.strong);
+    return best === undefined ? null : { label: best.label, reason: best.reason };
+  };
 
   // The only half of "needs review" that SQL cannot express, kept separate so
   // the pool query — which already constrains category and reimbursement in
@@ -578,7 +556,7 @@ export default async function TransactionsPage({
                         ),
                         date: isoDate(t.reimburses.date),
                       }}
-                      candidates={[]}
+                      strongHint={null}
                     />
                   ) : (
                     <span className="inline-flex items-center gap-1.5">
@@ -603,7 +581,7 @@ export default async function TransactionsPage({
                         );
                       })()}
                       {t.flow === "INFLOW" && (
-                        <ReimburseControl inflowId={t.id} linked={null} candidates={candidatesFor(t)} />
+                        <ReimburseControl inflowId={t.id} linked={null} strongHint={strongHintFor(t)} />
                       )}
                     </span>
                   )}

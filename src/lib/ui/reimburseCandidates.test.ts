@@ -1,0 +1,129 @@
+import { describe, expect, it } from 'vitest';
+import {
+  makeCandidateFinder,
+  REIMBURSE_LEAD_DAYS,
+  REIMBURSE_WINDOW_DAYS,
+  type PoolOutflow,
+} from './reimburseCandidates';
+
+const DAY_MS = 86_400_000;
+const day = (d: number) => new Date(Date.UTC(2026, 6, d, 12));
+
+const out = (
+  id: string,
+  amount: number,
+  d: number,
+  extra: Partial<PoolOutflow> = {},
+): PoolOutflow => ({
+  id,
+  amount: -amount,
+  date: day(d),
+  categoryId: null,
+  normalizedMerchant: `merchant ${id}`,
+  description: `DESC ${id.toUpperCase()}`,
+  ...extra,
+});
+
+const CATEGORY_NAMES: Record<string, string> = { dining: 'Dining', rent: 'Rent & Housing' };
+const categoryName = (categoryId: string | null): string | null =>
+  categoryId === null ? null : (CATEGORY_NAMES[categoryId] ?? null);
+
+describe('makeCandidateFinder', () => {
+  // Pins the full projection — candidates, ORDER, and wording — because this
+  // exact output now reaches the picker by two routes (embedded hint on the
+  // page, suggestCandidates on open) and both must keep producing it.
+  it('projects ranked candidates with labels, categories and evidence wording, in order', () => {
+    const finder = makeCandidateFinder(
+      [
+        out('rent', 2000, 19, { categoryId: 'rent' }),
+        out('dinner', 90, 17, { categoryId: 'dining' }),
+        out('groceries', 30.01, 18),
+      ],
+      categoryName,
+    );
+    const candidates = finder({ amount: 30, date: day(20) });
+    expect(candidates).toEqual([
+      {
+        id: 'dinner',
+        label: 'Merchant Dinner',
+        date: '2026-07-17',
+        amount: 90,
+        category: 'Dining',
+        reason: '1/3 of $90.00',
+        strong: true,
+      },
+      // Rent survives as weak "part of" evidence only: UNSPLITTABLE denies it
+      // split arithmetic, so a clean 1/n of the rent is never claimed. It
+      // sorts above groceries by date proximity — both carry the same weak
+      // amount score, and rent is a day nearer.
+      {
+        id: 'rent',
+        label: 'Merchant Rent',
+        date: '2026-07-19',
+        amount: 2000,
+        category: 'Rent & Housing',
+        reason: 'part of $2000.00',
+        strong: false,
+      },
+      {
+        id: 'groceries',
+        label: 'Merchant Groceries',
+        date: '2026-07-18',
+        amount: 30.01,
+        category: null,
+        reason: 'part of $30.01',
+        strong: false,
+      },
+    ]);
+  });
+
+  it('falls back to the description for a merchantless outflow', () => {
+    const finder = makeCandidateFinder(
+      [out('x', 45, 18, { normalizedMerchant: '' })],
+      categoryName,
+    );
+    expect(finder({ amount: 45, date: day(20) })[0].label).toBe('Desc X');
+  });
+
+  it('denies split evidence to UNSPLITTABLE categories but allows repayment in full', () => {
+    const finder = makeCandidateFinder([out('rent', 1750, 18, { categoryId: 'rent' })], categoryName);
+    const [full] = finder({ amount: 1750, date: day(20) });
+    expect(full).toMatchObject({ reason: 'exact amount', strong: true });
+    const [part] = finder({ amount: 875, date: day(20) });
+    expect(part).toMatchObject({ reason: 'part of $1750.00', strong: false });
+  });
+
+  // The property the lazy picker depends on: the page ranks against ONE pool
+  // spanning every inflow on the page, while the on-open action fetches only
+  // the opened inflow's window. The ranker zeroes date evidence outside the
+  // window and filtering preserves order, so both pools must produce the
+  // IDENTICAL list for the same inflow.
+  it('returns identical candidates from the page-wide pool and the per-inflow window pool', () => {
+    // Two inflows three weeks apart make the page pool span ~66 days.
+    const inflows = [
+      { amount: 45, date: day(24) },
+      { amount: 30, date: day(3) },
+    ];
+    const widePool = [
+      out('a', 45, 23),
+      out('b', 90, 20, { categoryId: 'dining' }),
+      out('c', 2000, 19, { categoryId: 'rent' }),
+      out('d', 45, 2),
+      out('e', 60, 1),
+      out('f', 45, -25), // June 5 — outside inflow 1's 45-day window, inside inflow 2's
+      out('g', 120, 26), // after inflow 1 but within its 3-day lead
+    ];
+    for (const inflow of inflows) {
+      const narrowPool = widePool.filter(
+        (o) =>
+          o.date.getTime() >= inflow.date.getTime() - REIMBURSE_WINDOW_DAYS * DAY_MS &&
+          o.date.getTime() <= inflow.date.getTime() + REIMBURSE_LEAD_DAYS * DAY_MS,
+      );
+      expect(narrowPool.length).toBeLessThan(widePool.length); // the test bites
+      const fromWide = makeCandidateFinder(widePool, categoryName)(inflow);
+      const fromNarrow = makeCandidateFinder(narrowPool, categoryName)(inflow);
+      expect(fromWide.length).toBeGreaterThan(0);
+      expect(fromNarrow).toEqual(fromWide);
+    }
+  });
+});

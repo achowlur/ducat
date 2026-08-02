@@ -8,6 +8,13 @@ import { reapplyRules, type GroupUndo } from "../../lib/sync/rulePack";
 import { requireSession } from "../../lib/auth/requireSession";
 import { TRANSFER_TARGET } from "../../lib/sync/grouping";
 import { draftSubscription } from "../../lib/health/registerSubscription";
+import {
+  makeCandidateFinder,
+  REIMBURSE_LEAD_DAYS,
+  REIMBURSE_POOL_TAKE,
+  REIMBURSE_WINDOW_DAYS,
+  type ReimburseCandidate,
+} from "../../lib/ui/reimburseCandidates";
 import type { RecurringCadence } from "../../types/contracts";
 
 /** Guarded because a server action's arguments arrive from the client. */
@@ -184,6 +191,55 @@ export async function categorizeGroup(
   return target === TRANSFER_TARGET
     ? upsertRule(value, matchField, null, "TRANSFER")
     : upsertRule(value, matchField, target);
+}
+
+/**
+ * The reimbursement picker's candidate list, computed when it OPENS rather
+ * than serialized into every inflow row of the ledger. The page still ranks
+ * every inflow at render (the collapsed button's strong-match dot needs it)
+ * but ships only that one hint; this action rebuilds the full list for the
+ * one inflow whose picker was actually opened. `makeCandidateFinder` is the
+ * single projection path for both, so the list this returns is exactly the
+ * list the page used to embed — same candidates, same order, same wording
+ * (pinned by reimburseCandidates.test.ts).
+ */
+export async function suggestCandidates(inflowId: string): Promise<ReimburseCandidate[]> {
+  await requireSession();
+  const inflow = await prisma.transaction.findUniqueOrThrow({
+    where: { id: inflowId },
+    select: { flow: true, amount: true, date: true },
+  });
+  if (inflow.flow !== "INFLOW") return [];
+  const DAY_MS = 86_400_000;
+  const pool = await prisma.transaction.findMany({
+    where: {
+      flow: "OUTFLOW",
+      // Exactly the window suggestReimbursements scores non-zero for this
+      // inflow, so narrowing the page's shared pool to one inflow cannot
+      // change what it returns.
+      date: {
+        gte: new Date(inflow.date.getTime() - REIMBURSE_WINDOW_DAYS * DAY_MS),
+        lte: new Date(inflow.date.getTime() + REIMBURSE_LEAD_DAYS * DAY_MS),
+      },
+    },
+    select: {
+      id: true,
+      amount: true,
+      date: true,
+      categoryId: true,
+      normalizedMerchant: true,
+      description: true,
+    },
+    orderBy: { date: "desc" },
+    take: REIMBURSE_POOL_TAKE,
+  });
+  const categories = await prisma.category.findMany({ select: { id: true, name: true } });
+  const nameById = new Map(categories.map((c) => [c.id, c.name]));
+  const finder = makeCandidateFinder(
+    pool.map((o) => ({ ...o, amount: Number(o.amount) })),
+    (id) => (id === null ? null : (nameById.get(id) ?? null)),
+  );
+  return finder({ amount: Number(inflow.amount), date: inflow.date });
 }
 
 /**
