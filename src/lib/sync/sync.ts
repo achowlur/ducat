@@ -1,6 +1,7 @@
 import type { Connector, PeriodGranularity } from '../../types/contracts';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { generateInsights, type GenerateResult } from '../insights/engine';
+import { refreshMortgageRate } from '../rates/mortgageRate';
 import { applyRules, toRuleTxns } from './rules';
 import { detectTransferPairs } from './transfers';
 
@@ -249,9 +250,19 @@ async function runPipeline(
     });
   }
 
-  const insights = options.skipInsights === true
-    ? null
-    : await generateInsights(prisma, { granularity: options.granularity });
+  // The mortgage-rate observation rides the sync — never launch, never render
+  // (the read-only-external-fetch shape in sync-and-data-ops.md). It runs just
+  // BEFORE insight regeneration so everything downstream of the store reads
+  // the fresh observation, and it skips when insights do: a batched CSV
+  // import's final pass fetches once instead of once per file. Opt-in via
+  // FRED_API_KEY (absent means no network call at all), and never allowed to
+  // fail the sync — refreshMortgageRate records its own failures in the
+  // Setting it owns and keeps the last good observation standing.
+  let insights: GenerateResult | null = null;
+  if (options.skipInsights !== true) {
+    await refreshMortgageRate(prisma);
+    insights = await generateInsights(prisma, { granularity: options.granularity });
+  }
 
   await prisma.setting.upsert({
     where: { key: lastSyncKey(connector.type) },

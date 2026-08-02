@@ -1,10 +1,11 @@
-import type { ConnectorType } from '../../types/contracts';
 import type { PrismaClient } from '../../generated/prisma/client';
+import { MORTGAGE_RATE_KEY, parseMortgageRate, type StoredMortgageRate } from '../rates/mortgageRate';
 import { PROVIDER_TRUST_CARDS } from './providers';
 import type {
   GappedAccountSignal,
   LastSyncInfo,
   ProviderHealth,
+  ProviderId,
   ProviderStatusLevel,
   StaleAccountSignal,
 } from './types';
@@ -121,6 +122,57 @@ export function findGappedAccounts(
 }
 
 /**
+ * Age of the STORED rate observation (the series' own date, never the fetch
+ * time) that flags the FRED feed. The series is daily but publishes business
+ * days with a one-business-day lag, so a long holiday weekend legitimately
+ * reads four or five days old — seven is the first age that can only mean
+ * the fetch or the release has stalled. Same reasoning as staleBalanceDays: 5,
+ * one notch looser because market holidays cluster harder than bank weekends.
+ */
+export const RATE_STALE_DAYS = 7;
+
+/**
+ * Pure signal for the FRED rate feed, which has no accounts and writes no
+ * SyncLog: its health IS the stored observation — how old the series' own
+ * date is, and whether the last fetch recorded a failure. LOCAL signals only,
+ * like everything in this module. Null when nothing was ever stored, so an
+ * instance that never opted in carries no FRED health at all.
+ */
+export function deriveFredRateStatus(
+  stored: StoredMortgageRate | null,
+  now: Date,
+): { status: ProviderStatusLevel; reasons: string[] } | null {
+  if (stored === null) return null;
+  const reasons: string[] = [];
+  let status: ProviderStatusLevel = 'OK';
+  const warn = (reason: string) => {
+    reasons.push(reason);
+    if (status === 'OK') status = 'WARN';
+  };
+
+  if (stored.lastError !== null) warn(`Last rate fetch failed: ${stored.lastError.message}`);
+  if (stored.observation === null) {
+    warn('No rate observation stored yet');
+  } else {
+    const daysOld = Math.floor(
+      (now.getTime() - Date.parse(stored.observation.observationDate)) / DAY_MS,
+    );
+    if (daysOld > RATE_STALE_DAYS) {
+      warn(`Stored rate observation is ${daysOld} days old (${stored.observation.observationDate})`);
+    }
+  }
+  if (reasons.length === 0) reasons.push('All signals normal');
+  // Informational, last — reasons[0] stays the most important line, the same
+  // ordering contract deriveStatus keeps for expected feed notices.
+  if (stored.observation !== null) {
+    reasons.push(
+      `Latest stored: ${stored.observation.ratePct}% observed ${stored.observation.observationDate}`,
+    );
+  }
+  return { status, reasons };
+}
+
+/**
  * Feed messages that describe how a provider WORKS rather than something
  * wrong with it. SimpleFIN's free tier caps a request at 90 days and reports
  * that on every single sync, so treating it as a warning parked the provider
@@ -186,10 +238,36 @@ export async function getProviderHealth(
   options: HealthOptions = DEFAULT_HEALTH_OPTIONS,
   now: Date = new Date(),
 ): Promise<ProviderHealth[]> {
-  const connectorTypes = Object.keys(PROVIDER_TRUST_CARDS) as ConnectorType[];
+  const connectorTypes = Object.keys(PROVIDER_TRUST_CARDS) as ProviderId[];
   const results: ProviderHealth[] = [];
 
   for (const connectorType of connectorTypes) {
+    if (connectorType === 'FRED') {
+      const row = await prisma.setting.findUnique({ where: { key: MORTGAGE_RATE_KEY } });
+      const stored = parseMortgageRate(row?.value ?? null);
+      const derived = deriveFredRateStatus(stored, now);
+      if (derived !== null) {
+        results.push({
+          connectorType,
+          trustCard: PROVIDER_TRUST_CARDS[connectorType],
+          status: derived.status,
+          reasons: derived.reasons,
+          lastSync: null,
+          // The last successful FETCH — an instant, so /providers' header
+          // dates the feed the same way it dates a connector's sync.
+          lastSuccessfulSyncAt:
+            stored === null || stored.observation === null
+              ? null
+              : new Date(stored.observation.fetchedAt),
+          syncOverdue: false,
+          accountCount: 0,
+          staleAccounts: [],
+          gappedAccounts: [],
+        });
+      }
+      continue;
+    }
+
     const accounts = await prisma.account.findMany({
       where: { connectorType },
       select: { id: true, name: true, type: true, balanceDate: true, isStale: true },

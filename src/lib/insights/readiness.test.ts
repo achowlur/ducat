@@ -6,7 +6,9 @@ import {
   monthlyPiti,
   nonHousingSpending,
   parseReadiness,
+  resolveReadinessRate,
   type ReadinessConfig,
+  type StoredReadinessConfig,
 } from './readiness';
 
 /** The design's worked example (docs/backlog.md, 2026-08-01), verbatim. */
@@ -20,6 +22,17 @@ const BOOK: ReadinessConfig = {
   closingPct: 3,
   downPct: 20,
   asOf: '2026-08-01',
+};
+
+/** BOOK without its typed rate — the stored fetched-index state. */
+const RATELESS: StoredReadinessConfig = {
+  savingsFloor: 5183.46,
+  termYears: 30,
+  taxPctYr: 1.2,
+  insurancePctYr: 0.5,
+  pmiPctYr: 0.75,
+  closingPct: 3,
+  downPct: 20,
 };
 
 /** Six months whose residual is exactly the book's $6,465.61 budget. */
@@ -273,5 +286,60 @@ describe('parseReadiness', () => {
     expect(parseReadiness(JSON.stringify({ ...BOOK, savingsFloor: -1 }))).toBeNull();
     expect(parseReadiness(JSON.stringify({ ...BOOK, termYears: 0 }))).toBeNull();
     expect(parseReadiness(JSON.stringify({ ...BOOK, asOf: 'August 2026' }))).toBeNull();
+  });
+
+  it('accepts the rate pair wholly ABSENT (the fetched-index state), never halved', () => {
+    expect(parseReadiness(JSON.stringify(RATELESS))).toEqual(RATELESS);
+    // Half a pair is corruption, not a state: a typed rate with no date reads
+    // current forever, and a date with no rate dates nothing.
+    expect(parseReadiness(JSON.stringify({ ...RATELESS, ratePct: 6.5 }))).toBeNull();
+    expect(parseReadiness(JSON.stringify({ ...RATELESS, asOf: '2026-08-01' }))).toBeNull();
+  });
+});
+
+describe('resolveReadinessRate — typed first, fetched second, never invented', () => {
+  const rateless = RATELESS;
+  const OBSERVATION = { seriesId: 'OBMMIC30YF', ratePct: 6.651, observationDate: '2026-07-30' };
+
+  it('a typed rate OVERRIDES the fetched index — no rateSource, config as today', () => {
+    const resolved = resolveReadinessRate(BOOK, OBSERVATION);
+    expect(resolved).toEqual(BOOK); // byte-for-byte today's config, index ignored
+    expect(resolved?.rateSource).toBeUndefined();
+  });
+
+  it('no typed rate: the observation fills in, as-of is the OBSERVATION date', () => {
+    const resolved = resolveReadinessRate(rateless, OBSERVATION);
+    expect(resolved).toEqual({
+      ...rateless,
+      ratePct: 6.651,
+      asOf: '2026-07-30', // the series' own date, never the fetch time
+      rateSource: { provider: 'FRED', seriesId: 'OBMMIC30YF' },
+    });
+  });
+
+  it('no typed rate and no observation: null — no panel, no invented rate', () => {
+    expect(resolveReadinessRate(rateless, null)).toBeNull();
+  });
+
+  it('refuses a mangled observation instead of computing from it', () => {
+    expect(resolveReadinessRate(rateless, { ...OBSERVATION, ratePct: 0 })).toBeNull();
+    expect(resolveReadinessRate(rateless, { ...OBSERVATION, ratePct: 45 })).toBeNull();
+    expect(resolveReadinessRate(rateless, { ...OBSERVATION, observationDate: 'yesterday' })).toBeNull();
+    expect(resolveReadinessRate(rateless, { ...OBSERVATION, seriesId: '' })).toBeNull();
+  });
+
+  it('the resolved config assesses identically to a typed config with the same rate', () => {
+    const resolved = resolveReadinessRate(rateless, { ...OBSERVATION, ratePct: 6.5 });
+    expect(resolved).not.toBeNull();
+    const fromFetched = assessReadiness({
+      config: resolved as ReadinessConfig,
+      fund: 155_503.76,
+      completeMonthlyIncome: INCOME,
+      completeMonthlyNonHousing: NON_HOUSING,
+    });
+    // Same numbers as the book run — the rate's origin changes the disclosure,
+    // never the arithmetic.
+    expect(fromFetched.pitiBudget).toBe(6465.61);
+    expect(fromFetched.fundLimitedPrice).toBe(676_103.30);
   });
 });

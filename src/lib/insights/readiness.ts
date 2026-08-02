@@ -67,11 +67,9 @@ const BISECT_ITERATIONS = 60;
  */
 const PMI_EPSILON = 1e-6;
 
-export interface ReadinessConfig {
+interface ReadinessConfigBase {
   /** Dollars/mo of saving that must survive the purchase — the declared knob. */
   savingsFloor: number;
-  /** Typed yearly rate in percent (6.5 = 6.5%/yr). Never defaulted in code. */
-  ratePct: number;
   termYears: number;
   /** Property tax as %/yr of price. */
   taxPctYr: number;
@@ -83,8 +81,38 @@ export interface ReadinessConfig {
   closingPct: number;
   /** Down payment target and no-PMI threshold, % of price. */
   downPct: number;
+}
+
+/**
+ * The config as STORED in `readiness.house`. The typed rate is optional —
+ * absent (entered only through set-readiness's explicit --fetched-rate) means
+ * "use the fetched index observation when one is stored". Absence is a state,
+ * never a default: with no typed rate and no stored observation the panel
+ * does not render, because NO DEFAULT RATE LIVES IN CODE.
+ */
+export interface StoredReadinessConfig extends ReadinessConfigBase {
+  /** Typed yearly rate in percent (6.5 = 6.5%/yr). Never defaulted in code. */
+  ratePct?: number;
   /** Date the typed rate was read (YYYY-MM-DD) — rendered beside it. */
+  asOf?: string;
+}
+
+/** Where an EFFECTIVE config's rate came from, when it was not typed. */
+export interface RateSource {
+  provider: string;
+  seriesId: string;
+}
+
+/**
+ * The config `assessReadiness` computes from: a rate is always present, and
+ * `rateSource` names its origin when it was fetched rather than typed — the
+ * disclosure summary prints it so a fetched rate is never mistaken for a
+ * personal quote. `asOf` is then the OBSERVATION date, not the fetch time.
+ */
+export interface ReadinessConfig extends ReadinessConfigBase {
+  ratePct: number;
   asOf: string;
+  rateSource?: RateSource;
 }
 
 const AS_OF = /^\d{4}-\d{2}-\d{2}$/;
@@ -92,37 +120,86 @@ const AS_OF = /^\d{4}-\d{2}-\d{2}$/;
 const inRange = (v: unknown, lo: number, hi: number, exclusiveLo = false): v is number =>
   typeof v === 'number' && Number.isFinite(v) && (exclusiveLo ? v > lo : v >= lo) && v <= hi;
 
+const isBaseConfig = (c: Record<string, unknown>): boolean =>
+  inRange(c.savingsFloor, 0, 1_000_000) &&
+  inRange(c.termYears, 0, 100, true) &&
+  inRange(c.taxPctYr, 0, 10) &&
+  inRange(c.insurancePctYr, 0, 10) &&
+  inRange(c.pmiPctYr, 0, 10) &&
+  inRange(c.closingPct, 0, 25) &&
+  inRange(c.downPct, 0, 100, true);
+
+const isValidTypedRate = (c: Record<string, unknown>): boolean =>
+  inRange(c.ratePct, 0, 30, true) && typeof c.asOf === 'string' && AS_OF.test(c.asOf);
+
 /**
- * The one definition of a valid config, shared by the tolerant parser below
- * and `scripts/set-readiness.ts` — the script refuses loudly per flag, then
- * this decides what may be stored, so the two cannot drift.
+ * The one definition of a valid EFFECTIVE config, shared by the resolver
+ * below and `scripts/set-readiness.ts` — the script refuses loudly per flag,
+ * then this decides what may be computed from, so the two cannot drift.
  */
 export function isReadinessConfig(v: unknown): v is ReadinessConfig {
   if (typeof v !== 'object' || v === null) return false;
   const c = v as Record<string, unknown>;
-  return (
-    inRange(c.savingsFloor, 0, 1_000_000) &&
-    inRange(c.ratePct, 0, 30, true) &&
-    inRange(c.termYears, 0, 100, true) &&
-    inRange(c.taxPctYr, 0, 10) &&
-    inRange(c.insurancePctYr, 0, 10) &&
-    inRange(c.pmiPctYr, 0, 10) &&
-    inRange(c.closingPct, 0, 25) &&
-    inRange(c.downPct, 0, 100, true) &&
-    typeof c.asOf === 'string' &&
-    AS_OF.test(c.asOf)
-  );
+  return isBaseConfig(c) && isValidTypedRate(c);
+}
+
+/**
+ * A valid STORED config: the rate pair may be wholly absent (the fetched-
+ * index state) but never half-present or present-and-invalid — a mangled
+ * typed rate must read as corruption, not as an invitation to substitute
+ * the index for a value the operator typed.
+ */
+export function isStoredReadinessConfig(v: unknown): v is StoredReadinessConfig {
+  if (typeof v !== 'object' || v === null) return false;
+  const c = v as Record<string, unknown>;
+  if (!isBaseConfig(c)) return false;
+  return c.ratePct === undefined && c.asOf === undefined ? true : isValidTypedRate(c);
 }
 
 /** The stored Setting value → config; tolerant the way parseGoals is. */
-export function parseReadiness(raw: string | null): ReadinessConfig | null {
+export function parseReadiness(raw: string | null): StoredReadinessConfig | null {
   if (raw === null) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
-    return isReadinessConfig(parsed) ? parsed : null;
+    return isStoredReadinessConfig(parsed) ? parsed : null;
   } catch {
     return null; // a corrupted setting must not take the page down
   }
+}
+
+/**
+ * Stored config + stored index observation → the effective config, or null
+ * when no rate exists at all (the panel then does not render — exactly the
+ * pre-fetcher behavior). Precedence is TYPED FIRST, always: a national
+ * average is nobody's actual rate, so a personal quote the operator typed
+ * outranks whatever the index says, however fresh. The observation's values
+ * are re-checked against the typed rate's own bounds — the store is written
+ * by our fetcher, but a Setting is still just a row anyone can edit.
+ */
+export function resolveReadinessRate(
+  stored: StoredReadinessConfig,
+  observation: { seriesId: string; ratePct: number; observationDate: string } | null,
+): ReadinessConfig | null {
+  if (stored.ratePct !== undefined && stored.asOf !== undefined) {
+    return { ...stored, ratePct: stored.ratePct, asOf: stored.asOf };
+  }
+  if (
+    observation === null ||
+    !inRange(observation.ratePct, 0, 30, true) ||
+    !AS_OF.test(observation.observationDate) ||
+    observation.seriesId === ''
+  ) {
+    return null;
+  }
+  return {
+    ...stored,
+    ratePct: observation.ratePct,
+    // The OBSERVATION date, deliberately not the fetch time: the disclosure
+    // summary keeps this visible as its staleness alarm, and a fetch time
+    // would make a stalled series read fresher than it is.
+    asOf: observation.observationDate,
+    rateSource: { provider: 'FRED', seriesId: observation.seriesId },
+  };
 }
 
 /**

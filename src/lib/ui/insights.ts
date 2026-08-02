@@ -23,8 +23,10 @@ import {
   HOUSE_READINESS_KEY,
   nonHousingSpending,
   parseReadiness,
+  resolveReadinessRate,
   type ReadinessAssessment,
 } from "../insights/readiness";
+import { MORTGAGE_RATE_KEY, parseMortgageRate } from "../rates/mortgageRate";
 import { DEFAULT_RECURRING_OPTIONS } from "../insights/recurring";
 import { periodCoverage, type PeriodCoverage } from "../insights/coverage";
 import { periodEndExclusive, periodStart } from "../insights/periods";
@@ -238,11 +240,15 @@ function toRow(
 }
 
 export async function getInsightsPageData(requestedPeriod?: string): Promise<InsightsPageData | null> {
-  const [insightRows, registered, goalSetting, readinessSetting, accountRows, cashIds] = await Promise.all([
+  const [insightRows, registered, settingRows, accountRows, cashIds] = await Promise.all([
     prisma.insight.findMany(),
     getSubscriptionStatuses(prisma),
-    prisma.setting.findUnique({ where: { key: SAVINGS_GOALS_KEY } }),
-    prisma.setting.findUnique({ where: { key: HOUSE_READINESS_KEY } }),
+    // Goals, readiness config and the stored rate observation in ONE
+    // statement — on Turso the count of round trips is the cost, so three
+    // findUniques would pay for two reads nobody needs.
+    prisma.setting.findMany({
+      where: { key: { in: [SAVINGS_GOALS_KEY, HOUSE_READINESS_KEY, MORTGAGE_RATE_KEY] } },
+    }),
     // Balances for the goal funds. Unconditional rather than gated on the
     // setting existing: a gate costs about its own round trip anyway, and
     // this joins the concurrent group instead. `type` is here so a cash goal
@@ -252,6 +258,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     prisma.account.findMany({ select: { id: true, name: true, balance: true, type: true }, orderBy: { institution: 'asc' } }),
     readCashAccountIds(prisma),
   ]);
+  const settingValue = (key: string) => settingRows.find((r) => r.key === key)?.value ?? null;
   const monthly = monthlyRows(insightRows);
   // One `now` for the whole request: the period admission, the current-period
   // gate and the commitment windows must agree on which month is being lived
@@ -407,7 +414,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // Complete months only — the period on screen is the current one whenever
   // this runs, so everything before it is complete. Same shape Overview feeds
   // computeRunway, with `net` where runway takes `totalSpending`.
-  const declaredGoals = parseGoals(goalSetting?.value ?? null);
+  const declaredGoals = parseGoals(settingValue(SAVINGS_GOALS_KEY));
   const goalAccounts = accountRows.map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) }));
   const cashAccountRows = accountRows.filter((a) =>
     countsAsCash({ id: a.id, type: a.type, balance: Number(a.balance) }, cashIds),
@@ -461,7 +468,16 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // The FUND is the FIRST declared goal's assessed balance — the model
   // measures readiness of the declared plan, so no goal means no fund and no
   // panel, exactly like no config.
-  const readinessConfig = parseReadiness(readinessSetting?.value ?? null);
+  // The rate is TYPED-FIRST: a personal quote in the stored config outranks
+  // the fetched index (a national average is nobody's actual rate), and with
+  // neither a typed rate nor a stored observation the resolver returns null —
+  // no panel, no invented rate, exactly the pre-fetcher behavior.
+  const storedReadiness = parseReadiness(settingValue(HOUSE_READINESS_KEY));
+  const storedRate = parseMortgageRate(settingValue(MORTGAGE_RATE_KEY));
+  const readinessConfig =
+    storedReadiness === null
+      ? null
+      : resolveReadinessRate(storedReadiness, storedRate?.observation ?? null);
   let readiness: ReadinessAssessment | null = null;
   // NO_ACCOUNTS forces the goal's saved to 0 as BROKEN CONFIG, not $0 saved —
   // feeding it through would render "the $0.00 fund caps you at ~$0.00" as if

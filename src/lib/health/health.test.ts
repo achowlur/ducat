@@ -1,9 +1,69 @@
 import { describe, expect, it } from 'vitest';
-import { findGappedAccounts, findStaleAccounts, isExpectedFeedNotice, DEFAULT_HEALTH_OPTIONS } from './health';
+import {
+  deriveFredRateStatus,
+  findGappedAccounts,
+  findStaleAccounts,
+  isExpectedFeedNotice,
+  DEFAULT_HEALTH_OPTIONS,
+  RATE_STALE_DAYS,
+} from './health';
 import { projectNextPayment, reconcileSubscription } from './subscriptions';
 
 const utc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d, 12));
 const NOW = utc(2026, 7, 12);
+
+describe('deriveFredRateStatus — the rate feed judged by its stored observation', () => {
+  const observation = (observationDate: string) => ({
+    seriesId: 'OBMMIC30YF',
+    ratePct: 6.651,
+    observationDate,
+    fetchedAt: '2026-07-12T04:00:00.000Z',
+  });
+
+  it('is silent (null) when nothing was ever stored — the provider is unused', () => {
+    expect(deriveFredRateStatus(null, NOW)).toBeNull();
+  });
+
+  it('reads OK for a fresh observation, stating the value and its OWN date', () => {
+    const s = deriveFredRateStatus({ observation: observation('2026-07-10'), lastError: null }, NOW);
+    expect(s?.status).toBe('OK');
+    expect(s?.reasons[0]).toBe('All signals normal');
+    expect(s?.reasons[1]).toBe('Latest stored: 6.651% observed 2026-07-10');
+  });
+
+  it(`warns once the observation date ages past ${RATE_STALE_DAYS} days`, () => {
+    // 2026-07-04 is 8 days before NOW (floored from the date, not the fetch).
+    const s = deriveFredRateStatus({ observation: observation('2026-07-04'), lastError: null }, NOW);
+    expect(s?.status).toBe('WARN');
+    expect(s?.reasons[0]).toBe('Stored rate observation is 8 days old (2026-07-04)');
+    // A 7-day-old one still passes — a long holiday weekend is not an outage.
+    expect(
+      deriveFredRateStatus({ observation: observation('2026-07-05'), lastError: null }, NOW)?.status,
+    ).toBe('OK');
+  });
+
+  it('warns on a recorded fetch failure, keeping the standing observation visible', () => {
+    const s = deriveFredRateStatus(
+      {
+        observation: observation('2026-07-10'),
+        lastError: { at: '2026-07-12T04:00:00.000Z', message: 'FRED returned HTTP 400' },
+      },
+      NOW,
+    );
+    expect(s?.status).toBe('WARN');
+    expect(s?.reasons[0]).toBe('Last rate fetch failed: FRED returned HTTP 400');
+    expect(s?.reasons.at(-1)).toBe('Latest stored: 6.651% observed 2026-07-10');
+  });
+
+  it('warns when only a failure exists and no observation was ever stored', () => {
+    const s = deriveFredRateStatus(
+      { observation: null, lastError: { at: '2026-07-12T04:00:00.000Z', message: 'timed out' } },
+      NOW,
+    );
+    expect(s?.status).toBe('WARN');
+    expect(s?.reasons).toEqual(['Last rate fetch failed: timed out', 'No rate observation stored yet']);
+  });
+});
 
 describe('findStaleAccounts', () => {
   const account = (id: string, balanceDate: Date) => ({

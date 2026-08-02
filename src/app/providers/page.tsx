@@ -103,6 +103,13 @@ export default async function ProvidersPage() {
                   displayed.
                 </p>
               )}
+              {health.connectorType === "FRED" && (
+                <p className="mt-3 text-[0.75rem] text-faint">
+                  API key: {configured ? "configured" : "not configured"} — read from{" "}
+                  {cloud ? "the platform's environment variables" : ".env on this machine"}, and never
+                  displayed. Absent, the fetch does not run at all.
+                </p>
+              )}
 
               <div className="mt-5">
                 <SectionTitle>Sync history {syncLogs.length > 0 && `(last ${syncLogs.length})`}</SectionTitle>

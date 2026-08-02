@@ -1,5 +1,5 @@
-import type { ConnectorType } from '../../types/contracts';
-import type { ProviderTrustCard } from './types';
+import type { ProviderId, ProviderTrustCard } from './types';
+import { FRED_SERIES_ID, FRED_SERIES_TITLE } from '../rates/mortgageRate';
 
 /**
  * Every third-party data provider the app can use, with standing risk
@@ -12,7 +12,7 @@ import type { ProviderTrustCard } from './types';
  * `isCloudMode()`. Keeping that split is what stopped these cards claiming
  * "fully local" from a cloud instance.
  */
-export const PROVIDER_TRUST_CARDS: Record<ConnectorType, ProviderTrustCard> = {
+export const PROVIDER_TRUST_CARDS: Record<ProviderId, ProviderTrustCard> = {
   SIMPLEFIN: {
     connectorType: 'SIMPLEFIN',
     displayName: 'SimpleFIN Bridge',
@@ -36,5 +36,19 @@ export const PROVIDER_TRUST_CARDS: Record<ConnectorType, ProviderTrustCard> = {
       'Manual and point-in-time: data is only as fresh as your last export, and balances are unknown when the export lacks a running-balance column.',
     ],
     revocation: 'Nothing to revoke — delete the CSV files when done importing.',
+  },
+  FRED: {
+    connectorType: 'FRED',
+    displayName: 'FRED mortgage-rate index',
+    dataPath:
+      `Optimal Blue (daily rate-lock averages) → FRED, the Federal Reserve Bank of St. Louis → this app: one small GET per sync for the latest ${FRED_SERIES_TITLE} (${FRED_SERIES_ID}) observation, stored locally and rendered from the store. ` +
+      'The request carries your FRED API key and the series id — no account, transaction, or balance data ever rides it, in either direction.',
+    residualRisks: [
+      'The API key is a persistent identity: FRED can see that this key asked for this series at your sync times, from your IP. That is the whole exposure — the request body names no money.',
+      'A national average is nobody\'s actual rate. The readiness panel treats the index as a stand-in and a typed personal quote always overrides it; the disclosure names the series so the two cannot be confused.',
+      'The series can stall (holiday, publication change, revoked key) while the app keeps rendering the last stored observation — dated, and flagged by provider health once it ages past the alarm.',
+    ],
+    revocation:
+      'Remove FRED_API_KEY from wherever this instance reads its environment — the fetch is gated on it and stops immediately, keeping the last stored observation. Delete the key itself at fredaccount.stlouisfed.org to revoke it everywhere.',
   },
 };

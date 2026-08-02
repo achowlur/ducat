@@ -1,11 +1,20 @@
 import type { ConnectorType, RecurringCadence } from '../../types/contracts';
 
 /**
+ * Everything owed a trust card: the account/transaction connectors, plus
+ * FRED — the opt-in mortgage-rate fetch. FRED is deliberately NOT a
+ * ConnectorType: it produces no accounts and no transactions, so widening
+ * that type would let a rates feed masquerade as a transaction source
+ * everywhere Account.connectorType is read.
+ */
+export type ProviderId = ConnectorType | 'FRED';
+
+/**
  * Static, honest context about a data provider — displayed with its live
  * status so known residual risks stay visible, not just remembered.
  */
 export interface ProviderTrustCard {
-  connectorType: ConnectorType;
+  connectorType: ProviderId;
   displayName: string;
   /** Where the data physically flows, end to end. */
   dataPath: string;
@@ -42,7 +51,7 @@ export interface LastSyncInfo {
 }
 
 export interface ProviderHealth {
-  connectorType: ConnectorType;
+  connectorType: ProviderId;
   trustCard: ProviderTrustCard;
   status: ProviderStatusLevel;
   /** Human-readable reasons behind the status, worst first. */

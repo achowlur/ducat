@@ -176,3 +176,24 @@ export interface Connector {
    */
   feedWarnings?(): string[];
 }
+
+/**
+ * One stored observation of a published market rate — the normalized shape
+ * the FRED mortgage-rate fetcher (`src/lib/rates/`) writes and the readiness
+ * panel reads. It lives here, beside the other normalized shapes, so nothing
+ * downstream depends on FRED's own response format.
+ */
+export interface RateObservation {
+  /** The provider's series id, e.g. "OBMMIC30YF" — named in the UI. */
+  seriesId: string;
+  /** Yearly rate in percent (6.651 = 6.651%/yr), the readiness convention. */
+  ratePct: number;
+  /**
+   * The series' OWN date for this value (YYYY-MM-DD) — the as-of the UI must
+   * show. Distinct from `fetchedAt`: an observation fetched today can be
+   * days old, and showing the fetch time would read fresher than it is.
+   */
+  observationDate: string;
+  /** When this instance fetched it (ISO instant) — freshness of the FETCH. */
+  fetchedAt: string;
+}

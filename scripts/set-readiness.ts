@@ -2,10 +2,11 @@ import 'dotenv/config';
 import { prisma } from '../src/lib/prisma';
 import {
   HOUSE_READINESS_KEY,
-  isReadinessConfig,
+  isStoredReadinessConfig,
   parseReadiness,
-  type ReadinessConfig,
+  type StoredReadinessConfig,
 } from '../src/lib/insights/readiness';
+import { FRED_SERIES_ID } from '../src/lib/rates/mortgageRate';
 import { arg, hasFlag } from './args';
 import { databaseLabel } from './database-label';
 
@@ -19,6 +20,7 @@ import { databaseLabel } from './database-label';
  *   npm run readiness -- --floor=2000 --rate=6.5 --term=30 --tax=1.2 \
  *     --insurance=0.5 --pmi=0.75 --closing=3 --down=20
  *   npm run readiness -- --rate=6.375 --as-of=2026-08-15
+ *   npm run readiness -- --fetched-rate
  *   npm run readiness -- --clear
  *
  * The RATE is typed, never defaulted in code — absent config means the panel
@@ -27,6 +29,13 @@ import { databaseLabel } from './database-label';
  * panel prints it beside the rate, because a rate with no date reads current
  * forever. Later runs merge onto the stored config, so a rate refresh is one
  * flag; the FIRST declaration must supply everything, listed loudly if not.
+ *
+ * `--fetched-rate` removes the typed rate: the panel then uses the FRED index
+ * observation the sync stores (opt-in via FRED_API_KEY — see /providers), and
+ * renders nothing until one exists. The rate-absent state is entered ONLY
+ * through this flag: a first declaration that merely forgot --rate is refused,
+ * never silently opted into the index. A typed rate always overrides the
+ * fetched one — a national average is nobody's actual rate.
  *
  * The panel also needs a declared savings goal: the FUND the ceilings divide
  * is the first goal's assessed balance (`npm run goals`).
@@ -51,10 +60,16 @@ function fail(message: string): void {
   process.exitCode = 1;
 }
 
-function list(config: ReadinessConfig): void {
+function list(config: StoredReadinessConfig): void {
   console.log('House-readiness config:');
   for (const [flag, field, describe] of FLAGS) {
-    const suffix = field === 'ratePct' ? ` (as of ${config.asOf})` : '';
+    if (field === 'ratePct' && config.ratePct === undefined) {
+      console.log(
+        `  --${flag.padEnd(9)} ${'(fetched)'.padEnd(10)} the FRED ${FRED_SERIES_ID} observation stored by sync — needs FRED_API_KEY`,
+      );
+      continue;
+    }
+    const suffix = field === 'ratePct' ? ` (as of ${String(config.asOf)})` : '';
     console.log(`  --${flag.padEnd(9)} ${String(config[field]).padEnd(10)} ${describe}${suffix}`);
   }
 }
@@ -75,7 +90,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  const setting = FLAGS.some(([flag]) => arg(flag) !== undefined || hasFlag(flag)) || arg('as-of') !== undefined || hasFlag('as-of');
+  const setting =
+    FLAGS.some(([flag]) => arg(flag) !== undefined || hasFlag(flag)) ||
+    arg('as-of') !== undefined ||
+    hasFlag('as-of') ||
+    hasFlag('fetched-rate');
 
   if (!setting) {
     if (stored === null) {
@@ -87,6 +106,9 @@ async function main(): Promise<void> {
       if (row === null) {
         for (const [flag, , describe] of FLAGS) console.log(`  --${flag.padEnd(9)} ${describe}`);
         console.log('  --as-of    date the rate was read, YYYY-MM-DD (defaults to today with --rate)');
+        console.log(
+          `  --fetched-rate  use the FRED ${FRED_SERIES_ID} observation stored by sync instead of typing --rate (needs FRED_API_KEY)`,
+        );
       }
       return;
     }
@@ -124,13 +146,24 @@ async function main(): Promise<void> {
     next[field] = value;
   }
 
+  // The rate-absent state is entered ONLY through this flag — deliberate,
+  // never a side effect of forgetting --rate. It removes the typed pair from
+  // the merged config; the panel then reads the FRED observation sync stores.
+  if (hasFlag('fetched-rate')) {
+    if (arg('rate') !== undefined || arg('as-of') !== undefined || hasFlag('as-of')) {
+      return fail('--fetched-rate and --rate/--as-of contradict — pick one rate source.');
+    }
+    delete next.ratePct;
+    delete next.asOf;
+  }
+
   const asOf = arg('as-of');
   if (asOf !== undefined) {
     if (!AS_OF.test(asOf) || Number.isNaN(Date.parse(asOf))) {
       return fail('--as-of must be a real date like 2026-08-15.');
     }
-    if (arg('rate') === undefined && stored === null) {
-      return fail('--as-of dates the rate — give it alongside --rate.');
+    if (arg('rate') === undefined && stored?.ratePct === undefined) {
+      return fail('--as-of dates the typed rate — give it alongside --rate.');
     }
     next.asOf = asOf;
   } else if (arg('rate') !== undefined) {
@@ -139,8 +172,14 @@ async function main(): Promise<void> {
     console.log(`Note: --as-of not given — recording the rate as read today (${String(next.asOf)}).`);
   }
 
-  if (!isReadinessConfig(next)) {
-    const missing = FLAGS.filter(([, field]) => next[field] === undefined).map(([flag]) => `--${flag}`);
+  const missingRate =
+    next.ratePct === undefined &&
+    !hasFlag('fetched-rate') &&
+    (stored === null || stored.ratePct !== undefined);
+  if (!isStoredReadinessConfig(next) || missingRate) {
+    const missing = FLAGS.filter(([, field]) =>
+      field === 'ratePct' ? missingRate : next[field] === undefined,
+    ).map(([flag, field]) => (field === 'ratePct' ? '--rate (or --fetched-rate)' : `--${flag}`));
     return fail(
       missing.length > 0
         ? `The first declaration must supply every value. Missing: ${missing.join(', ')}.`
@@ -160,6 +199,12 @@ async function main(): Promise<void> {
     '\nThe panel renders on /insights for the month being lived in, and needs a declared\n' +
       'savings goal (npm run goals) — its fund is what the ceilings divide.',
   );
+  if (next.ratePct === undefined) {
+    console.log(
+      'No typed rate: the panel additionally waits for a stored FRED observation —\n' +
+        'set FRED_API_KEY in this instance\'s environment and run a sync.',
+    );
+  }
 }
 
 main()

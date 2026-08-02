@@ -2,7 +2,7 @@ import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Connector, NormalizedAccount, NormalizedTransaction } from '../../types/contracts';
 import { PrismaClient } from '../../generated/prisma/client';
 import { applyRules, type RuleData, type RuleTxn } from './rules';
@@ -280,5 +280,59 @@ describe('runSync integration', () => {
 
     const backfilled = await prisma.transaction.findFirstOrThrow({ where: { externalId: 'csv-old-1' } });
     expect(backfilled.accountId).toBe(before.id); // history landed in the same account
+  });
+
+  // The FRED rate fetch rides the pipeline just before insight regeneration.
+  // Two contracts: absent key means NO network call at all (the gate fails
+  // closed), and a failing fetch NEVER fails the sync — it records itself in
+  // the Setting the fetcher owns and the pipeline finishes green.
+  describe('mortgage-rate fetch riding the sync', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    });
+
+    it('makes no fetch at all without FRED_API_KEY', async () => {
+      vi.stubEnv('FRED_API_KEY', '');
+      const spy = vi.fn<typeof fetch>();
+      vi.stubGlobal('fetch', spy);
+      const result = await runSync(prisma, new FakeConnector(accounts, transactions), {
+        since: utc(2026, 6, 1),
+      });
+      expect(result.insights).not.toBeNull();
+      expect(spy).not.toHaveBeenCalled();
+      expect(await prisma.setting.findUnique({ where: { key: 'rates.mortgage' } })).toBeNull();
+    });
+
+    it('a failing rate fetch records itself and leaves the sync green', async () => {
+      vi.stubEnv('FRED_API_KEY', 'test-key');
+      const failing = vi.fn<typeof fetch>(() => Promise.reject(new Error('network down')));
+      vi.stubGlobal('fetch', failing);
+      const result = await runSync(prisma, new FakeConnector(accounts, transactions), {
+        since: utc(2026, 6, 1),
+      });
+      expect(result.insights).not.toBeNull(); // pipeline completed
+      expect(failing).toHaveBeenCalledTimes(1);
+      const row = await prisma.setting.findUniqueOrThrow({ where: { key: 'rates.mortgage' } });
+      const stored = JSON.parse(row.value) as {
+        observation: unknown;
+        lastError: { message: string } | null;
+      };
+      expect(stored.observation).toBeNull();
+      expect(stored.lastError?.message).toContain('network down');
+      const log = await prisma.syncLog.findFirstOrThrow({ orderBy: { finishedAt: 'desc' } });
+      expect(log.ok).toBe(true); // the failure never reached the SyncLog
+    });
+
+    it('skipInsights also skips the rate fetch — batched imports fetch once at the end', async () => {
+      vi.stubEnv('FRED_API_KEY', 'test-key');
+      const spy = vi.fn<typeof fetch>();
+      vi.stubGlobal('fetch', spy);
+      await runSync(prisma, new FakeConnector(accounts, transactions), {
+        since: utc(2026, 6, 1),
+        skipInsights: true,
+      });
+      expect(spy).not.toHaveBeenCalled();
+    });
   });
 });

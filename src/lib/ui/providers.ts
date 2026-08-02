@@ -1,8 +1,8 @@
-import type { ConnectorType } from "../../types/contracts";
 import { prisma } from "../prisma";
 import { getProviderHealth } from "../health/health";
 import { PROVIDER_TRUST_CARDS } from "../health/providers";
-import type { ProviderHealth } from "../health/types";
+import type { ProviderHealth, ProviderId } from "../health/types";
+import { FRED_API_KEY_ENV, FRED_SERIES_ID } from "../rates/mortgageRate";
 
 export interface SyncLogRow {
   id: string;
@@ -20,20 +20,24 @@ export interface SyncLogRow {
 
 export interface ProviderView {
   health: ProviderHealth;
-  /** SIMPLEFIN: access URL present in env. CSV: always true (no standing credential). */
+  /** SIMPLEFIN: access URL present in env. FRED: API key present in env.
+   * CSV: always true (no standing credential). */
   configured: boolean;
   /** Shown when the provider isn't set up yet — the exact command to run. */
   setupHint: string | null;
   syncLogs: SyncLogRow[];
 }
 
-const SETUP_HINTS: Record<ConnectorType, string> = {
+const SETUP_HINTS: Record<ProviderId, string> = {
   // Deliberately says "this instance's environment" rather than ".env": the
   // claim script runs on your machine either way, but a cloud deployment reads
   // the access URL from the platform's variable store (see DEPLOY.md).
   SIMPLEFIN:
     "npm run simplefin:claim -- <setup-token>  →  set the printed SIMPLEFIN_ACCESS_URL in this instance's environment  →  npm run sync:simplefin",
   CSV: "npm run import:csv -- <file.csv> --mapping=<chase-checking|chase-credit|wells-fargo|fidelity> --name=<account> --type=<DEPOSITORY|CREDIT|INVESTMENT|LOAN> --institution=<bank>",
+  FRED:
+    `get a free API key at fredaccount.stlouisfed.org/apikeys  →  set ${FRED_API_KEY_ENV} in this instance's environment  →  the next sync stores the day's ${FRED_SERIES_ID} observation. ` +
+    "Used by the /insights readiness panel only when its config declares no typed rate (npm run readiness -- --fetched-rate).",
 };
 
 /**
@@ -72,13 +76,16 @@ export async function getProvidersData(): Promise<ProviderView[]> {
     const configured =
       card.connectorType === "SIMPLEFIN"
         ? (process.env.SIMPLEFIN_ACCESS_URL ?? "") !== ""
-        : true;
+        : card.connectorType === "FRED"
+          ? (process.env[FRED_API_KEY_ENV] ?? "") !== ""
+          : true;
 
     views.push({
       health: h,
       configured,
       setupHint:
-        (card.connectorType === "SIMPLEFIN" && !configured) || (existing === null && card.connectorType === "CSV")
+        ((card.connectorType === "SIMPLEFIN" || card.connectorType === "FRED") && !configured) ||
+        (existing === null && card.connectorType === "CSV")
           ? SETUP_HINTS[card.connectorType]
           : null,
       syncLogs: logs.map((l) => ({

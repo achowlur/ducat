@@ -350,19 +350,27 @@ function ReadinessBlock({
       {/* The five typed values collapse behind one disclosure — tap/click on
           any device, hover-preview via title on desktop. The AS-OF DATE stays
           on the summary deliberately: it is the staleness alarm, and a hidden
-          rate must never be able to read current forever. */}
+          rate must never be able to read current forever. When the rate is
+          the FETCHED index rather than typed (rateSource set), the summary
+          also names the source and series, and as-of is the OBSERVATION date
+          — a national average must never be mistakable for a personal quote,
+          nor a stalled series for a current one. */}
       <details className="pt-2.5 text-[0.78rem] text-faint">
         <summary
           className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-2 [&::-webkit-details-marker]:hidden"
-          title={`${c.ratePct}% / ${c.termYears} yr · property tax ${c.taxPctYr}%/yr · insurance ${c.insurancePctYr}%/yr · PMI ${c.pmiPctYr}%/yr below ${c.downPct}% down · closing ${c.closingPct}% of price`}
+          title={`${c.ratePct}% / ${c.termYears} yr · property tax ${c.taxPctYr}%/yr · insurance ${c.insurancePctYr}%/yr · PMI ${c.pmiPctYr}%/yr below ${c.downPct}% down · closing ${c.closingPct}% of price${c.rateSource === undefined ? "" : ` · rate observed ${c.asOf} (${c.rateSource.provider} ${c.rateSource.seriesId})`}`}
         >
           <span className={ASSUMED_CHIP}>Assumed</span>
-          <span>rate, term, tax, insurance, PMI, closing · as of {c.asOf}</span>
+          <span>
+            rate{c.rateSource !== undefined && ` (${c.rateSource.provider} ${c.rateSource.seriesId})`}, term, tax, insurance, PMI, closing · as of {c.asOf}
+          </span>
         </summary>
         <p className="pt-1.5">
           {c.ratePct}% / {c.termYears} yr · property tax {c.taxPctYr}%/yr · insurance{" "}
           {c.insurancePctYr}%/yr · PMI {c.pmiPctYr}%/yr below {c.downPct}% down · closing{" "}
           {c.closingPct}% of price
+          {c.rateSource !== undefined &&
+            ` · rate from ${c.rateSource.provider} ${c.rateSource.seriesId}, observed ${c.asOf}`}
         </p>
       </details>
     </div>
