@@ -28,6 +28,8 @@ export function ReimburseControl({
   const [open, setOpen] = useState(false);
   // null = not fetched yet (the picker shows a quiet loading line).
   const [candidates, setCandidates] = useState<ReimburseCandidate[] | null>(null);
+  // A failed fetch must not read as "still looking" — or as "none found".
+  const [failed, setFailed] = useState(false);
   const [pending, startTransition] = useTransition();
 
   if (linked !== null) {
@@ -55,8 +57,13 @@ export function ReimburseControl({
           // (a link elsewhere, a sync), and stale suggestions are worse
           // than a beat of loading.
           setCandidates(null);
+          setFailed(false);
           startTransition(async () => {
-            setCandidates(await suggestCandidates(inflowId));
+            try {
+              setCandidates(await suggestCandidates(inflowId));
+            } catch {
+              setFailed(true);
+            }
           });
         }}
         className={`rounded-[2px] border px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] ${
@@ -81,8 +88,11 @@ export function ReimburseControl({
         <span className="mb-1 block text-[0.65rem] uppercase tracking-[0.08em] text-faint">
           Pays back which expense?
         </span>
-        {candidates === null && (
+        {candidates === null && !failed && (
           <span className="block py-1 text-[0.75rem] text-faint">Looking for nearby outflows…</span>
+        )}
+        {failed && (
+          <span className="block py-1 text-[0.75rem] text-faint">Couldn&apos;t load suggestions — close and retry.</span>
         )}
         {candidates !== null && candidates.length === 0 && (
           <span className="block py-1 text-[0.75rem] text-faint">No nearby outflows found.</span>

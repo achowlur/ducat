@@ -67,6 +67,11 @@ export interface ReimburseCandidate {
  * REIMBURSE_LEAD_DAYS], so extra rows cannot appear, and filtering preserves
  * order, so a per-inflow pool over exactly that window returns the identical
  * list — the property the lazy action depends on, pinned by the tests.
+ *
+ * The identity holds while every pool stays under REIMBURSE_POOL_TAKE; past
+ * the cap the wide and narrow queries would truncate differently (the narrow
+ * one keeping the rows that matter). Both queries order date desc, id desc,
+ * so same-date ties cannot resolve differently either.
  */
 export function makeCandidateFinder(
   pool: PoolOutflow[],

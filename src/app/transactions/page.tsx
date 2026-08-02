@@ -239,7 +239,9 @@ export default async function TransactionsPage({
             normalizedMerchant: true,
             description: true,
           },
-          orderBy: { date: "desc" },
+          // id breaks same-date ties so this query and the action's narrow one
+          // truncate and rank identically.
+          orderBy: [{ date: "desc" }, { id: "desc" }],
           take: REIMBURSE_POOL_TAKE,
         });
   const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));

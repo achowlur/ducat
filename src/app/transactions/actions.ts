@@ -230,7 +230,7 @@ export async function suggestCandidates(inflowId: string): Promise<ReimburseCand
       normalizedMerchant: true,
       description: true,
     },
-    orderBy: { date: "desc" },
+    orderBy: [{ date: "desc" }, { id: "desc" }],
     take: REIMBURSE_POOL_TAKE,
   });
   const categories = await prisma.category.findMany({ select: { id: true, name: true } });
