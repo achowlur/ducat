@@ -76,7 +76,10 @@ interface Row {
 /**
  * Where the keyboard starts: the row's CURRENT label with no query (Enter
  * changes nothing — the native-select promise); with a query, the first
- * PREFIX match, falling back to the first row.
+ * PREFIX match, falling back to the first row. An UNTAGGED row with no query
+ * starts with NOTHING active (-1): there is no current label to sit on, and
+ * falling back to the first existing label made bare Enter a write — the
+ * accidental tag the start-position promise exists to prevent.
  */
 function preferredIndex(rows: Row[], query: string, currentLabel: string | null): number {
   if (query !== "") {
@@ -85,8 +88,7 @@ function preferredIndex(rows: Row[], query: string, currentLabel: string | null)
     );
     return prefix === -1 ? 0 : prefix;
   }
-  const current = rows.findIndex((r) => r.kind === "label" && r.value === currentLabel);
-  return current === -1 ? 0 : current;
+  return rows.findIndex((r) => r.kind === "label" && r.value === currentLabel);
 }
 
 export function GroupPickerProvider({
@@ -254,7 +256,8 @@ function Popover({
       if (rows.length > 0) setActive((i) => (i + 1) % rows.length);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      if (rows.length > 0) setActive((i) => (i - 1 + rows.length) % rows.length);
+      // From the no-active start (-1), up lands on the LAST row.
+      if (rows.length > 0) setActive((i) => (i < 0 ? rows.length - 1 : (i - 1 + rows.length) % rows.length));
     } else if (e.key === "Home") {
       e.preventDefault();
       setActive(0);

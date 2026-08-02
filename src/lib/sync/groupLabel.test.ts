@@ -152,6 +152,16 @@ describe("groupLabel is a view, never a re-bucketing", () => {
     const before = await snapshotInsights();
     const breakdownsBefore = await snapshotBreakdowns();
     expect(before.length).toBeGreaterThan(0); // the comparison must be against something real
+    // Which analyzers this snapshot EMPIRICALLY pins. The fixture is too
+    // small to fire anomaly/recurring/subscription analyzers — those are
+    // protected by the zero-reads-of-groupLabel grep discipline, not by this
+    // byte-compare. If this set ever grows or shrinks, that boundary moved:
+    // re-decide it, don't just update the list.
+    expect([...new Set(before.map((r) => r.type))].sort()).toEqual([
+      "CASH_FLOW_TREND",
+      "NET_WORTH_GROWTH",
+      "SPENDING_BY_CATEGORY",
+    ]);
 
     // Tag across every row shape the ledger has: a RULE-categorized outflow,
     // a MANUAL row, BOTH sides of a transfer pair, a linked reimbursement,

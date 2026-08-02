@@ -20,11 +20,13 @@ export const MAX_GROUP_LABEL = 80;
 /**
  * Canonical label form: trimmed, runs of whitespace collapsed — the same
  * collapse discipline rule matching uses, so two labels can never differ by an
- * invisible double space. Returns null for an empty (or whitespace-only) input.
+ * invisible double space. Returns null for an empty (or whitespace-only)
+ * input, and null past MAX_GROUP_LABEL — an overlong label never becomes a
+ * create option, so the action's own cap is a backstop, not a UI path.
  */
 export function normalizeGroupLabel(raw: string): string | null {
   const label = raw.replace(/\s+/g, " ").trim();
-  return label === "" ? null : label;
+  return label === "" || label.length > MAX_GROUP_LABEL ? null : label;
 }
 
 /**

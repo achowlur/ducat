@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupHref, normalizeGroupLabel, parseGroupParam } from "./groupFilter";
+import { groupHref, normalizeGroupLabel, parseGroupParam, MAX_GROUP_LABEL } from "./groupFilter";
 
 describe("normalizeGroupLabel", () => {
   it("trims and collapses inner whitespace, so two labels cannot differ invisibly", () => {
@@ -9,6 +9,11 @@ describe("normalizeGroupLabel", () => {
   it("returns null for empty and whitespace-only input", () => {
     expect(normalizeGroupLabel("")).toBeNull();
     expect(normalizeGroupLabel("   ")).toBeNull();
+  });
+
+  it("returns null past MAX_GROUP_LABEL — an overlong label never becomes a create option", () => {
+    expect(normalizeGroupLabel("x".repeat(MAX_GROUP_LABEL))).toBe("x".repeat(MAX_GROUP_LABEL));
+    expect(normalizeGroupLabel("x".repeat(MAX_GROUP_LABEL + 1))).toBeNull();
   });
 });
 
