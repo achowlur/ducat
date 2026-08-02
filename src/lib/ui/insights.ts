@@ -30,6 +30,7 @@ import { MORTGAGE_RATE_KEY, parseMortgageRate } from "../rates/mortgageRate";
 import { DEFAULT_RECURRING_OPTIONS } from "../insights/recurring";
 import { periodCoverage, type PeriodCoverage } from "../insights/coverage";
 import { periodEndExclusive, periodStart } from "../insights/periods";
+import { tripsForPeriod, type TripRow } from "./trips";
 import { countsAsCash, readCashAccountIds } from "./liquidity";
 import { getAccountCoverage, getPeriodCoverage } from "./coverage";
 import { monthlyRows, ofType } from "./insightRows";
@@ -97,6 +98,15 @@ export interface InsightsPageData {
    * now and the fund is a live balance.
    */
   readiness: ReadinessAssessment | null;
+  /**
+   * Trip/project groups with activity in the VIEWED period — facts (portion,
+   * running net, span, link), never analytics: the figures are plain sums of
+   * the tagged rows as the group's ledger view lists them, and no analyzer
+   * reads the tag. Empty means the section is ABSENT — a group is opt-in
+   * content like goals, so an empty heading would imply the engine went
+   * looking for trips.
+   */
+  trips: TripRow[];
   /**
    * True when the period on screen has no insight rows at all — only the
    * admitted current month can be in this state, since every other reachable
@@ -240,7 +250,7 @@ function toRow(
 }
 
 export async function getInsightsPageData(requestedPeriod?: string): Promise<InsightsPageData | null> {
-  const [insightRows, registered, settingRows, accountRows, cashIds] = await Promise.all([
+  const [insightRows, registered, settingRows, accountRows, cashIds, taggedRows] = await Promise.all([
     prisma.insight.findMany(),
     getSubscriptionStatuses(prisma),
     // Goals, readiness config and the stored rate observation in ONE
@@ -257,6 +267,13 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     // declaration-independent order, and unordered findMany is unspecified.
     prisma.account.findMany({ select: { id: true, name: true, balance: true, type: true }, orderBy: { institution: 'asc' } }),
     readCashAccountIds(prisma),
+    // Every tagged row, for the TRIPS section — four scalar columns over the
+    // few rows that carry a tag, joining the concurrent group (one round
+    // trip, no gate: a gate would cost about what it saves).
+    prisma.transaction.findMany({
+      where: { groupLabel: { not: null } },
+      select: { groupLabel: true, date: true, amount: true, flow: true },
+    }),
   ]);
   const settingValue = (key: string) => settingRows.find((r) => r.key === key)?.value ?? null;
   const monthly = monthlyRows(insightRows);
@@ -501,6 +518,17 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     });
   }
 
+  // Trips are a VIEW over rows, so they need no insight row from the period —
+  // a group is shown wherever its rows actually landed, which is the whole
+  // point: a March trip paid across February and March appears on both pages,
+  // and neither month lies.
+  const trips = tripsForPeriod(
+    taggedRows
+      .filter((t): t is typeof t & { groupLabel: string } => t.groupLabel !== null)
+      .map((t) => ({ groupLabel: t.groupLabel, date: t.date, amount: Number(t.amount), flow: t.flow })),
+    period,
+  );
+
   return {
     period,
     periodLabel: monthLabel(period),
@@ -514,6 +542,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     digest,
     goals,
     readiness,
+    trips,
     emptyPeriod: inPeriod.length === 0,
   };
 }

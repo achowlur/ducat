@@ -88,7 +88,9 @@ export default async function OverviewPage() {
           {
             text: `${data.uncategorizedCount} uncategorized transaction${data.uncategorizedCount === 1 ? "" : "s"}`,
             detail: "spending totals are incomplete until these are cleared",
-            href: "/transactions?category=uncategorized&group=1",
+            // `payees=1` — the bulk queue's param was `group=1` until the
+            // trip filter claimed `?group=` for labels.
+            href: "/transactions?category=uncategorized&payees=1",
             urgent: true,
           },
         ]

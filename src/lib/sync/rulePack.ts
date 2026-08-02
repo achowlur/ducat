@@ -354,6 +354,31 @@ export interface GroupUndo {
   restore: TxnRestore[];
 }
 
+/** Values a restore row may legally carry — undo input arrives from the client. */
+const RESTORE_FLOWS = new Set(['INFLOW', 'OUTFLOW', 'TRANSFER']);
+const RESTORE_SOURCES = new Set(['MANUAL', 'RULE', 'AGGREGATOR']);
+
+/**
+ * Write a TxnRestore snapshot back — the undo half of reapplyRules. It writes
+ * EXACTLY the three fields the reapply wrote and nothing else: `groupLabel`
+ * (the trip tag) is deliberately neither snapshot nor restored, so a tag
+ * applied between the bulk decision and its undo survives the undo — the same
+ * reasoning as MANUAL exclusions, arriving from the opposite direction.
+ * Rows whose snapshot fails the value guard are skipped, not guessed at.
+ */
+export async function restoreTransactions(
+  prisma: PrismaClient,
+  restore: TxnRestore[],
+): Promise<void> {
+  for (const t of restore) {
+    if (!RESTORE_FLOWS.has(t.flow) || !RESTORE_SOURCES.has(t.categorySource)) continue;
+    await prisma.transaction.update({
+      where: { id: t.id },
+      data: { categoryId: t.categoryId, categorySource: t.categorySource, flow: t.flow },
+    });
+  }
+}
+
 /**
  * Re-runs all enabled rules over every non-MANUAL transaction (used after
  * installing the pack or creating a rule) and regenerates insights when

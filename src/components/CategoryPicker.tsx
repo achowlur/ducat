@@ -18,6 +18,7 @@ import {
   setTransactionCategory,
   unregisterSubscription,
 } from "../app/transactions/actions";
+import { useGroupPicker } from "./GroupPicker";
 import type { RecurringCadence } from "../types/contracts";
 
 export interface CategoryOption {
@@ -469,6 +470,7 @@ export function CategoryButton({
   categorySource,
   subscriptionPattern,
   subscriptionTracked,
+  groupLabel = null,
 }: {
   transactionId: string;
   /** Display name — the payee for a P2P row, not the rail. */
@@ -481,10 +483,15 @@ export function CategoryButton({
   /** Null when this row can't be tracked — no merchant, or too short to match safely. */
   subscriptionPattern: string | null;
   subscriptionTracked: boolean;
+  /** The row's trip/project tag, for the trip menu item's picker. */
+  groupLabel?: string | null;
 }) {
   const { nameOf, openPicker, target, pendingId } = usePicker();
+  // Null-tolerant: the trip item renders only inside a GroupPickerProvider.
+  const groupCtx = useGroupPicker();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const ruleRef = useRef<HTMLButtonElement>(null);
+  const tripRef = useRef<HTMLButtonElement>(null);
   const [menu, setMenu] = useState<"closed" | "actions" | "cadence">("closed");
   const [subPending, startSub] = useTransition();
   const [subError, setSubError] = useState<string | null>(null);
@@ -595,6 +602,27 @@ export function CategoryButton({
                 subscription
               </button>
             ))}
+          {groupCtx !== null && (
+            <button
+              ref={tripRef}
+              type="button"
+              onClick={() => {
+                // The menu stays open: this button is the picker's anchor, and
+                // an unmounted anchor measures a zero rect and takes no focus.
+                if (tripRef.current === null || groupCtx.pendingId === transactionId) return;
+                groupCtx.openPicker({
+                  transactionId,
+                  groupLabel,
+                  rowLabel: merchant === "" ? "this transaction" : merchant,
+                  anchor: tripRef.current,
+                });
+              }}
+              className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+              title="Tag THIS transaction into a trip or project — a view across months, never a category"
+            >
+              trip
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setMenu("closed")}

@@ -96,6 +96,11 @@ model Transaction {
   reimbursedBy       Transaction[]     @relation("Reimbursement")
   source             TransactionSource
   importedAt         DateTime          @default(now())
+  // Trip/project tag ("Tess's March trip"): a cross-period VIEW over real
+  // rows, never a re-bucketing — no analyzer reads it. Nullable with no
+  // default, deliberately: exactly the shape schema:push can ADD to a
+  // populated cloud table.
+  groupLabel         String?
 
   @@unique([accountId, externalId])
 }

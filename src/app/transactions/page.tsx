@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Prisma } from "../../generated/prisma/client";
 import { CategoryButton, CategoryPickerProvider } from "../../components/CategoryPicker";
+import { GroupChip, GroupPickerProvider, GroupTrigger } from "../../components/GroupPicker";
 import { GroupedReview, type PayeeGroupView } from "../../components/GroupedReview";
 import { ReimburseControl } from "../../components/ReimburseControl";
 import { draftSubscription } from "../../lib/health/registerSubscription";
@@ -17,6 +18,7 @@ import { P2P_PATTERN } from "../../lib/sync/rulePack";
 import { amount, isoDate, money, monthLabel, titleCase } from "../../lib/ui/format";
 import { periodKey } from "../../lib/insights/periods";
 import { parseCategoryParam } from "../../lib/ui/categoryFilter";
+import { parseGroupParam } from "../../lib/ui/groupFilter";
 import { merchantLabel } from "../../lib/ui/merchantLabel";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +38,10 @@ interface Params {
   q?: string;
   review?: string;
   page?: string;
+  /** Trip/project label filter — owned by ui/groupFilter.ts. */
   group?: string;
+  /** "1" = the group-by-payee bulk review queue (was `group` before trips claimed that name). */
+  payees?: string;
 }
 
 function buildHref(params: Params, overrides: Partial<Params>): string {
@@ -117,6 +122,11 @@ export default async function TransactionsPage({
       { normalizedMerchant: { contains: params.q.trim().toLowerCase() } },
     ];
   }
+  // The trip/project filter: ONE label, read only through ui/groupFilter.ts.
+  // A plain column equality, so it composes with everything above without
+  // touching `q`'s top-level OR or the category group living in AND.
+  const tripLabel = parseGroupParam(params.group);
+  if (tripLabel !== null) where.groupLabel = tripLabel;
 
   // Review mode narrows in SQL as far as Prisma can, then finishes in JS: the
   // P2P test is a regex across two columns, which Prisma cannot express. Its
@@ -127,7 +137,7 @@ export default async function TransactionsPage({
     ? { ...where, categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" } }
     : where;
 
-  const [rows, total, categories, accounts, dateRange, reviewPool, trackedSubs] = await Promise.all([
+  const [rows, total, categories, accounts, dateRange, reviewPool, trackedSubs, groupLabelRows, tripTotals, tripTransfers] = await Promise.all([
     prisma.transaction.findMany({
       where: listWhere,
       // A relation `include` is a ROUND TRIP, and this query had three of them
@@ -147,6 +157,7 @@ export default async function TransactionsPage({
         accountId: true,
         categoryId: true,
         categorySource: true,
+        groupLabel: true,
         reimbursesId: true,
         reimburses: { select: { normalizedMerchant: true, description: true, date: true } },
       },
@@ -170,6 +181,27 @@ export default async function TransactionsPage({
     // let you register the same one twice. A tiny table, and it joins the group
     // rather than gating it.
     prisma.trackedSubscription.findMany({ select: { merchantPattern: true } }),
+    // Every known trip label, for the ONE picker — the list crosses the wire
+    // once, exactly as the category list does.
+    prisma.transaction.findMany({
+      where: { groupLabel: { not: null } },
+      distinct: ["groupLabel"],
+      select: { groupLabel: true },
+      orderBy: { groupLabel: "asc" },
+    }),
+    // The totals band's facts, over the SAME `where` the ledger lists — the
+    // band sums what its own filtered view shows, nothing else. Null (no
+    // query) unless a trip filter is active.
+    tripLabel === null
+      ? null
+      : prisma.transaction.aggregate({
+          where,
+          _count: true,
+          _sum: { amount: true },
+          _min: { date: true },
+          _max: { date: true },
+        }),
+    tripLabel === null ? 0 : prisma.transaction.count({ where: { ...where, flow: "TRANSFER" } }),
   ]);
 
   // The account column, without joining Account onto every row: `accounts` is
@@ -288,10 +320,23 @@ export default async function TransactionsPage({
           ...(selection.uncategorized ? ["Uncategorized"] : []),
         ];
 
+  // The known trip labels, and the band's facts when a trip filter is active.
+  const tripLabels = groupLabelRows.map((r) => r.groupLabel).filter((l): l is string => l !== null);
+  const tripBand =
+    tripTotals === null
+      ? null
+      : {
+          count: tripTotals._count,
+          net: Number(tripTotals._sum.amount ?? 0),
+          first: tripTotals._min.date,
+          last: tripTotals._max.date,
+        };
+
   // Grouped review: one decision per payee across the ENTIRE uncategorized
   // backlog (not just the visible page), highest-leverage payee first. A few
   // hundred transactions are typically only a few dozen payees.
-  const groupMode = params.group === "1";
+  // (`?payees=1` — this mode owned `?group=` until trips claimed the name.)
+  const groupMode = params.payees === "1";
   let groups: PayeeGroupView[] = [];
   if (groupMode) {
     const uncategorized = await prisma.transaction.findMany({
@@ -331,8 +376,11 @@ export default async function TransactionsPage({
       <form className="flex flex-wrap items-end gap-3 border-b border-ink pb-3" action="/transactions" method="get">
         {/* The filters DO apply to the grouped query, but a GET form only
             submits its own fields — without this, "review just June" dropped
-            you out of the queue and into the flat list. */}
-        {groupMode && <input type="hidden" name="group" value="1" />}
+            you out of the queue and into the flat list. The trip filter needs
+            the same synthetic entry: it has no visible control here, so a
+            form submit would silently drop it. */}
+        {groupMode && <input type="hidden" name="payees" value="1" />}
+        {tripLabel !== null && <input type="hidden" name="group" value={tripLabel} />}
         <label className="grid gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
           Period
           <select
@@ -400,7 +448,7 @@ export default async function TransactionsPage({
           Filter
         </button>
         <Link
-          href={groupMode ? "/transactions?group=1" : "/transactions"}
+          href={groupMode ? "/transactions?payees=1" : "/transactions"}
           className="pb-1.5 text-[0.75rem] uppercase tracking-[0.08em] text-faint hover:text-ink"
         >
           Clear
@@ -428,8 +476,16 @@ export default async function TransactionsPage({
             </Link>
           </span>
         )}
+        {tripLabel !== null && !groupMode && (
+          <Link
+            href={buildHref(params, { group: undefined, page: undefined })}
+            className="font-semibold text-acc hover:underline"
+          >
+            clear trip
+          </Link>
+        )}
         {groupMode ? (
-          <Link href={buildHref(params, { group: undefined, page: undefined })} className="font-semibold text-acc hover:underline">
+          <Link href={buildHref(params, { payees: undefined, page: undefined })} className="font-semibold text-acc hover:underline">
             ← transaction list
           </Link>
         ) : (
@@ -437,7 +493,7 @@ export default async function TransactionsPage({
           // "← all transactions" while being the highest-leverage thing on the
           // screen — Overview's red pill sold it better than its own page did.
           <Link
-            href={buildHref(params, { group: "1", category: "uncategorized", review: undefined, page: undefined })}
+            href={buildHref(params, { payees: "1", category: "uncategorized", review: undefined, page: undefined })}
             className="rounded-[2px] border border-acc px-2 py-1 font-semibold uppercase tracking-[0.06em] text-acc hover:bg-chip"
             title="Group the uncategorized backlog by payee — one decision categorizes every occurrence and future ones too"
           >
@@ -502,11 +558,44 @@ export default async function TransactionsPage({
           ))}
       </div>
 
+      {/* The trip's totals band: label, row count, span, sum — FACTS about
+          exactly the filtered view below it, stated once, above the table
+          (the Overview grouping-figures idiom: a summary is a band, never a
+          row). The sum is the signed net of every row this view shows —
+          transfers included when the view includes them, and the wording says
+          so, because a band that disagrees with the table under it is the
+          two-totals bug. */}
+      {tripLabel !== null && tripBand !== null && !groupMode && !reviewMode && (
+        <div className="mb-1 flex flex-wrap items-baseline gap-x-5 gap-y-1 border-b-2 border-ink bg-chip px-3 py-2 text-[0.85rem]">
+          <span className="font-semibold">{tripLabel}</span>
+          {tripBand.count === 0 || tripBand.first === null || tripBand.last === null ? (
+            <span className="text-faint">no rows carry this tag under these filters</span>
+          ) : (
+            <>
+              <span className="font-money tabular text-faint">
+                {tripBand.count} row{tripBand.count === 1 ? "" : "s"}
+              </span>
+              <span className="font-money tabular text-faint">
+                {isoDate(tripBand.first)} → {isoDate(tripBand.last)}
+              </span>
+              <span className="ml-auto font-money tabular font-semibold">net {money(tripBand.net)}</span>
+              <span className="w-full text-[0.72rem] text-faint">
+                the signed sum of the rows this view shows
+                {tripTransfers > 0 &&
+                  ` — including ${tripTransfers} transfer${tripTransfers === 1 ? "" : "s"}, which spending analytics still exclude`}
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
       {groupMode ? (
         <GroupedReview groups={groups} categories={categoryOptions} />
       ) : (
       // The category list crosses the wire ONCE, here, instead of being
-      // serialized into all ~228 rows that carry a control.
+      // serialized into all ~228 rows that carry a control. The trip picker
+      // follows the same economics: one portal, labels serialized once.
+      <GroupPickerProvider labels={tripLabels}>
       <CategoryPickerProvider categories={categoryOptions}>
       <div className="overflow-x-auto">
       <table className="w-full border-collapse">
@@ -544,10 +633,38 @@ export default async function TransactionsPage({
                 </td>
                 <td className="py-1.5 pr-3">
                   {t.flow === "TRANSFER" ? (
-                    <span className="text-[0.75rem] text-faint" title="Transfers are excluded from spending analytics and carry no category">
-                      transfer
-                    </span>
+                    // The word itself is the trip trigger — same text, same
+                    // element count, so an untagged ledger page pays nothing.
+                    t.groupLabel === null ? (
+                      <GroupTrigger
+                        transactionId={t.id}
+                        groupLabel={null}
+                        rowLabel={merchantLabel(t).label || "this transfer"}
+                        className="text-[0.75rem] text-faint hover:text-ink"
+                        title="Transfers are excluded from spending analytics and carry no category — but one can be tagged into a trip/project"
+                      >
+                        transfer
+                      </GroupTrigger>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5">
+                        <GroupTrigger
+                          transactionId={t.id}
+                          groupLabel={t.groupLabel}
+                          rowLabel={merchantLabel(t).label || "this transfer"}
+                          className="text-[0.75rem] text-faint hover:text-ink"
+                          title="Transfers are excluded from spending analytics and carry no category — but one can be tagged into a trip/project"
+                        >
+                          transfer
+                        </GroupTrigger>
+                        <GroupChip
+                          transactionId={t.id}
+                          groupLabel={t.groupLabel}
+                          rowLabel={merchantLabel(t).label || "this transfer"}
+                        />
+                      </span>
+                    )
                   ) : t.flow === "INFLOW" && t.reimburses !== null ? (
+                    <span className="inline-flex items-center gap-1.5">
                     <ReimburseControl
                       inflowId={t.id}
                       linked={{
@@ -560,6 +677,27 @@ export default async function TransactionsPage({
                       }}
                       strongHint={null}
                     />
+                    {/* A linked reimbursement loses the category control, so
+                        it needs its own way into the trip picker — the one
+                        row shape that pays an element for it. */}
+                    {t.groupLabel === null ? (
+                      <GroupTrigger
+                        transactionId={t.id}
+                        groupLabel={null}
+                        rowLabel={merchantLabel(t).label || "this transaction"}
+                        className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+                        title="Tag this reimbursement into a trip/project"
+                      >
+                        trip
+                      </GroupTrigger>
+                    ) : (
+                      <GroupChip
+                        transactionId={t.id}
+                        groupLabel={t.groupLabel}
+                        rowLabel={merchantLabel(t).label || "this transaction"}
+                      />
+                    )}
+                    </span>
                   ) : (
                     <span className="inline-flex items-center gap-1.5">
                       {(() => {
@@ -579,11 +717,22 @@ export default async function TransactionsPage({
                             categorySource={t.categorySource}
                             subscriptionPattern={pattern}
                             subscriptionTracked={pattern !== null && trackedPatterns.has(pattern)}
+                            groupLabel={t.groupLabel}
                           />
                         );
                       })()}
                       {t.flow === "INFLOW" && (
                         <ReimburseControl inflowId={t.id} linked={null} strongHint={strongHintFor(t)} />
+                      )}
+                      {/* Tagged rows carry their chip; untagged rows carry
+                          NOTHING — their way in is the actions menu, which
+                          renders on demand (the DOM-size lesson). */}
+                      {t.groupLabel !== null && (
+                        <GroupChip
+                          transactionId={t.id}
+                          groupLabel={t.groupLabel}
+                          rowLabel={merchantLabel(t).label || "this transaction"}
+                        />
                       )}
                     </span>
                   )}
@@ -612,6 +761,7 @@ export default async function TransactionsPage({
       </table>
       </div>
       </CategoryPickerProvider>
+      </GroupPickerProvider>
       )}
     </div>
   );

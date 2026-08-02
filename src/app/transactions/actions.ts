@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { revalidateInsightPages } from "../revalidate";
 import { prisma } from "../../lib/prisma";
 import { generateInsights } from "../../lib/insights/engine";
-import { reapplyRules, type GroupUndo } from "../../lib/sync/rulePack";
+import { reapplyRules, restoreTransactions, type GroupUndo } from "../../lib/sync/rulePack";
+import { MAX_GROUP_LABEL, normalizeGroupLabel } from "../../lib/ui/groupFilter";
 import { requireSession } from "../../lib/auth/requireSession";
 import { TRANSFER_TARGET } from "../../lib/sync/grouping";
 import { draftSubscription } from "../../lib/health/registerSubscription";
@@ -97,13 +98,12 @@ async function upsertRule(
   };
 }
 
-const FLOWS = new Set(["INFLOW", "OUTFLOW", "TRANSFER"]);
-const SOURCES = new Set(["MANUAL", "RULE", "AGGREGATOR"]);
-
 /**
  * Reverse the last bulk categorization. Deleting the rule is not enough on its
  * own — rules only write to rows they match, so the rows it already
  * categorized would keep their new category with nothing left to explain it.
+ * The row writes live in `restoreTransactions` (rulePack.ts) so the tests pin
+ * the exact write the action performs — three fields, never the trip tag.
  */
 export async function undoCategorizeGroup(undo: GroupUndo): Promise<void> {
   await requireSession();
@@ -120,16 +120,38 @@ export async function undoCategorizeGroup(undo: GroupUndo): Promise<void> {
       });
     }
   }
-  for (const t of undo.restore) {
-    if (!FLOWS.has(t.flow) || !SOURCES.has(t.categorySource)) continue;
-    await prisma.transaction.update({
-      where: { id: t.id },
-      data: { categoryId: t.categoryId, categorySource: t.categorySource, flow: t.flow },
-    });
-  }
+  await restoreTransactions(prisma, undo.restore);
   await generateInsights(prisma);
   revalidatePath("/transactions");
   revalidateInsightPages();
+}
+
+/**
+ * Tag (or untag, with null) a transaction into a trip/project group.
+ *
+ * A group is a cross-period VIEW over real rows, never a re-bucketing:
+ * category, flow and every analytic stay exactly as they were, so this
+ * deliberately does NOT regenerate insights — no analyzer reads `groupLabel`,
+ * and the invariant test pins that regeneration after tagging changes nothing.
+ */
+export async function setTransactionGroup(
+  transactionId: string,
+  label: string | null,
+): Promise<void> {
+  await requireSession();
+  const value = label === null ? null : normalizeGroupLabel(label);
+  if (label !== null && value === null) {
+    throw new Error("A trip needs a name — or untag the row instead.");
+  }
+  if (value !== null && value.length > MAX_GROUP_LABEL) {
+    throw new Error(`Trip names cap at ${MAX_GROUP_LABEL} characters.`);
+  }
+  await prisma.transaction.update({
+    where: { id: transactionId },
+    data: { groupLabel: value },
+  });
+  revalidatePath("/transactions");
+  revalidatePath("/insights"); // the TRIPS section reads the tags directly
 }
 
 /**

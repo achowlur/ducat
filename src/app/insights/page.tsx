@@ -632,6 +632,49 @@ export default async function InsightsPage({
         </section>
       )}
 
+      {/* Trips & projects with rows in the month on screen — FACTS, no chips:
+          every figure is the plain signed sum of tagged rows the link opens,
+          so there is nothing projected or assumed to flag. Absent entirely
+          when no group touches the period: a trip is opt-in content like
+          goals, and an empty heading would imply the engine went looking. */}
+      {data.trips.length > 0 && (
+        <section className="mt-4">
+          <h3 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
+            Trips &amp; projects
+          </h3>
+          {data.trips.map((t) => (
+            <div
+              key={t.label}
+              className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-b border-rule py-2 text-[0.85rem] last:border-b-0 max-md:py-3"
+            >
+              <Link href={t.href} className="font-semibold text-acc hover:underline">
+                {t.label}
+              </Link>
+              <span className="font-money text-[0.72rem] tabular text-faint">
+                {shortDate(t.firstDate)} – {shortDate(t.lastDate)}
+              </span>
+              <span className="min-w-0">
+                {data.periodLabel}:{" "}
+                <span className="font-money tabular">{money(t.periodNet)}</span>
+                <span className="text-faint">
+                  {" "}
+                  ({t.periodRowCount} row{t.periodRowCount === 1 ? "" : "s"})
+                </span>
+              </span>
+              <span className="ml-auto whitespace-nowrap font-money text-[0.78rem] tabular text-faint">
+                running {money(t.runningNet)} · {t.rowCount} row{t.rowCount === 1 ? "" : "s"}
+                {t.transferCount > 0 &&
+                  ` · ${t.transferCount} transfer${t.transferCount === 1 ? "" : "s"}`}
+              </span>
+            </div>
+          ))}
+          <p className="pt-1.5 text-[0.72rem] text-faint">
+            The signed net of each trip&apos;s tagged rows, exactly as its ledger lists them —
+            transfers ride along when tagged, and spending analytics still exclude them.
+          </p>
+        </section>
+      )}
+
       {/* Suppressed for the empty current month: the line above already says
           why there is nothing, and two quiet lines saying it reads broken. */}
       {visibleGroups.length === 0 && !data.emptyPeriod && (
