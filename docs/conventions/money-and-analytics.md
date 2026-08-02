@@ -126,3 +126,28 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   ties. Ranking by date alone put last night's rent above the dinner a $116.63 Zelle
   actually repaid. Categories in `UNSPLITTABLE` are denied split evidence:
   arithmetic can't tell "1/5 of a dinner" from "1/6 of a tax bill".
+- Trip grouping (2026-08-02) exists to answer "what did the March trip cost"
+  without any month lying, and the whole design is that it is a VIEW: one
+  nullable `groupLabel` on Transaction — deliberately the exact shape
+  `schema:push` can ADD to a populated table (nullable, no default; the
+  delta classifies additive at any row count, twice-derived independently)
+  — read by nothing in `insights/`. The spine test
+  (`sync/groupLabel.test.ts`) seeds a database through runSync, snapshots
+  generateInsights output and every spendingBreakdown, tags rows of every
+  shape (RULE, MANUAL, both transfer sides, a linked reimbursement, a
+  second month), regenerates, and asserts deep-equal — and it now STATES
+  which analyzer types its fixture empirically pins (CASH_FLOW_TREND,
+  NET_WORTH_GROWTH, SPENDING_BY_CATEGORY); the anomaly/recurring family is
+  protected by the zero-reads grep discipline, and if that type set ever
+  moves the boundary moved with it — re-decide, don't just update the list.
+  The undo half was made testable by extracting `restoreTransactions` into
+  rulePack.ts: the restore writes exactly categoryId/categorySource/flow,
+  so the snapshot deliberately does NOT carry groupLabel — a tag applied
+  between a bulk decision and its undo survives the undo, the
+  MANUAL-is-sacred reasoning pointed the other way, and the adversarial
+  review found no reachable sequence that loses a tag (the only writer is
+  setTransactionGroup; dedup never touches an existing row). TRANSFER rows
+  may carry a tag; the band and the TRIPS section sum the signed net of the
+  rows their own view shows, transfers included, because a summary that
+  disagrees with the table under it is the two-totals bug — and each says
+  so in words while spending analytics keep excluding those rows entirely.

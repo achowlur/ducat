@@ -194,3 +194,29 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   complete-month cut and the context's completeness boundary — the runway
   previously derived its own from a second `new Date()`, the same latent
   straddle-midnight split /insights had already paid for.
+- The trip UI (2026-08-02) re-earns none of the category picker's four bugs
+  and none of the DOM lesson: ONE portal picker (GroupPicker.tsx) with
+  aria-disabled triggers, measured viewport room with flip,
+  mousemove-not-mouseenter, and a keyboard start on the row's current
+  label. An UNTAGGED row's picker starts with NOTHING active — the
+  adversarial review caught the fallback-to-first-label making bare Enter
+  an accidental tag, the exact write the start-position promise exists to
+  prevent; ArrowDown from that start lands on the first row, ArrowUp on the
+  last. Overlong labels die in normalizeGroupLabel (null past
+  MAX_GROUP_LABEL), so no create option is ever offered past the cap and
+  the action's own throw is a backstop for hand-crafted requests, not a UI
+  path. A tagged row carries one chip, an untagged ordinary row carries
+  NOTHING (its way in is the on-demand actions menu), the transfer cell's
+  own text became the trigger at zero element cost, and only the
+  linked-reimbursement row shape pays (+2 elements — measured 1483→1485
+  non-script on a 100-row page, reproduced independently by the review).
+  `?group=1` was already the payee-review mode, so that mode moved to
+  `?payees=1` — a param name is an API, and the collision would have made a
+  trip named "1" unreachable; the repo-wide grep found zero stale uses. The
+  label round-trip (space + apostrophe: "Tess's March trip") is pinned from
+  href through URLSearchParams to the parse and was driven through the
+  picker, the band, and the /insights link on real data. The /insights
+  TRIPS section costs exactly +1 round trip (a 4-column findMany joining
+  the existing Promise.all), which an untagged database also pays — a gate
+  would itself be a query. The totals band aggregates the WHOLE filter, not
+  the visible page, consistent with Overview's band idiom.

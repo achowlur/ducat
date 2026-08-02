@@ -129,6 +129,12 @@ regeneration.
   the period START.
 - Reimbursement suggestions lead with AMOUNT evidence; date only breaks
   ties; UNSPLITTABLE categories are denied split evidence.
+- A trip/project group (`Transaction.groupLabel`) is a cross-period VIEW
+  over real rows, never a re-bucketing: NO analyzer reads it, tagging
+  changes no printed total (pinned byte-identical by groupLabel.test.ts),
+  and every row-rewriting path — dedup import, reapplyRules, its undo,
+  transfer-pair detection — leaves the tag standing, the MANUAL
+  protection arriving from the opposite direction.
 
 ## Rules — merchants & rules → docs/conventions/merchants-and-rules.md
 
@@ -273,6 +279,13 @@ regeneration.
 - ?category= is an INCLUSION list, written/read ONLY by
   ui/categoryFilter.ts; null means the Uncategorized bucket; the multi-id
   group lives in where.AND; the select needs its synthetic entry.
+- ?group= is the trip filter, owned by ui/groupFilter.ts (the payee queue
+  is ?payees=1); the group is a scalar equality beside q's OR and the
+  category AND; the totals band and the /insights TRIPS rows sum EXACTLY
+  what their own filtered view shows — transfers included when tagged,
+  and the wording says so; no group touching a period means the section
+  is ABSENT, never empty; an untagged row's picker starts with NOTHING
+  active, so bare Enter writes nothing.
 - Charts are hand-rolled SVG; no chart library, no webfonts anywhere (CSP).
   niceTicks guarantees last tick ≥ max; value labels are collision-checked.
 - Overview is HEADLINE → DETAIL → TOTAL; the grouping figures are a
