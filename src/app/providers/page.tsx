@@ -44,8 +44,9 @@ export default async function ProvidersPage() {
           ) : (
             <>
               Running in <strong>local mode</strong>, against a file database on this machine, bound to
-              127.0.0.1. Transaction data never leaves this device — the only outbound connection the app
-              makes is to the SimpleFIN feed below.
+              127.0.0.1. Transaction data never leaves this device — the only outbound connections the
+              app makes are the ones on this page: the SimpleFIN feed, plus the FRED rate index only if
+              you opt in with an API key. Nothing outbound carries transaction data.
             </>
           )}
         </p>
