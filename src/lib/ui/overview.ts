@@ -23,6 +23,7 @@ import {
   type BalanceSummary,
   type Runway,
 } from "./liquidity";
+import { periodKey } from "../insights/periods";
 import { monthLabel, shortDate } from "./format";
 import { monthlyRows, ofType } from "./insightRows";
 import { spendingBreakdown, type DonutSliceData } from "./spendingBreakdown";
@@ -58,13 +59,47 @@ export interface AccountRow {
 /** Below this the lag is not worth printing; see AccountRow.balanceLagDays. */
 export const STALE_DISPLAY_DAYS = 2;
 
-export interface OverviewData {
-  period: string; // e.g. "2026-07"
-  periodLabel: string; // "July 2026"
-  netWorth: NetWorthGrowthPayload | null;
-  accounts: AccountRow[];
+/**
+ * The latest COMPLETE month's NET_WORTH_GROWTH figures, carried as labeled
+ * context under the live headline — never as the headline itself. Two instants
+ * presented as one state was the bug: a July insight figure rendered above
+ * today's balances, and the two drifted apart all month.
+ */
+export interface MonthContext {
+  period: string; // "2026-07"
+  /** "July 2026" — the label every context line must carry. */
+  label: string;
+  /** "July" — for prose that names the month mid-sentence. */
+  monthName: string;
+  growthRate: number | null;
+  marketGains: number | null;
+  /** Accounts whose balance in THAT month's net worth was reconstructed. */
   estimatedCount: number;
+}
+
+export interface OverviewData {
+  /**
+   * The signed sum of current account balances — the sign convention's own
+   * definition of net worth (CREDIT/LOAN negative), read live. No month label
+   * belongs on it: it is an instant, not a period.
+   */
+  liveNetWorth: number;
+  /** Null when no complete month has a NET_WORTH_GROWTH row — the live headline stands alone. */
+  monthContext: MonthContext | null;
+  /** The month being lived in ("2026-08") — the spending block's month. */
+  currentPeriod: string;
+  currentPeriodLabel: string; // "August 2026"
+  accounts: AccountRow[];
+  /** Donut for the lived-in month; null when it has no spending row or nothing drawable. */
   donut: { slices: DonutSliceData[]; total: number } | null;
+  /**
+   * Net totalSpending for the lived-in month (single source:
+   * spendingBreakdown). Null means NO row yet — "nothing recorded", which is
+   * a different claim from a $0.00 month.
+   */
+  spendingTotal: number | null;
+  /** The latest complete month with a spending row — the quiet link out of an empty month. */
+  priorSpending: { period: string; monthName: string; total: number } | null;
   /** Held, invested and owed, so the balance table does not have to be added up by eye. */
   balances: BalanceSummary;
   /** Months of cash at recent spending; null when the evidence refuses. */
@@ -115,12 +150,22 @@ export async function getOverviewData(): Promise<OverviewData> {
     ]);
 
   const monthly = monthlyRows(insightRows);
+  // ONE `now` for the whole page: the spending block's month, the runway's
+  // complete-month cut and the context's "complete" boundary must agree on
+  // which month is being lived in, or a render straddling UTC midnight puts
+  // different months on one screen. UTC via periodKey, like every period
+  // bound in the app.
+  const now = new Date();
+  const currentPeriod = periodKey(now, "MONTH");
   // ofType is oldest-first, the order charts plot in. This page reads the
-  // LATEST month, so it takes from the end rather than flipping the shared
-  // default out from under Trends.
-  const netWorthAll = ofType<NetWorthGrowthPayload>(monthly, "NET_WORTH_GROWTH");
-  const latest = netWorthAll[netWorthAll.length - 1] ?? null;
-  const period = latest?.period ?? null;
+  // latest COMPLETE month for context, so it takes from the end rather than
+  // flipping the shared default out from under Trends. Strictly before the
+  // lived-in month: a partial month's growth figure drifts all month, and the
+  // context's job is to be a settled fact under a live headline.
+  const netWorthAll = ofType<NetWorthGrowthPayload>(monthly, "NET_WORTH_GROWTH").filter(
+    (r) => r.period < currentPeriod,
+  );
+  const latestComplete = netWorthAll[netWorthAll.length - 1] ?? null;
   const snapshotByAccount = new Map(snapshots.map((s) => [s.accountId, s._max.date]));
   // Health already decided which balances are stale, on its own tuned bar.
   // Re-deriving it here would be a second threshold to keep in step.
@@ -147,44 +192,62 @@ export async function getOverviewData(): Promise<OverviewData> {
     .sort((a, b) => (TYPE_ORDER[a.type] ?? 9) - (TYPE_ORDER[b.type] ?? 9) || b.balance - a.balance);
 
   const balances = summariseBalances(accounts, cashAccountIds);
+  // The headline: the plain sum of the signed balances the table below prints.
+  // Live by definition — no insight row stands between the accounts and their
+  // own total, so the figure cannot lag a sync the way the old (latest
+  // NET_WORTH_GROWTH row) headline did.
+  const liveNetWorth = accounts.reduce((sum, a) => sum + a.balance, 0);
   // Complete months only, and the app's OWN spending figure — the same
   // totalSpending /trends and /insights print, so no third definition appears.
   const spendingSeries = ofType<SpendingByCategoryPayload>(monthly, "SPENDING_BY_CATEGORY");
-  const thisMonth = new Date().toISOString().slice(0, 7);
   const runway = computeRunway(
     balances.cash,
-    spendingSeries.filter((s) => s.period < thisMonth).map((s) => s.payload.totalSpending),
+    spendingSeries.filter((s) => s.period < currentPeriod).map((s) => s.payload.totalSpending),
   );
 
-  if (period === null) {
-    return {
-      period: "",
-      periodLabel: "No data yet",
-      netWorth: null,
-      accounts,
-      estimatedCount: 0,
-      donut: null,
-      balances,
-      runway,
-      health,
-      lastSyncAt: null,
-      uncategorizedCount,
-      pendingPackRules: packDrift,
-    };
-  }
+  // The spending block shows the month being LIVED IN — never a past month
+  // under a "this month" caption. Both figures go through spendingBreakdown,
+  // the single source of every printed total, so no second summation appears.
+  const currentSpending = spendingSeries.find((s) => s.period === currentPeriod) ?? null;
+  const breakdown = currentSpending === null ? null : spendingBreakdown(currentSpending.payload);
+  const priorRows = spendingSeries.filter((s) => s.period < currentPeriod);
+  const priorRow = priorRows[priorRows.length - 1] ?? null;
+  const currentYear = currentPeriod.slice(0, 4);
 
-  const spending =
-    ofType<SpendingByCategoryPayload>(monthly, "SPENDING_BY_CATEGORY").find((s) => s.period === period)?.payload ??
-    null;
-  const donut = spending === null ? null : spendingBreakdown(spending).donut;
+  const contextLabel = latestComplete === null ? null : monthLabel(latestComplete.period);
 
   return {
-    period,
-    periodLabel: monthLabel(period),
-    netWorth: latest.payload,
+    liveNetWorth,
+    monthContext:
+      latestComplete === null || contextLabel === null
+        ? null
+        : {
+            period: latestComplete.period,
+            label: contextLabel,
+            monthName: contextLabel.split(" ")[0],
+            growthRate: latestComplete.payload.growthRate,
+            marketGains: latestComplete.payload.marketGains,
+            estimatedCount: latestComplete.payload.estimatedAccountIds.length,
+          },
+    currentPeriod,
+    currentPeriodLabel: monthLabel(currentPeriod),
     accounts,
-    estimatedCount: latest.payload.estimatedAccountIds.length,
-    donut,
+    donut: breakdown?.donut ?? null,
+    spendingTotal: breakdown === null ? null : breakdown.total,
+    priorSpending:
+      priorRow === null
+        ? null
+        : {
+            period: priorRow.period,
+            // Name alone within the lived-in year; a link into another year
+            // carries it, or "December" under an August header would read as
+            // four months ago.
+            monthName:
+              priorRow.period.slice(0, 4) === currentYear
+                ? monthLabel(priorRow.period).split(" ")[0]
+                : monthLabel(priorRow.period),
+            total: spendingBreakdown(priorRow.payload).total,
+          },
     balances,
     runway,
     health,

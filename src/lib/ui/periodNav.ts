@@ -13,9 +13,16 @@ import { periodKey } from "../insights/periods";
  * subscriptions, goals read balances plus PRIOR months' cash flow.
  *
  * So the CURRENT CALENDAR MONTH is admitted even with no rows, and ONLY that:
- * any other rowless month still clamps to the default. The default itself
- * stays the latest month WITH rows — reaching the empty month is a step
- * through `›`, not where the page opens.
+ * any other rowless month still clamps to the default.
+ *
+ * The DEFAULT is the lived-in month too (reversed 2026-08-02). When the
+ * admission shipped, the current-month view held one quiet line, so the page
+ * kept opening on the latest month WITH rows and the empty month was a step
+ * through `›`. Goals, readiness and the commitments/pace panels have since
+ * made the current month the page's richest view — and every one of them is
+ * gated to exactly that month, so defaulting to the latest month with rows
+ * hid the page's best content every month-start, on the days it answers the
+ * most. Prior months stay one `‹` away.
  *
  * "Current month" comes from `periodKey`, i.e. UTC accessors, like every
  * period bound in the app — a local-time month here could disagree with the
@@ -44,10 +51,10 @@ export function selectPeriod(
   const current = periodKey(now, "MONTH");
   const reachable = available.includes(current) ? available : [...available, current].sort();
 
+  // `current` is always in `reachable` by construction, so the default — and
+  // any request for a month that is not reachable — lands on the lived-in month.
   const period =
-    requested !== undefined && reachable.includes(requested)
-      ? requested
-      : available[available.length - 1];
+    requested !== undefined && reachable.includes(requested) ? requested : current;
   const idx = reachable.indexOf(period);
 
   return {
