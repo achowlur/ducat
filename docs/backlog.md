@@ -376,3 +376,37 @@ turned up so it isn't rediscovered:
   feed warning, surfaced on the provider health line). History accumulates
   going forward since syncs never delete; CSV import is the backfill path for
   anything older, and dedups on (accountId, externalId).
+- **A LOOK-AT-EVERYTHING UI pass across all six tabs — raised 2026-08-03, not
+  yet run.** Every surface has been built or amended by a different session
+  against a different question, and nobody has since sat down and simply
+  LOOKED at all six as a set: Overview, Trends, Insights, Transactions,
+  Accounts, Providers. The shape agreed for it: SIX PARALLEL AGENTS, one per
+  tab, each driving the REAL page on real data (production build, and the
+  deployment for anything that is a timing claim), reporting what reads
+  wrong, what is cramped, what is unreachable on a phone, and what could be
+  enhanced — findings ONLY, no edits, so the operator picks what ships.
+  Each agent judges against docs/conventions/ui-and-pages.md and the
+  "verified load-bearing" list, because half of what looks like clutter on
+  this app is a refusal that was paid for: the coverage notices, the
+  `known:false` gaps, the reimbursements-exceeded state, "all clear" being
+  stated rather than implied, the estimated-balance qualifiers. A finding
+  that proposes deleting one of those has to argue with its evidence file,
+  not with taste. Worth pairing with a phone-width pass (the 44px tap-target
+  work is the precedent) since every tab is read on a phone more than a
+  desktop.
+  ONE CONCRETE COMPLAINT ALREADY ON THE TABLE, and the audit that settled
+  what did and did not change: /trends' SPENDING BY CATEGORY table is
+  SQUISHED — it lives in a narrow grid column beside the donut and carries
+  four columns (category, spent, vs prev, share), two of which are ratios
+  (`vs prev` as a percentage that flips to a MULTIPLIER `×N.N` above
+  +999%, `share` as a rounded percentage). The operator remembered this
+  being fixed; it was NOT. `git log -S` puts the `×${(1 + deltaPct)}`
+  branch in the ORIGINAL trends commit (2026-07-12, session 5) and unchanged
+  since. What DID land on /trends afterwards was different work — chart
+  legibility without a mouse (2026-07-26), 44px tap targets (2026-07-26), one
+  spending total and one share denominator (2026-07-26), no percentage against
+  a base ≤ 0 (2026-07-26, now the pctDelta rule), the coverage notice
+  correction (2026-07-31), and room for the net-worth line (2026-07-31). So the
+  table's width and its two ratio columns are the ORIGINAL design, never
+  revisited, and the multiplier form in particular is a rendering nobody
+  has defended since it was written. Start the pass there.
