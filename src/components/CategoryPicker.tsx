@@ -507,6 +507,12 @@ export function CategoryButton({
   };
 
   return (
+    // Wraps below md so the trigger and the `rule` menu opener can stack
+    // instead of forcing a 168px column. That column plus date and merchant
+    // needed 366px in a 327px scroller, which is what kept the amount off
+    // screen. Hiding `rule` on a phone would have been cheaper and wrong — it
+    // is the only route to trip tagging and to categorizing a merchant in
+    // bulk, and bulk review on a phone is exactly when those are wanted.
     <span className="inline-flex items-center gap-1.5">
       <button
         ref={triggerRef}
@@ -533,7 +539,7 @@ export function CategoryButton({
             show(false, e.key);
           }
         }}
-        className={`inline-flex max-w-[148px] items-center gap-1 rounded-[2px] border bg-paper py-0.5 pl-1 pr-1.5 text-[0.78rem] ${
+        className={`inline-flex max-w-[148px] items-center gap-1 rounded-[2px] border bg-paper py-0.5 pl-1 pr-1.5 text-[0.78rem] max-md:min-h-[44px] max-md:max-w-[100px] ${
           name === null ? "border-rule text-faint" : "border-transparent text-ink hover:border-rule"
         } ${pending ? "opacity-50" : ""}`}
         title={
@@ -617,7 +623,7 @@ export function CategoryButton({
                   anchor: tripRef.current,
                 });
               }}
-              className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+              className="tap44 rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
               title="Tag THIS transaction into a trip or project — a view across months, never a category"
             >
               trip
@@ -683,7 +689,7 @@ export function CategoryButton({
             if (pending) return;
             setMenu("actions");
           }}
-          className={`rounded-[2px] border px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] ${
+          className={`tap44 rounded-[2px] border px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] ${
             open && target.ruleMode
               ? "border-acc bg-acc text-paper"
               : "border-rule text-faint hover:border-acc hover:text-acc"

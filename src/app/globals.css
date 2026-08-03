@@ -235,3 +235,29 @@
 .scroll-x::-webkit-scrollbar {
   display: none;
 }
+
+/*
+ * A 44px touch target on a text-sized control, below md only.
+ *
+ * The 2026-07-26 pass gave /insights, /trends, the nav and the dismiss button
+ * their targets and stopped there; Overview, /transactions, /accounts and
+ * /providers were never swept, and /transactions alone carries more controls
+ * than the other three combined — 215 of them, not one of which cleared 44px
+ * in both dimensions.
+ *
+ * Deliberately min-height WITHOUT the negative-margin pair that pass used. The
+ * negative margin buys a bigger hit area at constant layout, which is right in
+ * a header with padding to absorb it; in a ledger it would stack 44px targets
+ * inside 50px rows and let neighbours overlap, which is the failure the
+ * dismiss button took its height honestly to avoid. Row controls here already
+ * sit in rows tall enough to hold 44px, so the row grows only where it must.
+ */
+@media (max-width: 767px) {
+  .tap44 {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

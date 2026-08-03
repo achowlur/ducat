@@ -464,7 +464,15 @@ export default async function InsightsPage({
               >
                 {row.chip}
               </span>
-              <span className="min-w-0 flex-1">{row.text}</span>
+              {/* `flex-1 min-w-0` beside a `whitespace-nowrap` consequence let
+                  the SENTENCE take all the shrinkage: at 375px the row's text
+                  got a 44.1px column and stacked seven lines tall, three
+                  characters wide, so the page's lead — the thing it opens with
+                  — was the least readable block on it. Below md the sentence
+                  takes its own line and the consequence follows, which is the
+                  same treatment the dismiss button and the period arrows
+                  already got. */}
+              <span className="min-w-0 flex-1 max-md:basis-full">{row.text}</span>
               <span className="whitespace-nowrap font-money text-[0.78rem] tabular text-faint">
                 {row.consequence}
               </span>

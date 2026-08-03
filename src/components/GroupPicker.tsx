@@ -413,7 +413,7 @@ export function GroupChip({
         if (pending || ref.current === null) return;
         ctx.openPicker({ transactionId, groupLabel, rowLabel, anchor: ref.current });
       }}
-      className={`max-w-[120px] truncate rounded-[2px] bg-chip px-1 py-0.5 text-[0.62rem] font-semibold text-acc ${pending ? "opacity-50" : ""}`}
+      className={`tap44 max-w-[120px] truncate rounded-[2px] bg-chip px-1 py-0.5 text-[0.62rem] font-semibold text-acc ${pending ? "opacity-50" : ""}`}
       title={`Part of “${groupLabel}” — change or untag`}
     >
       {groupLabel}
@@ -455,7 +455,7 @@ export function GroupTrigger({
         if (pending || ref.current === null) return;
         ctx.openPicker({ transactionId, groupLabel, rowLabel, anchor: ref.current });
       }}
-      className={`${className} ${pending ? "opacity-50" : ""}`}
+      className={`tap44 ${className} ${pending ? "opacity-50" : ""}`}
       title={title}
     >
       {children}

@@ -39,7 +39,7 @@ export function ReimburseControl({
         <button
           onClick={() => startTransition(() => unlinkReimbursement(inflowId))}
           disabled={pending}
-          className="rounded-[2px] border border-rule px-1 text-[0.62rem] text-faint hover:border-neg hover:text-neg"
+          className="tap44 rounded-[2px] border border-rule px-1 text-[0.62rem] text-faint hover:border-neg hover:text-neg"
           title="Unlink"
         >
           ×
@@ -66,7 +66,7 @@ export function ReimburseControl({
             }
           });
         }}
-        className={`rounded-[2px] border px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] ${
+        className={`tap44 rounded-[2px] border px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] ${
           strongHint === null
             ? "border-rule text-faint hover:border-acc hover:text-acc"
             : "border-acc text-acc hover:bg-chip"

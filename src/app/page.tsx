@@ -354,7 +354,13 @@ export default async function OverviewPage() {
                 <p className="mt-1.5 text-[0.85rem]">
                   <Link
                     href={`/trends?period=${data.priorSpending.period}`}
-                    className="font-money tabular text-faint hover:text-ink hover:underline"
+                    // "Quiet" is the documented intent and the COLOUR keeps it
+                    // — but every affordance it had was a hover state, which
+                    // does not exist on a phone, so on the empty month the one
+                    // way out looked exactly like the grey sentence above it.
+                    // A permanent underline and a real tap box, at no extra
+                    // visual weight.
+                    className="tap44 font-money tabular text-faint underline decoration-rule underline-offset-2 hover:text-ink"
                   >
                     {data.priorSpending.monthName}: {money(data.priorSpending.total)} →
                   </Link>

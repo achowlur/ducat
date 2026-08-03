@@ -67,6 +67,25 @@ const FLOW_BADGE: Record<string, string> = {
  * and reappear under the merchant, leaving date / merchant / category /
  * amount as the spine — the category control is the reason to open this
  * screen on a phone at all, so it stays.
+ *
+ * That spine did not fit either: four columns still needed 438px in a 327px
+ * scroller, putting the whole AMOUNT column 111px past the visible edge, and
+ * `.scroll-x` hides the scrollbar while the page body itself does not scroll,
+ * so nothing said the table did. AMOUNT therefore joins the sub-line under the
+ * merchant rather than holding a column of its own below md — the number is
+ * why the screen exists, so it is the one thing that cannot be a swipe away.
+ *
+ * What is still off the edge, deliberately, is the TAIL of the category cell:
+ * 374px against 327px, so the `rule` menu opener sits partly past it. Ranked
+ * rather than eliminated — at 375px every remaining lever costs something
+ * worse. Wrapping that cell fixed the width and took the median row from 57px
+ * to 107px, i.e. a 100-row page from 6,213px to over 10,000px of scrolling, to
+ * save 33px of a control that is already the SECONDARY way into a menu.
+ * Hiding `rule` below md would have been cheaper still and is the worst of the
+ * three: it is the only route to trip tagging and to categorizing a merchant
+ * in bulk, and bulk review on a phone is exactly when those are wanted.
+ * Measured at 375px: amount visible on 100 of 100 rows, category trigger
+ * visible on 100 of 100, page body itself never scrolls sideways.
  */
 const COLUMNS = [
   { label: "Date", className: "text-left" },
@@ -74,7 +93,7 @@ const COLUMNS = [
   { label: "Account", className: "hidden text-left md:table-cell" },
   { label: "Category", className: "text-left" },
   { label: "Flow", className: "hidden text-left md:table-cell" },
-  { label: "Amount", className: "text-right" },
+  { label: "Amount", className: "hidden text-right md:table-cell" },
 ];
 
 export default async function TransactionsPage({
@@ -420,7 +439,7 @@ export default async function TransactionsPage({
           <select
             name="period"
             defaultValue={params.period ?? ""}
-            className="rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink"
+            className="rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink max-md:min-h-[44px]"
           >
             <option value="">All</option>
             {monthOptions.map((key) => (
@@ -432,7 +451,7 @@ export default async function TransactionsPage({
         </label>
         <label className="grid gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
           Category
-          <select name="category" defaultValue={params.category ?? ""} className="rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink">
+          <select name="category" defaultValue={params.category ?? ""} className="rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink max-md:min-h-[44px]">
             <option value="">All</option>
             <option value="uncategorized">Uncategorized</option>
             {/* A multi-category arrival (the donut's "Other") matches no single
@@ -451,7 +470,7 @@ export default async function TransactionsPage({
         </label>
         <label className="grid gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
           Account
-          <select name="account" defaultValue={params.account ?? ""} className="max-w-[160px] rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink">
+          <select name="account" defaultValue={params.account ?? ""} className="max-w-[160px] rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink max-md:min-h-[44px]">
             <option value="">All</option>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
@@ -462,7 +481,7 @@ export default async function TransactionsPage({
         </label>
         <label className="grid gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
           Flow
-          <select name="flow" defaultValue={params.flow ?? ""} className="rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink">
+          <select name="flow" defaultValue={params.flow ?? ""} className="rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink max-md:min-h-[44px]">
             <option value="">All</option>
             <option value="OUTFLOW">Outflow</option>
             <option value="INFLOW">Inflow</option>
@@ -475,7 +494,7 @@ export default async function TransactionsPage({
             name="q"
             defaultValue={params.q ?? ""}
             placeholder="Merchant or description"
-            className="min-w-40 rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink"
+            className="min-w-40 rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink max-md:min-h-[44px]"
           />
         </label>
         <button className="rounded-[2px] border border-ink px-3 py-1 text-[0.78rem] uppercase tracking-[0.08em] hover:bg-chip">
@@ -670,8 +689,31 @@ export default async function TransactionsPage({
                       review
                     </span>
                   )}
-                  <span className={`block truncate text-[0.68rem] md:hidden ${FLOW_BADGE[t.flow]}`}>
-                    {accountNameById.get(t.accountId) ?? ""} · {t.flow.toLowerCase()}
+                  {/* The AMOUNT joins this sub-line below md. Its own column
+                      sat 111px past the right edge of a scroller whose
+                      scrollbar is hidden and whose page body does not scroll,
+                      so a ledger row showed date, merchant and category and
+                      neither the number nor its direction — on the one screen
+                      whose entire purpose is the number. The flow word was
+                      being truncated away too (96 of 100 rows), taking the
+                      direction with it, so it moves to the front where it
+                      survives and the account name absorbs the truncation. */}
+                  <span className={`flex items-baseline gap-1.5 text-[0.68rem] md:hidden ${FLOW_BADGE[t.flow]}`}>
+                    <span className="shrink-0">{t.flow.toLowerCase()}</span>
+                    <span className="min-w-0 flex-1 truncate">
+                      · {accountNameById.get(t.accountId) ?? ""}
+                    </span>
+                    <span
+                      className={`shrink-0 font-money tabular ${
+                        Number(t.amount) < 0 && t.flow !== "TRANSFER"
+                          ? "font-semibold text-neg"
+                          : Number(t.amount) > 0 && t.flow === "INFLOW"
+                            ? "font-semibold text-pos"
+                            : ""
+                      }`}
+                    >
+                      {amount(Number(t.amount))}
+                    </span>
                   </span>
                 </td>
                 <td className="hidden py-1.5 pr-3 text-[0.75rem] text-faint md:table-cell">
@@ -745,6 +787,11 @@ export default async function TransactionsPage({
                     )}
                     </span>
                   ) : (
+                    // Wraps below md: the trigger and the `rule` opener side by
+                    // side forced a 162px column, which is what kept the table
+                    // 33px wider than its scroller. Stacking them costs row
+                    // height, which a phone has, instead of width, which it
+                    // does not.
                     <span className="inline-flex items-center gap-1.5">
                       {(() => {
                         // Outflows only: a subscription is something you are
@@ -793,7 +840,7 @@ export default async function TransactionsPage({
                   {t.flow.toLowerCase()}
                 </td>
                 <td
-                  className={`py-1.5 text-right font-money text-[0.85rem] tabular ${
+                  className={`hidden py-1.5 text-right font-money text-[0.85rem] tabular md:table-cell ${
                     Number(t.amount) < 0 && t.flow !== "TRANSFER" ? "font-semibold text-neg" : Number(t.amount) > 0 && t.flow === "INFLOW" ? "font-semibold text-pos" : ""
                   }`}
                 >

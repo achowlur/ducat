@@ -29,7 +29,10 @@ export function ThemeToggle() {
         <button
           key={t}
           onClick={() => apply(t)}
-          className={`rounded-sm border px-2 py-0.5 text-[0.68rem] uppercase tracking-[0.06em] ${
+          // The header instance is `sm:` and up; the footer instance is the
+          // only one below it, so the touch sizing lands exactly where a thumb
+          // is the pointer and nowhere else.
+          className={`rounded-sm border px-2 py-0.5 text-[0.68rem] uppercase tracking-[0.06em] max-sm:min-h-[44px] max-sm:min-w-[44px] ${
             theme === t ? "border-ink text-ink" : "border-rule text-faint hover:text-ink"
           }`}
         >

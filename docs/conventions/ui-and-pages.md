@@ -121,6 +121,56 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   both clocks and names no cause. `/accounts` still has NO last-sync line of
   its own, which is what makes the sync-relative number harder to interpret
   here than on Overview; that gap is open (docs/backlog.md).
+- The PHONE pass (2026-08-03) finished what the 2026-07-26 tap-target commit
+  started. That commit swept /insights, /trends, the nav and the dismiss
+  button; Overview, /transactions, /accounts and /providers were never
+  touched, and /transactions alone carries more controls than the other three
+  combined — 215 of them, not one clearing 44px in both dimensions. The
+  shared instrument is `.tap44` (globals.css), and it is min-height ONLY,
+  deliberately not the padding/negative-margin pair the header uses: that
+  buys a bigger hit area at constant layout, which is right where there is
+  padding to absorb it and wrong in a ledger, where it would stack 44px
+  targets inside 50px rows and let neighbours overlap — the failure the
+  dismiss button took its height honestly to avoid.
+  Three findings shared one root: a strip with `.scroll-x` (scrollbar hidden
+  by design) opening at `scrollLeft: 0` while everything worth reading sat at
+  the other end. The NAV put the active tab 290px past its right edge on
+  /providers, so on three of six tabs a phone reader had nothing at all
+  saying which tab they were on — the underline is the only marker, and
+  `aria-current` was absent too, so assistive tech had nothing either. The
+  CASH-FLOW chart opened on mid-2024 with every y-axis label, the year
+  caption, all four current-year months and the collision-checked latest-month
+  callout off-screen: a chart with no scale showing. Both now open at the end
+  that matters; the nav centres its active tab when there is room, and sets
+  `scrollLeft` directly rather than calling `scrollIntoView`, which walks
+  ancestors and would scroll the page to reach a nav at the top of it.
+  The LEDGER's mobile spine was documented as date/merchant/category/amount
+  and did not fit: 438px of columns in a 327px scroller put the entire AMOUNT
+  column 111px past the edge, so a row showed date, merchant and category and
+  neither the number nor its direction — on the one screen that exists for the
+  number. The amount moved into the merchant sub-line, which also rescued the
+  flow word (truncated away on 96 of 100 rows, taking the direction with it;
+  it leads that line now and the account name absorbs the truncation).
+  Measured after: amount visible on 100 of 100 rows, category trigger visible
+  on 100 of 100, body never scrolling sideways. What is still off the edge is
+  the TAIL of the category cell (374px against 327px), and that was ranked,
+  not overlooked: wrapping the cell fixed the width and took the median row
+  from 57px to 107px — a 100-row page from 6,213px to over 10,000px — to save
+  33px of the SECONDARY way into a menu, and hiding `rule` below md would have
+  removed the only route to trip tagging and bulk categorization, which is
+  exactly what bulk review on a phone is for.
+  /accounts' Type column was the same mistake in miniature: the page's own
+  comment already committed to dropping columns below md and Type was left in,
+  so the table needed 363px in 327px and the row's only action — the link into
+  its transactions — was clipped by more than half. Type is a rare correction
+  made once, on a desktop. Dropping it takes the table to exactly 327px.
+  The header's right cluster (mode badge, theme, Lock) is `hidden sm:flex`, so
+  below 640px there was no way to lock the app or change theme at all. It
+  cannot simply be revealed — at 375px the three theme buttons plus Lock leave
+  the six-tab nav about 107px of 327px — so the same controls get a
+  mobile-only footer. A second header ROW was rejected: the active tab's
+  underline sits on the header rule through a negative-margin pair, and
+  anything above the nav would have taken taps into that 13px reclaimed area.
 - Dates vs INSTANTS are formatted differently and both are deliberate. A
   transaction date, a month label and a projected renewal date are pinned to
   `timeZone: "UTC"`, because the feed mixes noon UTC, 04:00 (midnight Eastern)

@@ -300,6 +300,12 @@ regeneration.
   stated, not implied by absence; the three-level staleness escalation is
   deliberate.
 - Per-account "Nd behind" measures against the LAST SYNC, never against now.
+- PHONE IS THE PRIMARY READ. Every control clears 44px below md via the
+  `.tap44` utility (min-height, never the header's negative-margin pair —
+  that overlaps neighbours inside a row); any strip with a hidden scrollbar
+  opens at the END the reader needs, not at scrollLeft 0; and the one figure
+  a screen exists for never lives in a column that can be scrolled off — the
+  ledger's amount moves into the merchant sub-line below md.
 - DATES pin to UTC; INSTANTS render local wall-clock plus zone name via
   dateTime(); the zone comes from DUCAT_TIMEZONE, never TZ.
 

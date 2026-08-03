@@ -10,13 +10,21 @@ export const dynamic = "force-dynamic";
 /**
  * Snapshot history and transaction counts are context, not the reason to open
  * this screen; below md they drop so account, balance and type fit a phone.
+ *
+ * TYPE now drops with them. It was left in and did not fit: the table needed
+ * 363px inside a 327px scroller at 375px, so the row's only action — the link
+ * into its transactions — was clipped by 35.6px, more than half of it, with
+ * the page body itself not scrolling so nothing hinted the table did. Type is
+ * a rare correction made once, on a desktop; the link is why the row is
+ * tappable at all. Dropping Type returns 116px and takes the table under the
+ * scroller's width at both common phone sizes (375 and 390).
  */
 const COLUMNS = [
   { label: "Account", className: "text-left" },
   { label: "Balance", className: "text-right" },
   { label: "History", className: "hidden text-left md:table-cell" },
   { label: "Activity", className: "hidden text-left md:table-cell" },
-  { label: "Type", className: "text-left" },
+  { label: "Type", className: "hidden text-left md:table-cell" },
   { label: "", className: "text-left" },
 ];
 
@@ -121,14 +129,14 @@ export default async function AccountsPage() {
                       "no transactions"
                     )}
                   </td>
-                  <td className="py-2 pr-3">
+                  <td className="hidden py-2 pr-3 md:table-cell">
                     <AccountTypeSelect accountId={a.id} type={a.type} />
                   </td>
                   <td className="py-2 text-right">
                     <Link
                       href={`/transactions?account=${a.id}`}
-                      className="text-[0.75rem] text-acc hover:underline"
-                      title="View this account's transactions"
+                      className="inline-flex min-h-[44px] items-center justify-end whitespace-nowrap text-[0.75rem] text-acc hover:underline md:min-h-0"
+                      title={`View ${a.name} transactions`}
                     >
                       transactions →
                     </Link>

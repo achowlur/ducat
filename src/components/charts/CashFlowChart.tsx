@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { money } from "../../lib/ui/format";
 import { axisMoney, niceTicks } from "./scale";
 
@@ -28,6 +28,22 @@ const PAIR_GAP = 2;
  */
 export function CashFlowChart({ months }: { months: MonthFlow[] }) {
   const [hovered, setHovered] = useState<number | null>(null);
+
+  // The strip is 520px inside 327px at 375px and opened at scrollLeft 0 — the
+  // OLDEST end. Everything the reader needs first was off the right edge:
+  // every y-axis label, the year caption, all four current-year months, and
+  // the direct-label callout for the latest month, which the code goes to
+  // trouble to place collision-free. What showed instead was mid-2024, with no
+  // dollar scale anywhere and no scrollbar (`.scroll-x` hides it) to say more
+  // existed. A finance timeline is read backwards from today, so open at today.
+  //
+  // Above the empty-series guard because hooks cannot sit behind a return.
+  const strip = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const box = strip.current;
+    if (box === null) return;
+    box.scrollLeft = box.scrollWidth - box.clientWidth;
+  }, [months.length]);
 
   // Same guard as NetWorthChart: `slot` divides by months.length and
   // months[latest] indexes -1, so an empty series must never reach the math.
@@ -84,7 +100,7 @@ export function CashFlowChart({ months }: { months: MonthFlow[] }) {
     // than scaling 26 months into 327px — that squeezed the axis type to 7px.
     // Two dozen months cannot be legible on a phone at any scale; scrolling a
     // timeline at least matches how one reads it.
-    <div className="scroll-x md:overflow-visible">
+    <div ref={strip} className="scroll-x md:overflow-visible">
       {/* The tooltip is positioned as a percentage of the plot, so it has to
           live inside the element that IS the plot's width — and it then
           scrolls with the bar it describes. */}

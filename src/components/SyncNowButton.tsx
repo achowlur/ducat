@@ -28,7 +28,7 @@ export function SyncNowButton() {
         type="button"
         onClick={handleClick}
         disabled={pending}
-        className="rounded-[2px] border border-rule px-1.5 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc disabled:opacity-60"
+        className="tap44 cursor-pointer rounded-[2px] border border-rule px-1.5 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc disabled:opacity-60"
         title="Pull the latest from SimpleFIN now"
       >
         {pending ? "syncing…" : "sync now"}
