@@ -36,8 +36,10 @@ Mode-scoped (`DATABASE_URL` scheme selects the mode):
   rates GET per sync carrying the key and a series id, never financial data
   (amended 2026-08-02; trust card on /providers). CLOUD — data lives with the
   operator's OWN Turso + Vercel (single-tenant, self-hosted); no third party
-  custodies it as a shared service. Opt-in trade-off documented in DEPLOY.md;
-  E2E is deferred.
+  custodies it as a shared service. Opt-in trade-off documented in DEPLOY.md
+  AND carried on /providers — the "This instance" block owes the same three
+  parts a connector card does, residual risks included; E2E is deferred.
+  The page states the sync CADENCE, read from vercel.json so it cannot drift.
 
 ## Architecture
 

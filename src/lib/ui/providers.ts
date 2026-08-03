@@ -33,6 +33,26 @@ export const STATUS_CHIP: Record<string, string> = {
   UNKNOWN: 'bg-chip text-acc',
 };
 
+/**
+ * The sync schedule, in words, read from `vercel.json` rather than retyped.
+ *
+ * /providers could not answer "how often" at all: `schedule`, `cron`,
+ * `nightly` and `23:00` appeared zero times on the page, while the FRED trust
+ * card's residual-risk line said FRED can see the key ask for the series "at
+ * your sync times" — naming a fact the page never stated. The disclosure rule
+ * for a read-only external fetch owes the reader the IP, the key, the series
+ * AND, riding the sync, the instance's schedule; three of the four were there.
+ *
+ * Derived from the config so the sentence cannot drift from the cron that
+ * actually fires. Only the shipped `0 H * * *` shape is put into words; any
+ * other expression is printed verbatim rather than mistranslated.
+ */
+export function cronSummary(schedule: string): string {
+  const daily = /^0 (\d{1,2}) \* \* \*$/.exec(schedule);
+  if (daily === null) return `on the schedule \`${schedule}\` (UTC)`;
+  return `once a day at ${daily[1].padStart(2, '0')}:00 UTC`;
+}
+
 export interface SyncLogRow {
   id: string;
   finishedAt: Date;

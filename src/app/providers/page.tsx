@@ -1,8 +1,25 @@
-import { getProvidersData, STATUS_CHIP, STATUS_DOT } from "../../lib/ui/providers";
+import { cronSummary, getProvidersData, STATUS_CHIP, STATUS_DOT } from "../../lib/ui/providers";
 import { dateTime } from "../../lib/ui/format";
 import { isCloudMode } from "../../lib/auth/mode";
+import vercelConfig from "../../../vercel.json";
 
 export const dynamic = "force-dynamic";
+
+const CRON_SCHEDULE = vercelConfig.crons[0].schedule;
+
+/**
+ * What cloud mode costs you, in the operator's own words from DEPLOY.md.
+ *
+ * Kept HERE rather than in providers.ts's trust cards because those are
+ * per-CONNECTOR — this is a property of where the data rests, which is the one
+ * claim the connectors deliberately do not make.
+ */
+const CLOUD_RESIDUAL_RISKS = [
+  "Turso encrypts at rest, but it can read your data while serving queries. Encryption at rest is not encryption from the operator of the database.",
+  "This is not end-to-end encryption. Client-side keys, with the analyzers running in your browser, are deliberately deferred — so “we can't read it even if breached” is not a claim this deployment can make.",
+  "The password gate is the whole perimeter. Anyone who has it has the data, and the app has no second factor.",
+  "If that trade-off is not acceptable, local mode is unchanged and takes the data back onto your own machine.",
+];
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -41,8 +58,42 @@ export default async function ProvidersPage() {
               app makes are the ones on this page: the SimpleFIN feed, plus the FRED rate index only if
               you opt in with an API key. Nothing outbound carries transaction data.
             </>
+          )}{" "}
+          {/* "How often" was unanswerable from this page — the words schedule,
+              cron and nightly appeared zero times — while the FRED card's own
+              risk line referred to "your sync times". Read from vercel.json so
+              the sentence cannot drift from the cron that fires. */}
+          {cloud ? (
+            <>
+              It syncs automatically {cronSummary(CRON_SCHEDULE)}, and whenever you press Sync now on
+              Overview.
+            </>
+          ) : (
+            <>Nothing is scheduled here: a local instance syncs when you run a sync, and not otherwise.</>
           )}
         </p>
+
+        {/* Every connector below carries three parts — data path, residual
+            risks, revocation — and this block, the one describing where the
+            data actually RESTS, carried only the reassuring half. DEPLOY.md
+            leads with the counterweight and none of it reached the page: the
+            words "encrypt", "end-to-end" and "read your data" appeared zero
+            times. An addition, never a softening — the sentence above is
+            CLAUDE.md's own claim and is correct; what was missing is what you
+            accept by believing it. */}
+        {cloud && (
+          <div className="mt-3">
+            <SectionTitle>Residual risks you are accepting</SectionTitle>
+            <ul className="grid gap-2">
+              {CLOUD_RESIDUAL_RISKS.map((risk, i) => (
+                <li key={risk} className="flex gap-2 text-[0.8rem] leading-relaxed">
+                  <span className="font-money text-faint">{i + 1}.</span>
+                  <span>{risk}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
       {providers.map(({ health, configured, setupHint, syncLogs }) => (

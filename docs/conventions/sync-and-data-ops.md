@@ -228,6 +228,28 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   accepted rather than plumbing a batch flag nothing else needed. The trust
   banner's local-mode sentence now names both outbound calls; keep it in step
   with any future fetcher.
+- The "This instance" block owes the same THREE PARTS a connector card does
+  (2026-08-03). Every connector below it carried a data path, a numbered
+  "Residual risks you are accepting" list and a revocation note; the block
+  describing where the data actually RESTS carried only the reassuring half,
+  ending "so no third party custodies it" with nothing under it. It was the
+  one element on the page with no risks list, and the counterweight DEPLOY.md
+  LEADS with reached the page nowhere: "encrypt", "end-to-end" and "read your
+  data" each appeared zero times. Turso can read the data while serving
+  queries — encryption at rest is not encryption from the operator of the
+  database — this is deliberately not E2E, and the password gate is the whole
+  perimeter. Cloud mode only; local mode's sentence was already complete. An
+  ADDITION, never a softening: the existing sentence is CLAUDE.md's own claim
+  and is correct, and what was missing is what you accept by believing it.
+  The page also states the sync CADENCE, which it previously could not answer
+  at all — `schedule`, `cron`, `nightly` and `23:00` appeared zero times,
+  while the FRED card's own residual-risk line said FRED can see the key ask
+  for the series "at your sync times", naming a fact the page never gave.
+  Read from `vercel.json` (`cronSummary`) rather than retyped, and pinned by
+  test against the shipped `0 23 * * *`, so the sentence cannot drift from the
+  cron that fires. Only the daily shape is put into words; anything else
+  prints verbatim, because "once a day" over a cron firing four times is
+  exactly the confidently-wrong claim this page exists to refuse.
 - INVESTMENT accounts are EXEMPT from transaction-gap detection
   (`GAP_EXEMPT_TYPES` in `health/health.ts`). Their rows are overwhelmingly
   DIVIDEND RECEIVED, which arrive in quarter-end clusters, so volume is not a
