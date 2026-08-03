@@ -10,6 +10,7 @@ import { prisma } from "../../lib/prisma";
 import { periodEndExclusive, periodStart } from "../../lib/insights/periods";
 import {
   makeCandidateFinder,
+  NON_REIMBURSABLE_ACCOUNT_TYPES,
   REIMBURSE_LEAD_DAYS,
   REIMBURSE_POOL_TAKE,
   REIMBURSE_WINDOW_DAYS,
@@ -288,8 +289,15 @@ export default async function TransactionsPage({
   );
   // The collapsed control's dot and tooltip: the FIRST strong candidate in
   // ranked order, or nothing. This is all an unopened row ships.
-  const strongHintFor = (inflow: { date: Date; amount: unknown }) => {
-    const best = candidatesFor({ amount: Number(inflow.amount), date: inflow.date }).find((c) => c.strong);
+  const accountTypeById = new Map(accounts.map((a) => [a.id, a.type]));
+  const isNonReimbursable = (accountId: string) =>
+    NON_REIMBURSABLE_ACCOUNT_TYPES.has(accountTypeById.get(accountId) ?? "");
+  const strongHintFor = (inflow: { date: Date; amount: unknown; accountId: string }) => {
+    const best = candidatesFor({
+      amount: Number(inflow.amount),
+      date: inflow.date,
+      accountType: accountTypeById.get(inflow.accountId),
+    }).find((c) => c.strong);
     return best === undefined ? null : { label: best.label, reason: best.reason };
   };
 
@@ -376,11 +384,19 @@ export default async function TransactionsPage({
   // these links just make "the month before this one" one click.
   const selectedIdx =
     params.period === undefined || params.period === "" ? -1 : monthOptions.indexOf(params.period);
+  // With no period selected the fallback named the month of the LAST VISIBLE
+  // ROW — a month already filling the screen. Page 1 offered "← older (July
+  // 2026)" while every row on it said July 2026, and page 11 offered June 2024,
+  // the oldest month in the database, with nothing older to reach. Step PAST
+  // the last row's month to the first month this page does not already show;
+  // running out means there is nothing older, and the link is correctly absent.
+  const lastVisibleMonth =
+    visible.length === 0 ? null : periodKey(visible[visible.length - 1].date, "MONTH");
   const olderPeriod =
     selectedIdx >= 0
       ? (monthOptions[selectedIdx + 1] ?? null)
-      : total > visible.length && visible.length > 0
-        ? periodKey(visible[visible.length - 1].date, "MONTH")
+      : total > visible.length && lastVisibleMonth !== null
+        ? (monthOptions[monthOptions.indexOf(lastVisibleMonth) + 1] ?? null)
         : null;
   const newerPeriod = selectedIdx > 0 ? monthOptions[selectedIdx - 1] : null;
 
@@ -751,7 +767,13 @@ export default async function TransactionsPage({
                           />
                         );
                       })()}
-                      {t.flow === "INFLOW" && (
+                      {/* Money arriving in a brokerage or an IRA is not a
+                          friend settling up, so the control is absent rather
+                          than merely unhinted — every strong suggestion on
+                          page 1 was a dividend, two of them inside IRAs. A
+                          row already LINKED still renders its chip above, so
+                          nothing existing becomes unreachable. */}
+                      {t.flow === "INFLOW" && !isNonReimbursable(t.accountId) && (
                         <ReimburseControl inflowId={t.id} linked={null} strongHint={strongHintFor(t)} />
                       )}
                       {/* Tagged rows carry their chip; untagged rows carry

@@ -32,6 +32,16 @@ export interface PeriodSelection {
   period: string;
   prevPeriod: string | null;
   nextPeriod: string | null;
+  /**
+   * The period that was ASKED for and refused, when one was. The clamp itself
+   * is correct and stays; what was wrong is that it happened in silence — the
+   * URL kept saying `?period=2026-08` while the page rendered July and nothing
+   * acknowledged the substitution, which is the same hazard Overview already
+   * works around by refusing to link a period /trends has no row for ("a link
+   * that lands somewhere it did not name is worse than no link"). Null when
+   * the request was honoured, absent, or empty.
+   */
+  clampedFrom: string | null;
 }
 
 /**
@@ -53,13 +63,15 @@ export function selectPeriod(
 
   // `current` is always in `reachable` by construction, so the default — and
   // any request for a month that is not reachable — lands on the lived-in month.
-  const period =
-    requested !== undefined && reachable.includes(requested) ? requested : current;
+  const asked = requested === undefined || requested === "" ? null : requested;
+  const honoured = asked !== null && reachable.includes(asked);
+  const period = honoured ? asked : current;
   const idx = reachable.indexOf(period);
 
   return {
     period,
     prevPeriod: idx > 0 ? reachable[idx - 1] : null,
     nextPeriod: idx < reachable.length - 1 ? reachable[idx + 1] : null,
+    clampedFrom: asked !== null && !honoured ? asked : null,
   };
 }

@@ -4,6 +4,35 @@ import { PROVIDER_TRUST_CARDS } from "../health/providers";
 import type { ProviderHealth, ProviderId } from "../health/types";
 import { FRED_API_KEY_ENV, FRED_SERIES_ID } from "../rates/mortgageRate";
 
+/**
+ * ONE status→colour mapping for every surface that paints a provider status.
+ *
+ * Overview carried its own three-way expression whose fallback painted
+ * UNKNOWN amber, while this module's table painted it grey — so one status
+ * wore two colours on two pages. The three levels of specificity (provider
+ * strip, account row, review panel) are escalation, and escalation only reads
+ * as escalation when the levels agree about severity.
+ */
+export const STATUS_DOT: Record<string, string> = {
+  OK: 'bg-pos',
+  WARN: 'bg-chart2',
+  ERROR: 'bg-neg',
+  UNKNOWN: 'bg-faint',
+};
+
+/**
+ * WARN and UNKNOWN fell into the same `else` and wore an identical chip, so a
+ * provider with a live problem looked exactly like one that was never set up.
+ * WARN takes the amber it already had on its DOT; UNKNOWN keeps the neutral
+ * chip, which is what "nothing to report yet" should look like.
+ */
+export const STATUS_CHIP: Record<string, string> = {
+  OK: 'bg-pos text-paper',
+  WARN: 'bg-chart2 text-paper',
+  ERROR: 'bg-neg text-paper',
+  UNKNOWN: 'bg-chip text-acc',
+};
+
 export interface SyncLogRow {
   id: string;
   finishedAt: Date;

@@ -430,6 +430,17 @@ export default async function InsightsPage({
         )}
       </div>
 
+      {/* The admission rule clamps every rowless month except the one being
+          lived in, which is right — but it did it in silence, so a bookmarked
+          or hand-typed ?period= landed somewhere it never named and the URL
+          went on claiming otherwise. */}
+      {data.clampedFrom !== null && (
+        <p className="pt-3 text-[0.78rem] text-faint">
+          <span className="text-ink">{monthLabel(data.clampedFrom)}</span> has no insights — showing{" "}
+          {data.periodLabel}.
+        </p>
+      )}
+
       <div className="pt-3">
         <CoverageNotice coverage={data.coverage} />
       </div>
@@ -468,6 +479,18 @@ export default async function InsightsPage({
         <p className="mt-4 text-[0.85rem] text-faint">
           Nothing recorded for {data.periodLabel} yet — spending appears with the month&apos;s first
           sync.
+        </p>
+      ) : data.coverage?.hasUnknownShortfall === true ? (
+        /* Same epistemic state as the empty month, reached by a different
+           route: an account with NO data for the period means the engine could
+           not look, so "nothing needs your attention" is the stronger claim it
+           has not earned — and it was printing 16px under an amber notice
+           saying 0 of 21 accounts reach this month, which is the contradiction
+           stated outright. Only the NO_DATA case; a mid-period start is
+           complete data and keeps the ordinary line. */
+        <p className="mt-4 text-[0.85rem] text-faint">
+          Nothing to report for {data.periodLabel} — the notice above says why this month cannot be
+          judged.
         </p>
       ) : (
         /* Saying so is the point, not an empty state to be hidden: most months

@@ -79,8 +79,26 @@ function Plot({ months, view }: { months: MonthValue[]; view: { w: number; h: nu
   const x = (i: number) =>
     months.length === 1 ? (PLOT_LEFT + PLOT_RIGHT) / 2 : PLOT_LEFT + ((PLOT_RIGHT - PLOT_LEFT) * i) / (months.length - 1);
 
-  const points = months.map((m, i) => `${x(i).toFixed(1)},${y(m.value).toFixed(1)}`).join(" ");
   const last = months.length - 1;
+
+  // The caption told the reader to look for "months marked estimated" and
+  // nothing was marked: one solid confident line, the flag reachable only by
+  // hovering each point in turn — six separate hovers to learn that six of
+  // seven months lack a snapshot for at least one account. A line you cannot
+  // discount at a glance is one you read as fully known.
+  //
+  // Drawn as per-segment lines rather than one polyline so a segment touching
+  // an estimated month can be dashed. Estimated months are contiguous today
+  // (the snapshot era began mid-history) but need not be, so the test is
+  // per-segment, not a single boundary index.
+  const segments = months.slice(1).map((m, i) => ({
+    key: m.period,
+    x1: x(i),
+    y1: y(months[i].value),
+    x2: x(i + 1),
+    y2: y(m.value),
+    estimated: months[i].estimated || m.estimated,
+  }));
 
   // Nearest month to a pointer, in viewBox units. Touch goes through the same
   // path as the mouse: without it a phone has no way to read any figure, while
@@ -130,7 +148,34 @@ function Plot({ months, view }: { months: MonthValue[]; view: { w: number; h: nu
         ))}
         <line x1={PLOT_LEFT} y1={PLOT_BOTTOM} x2={PLOT_RIGHT} y2={PLOT_BOTTOM} stroke="var(--ink)" strokeWidth="1" />
 
-        <polyline points={points} fill="none" stroke="var(--chart1)" strokeWidth="2" />
+        {segments.map((s) => (
+          <line
+            key={s.key}
+            x1={s.x1}
+            y1={s.y1}
+            x2={s.x2}
+            y2={s.y2}
+            stroke="var(--chart1)"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeDasharray={s.estimated ? "5,3" : undefined}
+          />
+        ))}
+        {/* A hollow point on each estimated month, so the mark survives a
+            single estimated month with no neighbour to dash against. */}
+        {months.map((m, i) =>
+          m.estimated ? (
+            <circle
+              key={`est-${m.period}`}
+              cx={x(i)}
+              cy={y(m.value)}
+              r="2.5"
+              fill="var(--paper)"
+              stroke="var(--chart1)"
+              strokeWidth="1.5"
+            />
+          ) : null,
+        )}
 
         {hovered !== null && (
           <line x1={x(hovered)} y1={PLOT_TOP} x2={x(hovered)} y2={PLOT_BOTTOM} stroke="var(--faint)" strokeWidth="1" strokeDasharray="3,3" />

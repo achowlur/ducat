@@ -21,6 +21,8 @@ export interface TrendsData {
   prevPeriod: string | null;
   nextPeriod: string | null;
   periodLabel: string;
+  /** A `?period=` that had no row and was refused; null when honoured or absent. */
+  clampedFrom: string | null;
   donut: { slices: DonutSliceData[]; total: number } | null;
   categories: CategoryRow[];
   /** Sum of the categories with net spending — what every share divides by. */
@@ -44,10 +46,15 @@ export async function getTrendsData(requestedPeriod?: string): Promise<TrendsDat
   if (spendingAll.length === 0) return null;
 
   const available = spendingAll.map((s) => s.period);
-  const period =
-    requestedPeriod !== undefined && available.includes(requestedPeriod)
-      ? requestedPeriod
-      : available[available.length - 1];
+  const asked = requestedPeriod === undefined || requestedPeriod === "" ? null : requestedPeriod;
+  const honoured = asked !== null && available.includes(asked);
+  const period = honoured ? asked : available[available.length - 1];
+  // The clamp is right — this page plots stored rows and cannot invent a month
+  // it has none for. What was wrong is that it happened in SILENCE: the URL
+  // still read `?period=2026-08` while the stepper said July and nothing on the
+  // page mentioned the substitution. Overview already refuses to LINK here for
+  // exactly this reason; the page causing it should say so itself.
+  const clampedFrom = asked !== null && !honoured ? asked : null;
   const idx = available.indexOf(period);
   const spending = spendingAll[idx].payload;
 
@@ -61,6 +68,7 @@ export async function getTrendsData(requestedPeriod?: string): Promise<TrendsDat
     prevPeriod: idx > 0 ? available[idx - 1] : null,
     nextPeriod: idx < available.length - 1 ? available[idx + 1] : null,
     periodLabel: monthLabel(period),
+    clampedFrom,
     donut: breakdown.donut,
     categories: breakdown.categories,
     drawable: breakdown.drawable,

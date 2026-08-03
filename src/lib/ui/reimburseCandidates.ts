@@ -1,5 +1,6 @@
 import { suggestReimbursements } from "../insights/suggestReimbursements";
-import { isoDate, titleCase } from "./format";
+import { merchantLabel } from "./merchantLabel";
+import { isoDate } from "./format";
 
 /**
  * One projection path for reimbursement candidates, shared by the page (which
@@ -33,6 +34,23 @@ export const UNSPLITTABLE = new Set([
   "Health",
   "Cash & ATM",
 ]);
+
+/**
+ * Account types whose INFLOWS cannot be a peer paying you back.
+ *
+ * `UNSPLITTABLE` guards the outflow side — what an expense can plausibly be a
+ * share of. Nothing guarded the inflow side, so a brokerage DIVIDEND ranked as
+ * a repayment on amount and date alone: every one of the five hints on ledger
+ * page 1 was a dividend, and two of those sat inside IRAs, where money
+ * arriving is definitionally not a friend settling up for dinner. The
+ * arithmetic worked in each case, which is exactly the failure mode — the same
+ * one UNSPLITTABLE exists for, arriving from the other direction.
+ *
+ * Typed by ACCOUNT rather than by category because the dividends were
+ * correctly categorized as income and the ranker never consulted the category
+ * of the inflow, only of the outflow.
+ */
+export const NON_REIMBURSABLE_ACCOUNT_TYPES = new Set(["INVESTMENT"]);
 
 /** An outflow as the pool query selects it (amount already Number()ed). */
 export interface PoolOutflow {
@@ -76,7 +94,7 @@ export interface ReimburseCandidate {
 export function makeCandidateFinder(
   pool: PoolOutflow[],
   categoryName: (categoryId: string | null) => string | null,
-): (inflow: { amount: number; date: Date }) => ReimburseCandidate[] {
+): (inflow: { amount: number; date: Date; accountType?: string }) => ReimburseCandidate[] {
   const byId = new Map(pool.map((o) => [o.id, o]));
   const rankable = pool.map((o) => ({
     id: o.id,
@@ -84,14 +102,25 @@ export function makeCandidateFinder(
     date: o.date,
     splittable: !UNSPLITTABLE.has(categoryName(o.categoryId) ?? ""),
   }));
-  return (inflow) =>
-    suggestReimbursements(inflow, rankable, { windowDays: REIMBURSE_WINDOW_DAYS }).flatMap((s) => {
+  return (inflow) => {
+    // The guard lives HERE and not at either call site, because the collapsed
+    // hint and the opened list must stay the identical projection — that
+    // equivalence is what the wide-pool/narrow-pool tests pin. Refusing in one
+    // place would show a dot that opens onto an empty list.
+    if (inflow.accountType !== undefined && NON_REIMBURSABLE_ACCOUNT_TYPES.has(inflow.accountType)) {
+      return [];
+    }
+    return suggestReimbursements(inflow, rankable, { windowDays: REIMBURSE_WINDOW_DAYS }).flatMap((s) => {
       const o = byId.get(s.id);
       if (o === undefined) return [];
       return [
         {
           id: o.id,
-          label: titleCase(o.normalizedMerchant !== "" ? o.normalizedMerchant : o.description.toLowerCase()),
+          // merchantLabel, not titleCase: for a P2P rail the bank's payee field
+          // is the RAIL, so this printed "Zelle Transfer" as a candidate name —
+          // reintroducing, inside the picker, exactly the unreviewable string
+          // the ledger's merchant column exists to replace.
+          label: merchantLabel(o).label,
           date: isoDate(o.date),
           amount: Math.abs(o.amount),
           category: categoryName(o.categoryId),
@@ -100,4 +129,5 @@ export function makeCandidateFinder(
         },
       ];
     });
+  };
 }

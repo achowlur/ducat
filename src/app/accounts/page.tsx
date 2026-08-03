@@ -60,8 +60,14 @@ export default async function AccountsPage() {
                 <tr key={a.id} className="border-b border-rule">
                   <td className="py-2 pr-3 text-[0.85rem]">
                     {a.name}{" "}
+                    {/* The cash override is invisible everywhere else, and this
+                        is the page that offers a TYPE dropdown — the control
+                        liquidity.ts documents as the obvious wrong fix for
+                        exactly this account. Stating the override beside it is
+                        what stops the dropdown reading as the answer. */}
                     <span className="text-[0.72rem] text-faint">
                       {a.institution} · {a.connectorType.toLowerCase()}
+                      {a.isCash && a.type !== "DEPOSITORY" ? " · counts as cash" : ""}
                     </span>
                   </td>
                   <td className="py-2 pr-3 text-right">

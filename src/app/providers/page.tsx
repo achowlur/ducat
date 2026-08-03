@@ -1,15 +1,8 @@
-import { getProvidersData } from "../../lib/ui/providers";
+import { getProvidersData, STATUS_CHIP, STATUS_DOT } from "../../lib/ui/providers";
 import { dateTime } from "../../lib/ui/format";
 import { isCloudMode } from "../../lib/auth/mode";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_DOT: Record<string, string> = {
-  OK: "bg-pos",
-  WARN: "bg-chart2",
-  ERROR: "bg-neg",
-  UNKNOWN: "bg-faint",
-};
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -56,16 +49,14 @@ export default async function ProvidersPage() {
         <section key={health.connectorType}>
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b-2 border-ink pb-2">
             <span className="text-[1rem] font-semibold">
-              <span className={`mr-2 inline-block h-2.5 w-2.5 rounded-full ${STATUS_DOT[health.status]}`} />
+              <span
+                className={`mr-2 inline-block h-2.5 w-2.5 rounded-full ${STATUS_DOT[health.status] ?? STATUS_DOT.UNKNOWN}`}
+              />
               {health.trustCard.displayName}
             </span>
             <span
               className={`rounded-[2px] px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] ${
-                health.status === "OK"
-                  ? "bg-pos text-paper"
-                  : health.status === "ERROR"
-                    ? "bg-neg text-paper"
-                    : "bg-chip text-acc"
+                STATUS_CHIP[health.status] ?? STATUS_CHIP.UNKNOWN
               }`}
             >
               {health.status}

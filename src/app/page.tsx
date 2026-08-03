@@ -3,6 +3,7 @@ import { MiniDonut } from "../components/MiniDonut";
 import { SyncNowButton } from "../components/SyncNowButton";
 import { amount, dateTime, money, pct } from "../lib/ui/format";
 import { getOverviewData, STALE_DISPLAY_DAYS } from "../lib/ui/overview";
+import { STATUS_DOT } from "../lib/ui/providers";
 import { transactionsHref } from "../lib/ui/categoryFilter";
 
 export const dynamic = "force-dynamic";
@@ -73,6 +74,14 @@ export default async function OverviewPage() {
   const data = await getOverviewData();
   const simplefinConfigured = (process.env.SIMPLEFIN_ACCESS_URL ?? "") !== "";
   const simplefin = data.health.find((h) => h.connectorType === "SIMPLEFIN");
+  // This instant sits in the strip that NAMES SimpleFIN, so it has to be
+  // SimpleFIN's own. Read unscoped it was the newest successful sync of any
+  // connector, so the moment a CSV import was the most recent run its
+  // timestamp printed directly after the words "SimpleFIN Bridge" and read as
+  // the feed's freshness. With no SimpleFIN entry nothing is being labelled,
+  // so the app-wide instant is the honest one; with an entry that has never
+  // synced there is no instant to print, and the line is correctly absent.
+  const stripSyncAt = simplefin === undefined ? data.lastSyncAt : simplefin.lastSuccessfulSyncAt;
   const ctx = data.monthContext;
   const hasMarketLine = ctx !== null && ctx.marketGains !== null && ctx.marketGains !== 0;
   /** "August", for the spending block's caption. */
@@ -120,7 +129,7 @@ export default async function OverviewPage() {
           <span>
             <span
               className={`mr-1.5 inline-block h-2 w-2 rounded-full ${
-                simplefin.status === "OK" ? "bg-pos" : simplefin.status === "ERROR" ? "bg-neg" : "bg-chart2"
+                STATUS_DOT[simplefin.status] ?? STATUS_DOT.UNKNOWN
               }`}
             />
             {/* Casing left alone: the reason is a whole sentence, and
@@ -131,11 +140,9 @@ export default async function OverviewPage() {
             account{simplefin.accountCount === 1 ? "" : "s"}
           </span>
         )}
-        {(data.lastSyncAt !== null || simplefinConfigured) && (
+        {(stripSyncAt !== null || simplefinConfigured) && (
           <span className="ml-auto flex items-center gap-3 font-money">
-            {data.lastSyncAt !== null && (
-              <span>synced {dateTime(data.lastSyncAt)}</span>
-            )}
+            {stripSyncAt !== null && <span>synced {dateTime(stripSyncAt)}</span>}
             {simplefinConfigured && <SyncNowButton />}
           </span>
         )}
@@ -219,8 +226,19 @@ export default async function OverviewPage() {
                 <tr key={a.id} className="border-b border-rule">
                   <td className="py-1.5 text-[0.85rem]">
                     <span className="block leading-tight">{a.name}</span>
+                    {/* The cash override is a Setting, and until now it was
+                        disclosed NOWHERE in the UI: a $52,331.01 brokerage
+                        balance counted into CASH while its row read
+                        "Investment", so the band could not be reconciled
+                        against the table under it by any reader. Marked in the
+                        subtitle the row already has, at zero new elements —
+                        the flag was on the row all along and rendered nothing.
+                        Same instinct as the freshness column: state it whether
+                        or not it is surprising, so its absence means something
+                        too. */}
                     <span className="text-[0.7rem] text-faint">
                       {a.institution} · {TYPE_LABEL[a.type] ?? a.type}
+                      {a.isCash && a.type !== "DEPOSITORY" ? " · counts as cash" : ""}
                     </span>
                   </td>
                   {/* Freshness gets a COLUMN rather than a badge appended to the

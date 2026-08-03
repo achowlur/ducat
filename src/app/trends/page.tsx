@@ -3,7 +3,7 @@ import { CashFlowChart } from "../../components/charts/CashFlowChart";
 import { NetWorthChart } from "../../components/charts/NetWorthChart";
 import { TrendsDonut } from "../../components/charts/TrendsDonut";
 import { CoverageNotice } from "../../components/CoverageNotice";
-import { amount, money, pct } from "../../lib/ui/format";
+import { amount, money, monthLabel, pct } from "../../lib/ui/format";
 import { getPeriodCoverage } from "../../lib/ui/coverage";
 import { getTrendsData } from "../../lib/ui/trends";
 
@@ -37,6 +37,7 @@ export default async function TrendsPage({
   }
 
   const coverage = await getPeriodCoverage(data.period);
+  const estimatedMonths = data.netWorth.filter((m) => m.estimated).length;
 
   return (
     <div className="grid gap-9 py-5">
@@ -65,6 +66,16 @@ export default async function TrendsPage({
               )}
             </span>
           </div>
+          {/* A refused ?period= used to leave the URL saying one month and the
+              page showing another, with nothing between them. The clamp is
+              correct — this page plots stored rows — so it is stated, not
+              removed. */}
+          {data.clampedFrom !== null && (
+            <p className="mb-2 text-[0.75rem] text-faint">
+              <span className="text-ink">{monthLabel(data.clampedFrom)}</span> has nothing recorded —
+              showing {data.periodLabel}.
+            </p>
+          )}
           <p className="mb-3 text-[0.75rem] text-faint">
             {/* "Hover or tap for detail" promised something a phone cannot do:
                 there is no hover, and a tap on a slice navigates. */}
@@ -197,8 +208,22 @@ export default async function TrendsPage({
               <span className="text-ink">{data.netWorth[data.netWorth.length - 1].label}</span>
             </>
           )}
-          . Hover or tap a month for exact figures; months marked estimated lack a balance snapshot for at
-          least one account.
+          . Hover or tap a month for exact figures; months drawn with a dashed line and a hollow point lack
+          a balance snapshot for at least one account.
+          {/* How MANY are estimated is a fact about the whole line, not a
+              per-point footnote — six of seven is a reason to discount the
+              slope, and it was reachable only by hovering each month in turn. */}
+          {estimatedMonths > 0 && (
+            <>
+              {" "}
+              <span className="text-ink">
+                {estimatedMonths} of {data.netWorth.length} month
+                {data.netWorth.length === 1 ? "" : "s"} {estimatedMonths === 1 ? "is" : "are"} partly
+                estimated
+              </span>
+              .
+            </>
+          )}
           {/* Two charts on one page spanning different ranges reads as a bug
               unless the shorter one says why it is shorter. Net worth REFUSES a
               month it cannot fully know, so its line is a record of when

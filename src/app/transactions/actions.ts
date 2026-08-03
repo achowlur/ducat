@@ -275,7 +275,7 @@ export async function suggestCandidates(inflowId: string): Promise<ReimburseCand
   await requireSession();
   const inflow = await prisma.transaction.findUniqueOrThrow({
     where: { id: inflowId },
-    select: { flow: true, amount: true, date: true },
+    select: { flow: true, amount: true, date: true, account: { select: { type: true } } },
   });
   if (inflow.flow !== "INFLOW") return [];
   const DAY_MS = 86_400_000;
@@ -307,7 +307,11 @@ export async function suggestCandidates(inflowId: string): Promise<ReimburseCand
     pool.map((o) => ({ ...o, amount: Number(o.amount) })),
     (id) => (id === null ? null : (nameById.get(id) ?? null)),
   );
-  return finder({ amount: Number(inflow.amount), date: inflow.date });
+  return finder({
+    amount: Number(inflow.amount),
+    date: inflow.date,
+    accountType: inflow.account.type,
+  });
 }
 
 /**

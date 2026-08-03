@@ -1,5 +1,6 @@
 import { prisma } from "../prisma";
 import { DEFAULT_HEALTH_OPTIONS } from "../health/health";
+import { countsAsCash, readCashAccountIds } from "./liquidity";
 import { isoDate } from "./format";
 
 export interface AccountDetail {
@@ -26,6 +27,14 @@ export interface AccountDetail {
   balanceLagDays: number;
   /** Connector said the balance is unknown (e.g. CSV without a balance column). */
   balanceUnknown: boolean;
+  /**
+   * Counted as spendable cash by the `cash.additionalAccountIds` Setting.
+   * Surfaced HERE in particular because this is the page offering a type
+   * dropdown, and retyping the account is the documented wrong fix
+   * (liquidity.ts) — the override has to be visible next to the control that
+   * invites breaking it.
+   */
+  isCash: boolean;
   /** Balance date older than the health threshold — the quiet-failure smell. */
   staleByAge: boolean;
   txnCount: number;
@@ -51,7 +60,7 @@ const TYPE_LABELS: [type: string, label: string][] = [
 ];
 
 export async function getAccountsData(now: Date = new Date()): Promise<AccountsPageData> {
-  const [accounts, txnStats, snapshots, lastSync] = await Promise.all([
+  const [accounts, txnStats, snapshots, lastSync, cashAccountIds] = await Promise.all([
     prisma.account.findMany(),
     prisma.transaction.groupBy({
       by: ["accountId"],
@@ -64,6 +73,7 @@ export async function getAccountsData(now: Date = new Date()): Promise<AccountsP
     // no latency. Deliberately the same query Overview makes — the two pages
     // print the same fact and must not derive it from different clocks.
     prisma.syncLog.findFirst({ where: { ok: true }, orderBy: { finishedAt: "desc" } }),
+    readCashAccountIds(prisma),
   ]);
   const syncedAt = lastSync?.finishedAt?.getTime() ?? null;
 
@@ -92,6 +102,7 @@ export async function getAccountsData(now: Date = new Date()): Promise<AccountsP
       balanceLagDays:
         syncedAt === null ? 0 : Math.max(0, Math.floor((syncedAt - a.balanceDate.getTime()) / DAY_MS)),
       balanceUnknown: a.isStale,
+      isCash: countsAsCash({ id: a.id, type: a.type, balance: Number(a.balance) }, cashAccountIds),
       staleByAge: daysSinceBalance > DEFAULT_HEALTH_OPTIONS.staleBalanceDays,
       txnCount: stats?._count._all ?? 0,
       firstTxnDate: stats?._min.date === null || stats === undefined ? null : isoDate(stats._min.date),

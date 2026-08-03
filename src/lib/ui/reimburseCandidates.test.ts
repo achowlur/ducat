@@ -85,6 +85,39 @@ describe('makeCandidateFinder', () => {
     expect(finder({ amount: 45, date: day(20) })[0].label).toBe('Desc X');
   });
 
+  /**
+   * The inflow-side mirror of UNSPLITTABLE. Every strong hint on ledger page 1
+   * was a brokerage dividend, two of them inside IRAs — the arithmetic worked
+   * in each case, which is exactly why an arithmetic guard was never going to
+   * catch it.
+   */
+  it('offers nothing for an inflow into an investment account', () => {
+    const finder = makeCandidateFinder([out('dinner', 90, 17, { categoryId: 'dining' })], categoryName);
+    expect(finder({ amount: 30, date: day(20) })).toHaveLength(1);
+    expect(finder({ amount: 30, date: day(20), accountType: 'INVESTMENT' })).toEqual([]);
+    expect(finder({ amount: 30, date: day(20), accountType: 'DEPOSITORY' })).toHaveLength(1);
+  });
+
+  /**
+   * The picker used to print the RAIL as a candidate name, reintroducing
+   * inside itself the unreviewable string the ledger's merchant column exists
+   * to replace.
+   */
+  it('names the P2P counterparty, not the rail', () => {
+    const finder = makeCandidateFinder(
+      [
+        out('z', 45, 18, {
+          normalizedMerchant: 'zelle transfer',
+          description: 'ZELLE TO FAIRLEY ROBIN ON 07/18 REF # PP0AAAAAAA',
+        }),
+      ],
+      categoryName,
+    );
+    const [only] = finder({ amount: 45, date: day(20) });
+    expect(only.label).not.toBe('Zelle Transfer');
+    expect(only.label).toContain('Fairley');
+  });
+
   it('denies split evidence to UNSPLITTABLE categories but allows repayment in full', () => {
     const finder = makeCandidateFinder([out('rent', 1750, 18, { categoryId: 'rent' })], categoryName);
     const [full] = finder({ amount: 1750, date: day(20) });

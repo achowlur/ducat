@@ -52,6 +52,8 @@ export interface InsightsPageData {
   periodLabel: string;
   prevPeriod: string | null;
   nextPeriod: string | null;
+  /** A `?period=` the admission rule refused; null when honoured or absent. */
+  clampedFrom: string | null;
   /**
    * Grouped in display order; empty groups omitted. `note` is a figure for the
    * group as a whole, right-aligned against its heading.
@@ -294,7 +296,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     now,
   );
   if (selection === null) return null;
-  const { period, prevPeriod, nextPeriod } = selection;
+  const { period, prevPeriod, nextPeriod, clampedFrom } = selection;
   // Same predicate the commitments fold uses, so a row cannot read "registered"
   // while the panel below bills it a second time as undetected.
   const isRegistered = (merchant: string) =>
@@ -541,6 +543,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     periodLabel: monthLabel(period),
     prevPeriod,
     nextPeriod,
+    clampedFrom,
     groups: groups.filter((g) => g.rows.length > 0),
     dismissedCount: inPeriod.filter((r) => r.dismissed).length,
     commitments,
