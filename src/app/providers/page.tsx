@@ -69,7 +69,7 @@ export default async function ProvidersPage() {
           </div>
 
           <div className="grid gap-6 pt-3 lg:grid-cols-[1.1fr_0.9fr]">
-            <div>
+            <div className="lg:col-start-1 lg:row-start-1">
               <SectionTitle>Signals</SectionTitle>
               <ul className="grid gap-1 text-[0.85rem]">
                 {health.reasons.map((reason) => (
@@ -103,67 +103,9 @@ export default async function ProvidersPage() {
                 </p>
               )}
 
-              <div className="mt-5">
-                <SectionTitle>Sync history {syncLogs.length > 0 && `(last ${syncLogs.length})`}</SectionTitle>
-                {syncLogs.length === 0 ? (
-                  <p className="text-[0.8rem] text-faint">No syncs recorded yet.</p>
-                ) : (
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="border-b border-ink">
-                        {["When", "Outcome", "Imported", "Skipped", "Rules", "Transfers"].map((h, i) => (
-                          <th
-                            key={h}
-                            className={`py-1 text-[0.66rem] font-semibold uppercase tracking-[0.1em] text-faint ${
-                              i < 2 ? "text-left" : "text-right"
-                            }`}
-                          >
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {syncLogs.map((log) => (
-                        <tr key={log.id} className="border-b border-rule last:border-b-0">
-                          <td className="py-1 pr-3 font-money text-[0.75rem] tabular text-faint">
-                            {dateTime(log.finishedAt)}
-                          </td>
-                          <td className="py-1 pr-3 text-[0.78rem]">
-                            {log.ok ? (
-                              <span className="font-semibold text-pos">ok</span>
-                            ) : (
-                              <span className="font-semibold text-neg" title={log.errorText ?? undefined}>
-                                failed{log.errorText !== null && ` — ${log.errorText}`}
-                              </span>
-                            )}
-                            {log.feedErrors.length > 0 && (
-                              <span className="block text-[0.7rem] text-faint">
-                                {log.feedErrors.join(" · ")}
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-1 pr-3 text-right font-money text-[0.78rem] tabular">
-                            {log.transactionsImported}
-                          </td>
-                          <td className="py-1 pr-3 text-right font-money text-[0.78rem] tabular text-faint">
-                            {log.transactionsSkipped}
-                          </td>
-                          <td className="py-1 pr-3 text-right font-money text-[0.78rem] tabular text-faint">
-                            {log.rulesApplied}
-                          </td>
-                          <td className="py-1 text-right font-money text-[0.78rem] tabular text-faint">
-                            {log.transfersLinked}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
             </div>
 
-            <div className="border-rule lg:border-l lg:pl-6">
+            <div className="border-rule lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-l lg:pl-6">
               <SectionTitle>Data path</SectionTitle>
               <p className="mb-4 text-[0.82rem] leading-relaxed">{health.trustCard.dataPath}</p>
 
@@ -179,6 +121,73 @@ export default async function ProvidersPage() {
 
               <SectionTitle>Revocation</SectionTitle>
               <p className="text-[0.8rem] leading-relaxed">{health.trustCard.revocation}</p>
+            </div>
+
+            {/* LAST in the DOM, so a phone reads status, then the trust card,
+                then the log. It used to sit above the trust card inside the
+                left column, which on a phone meant 1,799px of sync-log rows —
+                2.22 screens — between "All signals normal" and the words "Data
+                path". The log is a record you consult; the trust card is what
+                the page is FOR, and DEPLOY.md calls the cloud deployment "the
+                one on your phone". Desktop is unchanged: explicit placement
+                puts it back under Signals in the left column. */}
+            <div className="lg:col-start-1 lg:row-start-2">
+                  <SectionTitle>Sync history {syncLogs.length > 0 && `(last ${syncLogs.length})`}</SectionTitle>
+                  {syncLogs.length === 0 ? (
+                    <p className="text-[0.8rem] text-faint">No syncs recorded yet.</p>
+                  ) : (
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-ink">
+                          {["When", "Outcome", "Imported", "Skipped", "Rules", "Transfers"].map((h, i) => (
+                            <th
+                              key={h}
+                              className={`py-1 text-[0.66rem] font-semibold uppercase tracking-[0.1em] text-faint ${
+                                i < 2 ? "text-left" : "text-right"
+                              }`}
+                            >
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {syncLogs.map((log) => (
+                          <tr key={log.id} className="border-b border-rule last:border-b-0">
+                            <td className="py-1 pr-3 font-money text-[0.75rem] tabular text-faint">
+                              {dateTime(log.finishedAt)}
+                            </td>
+                            <td className="py-1 pr-3 text-[0.78rem]">
+                              {log.ok ? (
+                                <span className="font-semibold text-pos">ok</span>
+                              ) : (
+                                <span className="font-semibold text-neg" title={log.errorText ?? undefined}>
+                                  failed{log.errorText !== null && ` — ${log.errorText}`}
+                                </span>
+                              )}
+                              {log.feedErrors.length > 0 && (
+                                <span className="block text-[0.7rem] text-faint">
+                                  {log.feedErrors.join(" · ")}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-1 pr-3 text-right font-money text-[0.78rem] tabular">
+                              {log.transactionsImported}
+                            </td>
+                            <td className="py-1 pr-3 text-right font-money text-[0.78rem] tabular text-faint">
+                              {log.transactionsSkipped}
+                            </td>
+                            <td className="py-1 pr-3 text-right font-money text-[0.78rem] tabular text-faint">
+                              {log.rulesApplied}
+                            </td>
+                            <td className="py-1 text-right font-money text-[0.78rem] tabular text-faint">
+                              {log.transfersLinked}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
             </div>
           </div>
         </section>

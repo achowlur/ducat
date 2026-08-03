@@ -104,7 +104,15 @@ export function CashFlowChart({ months }: { months: MonthFlow[] }) {
       {/* The tooltip is positioned as a percentage of the plot, so it has to
           live inside the element that IS the plot's width — and it then
           scrolls with the bar it describes. */}
-      <div className="relative w-[520px] md:w-full">
+      {/* Capped once the section went full-width. The SVG scales its whole
+          viewBox with the container, so width buys legibility and then keeps
+          going: at 1104px the scale factor is 2.12 and the 10px axis type
+          renders at 25px — larger than the page's body text — in a chart 480px
+          tall. 880px is the size this chart was measured to be legible at
+          (~17px type, ~34px per month against the 18.2px it had at 534px),
+          which is the whole point of the finding, without the type outgrowing
+          the prose around it. */}
+      <div className="relative w-[520px] md:w-full md:max-w-[880px]">
       <svg
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         className="w-full"

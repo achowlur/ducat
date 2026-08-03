@@ -56,6 +56,65 @@ function buildHref(params: Params, overrides: Partial<Params>): string {
   return qs === "" ? "/transactions" : `/transactions?${qs}`;
 }
 
+/**
+ * The pager, extracted so it can render ABOVE and BELOW the table.
+ *
+ * It existed only at the top of a 4,172px page (5,455px at 375px): you read
+ * 100 rows, reached the bottom, and found nothing there — the way to page 2
+ * was a full scroll back. Repeating four elements is the cheap half of the
+ * fix; `first`/`last` are the other half, since stepping one page at a time
+ * made page 7 six round trips. A numbered page list is the obvious third
+ * option and is the one this page cannot afford, being the DOM-size lesson
+ * the category picker already paid for.
+ */
+function Pager({
+  params,
+  page,
+  pageCount,
+  pastEnd,
+}: {
+  params: Params;
+  page: number;
+  pageCount: number;
+  pastEnd: boolean;
+}) {
+  const linkTo = (n: number) => buildHref(params, { page: n === 1 ? undefined : String(n) });
+  // From past the end, "newer" is the last REAL page — stepping to page − 1
+  // would walk back through empty pages one at a time.
+  const newer = pastEnd ? pageCount : page - 1;
+  return (
+    <span className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-1 font-money">
+      {page > 2 && (
+        <Link href={linkTo(1)} className="tap44 font-semibold text-acc hover:underline">
+          « first
+        </Link>
+      )}
+      {page > 1 ? (
+        <Link href={linkTo(newer)} className="tap44 font-semibold text-acc hover:underline">
+          ‹ newer
+        </Link>
+      ) : (
+        <span className="text-faint">‹ newer</span>
+      )}
+      <span>
+        page {page} of {pageCount}
+      </span>
+      {page < pageCount ? (
+        <Link href={linkTo(page + 1)} className="tap44 font-semibold text-acc hover:underline">
+          older ›
+        </Link>
+      ) : (
+        <span className="text-faint">older ›</span>
+      )}
+      {page < pageCount - 1 && (
+        <Link href={linkTo(pageCount)} className="tap44 font-semibold text-acc hover:underline">
+          last »
+        </Link>
+      )}
+    </span>
+  );
+}
+
 const FLOW_BADGE: Record<string, string> = {
   INFLOW: "text-pos",
   OUTFLOW: "text-faint",
@@ -508,7 +567,11 @@ export default async function TransactionsPage({
         </Link>
       </form>
 
-      <div className="flex items-center gap-5 py-2 text-[0.78rem] text-faint">
+      {/* flex-wrap, not nowrap: this strip carries the row count, the payee
+          pill, the month step and the pager, and at 375px they were four
+          narrow smears of vertical text about 30px wide each. With first/last
+          on the pager it overflowed the body outright. */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 py-2 text-[0.78rem] text-faint">
         <span className="font-money">
           {groupMode
             ? `${groups.length} payees · ${groupedTxnCount} uncategorized`
@@ -575,32 +638,7 @@ export default async function TransactionsPage({
             also cheaper than the alternative — a page stays ~PAGE_SIZE rows of
             DOM however many years accumulate. */}
         {!groupMode && pageCount > 1 && (
-          <span className="ml-auto flex items-center gap-3 font-money">
-            {page > 1 ? (
-              // From past the end, "newer" is the last REAL page — stepping to
-              // page − 1 would walk back through empty pages one at a time.
-              <Link
-                href={buildHref(params, {
-                  page: (pastEnd ? pageCount : page - 1) === 1 ? undefined : String(pastEnd ? pageCount : page - 1),
-                })}
-                className="font-semibold text-acc hover:underline"
-              >
-                ‹ newer
-              </Link>
-            ) : (
-              <span className="text-faint">‹ newer</span>
-            )}
-            <span>
-              page {page} of {pageCount}
-            </span>
-            {page < pageCount ? (
-              <Link href={buildHref(params, { page: String(page + 1) })} className="font-semibold text-acc hover:underline">
-                older ›
-              </Link>
-            ) : (
-              <span className="text-faint">older ›</span>
-            )}
-          </span>
+          <Pager params={params} page={page} pageCount={pageCount} pastEnd={pastEnd} />
         )}
         {!groupMode &&
           (params.review === "1" ? (
@@ -680,10 +718,31 @@ export default async function TransactionsPage({
           {visible.map((t) => {
             const review = needsReview(t);
             return (
-              <tr key={t.id} className={`border-b border-rule ${t.flow === "TRANSFER" ? "opacity-60" : ""}`}>
+              // The de-emphasis stays — a transfer carries no decision about
+              // spending and reads as noise at full weight — but it stops
+              // being blanket ROW opacity. At 0.6 the row's amount fell to
+              // 3.45:1 and its `transfer` cell to 2.36:1 in sepia, failing AA
+              // and even the 3:1 non-text bar in all three themes. That cell
+              // is not decoration any more: since 2026-08-02 its own text IS
+              // the trip trigger, so the lowest-contrast thing on the page was
+              // an interactive control. The backlog's argument for dimming
+              // ("a plain 'transfer' span... the label is decoration on a row
+              // that carries no decision") predates that change and its
+              // tooltip half was always desktop-only. Merchant and account
+              // keep the dimming; date, amount and the trigger do not.
+              <tr key={t.id} className="border-b border-rule">
                 <td className="py-1.5 pr-3 font-money text-[0.78rem] tabular text-faint">{isoDate(t.date)}</td>
-                <td className="max-w-[150px] truncate py-1.5 pr-3 text-[0.85rem] md:max-w-[280px]" title={t.description}>
-                  {merchantLabel(t).label}
+                {/* The dimming sits on the LABEL, not the cell: below md the
+                    amount lives in this cell's sub-line, and dimming the cell
+                    took the number down to 2.71:1 with it — reintroducing the
+                    exact defect one element lower. */}
+                <td
+                  className="max-w-[150px] truncate py-1.5 pr-3 text-[0.85rem] md:max-w-[280px]"
+                  title={t.description}
+                >
+                  <span className={t.flow === "TRANSFER" ? "opacity-60" : ""}>
+                    {merchantLabel(t).label}
+                  </span>
                   {review && (
                     <span className="ml-2 rounded-[2px] bg-neg px-1 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.05em] text-paper">
                       review
@@ -699,8 +758,12 @@ export default async function TransactionsPage({
                       direction with it, so it moves to the front where it
                       survives and the account name absorbs the truncation. */}
                   <span className={`flex items-baseline gap-1.5 text-[0.68rem] md:hidden ${FLOW_BADGE[t.flow]}`}>
-                    <span className="shrink-0">{t.flow.toLowerCase()}</span>
-                    <span className="min-w-0 flex-1 truncate">
+                    <span className={`shrink-0 ${t.flow === "TRANSFER" ? "opacity-60" : ""}`}>
+                      {t.flow.toLowerCase()}
+                    </span>
+                    <span
+                      className={`min-w-0 flex-1 truncate ${t.flow === "TRANSFER" ? "opacity-60" : ""}`}
+                    >
                       · {accountNameById.get(t.accountId) ?? ""}
                     </span>
                     <span
@@ -716,7 +779,11 @@ export default async function TransactionsPage({
                     </span>
                   </span>
                 </td>
-                <td className="hidden py-1.5 pr-3 text-[0.75rem] text-faint md:table-cell">
+                <td
+                  className={`hidden py-1.5 pr-3 text-[0.75rem] text-faint md:table-cell ${
+                    t.flow === "TRANSFER" ? "opacity-60" : ""
+                  }`}
+                >
                   {accountNameById.get(t.accountId) ?? ""}
                 </td>
                 <td className="py-1.5 pr-3">
@@ -872,6 +939,12 @@ export default async function TransactionsPage({
         </tbody>
       </table>
       </div>
+      {/* Where you actually are when you finish reading a page. */}
+      {!groupMode && pageCount > 1 && (
+        <div className="flex items-center border-t border-rule py-3 text-[0.78rem] text-faint">
+          <Pager params={params} page={page} pageCount={pageCount} pastEnd={pastEnd} />
+        </div>
+      )}
       </CategoryPickerProvider>
       </GroupPickerProvider>
       )}

@@ -3,7 +3,7 @@ import { CashFlowChart } from "../../components/charts/CashFlowChart";
 import { NetWorthChart } from "../../components/charts/NetWorthChart";
 import { TrendsDonut } from "../../components/charts/TrendsDonut";
 import { CoverageNotice } from "../../components/CoverageNotice";
-import { amount, money, monthLabel, pct } from "../../lib/ui/format";
+import { amount, money, monthLabel } from "../../lib/ui/format";
 import { getPeriodCoverage } from "../../lib/ui/coverage";
 import { getTrendsData } from "../../lib/ui/trends";
 
@@ -42,9 +42,23 @@ export default async function TrendsPage({
   return (
     <div className="grid gap-9 py-5">
       <CoverageNotice coverage={coverage} />
-      {/* min-w-0: a grid item defaults to min-width:auto and will not shrink
+      {/* Three full-width rows, not two columns plus a full-width row.
+          `lg:grid-cols-2` sized this page in inverse proportion to what each
+          block had to say: at a 1652px viewport the CASH-FLOW chart — 26
+          months and growing — got 534px, or 18.2px per month with its axis
+          type scaled to 10.3px, while the seven-point net-worth line got the
+          full 1104px and 376px of height. A 9.2× inversion, and it got WORSE
+          as the window widened: the same chart has 837px and 28.5px per month
+          at a 900px viewport, because at 900 the two-column rule has not
+          engaged yet. The one element whose width requirement grows with
+          history was the one penalised for a wide screen.
+          Stacking also gives the category table room to be a table: it was
+          280px inside a 534px section, sharing the row with the donut, using
+          barely half of a column that was itself a third of the screen.
+
+          min-w-0: a grid item defaults to min-width:auto and will not shrink
           below its content, which is how a 520px chart widened the page. */}
-      <div className="grid min-w-0 gap-9 lg:grid-cols-2">
+      <div className="grid min-w-0 gap-9">
         <section className="min-w-0">
           <div className="flex items-baseline justify-between">
             <SectionTitle>Spending by category</SectionTitle>
@@ -105,7 +119,11 @@ export default async function TrendsPage({
           ) : (
             <div className="flex flex-wrap items-start gap-6">
               <TrendsDonut slices={data.donut.slices} total={data.donut.total} period={data.period} />
-              <table className="min-w-[260px] flex-1 border-collapse">
+              {/* Capped: `flex-1` in a now-full-width row would stretch four
+                  columns across ~850px and read as sparse rather than
+                  generous. 640px is room for the longest category name plus
+                  three figures without the eye having to travel. */}
+              <table className="min-w-[260px] max-w-[640px] flex-1 border-collapse">
                 <thead>
                   <tr className="border-b border-ink">
                     <th className="py-1 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
@@ -115,7 +133,7 @@ export default async function TrendsPage({
                       Spent
                     </th>
                     <th className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
-                      vs prev
+                      Prior
                     </th>
                     <th className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       Share
@@ -142,33 +160,26 @@ export default async function TrendsPage({
                         </Link>
                       </td>
                       <td className="py-1.5 text-right font-money text-[0.85rem] tabular">{amount(c.spending)}</td>
-                      <td
-                        className={`py-1.5 text-right font-money text-[0.78rem] tabular ${
-                          c.deltaPct === null
-                            ? "text-faint"
-                            : c.deltaPct > 0.005
-                              ? "font-semibold text-neg"
-                              : c.deltaPct < -0.005
-                                ? "font-semibold text-pos"
-                                : "text-faint"
-                        }`}
-                      >
-                        {c.deltaPct === null
-                          ? // Three refusals, three different words, because the
-                            // em dash already carries a second meaning in the
-                            // Share column one cell to the right. No prior row
-                            // at all is "new"; a PRIOR period that ended at zero
-                            // or in credit leaves nothing to divide by; and a
-                            // CURRENT period that ended in credit says what
-                            // actually happened rather than reusing the dash.
-                            c.previousSpending === null
-                            ? "new"
-                            : c.spending < 0
-                              ? "refunded"
-                              : "—"
-                          : c.deltaPct > 9.99
-                            ? `×${(1 + c.deltaPct).toFixed(1)}`
-                            : pct(c.deltaPct)}
+                      {/* The prior period's DOLLARS, not a ratio.
+                          As a ratio this column carried five different value
+                          forms in six rows — a percentage, a `×N.N` multiplier
+                          above +999%, `new`, an em dash, and `+0.00%` — so a
+                          reader scanning it changed units per row, with no key
+                          anywhere on the page. Three of those existed only
+                          because a ratio has cases a quantity does not: the
+                          multiplier for a base near zero, the dash for a base
+                          that was not positive, and a word for a CURRENT period
+                          that ended in credit. Dollars have none of them. The
+                          reader compares two adjacent money columns, which is
+                          the comparison the ratio was standing in for, and
+                          `new` survives as the one genuine non-quantity: no
+                          prior row at all. Set at the same size as Spent
+                          BECAUSE the two are meant to be read against each
+                          other.
+                          This retires the `×N.N` branch, unchanged since the
+                          original /trends commit and undefended since. */}
+                      <td className="py-1.5 text-right font-money text-[0.85rem] tabular text-faint">
+                        {c.previousSpending === null ? "new" : amount(c.previousSpending)}
                       </td>
                       <td className="py-1.5 text-right font-money text-[0.78rem] tabular text-faint">
                         {c.share === null ? "—" : `${Math.round(c.share * 100)}%`}

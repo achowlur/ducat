@@ -678,7 +678,9 @@ export default async function InsightsPage({
               key={t.label}
               className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-b border-rule py-2 text-[0.85rem] last:border-b-0 max-md:py-3"
             >
-              <Link href={t.href} className="font-semibold text-acc hover:underline">
+              {/* Missed by the 44px sweep: measured 43.4 × 20.4 at 375px, the
+                  only control on this page still under the bar. */}
+              <Link href={t.href} className="tap44 font-semibold text-acc hover:underline">
                 {t.label}
               </Link>
               <span className="font-money text-[0.72rem] tabular text-faint">

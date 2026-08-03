@@ -204,8 +204,19 @@ export default async function OverviewPage() {
         )}
       </section>
 
+      {/* Explicit placement on desktop so NEEDS REVIEW can be a grid child in
+          its own right and still sit under SPENDING in the right column. It
+          has to be a sibling, not a nested block, to be reorderable at all —
+          and on a phone it needs reordering: measured unscrolled at 375px the
+          spending block began 1.03 screens down and the review panel 1.18, so
+          the first screen of the front page was net worth and six account
+          rows, with everything the page says about what needs attention below
+          the fold. It hoists ONLY when it has items: the documented shape is
+          HEADLINE → DETAIL → TOTAL, and moving a panel that says "all clear"
+          above the detail would buy nothing and cost the shape. The quiet
+          state stays exactly where it was. */}
       <div className="grid grid-cols-1 md:grid-cols-[1.12fr_0.88fr]">
-        <section className="py-5 md:pr-7">
+        <section className="py-5 md:col-start-1 md:row-span-2 md:row-start-1 md:pr-7">
           <SectionTitle>Accounts</SectionTitle>
           <table className="w-full border-collapse">
             <thead>
@@ -272,7 +283,7 @@ export default async function OverviewPage() {
           </table>
         </section>
 
-        <section className="border-rule py-5 md:border-l md:pl-7">
+        <section className="border-rule py-5 md:col-start-2 md:row-start-1 md:border-l md:pl-7">
           {/* The month being LIVED IN, always — a July donut under a "this
               month" hole label was two instants presented as one state. The
               block renders in the empty state too: "nothing recorded yet" is a
@@ -369,13 +380,20 @@ export default async function OverviewPage() {
             </>
           )}
 
-          {/* The third thing Overview owns, after balances and net worth. It
-              used to exist only as a red banner in the header when the count
-              was non-zero, which meant the page said NOTHING when everything
-              was fine — and "all clear" is indistinguishable from "not checked"
-              if it is never stated. So this renders in both states, and the
-              quiet one is the point. */}
-          <div className="mt-6">
+        </section>
+
+        {/* The third thing Overview owns, after balances and net worth. It
+            used to exist only as a red banner in the header when the count
+            was non-zero, which meant the page said NOTHING when everything
+            was fine — and "all clear" is indistinguishable from "not checked"
+            if it is never stated. So this renders in both states, and the
+            quiet one is the point. */}
+        <section
+          className={`border-rule pb-5 md:col-start-2 md:row-start-2 md:border-l md:pl-7 ${
+            reviewItems.length > 0 ? "max-md:order-first max-md:pt-5" : "max-md:mt-6"
+          }`}
+        >
+          <div>
             <SectionTitle>Needs review</SectionTitle>
             {reviewItems.length === 0 ? (
               <p className="text-[0.85rem] text-faint">

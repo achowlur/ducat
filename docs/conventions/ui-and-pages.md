@@ -121,6 +121,66 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   both clocks and names no cause. `/accounts` still has NO last-sync line of
   its own, which is what makes the sync-relative number harder to interpret
   here than on Overview; that gap is open (docs/backlog.md).
+- The /trends PROPORTION pass (2026-08-03) answered the backlog's own open
+  question. `lg:grid-cols-2` sized the page in inverse proportion to what each
+  block had to say: at 1652px the cash-flow chart — 26 months and growing —
+  got 534px, 18.2px per month with its axis type scaled to 10.3px, while the
+  seven-point net-worth line got the full 1104px and 376px of height. A 9.2×
+  inversion, and it got WORSE as the window widened, because at a 900px
+  viewport the two-column rule has not engaged and the same chart has 837px.
+  All three blocks are full-width rows now. Two caps came out of measuring the
+  result rather than predicting it: the category table at 640px (it was 280px
+  inside a 534px section, sharing the row with the donut; `flex-1` in a
+  full-width row stretched four columns across ~850px and read as sparse), and
+  the cash-flow strip at 880px — an SVG scales its whole viewBox with its
+  container, so at 1104px the factor is 2.12 and the 10px axis type renders at
+  25px, LARGER than the page's body text, in a chart 480px tall. At 880px the
+  factor is 1.69: ~20px type, 30px per month, 13 labels with a 30px minimum
+  gap and no collisions. Width buys legibility and then overshoots it.
+  The `vs prev` column became the prior period's DOLLARS. As a ratio it
+  carried five value forms in six rows — a percentage, a `×N.N` multiplier
+  above +999%, `new`, an em dash, and `+0.00%` — so a reader scanning it
+  changed units per row with no key on the page. THREE of those existed only
+  because a ratio has cases a quantity does not: the multiplier for a base
+  near zero, the dash for a base that was not positive, and (added hours
+  earlier, then removed here) a word for a current period that ended in
+  credit. Dollars have none of them; the reader compares two adjacent money
+  columns, which is what the ratio was standing in for, and `new` survives as
+  the one genuine non-quantity. October 2025 makes the case: `spent −3,353.00`
+  against `prior 12,059.19` says what happened, where `−127.80%` and even
+  `refunded` did not. This retires the `×N.N` branch, unchanged since the
+  original /trends commit and undefended since it was written.
+  Overview's NEEDS REVIEW panel became a grid child in its own right so it can
+  hoist above the account table below md — but ONLY when it has items.
+  Measured unscrolled at 375px it began 1.18 screens down, so everything the
+  front page says about what needs attention was below the fold; hoisted it
+  starts at 296px. The quiet "all clear" state does NOT move: HEADLINE →
+  DETAIL → TOTAL is the documented shape, and reordering it to promote a panel
+  that says nothing is wrong would cost the shape and buy nothing.
+  The transfer row's `opacity-60` moved off the row and onto the merchant and
+  account cells. At row level it dragged the AMOUNT to 3.45:1 and the
+  `transfer` cell to 2.36:1 in sepia — failing AA and the 3:1 non-text bar in
+  all three themes — and that cell stopped being decoration on 2026-08-02,
+  when its own text became the trip trigger. The backlog's argument for
+  dimming ("a plain 'transfer' span… the label is decoration on a row that
+  carries no decision") predates that change, and its tooltip mitigation was
+  always desktop-only. Measured after, across sepia/light/dark: trigger
+  4.96/5.76/5.37, amount 6.49/10.29/7.64, merchant label still dimmed at
+  3.46/4.86/12.87 — which is the part of the argument that survives.
+  Watch the sub-line: below md the amount lives INSIDE the merchant cell, so
+  dimming that cell reintroduced the same defect one element lower (2.71:1)
+  before the opacity was moved onto the label span itself.
+  The pager renders above AND below the table, and gained `first`/`last`. It
+  existed only at the top of a 4,172px page — you read 100 rows, reached the
+  bottom, and found nothing there. A numbered page list is the obvious third
+  option and the one this page cannot afford (the category picker's DOM
+  lesson). Adding two links overflowed the count strip at 375px by 78px, so
+  that strip and the pager both wrap now: it was already four narrow smears of
+  vertical text before the links existed.
+  /providers' SYNC HISTORY moved LAST in the DOM. On a phone it sat between
+  the status line and the trust card — 1,799px, 2.22 screens, between "All
+  signals normal" and the words "Data path", on the page whose whole job is
+  the trust story. Now 115px. Desktop is unchanged by explicit grid placement.
 - The PHONE pass (2026-08-03) finished what the 2026-07-26 tap-target commit
   started. That commit swept /insights, /trends, the nav and the dismiss
   button; Overview, /transactions, /accounts and /providers were never

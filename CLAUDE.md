@@ -293,6 +293,12 @@ regeneration.
   renaming back; casing adoption is enforced server-side.
 - Charts are hand-rolled SVG; no chart library, no webfonts anywhere (CSP).
   niceTicks guarantees last tick ≥ max; value labels are collision-checked.
+  A viewBox scales its TYPE with its container, so width buys legibility and
+  then overshoots — the cash-flow strip is capped at 880px for that reason.
+- /trends stacks its three blocks FULL WIDTH; `lg:grid-cols-2` sized the page
+  in inverse proportion to what each block had to say. The category column is
+  the prior period's DOLLARS, never a ratio: one unit down the column, with
+  `new` the only non-quantity.
 - Overview is HEADLINE → DETAIL → TOTAL; the grouping figures are a
   full-width band BELOW the table, never rows inside it; freshness is a
   COLUMN.
