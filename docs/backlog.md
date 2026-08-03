@@ -410,3 +410,21 @@ turned up so it isn't rediscovered:
   table's width and its two ratio columns are the ORIGINAL design, never
   revisited, and the multiplier form in particular is a rendering nobody
   has defended since it was written. Start the pass there.
+  MEASURED ON THE DEPLOYMENT 2026-08-03, so it is not re-derived. Desktop at
+  a 1652px viewport: the table is 280px wide inside a 534px SECTION — it uses
+  barely half of its own column, and that column is a third of the screen, so
+  the squish is self-inflicted by the grid rather than a shortage of room.
+  Mobile at 375px: a 327px table with NO horizontal scroll (that part is
+  fine), but `vs prev` gets 70px and the category column 133px, so precision
+  is bought entirely out of the category names. The real July rows show the
+  defect is UNITS more than width — one column carrying five different
+  forms: a percentage (`+58.25%` Dining), a MULTIPLIER (`×11.4`
+  Entertainment), the word `new` (Groceries, no prior row), an em dash
+  (Rent & Housing, prior base not positive), and `+0.00%` for an unchanged
+  Utilities. A reader scanning that column switches units per row.
+  Before "fixing" it: `new`, the em dash and the null-base refusal are
+  LOAD-BEARING (money-and-analytics.md — pctDelta is null for any base ≤ 0).
+  The questions actually open are whether the MULTIPLIER earns its place
+  beside percentages, whether the column should carry a ratio at all rather
+  than the prior period's dollars, and why the table is half the width of
+  the space it already owns.
