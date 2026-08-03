@@ -285,7 +285,9 @@ regeneration.
   what their own filtered view shows — transfers included when tagged,
   and the wording says so; no group touching a period means the section
   is ABSENT, never empty; an untagged row's picker starts with NOTHING
-  active, so bare Enter writes nothing.
+  active, so bare Enter writes nothing; RENAME (the band's control) rewrites
+  the WHOLE group, never the filtered view, and renaming onto an existing
+  label MERGES — said before saving.
 - Charts are hand-rolled SVG; no chart library, no webfonts anywhere (CSP).
   niceTicks guarantees last tick ≥ max; value labels are collision-checked.
 - Overview is HEADLINE → DETAIL → TOTAL; the grouping figures are a

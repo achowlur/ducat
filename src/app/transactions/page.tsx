@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Prisma } from "../../generated/prisma/client";
 import { CategoryButton, CategoryPickerProvider } from "../../components/CategoryPicker";
 import { GroupChip, GroupPickerProvider, GroupTrigger } from "../../components/GroupPicker";
+import { RenameGroup } from "../../components/RenameGroup";
 import { GroupedReview, type PayeeGroupView } from "../../components/GroupedReview";
 import { ReimburseControl } from "../../components/ReimburseControl";
 import { draftSubscription } from "../../lib/health/registerSubscription";
@@ -137,7 +138,7 @@ export default async function TransactionsPage({
     ? { ...where, categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" } }
     : where;
 
-  const [rows, total, categories, accounts, dateRange, reviewPool, trackedSubs, groupLabelRows, tripTotals, tripTransfers] = await Promise.all([
+  const [rows, total, categories, accounts, dateRange, reviewPool, trackedSubs, groupLabelRows, tripTotals, tripTransfers, tripGroupTotal] = await Promise.all([
     prisma.transaction.findMany({
       where: listWhere,
       // A relation `include` is a ROUND TRIP, and this query had three of them
@@ -202,6 +203,10 @@ export default async function TransactionsPage({
           _max: { date: true },
         }),
     tripLabel === null ? 0 : prisma.transaction.count({ where: { ...where, flow: "TRANSFER" } }),
+    // The group's TOTAL row count, deliberately UNfiltered — the rename
+    // control rewrites the whole group and its scope line must say how much
+    // that is, not how much the current filters happen to show.
+    tripLabel === null ? 0 : prisma.transaction.count({ where: { groupLabel: tripLabel } }),
   ]);
 
   // The account column, without joining Account onto every row: `accounts` is
@@ -568,6 +573,12 @@ export default async function TransactionsPage({
       {tripLabel !== null && tripBand !== null && !groupMode && !reviewMode && (
         <div className="mb-1 flex flex-wrap items-baseline gap-x-5 gap-y-1 border-b-2 border-ink bg-chip px-3 py-2 text-[0.85rem]">
           <span className="font-semibold">{tripLabel}</span>
+          {/* Rename renders whenever the GROUP exists — even when the current
+              filters show none of its rows — because it acts on the whole
+              group, not the view. */}
+          {tripGroupTotal > 0 && (
+            <RenameGroup label={tripLabel} totalRows={tripGroupTotal} labels={tripLabels} />
+          )}
           {tripBand.count === 0 || tripBand.first === null || tripBand.last === null ? (
             <span className="text-faint">no rows carry this tag under these filters</span>
           ) : (

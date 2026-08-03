@@ -220,3 +220,21 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   the existing Promise.all), which an untagged database also pays — a gate
   would itself be a query. The totals band aggregates the WHOLE filter, not
   the visible page, consistent with Overview's band idiom.
+- The band's RENAME control (2026-08-03, built within hours of the operator
+  hitting the per-row ceiling at two rows): renameGroup rewrites the label across the
+  WHOLE group in one updateMany — never the filtered subset the band
+  happens to sum, because renaming only the visible rows would silently
+  split the trip — and its scope line prints the group's true row count
+  from a deliberately UNfiltered count query ("N in total, filters or
+  not"). Renaming onto an existing label MERGES the two groups, allowed on
+  purpose (two half-named trips are a real state); the note appears the
+  moment the typed name matches one, before anything is written, and a
+  case-insensitive match adopts the existing casing — the picker's
+  fork-prevention applied here. After a rename the client lands on the
+  renamed group's URL, because the old ?group= would show the
+  honest-but-jarring empty band. Reversible by renaming back, with no
+  snapshot machinery: a label exists only as the value on its rows, so
+  there is nothing else to move. The write is shared with the tests through
+  renameGroupRows (sync/groups.ts) — the restoreTransactions pattern — and
+  the invariant extends to it: rename + regenerate stays byte-identical,
+  pinned beside the merge and same-name-no-op cases.

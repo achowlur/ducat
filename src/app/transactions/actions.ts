@@ -5,6 +5,7 @@ import { revalidateInsightPages } from "../revalidate";
 import { prisma } from "../../lib/prisma";
 import { generateInsights } from "../../lib/insights/engine";
 import { reapplyRules, restoreTransactions, type GroupUndo } from "../../lib/sync/rulePack";
+import { renameGroupRows } from "../../lib/sync/groups";
 import { MAX_GROUP_LABEL, normalizeGroupLabel } from "../../lib/ui/groupFilter";
 import { requireSession } from "../../lib/auth/requireSession";
 import { TRANSFER_TARGET } from "../../lib/sync/grouping";
@@ -141,10 +142,12 @@ export async function setTransactionGroup(
   await requireSession();
   const value = label === null ? null : normalizeGroupLabel(label);
   if (label !== null && value === null) {
-    throw new Error("A trip needs a name — or untag the row instead.");
-  }
-  if (value !== null && value.length > MAX_GROUP_LABEL) {
-    throw new Error(`Trip names cap at ${MAX_GROUP_LABEL} characters.`);
+    // normalizeGroupLabel nulls both the empty and the overlong; tell them apart.
+    throw new Error(
+      label.trim() === ""
+        ? "A trip needs a name — or untag the row instead."
+        : `Trip names cap at ${MAX_GROUP_LABEL} characters.`,
+    );
   }
   await prisma.transaction.update({
     where: { id: transactionId },
@@ -152,6 +155,31 @@ export async function setTransactionGroup(
   });
   revalidatePath("/transactions");
   revalidatePath("/insights"); // the TRIPS section reads the tags directly
+}
+
+/**
+ * Rename a trip across the WHOLE group — every row carrying the tag, never
+ * the filtered view the operator happens to be standing in (see
+ * renameGroupRows for the semantics: whole group, merge-on-collision,
+ * reversible by renaming back). No insight regeneration: no analyzer reads
+ * groupLabel, and the invariant test pins that a rename changes nothing.
+ */
+export async function renameGroup(from: string, to: string): Promise<number> {
+  await requireSession();
+  const source = normalizeGroupLabel(from);
+  const target = normalizeGroupLabel(to);
+  if (source === null) throw new Error("No trip named to rename.");
+  if (target === null) {
+    throw new Error(
+      to.trim() === ""
+        ? "A trip needs a name."
+        : `Trip names cap at ${MAX_GROUP_LABEL} characters.`,
+    );
+  }
+  const count = await renameGroupRows(prisma, source, target);
+  revalidatePath("/transactions");
+  revalidatePath("/insights"); // the TRIPS section reads the tags directly
+  return count;
 }
 
 /**

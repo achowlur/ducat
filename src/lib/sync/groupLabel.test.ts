@@ -12,6 +12,7 @@ import type {
 import { PrismaClient } from "../../generated/prisma/client";
 import { generateInsights } from "../insights/engine";
 import { spendingBreakdown } from "../ui/spendingBreakdown";
+import { renameGroupRows } from "./groups";
 import { reapplyRules, restoreTransactions } from "./rulePack";
 import { runSync } from "./sync";
 
@@ -244,5 +245,40 @@ describe("groupLabel is a view, never a re-bucketing", () => {
     expect(out.transferPairId).toBe(inn.id);
     expect(out.groupLabel).toBe(LABEL); // the rewrite spared the tag
     expect(inn.groupLabel).toBe(LABEL);
+  });
+
+  it("rename rewrites the WHOLE group and nothing else — analytics stay byte-identical", async () => {
+    const before = await snapshotInsights();
+    const untagged = await prisma.transaction.count({ where: { groupLabel: null } });
+    const tagged = await prisma.transaction.count({ where: { groupLabel: LABEL } });
+    expect(tagged).toBeGreaterThan(0);
+
+    const moved = await renameGroupRows(prisma, LABEL, "DC Trip");
+    expect(moved).toBe(tagged);
+    expect(await prisma.transaction.count({ where: { groupLabel: LABEL } })).toBe(0);
+    expect(await prisma.transaction.count({ where: { groupLabel: "DC Trip" } })).toBe(tagged);
+    // Rows outside the group were never touched.
+    expect(await prisma.transaction.count({ where: { groupLabel: null } })).toBe(untagged);
+    // A renamed row keeps its category and source through the rename.
+    const hotel = await byExternalId("t-hotel");
+    expect(hotel.groupLabel).toBe("DC Trip");
+    expect(hotel.categorySource).toBe("RULE");
+
+    await generateInsights(prisma);
+    expect(await snapshotInsights()).toEqual(before);
+  });
+
+  it("renaming onto an existing label MERGES the two groups", async () => {
+    const kroger = await byExternalId("t-groceries");
+    await prisma.transaction.update({ where: { id: kroger.id }, data: { groupLabel: "Errands" } });
+    const dc = await prisma.transaction.count({ where: { groupLabel: "DC Trip" } });
+
+    expect(await renameGroupRows(prisma, "Errands", "DC Trip")).toBe(1);
+    expect(await prisma.transaction.count({ where: { groupLabel: "DC Trip" } })).toBe(dc + 1);
+    expect(await prisma.transaction.count({ where: { groupLabel: "Errands" } })).toBe(0);
+  });
+
+  it("renaming a group to its own name is a no-op that writes nothing", async () => {
+    expect(await renameGroupRows(prisma, "DC Trip", "DC Trip")).toBe(0);
   });
 });
