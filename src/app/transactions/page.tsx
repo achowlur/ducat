@@ -312,6 +312,14 @@ export default async function TransactionsPage({
   const pageCount = Math.max(1, Math.ceil(matchCount / PAGE_SIZE));
   const firstShown = matchCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const lastShown = (page - 1) * PAGE_SIZE + visible.length;
+  // `page` is floored at 1 when it is parsed and was never capped, so a
+  // bookmarked or hand-edited ?page= past the end printed "9801–9800 of 1043"
+  // over an empty table whose empty state blamed the filters — on a filter set
+  // that matched 2,703 rows. Clamping at parse time would need `total`, which
+  // costs a round trip to learn something the count in flight already knows,
+  // so the request is answered honestly instead: no invented range, an empty
+  // state that names the real page count, and a way back in one click.
+  const pastEnd = matchCount > 0 && page > pageCount;
 
   const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name, isIncome: c.isIncome }));
 
@@ -383,8 +391,13 @@ export default async function TransactionsPage({
             submits its own fields — without this, "review just June" dropped
             you out of the queue and into the flat list. The trip filter needs
             the same synthetic entry: it has no visible control here, so a
-            form submit would silently drop it. */}
+            form submit would silently drop it. So does `review`, which is a
+            SEPARATE mode from `payees` and kept its bug through the fix that
+            named it: the comment above described the P2P queue while the
+            input below covered the payee queue. Every mode with no visible
+            control belongs on this list. */}
         {groupMode && <input type="hidden" name="payees" value="1" />}
+        {reviewMode && <input type="hidden" name="review" value="1" />}
         {tripLabel !== null && <input type="hidden" name="group" value={tripLabel} />}
         <label className="grid gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
           Period
@@ -466,7 +479,9 @@ export default async function TransactionsPage({
             ? `${groups.length} payees · ${groupedTxnCount} uncategorized`
             : matchCount === 0
               ? "0 matching"
-              : `${firstShown}–${lastShown} of ${matchCount}`}
+              : pastEnd
+                ? `${matchCount} matching`
+                : `${firstShown}–${lastShown} of ${matchCount}`}
         </span>
         {/* Which categories, spelled out. A title= would be invisible on touch,
             which is where a donut slice is most likely to have been tapped. */}
@@ -527,8 +542,12 @@ export default async function TransactionsPage({
         {!groupMode && pageCount > 1 && (
           <span className="ml-auto flex items-center gap-3 font-money">
             {page > 1 ? (
+              // From past the end, "newer" is the last REAL page — stepping to
+              // page − 1 would walk back through empty pages one at a time.
               <Link
-                href={buildHref(params, { page: page === 2 ? undefined : String(page - 1) })}
+                href={buildHref(params, {
+                  page: (pastEnd ? pageCount : page - 1) === 1 ? undefined : String(pastEnd ? pageCount : page - 1),
+                })}
                 className="font-semibold text-acc hover:underline"
               >
                 ‹ newer
@@ -764,7 +783,20 @@ export default async function TransactionsPage({
           {visible.length === 0 && (
             <tr>
               <td colSpan={6} className="py-6 text-center text-[0.85rem] text-faint">
-                No transactions match these filters.
+                {pastEnd ? (
+                  <>
+                    Page {page} is past the end — these filters match {matchCount} rows across{" "}
+                    {pageCount} page{pageCount === 1 ? "" : "s"}.{" "}
+                    <Link
+                      href={buildHref(params, { page: pageCount === 1 ? undefined : String(pageCount) })}
+                      className="font-semibold text-acc hover:underline"
+                    >
+                      go to page {pageCount}
+                    </Link>
+                  </>
+                ) : (
+                  "No transactions match these filters."
+                )}
               </td>
             </tr>
           )}

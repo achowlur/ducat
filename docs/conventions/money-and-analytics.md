@@ -25,11 +25,30 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   cash-flow row report; printing `drawable` as the donut headline gave June two
   totals ($3,535.25 on /trends, $3,125.52 on /insights). Both donuts now come
   from `ui/spendingBreakdown.ts` so the two screens cannot drift again.
-  (3) `pctDelta` returns null for any base ≤ 0 — a sign flip is not a
-  percentage increase, but it rendered as one in the boldest style on the page
-  ("Rent & Housing ×13.4", from June's −$409.73 refund). Category lists still
-  show negatives honestly; a negative shows "—" for share and vs-prev, while
+  (3) `pctDelta` returns null when EITHER operand crosses zero — a sign flip is
+  not a percentage change, but it rendered as one in the boldest style on the
+  page ("Rent & Housing ×13.4", from June's −$409.73 refund). Category lists
+  still show negatives honestly; a negative shows "—" for share, while
   "new" keeps its own meaning of no prior row at all.
+  The guard shipped against the DIVISOR alone (`previous <= 0`) and the mirror
+  case survived it for two months, because the fix was written from the example
+  rather than from the arithmetic. A POSITIVE base with a NEGATIVE current is
+  the same flip walked the other way: October 2025's Rent & Housing came to
+  −$3,353.00 against a positive September and printed **−127.80%** — a spending
+  cut of more than 100%, in `font-semibold text-pos`, the loudest green on the
+  page, i.e. the strongest "improvement" signal on /trends sitting on a row
+  whose own figure was negative. You cannot reduce spending by more than you
+  spent. `current < 0` now returns null too (2026-08-03), which also covers
+  `cashFlow.ts`'s income/spending deltas, where the same division was reachable
+  in a net-refund month and would have read as prose.
+  A third refusal needed a third WORD, not a third use of the dash. `vs prev`
+  and `Share` sit in adjacent cells and "—" already meant "this category ended
+  in credit" in the second; reusing it for "the current period ended in credit"
+  in the first would have made one glyph mean three things across two columns
+  with no key on the page. So /trends now distinguishes them in words: `new`
+  (no prior row at all), `—` (prior base not positive, nothing to divide by),
+  `refunded` (current period ended in credit). The em dash's own overload
+  across the two columns is still open — see docs/backlog.md.
 - Net worth history requires SNAPSHOTS, not transactions. `balanceAt`
   (insights/netWorth.ts) returns `known:false` for an INVESTMENT account with no
   snapshot at/before the date, and `computeNetWorthGrowth` emits NOTHING for a

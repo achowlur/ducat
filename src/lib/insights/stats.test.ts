@@ -51,4 +51,15 @@ describe('pctDelta', () => {
     expect(pctDelta(100, 0)).toBeNull();
     expect(pctDelta(150, 100)).toBe(0.5);
   });
+
+  it('refuses a NEGATIVE current against a positive base — the same flip, mirrored', () => {
+    // October 2025's Rent & Housing: a category that ended in credit. This
+    // divided cleanly and printed −127.80%, a spending cut of more than 100%,
+    // in the boldest green on /trends. The guard against `previous <= 0` never
+    // saw it because the sign was on the other operand.
+    expect(pctDelta(-3353.00, 4545.79)).toBeNull();
+    expect(pctDelta(-0.01, 100)).toBeNull();
+    // Zero is a real reading, not a flip: spending stopped, it did not reverse.
+    expect(pctDelta(0, 100)).toBe(-1);
+  });
 });

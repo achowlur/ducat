@@ -12,6 +12,18 @@ export interface AccountDetail {
   balance: number;
   balanceDate: string;
   daysSinceBalance: number;
+  /**
+   * How far behind this balance already was AT THE LAST SYNC — the same
+   * measurement Overview's "Nd behind" column makes, and for the same reason.
+   * Measured against now instead, it says the sync's problem in the row's
+   * voice: the day a sync is late every balance is late, so all eight rows
+   * raise a chip that blames the feed. What a row can say that a header
+   * cannot is "the sync ran and this account did not move".
+   *
+   * Zero when nothing has ever synced successfully, which is honest — there
+   * is no sync to be behind.
+   */
+  balanceLagDays: number;
   /** Connector said the balance is unknown (e.g. CSV without a balance column). */
   balanceUnknown: boolean;
   /** Balance date older than the health threshold — the quiet-failure smell. */
@@ -39,7 +51,7 @@ const TYPE_LABELS: [type: string, label: string][] = [
 ];
 
 export async function getAccountsData(now: Date = new Date()): Promise<AccountsPageData> {
-  const [accounts, txnStats, snapshots] = await Promise.all([
+  const [accounts, txnStats, snapshots, lastSync] = await Promise.all([
     prisma.account.findMany(),
     prisma.transaction.groupBy({
       by: ["accountId"],
@@ -48,7 +60,12 @@ export async function getAccountsData(now: Date = new Date()): Promise<AccountsP
       _max: { date: true },
     }),
     prisma.balanceSnapshot.findMany({ orderBy: { date: "asc" } }),
+    // Joins the existing Promise.all, so the anchor for every row's lag costs
+    // no latency. Deliberately the same query Overview makes — the two pages
+    // print the same fact and must not derive it from different clocks.
+    prisma.syncLog.findFirst({ where: { ok: true }, orderBy: { finishedAt: "desc" } }),
   ]);
+  const syncedAt = lastSync?.finishedAt?.getTime() ?? null;
 
   const statsByAccount = new Map(txnStats.map((s) => [s.accountId, s]));
   const snapshotsByAccount = new Map<string, { date: Date; balance: number }[]>();
@@ -72,6 +89,8 @@ export async function getAccountsData(now: Date = new Date()): Promise<AccountsP
       balance: Number(a.balance),
       balanceDate: isoDate(a.balanceDate),
       daysSinceBalance,
+      balanceLagDays:
+        syncedAt === null ? 0 : Math.max(0, Math.floor((syncedAt - a.balanceDate.getTime()) / DAY_MS)),
       balanceUnknown: a.isStale,
       staleByAge: daysSinceBalance > DEFAULT_HEALTH_OPTIONS.staleBalanceDays,
       txnCount: stats?._count._all ?? 0,

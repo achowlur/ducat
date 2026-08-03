@@ -63,8 +63,19 @@ export function round4(n: number): number {
  * increase. June's rent was −$409.73 (a refund month), so dividing July's
  * $4,655.60 by |−409.73| rendered "×13.4" in the page's heaviest style — the
  * most confident number on the screen, and it measured nothing.
+ *
+ * The MIRROR case is the same defect and survived the fix that named it,
+ * because the guard was written against the divisor alone. A POSITIVE base
+ * with a NEGATIVE current is the same sign flip walked the other way: October
+ * 2025's Rent & Housing came to −$3,353.00 against a positive September, and
+ * (current − previous) / previous printed "−127.80%" — a spending cut of more
+ * than 100%, styled `font-semibold text-pos`, the loudest green on the page.
+ * You cannot reduce spending by more than you spent. Either operand crossing
+ * zero means there is no ratio to print, so callers must render the reason
+ * instead; /trends distinguishes all three refusals in words.
  */
 export function pctDelta(current: number, previous: number | null): number | null {
   if (previous === null || previous <= 0) return null;
+  if (current < 0) return null;
   return round4((current - previous) / previous);
 }

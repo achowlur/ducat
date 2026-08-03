@@ -110,7 +110,9 @@ regeneration.
   series — guard the series itself, never assume a page gate covers it.
 - Reimbursements push categories NEGATIVE by design: arcs divide by drawable,
   every PRINTED total is net totalSpending (single source:
-  ui/spendingBreakdown.ts), and pctDelta is null for any base ≤ 0.
+  ui/spendingBreakdown.ts), and pctDelta is null when EITHER operand crosses
+  zero (base ≤ 0 OR current < 0) — /trends names the three refusals in three
+  words: new / — / refunded.
 - Net worth history requires SNAPSHOTS: investment accounts are known:false
   without a snapshot INSIDE the period; never reconstruct an investment
   balance from transactions, in either direction. Cash/credit are exempt.

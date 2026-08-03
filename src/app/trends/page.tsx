@@ -143,11 +143,18 @@ export default async function TrendsPage({
                         }`}
                       >
                         {c.deltaPct === null
-                          ? // No prior row at all is "new"; a prior period that
-                            // ended at zero or in credit has no percentage.
+                          ? // Three refusals, three different words, because the
+                            // em dash already carries a second meaning in the
+                            // Share column one cell to the right. No prior row
+                            // at all is "new"; a PRIOR period that ended at zero
+                            // or in credit leaves nothing to divide by; and a
+                            // CURRENT period that ended in credit says what
+                            // actually happened rather than reusing the dash.
                             c.previousSpending === null
                             ? "new"
-                            : "—"
+                            : c.spending < 0
+                              ? "refunded"
+                              : "—"
                           : c.deltaPct > 9.99
                             ? `×${(1 + c.deltaPct).toFixed(1)}`
                             : pct(c.deltaPct)}

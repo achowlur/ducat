@@ -190,7 +190,14 @@ function renderNetWorth(p: NetWorthGrowthPayload): InsightRow["text"] {
 
 function renderSpending(p: SpendingByCategoryPayload): InsightRow["text"] {
   const top = p.categories.slice(0, 3).map((c) => `${c.categoryName ?? "Uncategorized"} ${money(c.spending)}`);
-  return `Total ${money(p.totalSpending)}${p.previousTotalSpending !== null ? ` (prior ${money(p.previousTotalSpending)})` : ""} — top: ${top.join(", ")}`;
+  const prior = p.previousTotalSpending === null ? "" : ` (prior ${money(p.previousTotalSpending)})`;
+  // The empty-series guard belongs on the SERIES, not on the payload holding
+  // it: a month can own a spending row whose category list is empty, and the
+  // page gate that admits the row says nothing about what is inside it. June
+  // 2024 rendered the literal "Total $0.00 — top: ", a sentence stopping
+  // mid-clause, because the join produced an empty string.
+  const leaders = top.length === 0 ? "" : ` — top: ${top.join(", ")}`;
+  return `Total ${money(p.totalSpending)}${prior}${leaders}`;
 }
 
 function renderCashFlow(p: CashFlowTrendPayload): InsightRow["text"] {

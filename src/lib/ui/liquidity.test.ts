@@ -59,6 +59,32 @@ describe("summariseBalances", () => {
     expect(s.debt).toBe(-240000);
     expect(s.investments).toBe(0);
   });
+
+  /**
+   * The count and the sum come from ONE branch, so they cannot describe
+   * different sets. Overview derived the count separately as
+   * `!isCash && balance >= 0` and printed "13 accounts" under a figure summing
+   * three — its three band notes described ten accounts for eight rows.
+   */
+  it("counts exactly the accounts it sums into investments", () => {
+    const marked = summariseBalances(accounts, ["mm"]);
+    expect(marked.investmentAccounts).toBe(1);
+    expect(marked.cashAccounts + marked.investmentAccounts + marked.debtAccounts).toBe(
+      accounts.length,
+    );
+  });
+
+  it("keeps a zero-balance card out of investments, and an over-paid one too", () => {
+    const s = summariseBalances([
+      acct("brk", "INVESTMENT", 511392.72),
+      acct("zero", "CREDIT", 0),
+      acct("overpaid", "CREDIT", 117.92),
+      acct("loan0", "LOAN", 0),
+    ]);
+    expect(s.investmentAccounts).toBe(1);
+    expect(s.investments).toBe(511392.72);
+    expect(s.debtAccounts).toBe(3);
+  });
 });
 
 describe("computeRunway", () => {

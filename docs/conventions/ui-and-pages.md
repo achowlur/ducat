@@ -106,6 +106,21 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   faint text from `STALE_DISPLAY_DAYS` is legibility only, and the gap between
   them is deliberate — a frozen connection is visible on day 2 and shouted
   about on day 6.
+  `/accounts` re-earned this bug independently and was fixed on 2026-08-03: it
+  computed its own `daysSinceBalance` from `now` and printed it as
+  "stale · Nd", so the two pages measured one fact against two clocks and
+  agreed only while the sync was current. It now prints `balanceLagDays`
+  against the last successful sync, from the same query Overview makes, joined
+  to the existing `Promise.all` so the anchor costs no latency. The CHIP still
+  fires on health's now-based `staleBalanceDays`, exactly as Overview's does —
+  the split between a now-based alarm and a sync-relative number is the
+  original design, not an oversight. What changed besides the number is the
+  tooltip: it read "the provider feed may have silently stalled", which is a
+  diagnosis this page cannot make — a late sync and a frozen feed produce the
+  same stale balance, and only the header can tell them apart. It now carries
+  both clocks and names no cause. `/accounts` still has NO last-sync line of
+  its own, which is what makes the sync-relative number harder to interpret
+  here than on Overview; that gap is open (docs/backlog.md).
 - Dates vs INSTANTS are formatted differently and both are deliberate. A
   transaction date, a month label and a projected renewal date are pinned to
   `timeZone: "UTC"`, because the feed mixes noon UTC, 04:00 (midnight Eastern)

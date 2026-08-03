@@ -413,7 +413,7 @@ export default async function OverviewPage() {
         <BalanceGroup
           label="Investments"
           value={data.balances.investments}
-          note={`${data.accounts.filter((a) => !a.isCash && a.balance >= 0).length} accounts`}
+          note={`${data.balances.investmentAccounts} account${data.balances.investmentAccounts === 1 ? "" : "s"}`}
         />
         {data.balances.debtAccounts > 0 && (
           <BalanceGroup

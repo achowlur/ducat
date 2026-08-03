@@ -72,12 +72,21 @@ export default async function AccountsPage() {
                     </span>
                     <span className="block text-[0.68rem] text-faint">
                       as of {a.balanceDate}
+                      {/* The printed number measures against the LAST SYNC, as
+                          Overview's column does — a row saying "6d behind"
+                          when nothing has synced for six days is reporting the
+                          sync's problem in the account's voice. The chip still
+                          fires on health's tuned now-based threshold, so an
+                          overdue sync is not silently swallowed; the tooltip
+                          carries both clocks and asserts no cause, because
+                          this page cannot tell a stalled feed from a late
+                          sync and used to claim it could. */}
                       {a.staleByAge && (
                         <span
                           className="ml-1.5 rounded-[2px] bg-neg px-1 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.05em] text-paper"
-                          title={`Balance hasn't updated in ${a.daysSinceBalance} days — the provider feed may have silently stalled`}
+                          title={`${a.balanceLagDays}d behind at the last sync; the balance itself is ${a.daysSinceBalance}d old`}
                         >
-                          stale · {a.daysSinceBalance}d
+                          {a.balanceLagDays}d behind
                         </span>
                       )}
                     </span>

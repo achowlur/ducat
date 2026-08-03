@@ -39,6 +39,15 @@ export interface BalanceSummary {
   /** Signed, so it stays negative like the balances it sums. */
   debt: number;
   cashAccounts: number;
+  /**
+   * Counted in the SAME branch that sums `investments`, and exported for that
+   * reason. Overview derived it separately as `!isCash && balance >= 0`, which
+   * is a different partition wearing the same name: it swept in the two credit
+   * cards sitting at 0.00 and printed "13 accounts" under a figure that summed
+   * three, so the band's own three notes described ten accounts for eight rows.
+   * A positive (over-paid) card and a LOAN at zero were the same bug waiting.
+   */
+  investmentAccounts: number;
   debtAccounts: number;
 }
 
@@ -65,6 +74,7 @@ export function summariseBalances(
   let investments = 0;
   let debt = 0;
   let cashAccounts = 0;
+  let investmentAccounts = 0;
   let debtAccounts = 0;
   for (const a of accounts) {
     if (countsAsCash(a, extraIds)) {
@@ -75,6 +85,7 @@ export function summariseBalances(
       debtAccounts += 1;
     } else {
       investments += a.balance;
+      investmentAccounts += 1;
     }
   }
   const round = (n: number) => Math.round(n * 100) / 100;
@@ -83,6 +94,7 @@ export function summariseBalances(
     investments: round(investments),
     debt: round(debt),
     cashAccounts,
+    investmentAccounts,
     debtAccounts,
   };
 }
