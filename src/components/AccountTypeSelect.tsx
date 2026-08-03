@@ -19,10 +19,20 @@ const TYPES: { value: AccountType; label: string }[] = (
  * Corrects the account type guessed at creation. Changing it recomputes
  * all insights (net-worth breakdown and market gains follow the type).
  */
-export function AccountTypeSelect({ accountId, type }: { accountId: string; type: string }) {
+export function AccountTypeSelect({
+  accountId,
+  accountName,
+  type,
+}: {
+  accountId: string;
+  /** Names the control: eight of these announced only "Investment, combo box". */
+  accountName: string;
+  type: string;
+}) {
   const [pending, startTransition] = useTransition();
   return (
     <select
+      aria-label={`Account type for ${accountName}`}
       value={type}
       disabled={pending}
       onChange={(e) => startTransition(() => setAccountType(accountId, e.target.value))}

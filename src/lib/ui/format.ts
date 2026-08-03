@@ -1,3 +1,5 @@
+import { lowercaseDomainSuffix } from "./domainCase";
+
 const usd = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** "$11,668.85" / "−$10,385.32" (true minus sign, ledger style). */
@@ -92,5 +94,8 @@ export function dateTime(d: Date): string {
  * acronyms render as words (CVS → Cvs).
  */
 export function titleCase(s: string): string {
-  return s.replace(/(^|[\s/\-&.(])([a-z])/g, (_, sep: string, c: string) => sep + c.toUpperCase());
+  const cased = s.replace(/(^|[\s/\-&.(])([a-z])/g, (_, sep: string, c: string) => sep + c.toUpperCase());
+  // The dot is a word separator above, which is right for "St. Louis" and
+  // wrong for a domain — merchants rendered as "Coursera.Org" and "Link.Com".
+  return lowercaseDomainSuffix(cased);
 }

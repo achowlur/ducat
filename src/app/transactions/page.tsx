@@ -22,6 +22,7 @@ import { periodKey } from "../../lib/insights/periods";
 import { parseCategoryParam } from "../../lib/ui/categoryFilter";
 import { parseGroupParam } from "../../lib/ui/groupFilter";
 import { merchantLabel } from "../../lib/ui/merchantLabel";
+import { PageTitle } from "../../components/ui/headings";
 
 export const dynamic = "force-dynamic";
 // This page's actions are the slowest in the app: categorizing a group calls
@@ -367,6 +368,10 @@ export default async function TransactionsPage({
   );
   // The collapsed control's dot and tooltip: the FIRST strong candidate in
   // ranked order, or nothing. This is all an unopened row ships.
+  // The Uncategorized branch quietly adds `flow: { not: TRANSFER }`, which is
+  // deliberate and defended above — the control saying "All" over it was not.
+  const transfersExcluded =
+    selection?.uncategorized === true && (params.flow === undefined || params.flow === "");
   const accountTypeById = new Map(accounts.map((a) => [a.id, a.type]));
   const isNonReimbursable = (accountId: string) =>
     NON_REIMBURSABLE_ACCOUNT_TYPES.has(accountTypeById.get(accountId) ?? "");
@@ -480,6 +485,7 @@ export default async function TransactionsPage({
 
   return (
     <div className="py-5">
+      <PageTitle>Transactions</PageTitle>
       <form className="flex flex-wrap items-end gap-3 border-b border-ink pb-3" action="/transactions" method="get">
         {/* The filters DO apply to the grouped query, but a GET form only
             submits its own fields — without this, "review just June" dropped
@@ -540,8 +546,12 @@ export default async function TransactionsPage({
         </label>
         <label className="grid gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
           Flow
+          {/* The synthetic entry the category select already needed, for the
+              same reason: selecting Uncategorized also applies
+              `flow: { not: TRANSFER }`, so this control read "All" while a
+              filter was in force. */}
           <select name="flow" defaultValue={params.flow ?? ""} className="rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink max-md:min-h-[44px]">
-            <option value="">All</option>
+            <option value="">{transfersExcluded ? "All except transfers" : "All"}</option>
             <option value="OUTFLOW">Outflow</option>
             <option value="INFLOW">Inflow</option>
             <option value="TRANSFER">Transfer</option>
@@ -578,8 +588,8 @@ export default async function TransactionsPage({
             : matchCount === 0
               ? "0 matching"
               : pastEnd
-                ? `${matchCount} matching`
-                : `${firstShown}–${lastShown} of ${matchCount}`}
+                ? `${matchCount.toLocaleString("en-US")} matching`
+                : `${firstShown.toLocaleString("en-US")}–${lastShown.toLocaleString("en-US")} of ${matchCount.toLocaleString("en-US")}`}
         </span>
         {/* Which categories, spelled out. A title= would be invisible on touch,
             which is where a donut slice is most likely to have been tapped. */}
@@ -610,13 +620,23 @@ export default async function TransactionsPage({
           // A bordered control, not body text: this was styled identically to
           // "← all transactions" while being the highest-leverage thing on the
           // screen — Overview's red pill sold it better than its own page did.
+          reviewPool.length === 0 ? (
+            // The mirror of Overview's review panel: THAT one had to learn to
+            // state "all clear" instead of implying it by absence, and this one
+            // has the opposite failure — the boldest control on the ledger urged
+            // you into a backlog that has been empty for months, so "there is
+            // work" could not be told from "there is none". reviewPool is
+            // already queried over the same constraints, so the gate is free.
+            <span className="text-faint">no uncategorized rows</span>
+          ) : (
           <Link
             href={buildHref(params, { payees: "1", category: "uncategorized", review: undefined, page: undefined })}
-            className="rounded-[2px] border border-acc px-2 py-1 font-semibold uppercase tracking-[0.06em] text-acc hover:bg-chip"
+            className="tap44 rounded-[2px] border border-acc px-2 py-1 font-semibold uppercase tracking-[0.06em] text-acc hover:bg-chip"
             title="Group the uncategorized backlog by payee — one decision categorizes every occurrence and future ones too"
           >
             group by payee — categorize in bulk
           </Link>
+          )
         )}
         {!groupMode && olderPeriod !== null && (
           <Link
@@ -706,6 +726,7 @@ export default async function TransactionsPage({
           <tr className="border-b border-ink">
             {COLUMNS.map((c) => (
               <th
+                scope="col"
                 key={c.label}
                 className={`py-1 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint ${c.className}`}
               >

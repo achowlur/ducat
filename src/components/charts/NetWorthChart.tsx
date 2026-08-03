@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { money } from "../../lib/ui/format";
-import { axisMoney, niceTicks } from "./scale";
+import { axisMoney, labelStepFor, monthWithYear, niceTicks } from "./scale";
 
 interface MonthValue {
   period: string;
@@ -66,7 +66,7 @@ function Plot({ months, view }: { months: MonthValue[]; view: { w: number; h: nu
   const VIEW_W = view.w;
   const VIEW_H = view.h;
   const PLOT_TOP = 14;
-  const PLOT_BOTTOM = VIEW_H - 34;
+  const PLOT_BOTTOM = VIEW_H - 44;
   const PLOT_LEFT = 16;
   const PLOT_RIGHT = VIEW_W - 68; // room for the right-hand axis labels
 
@@ -80,6 +80,17 @@ function Plot({ months, view }: { months: MonthValue[]; view: { w: number; h: nu
     months.length === 1 ? (PLOT_LEFT + PLOT_RIGHT) / 2 : PLOT_LEFT + ((PLOT_RIGHT - PLOT_LEFT) * i) / (months.length - 1);
 
   const last = months.length - 1;
+  const labelStep = labelStepFor(
+    months.length < 2 ? PLOT_RIGHT - PLOT_LEFT : (PLOT_RIGHT - PLOT_LEFT) / (months.length - 1),
+    34,
+  );
+  const yearOf = (i: number) => months[i].period.slice(0, 4);
+  const yearStarts = months.map((_, i) => i).filter((i) => i === 0 || yearOf(i) !== yearOf(i - 1));
+  const yearSpans = yearStarts.map((start, n) => ({
+    year: yearOf(start),
+    start,
+    end: n + 1 < yearStarts.length ? yearStarts[n + 1] - 1 : last,
+  }));
 
   // The caption told the reader to look for "months marked estimated" and
   // nothing was marked: one solid confident line, the flag reachable only by
@@ -189,10 +200,41 @@ function Plot({ months, view }: { months: MonthValue[]; view: { w: number; h: nu
           </text>
         )}
 
-        {months.map((m, i) => (
-          <text key={m.period} x={x(i)} y={PLOT_BOTTOM + 15} textAnchor="middle" className="fill-[var(--faint)] font-money text-[10px]">
-            {m.label}
-          </text>
+        {/* Year band + thinned labels, the treatment the cash-flow axis has
+            had since the 26-month squeeze. This axis grows with history too and
+            had neither: it labelled every month unconditionally, which was
+            comfortable at seven points and stops being so at thirteen — mobile
+            spacing is 246/(n−1) against 17-18px labels, touching at n=13. The
+            series began 2026-01 and gains a point a month, so that is January
+            2027, i.e. this was a dated bug rather than a hypothetical one. */}
+        {months.map((m, i) =>
+          (last - i) % labelStep === 0 ? (
+            <text key={m.period} x={x(i)} y={PLOT_BOTTOM + 15} textAnchor="middle" className="fill-[var(--faint)] font-money text-[10px]">
+              {m.label}
+            </text>
+          ) : null,
+        )}
+        {yearSpans.map((s) => (
+          <g key={s.year}>
+            {s.start > 0 && (
+              <line
+                x1={(x(s.start) + x(s.start - 1)) / 2}
+                y1={PLOT_TOP}
+                x2={(x(s.start) + x(s.start - 1)) / 2}
+                y2={PLOT_BOTTOM + 19}
+                stroke="var(--rule)"
+                strokeWidth="1"
+              />
+            )}
+            <text
+              x={(x(s.start) + x(s.end)) / 2}
+              y={PLOT_BOTTOM + 29}
+              textAnchor="middle"
+              className="fill-[var(--faint)] font-money text-[10px] font-semibold"
+            >
+              {s.year}
+            </text>
+          </g>
         ))}
       </svg>
       {hovered !== null && (
@@ -203,7 +245,7 @@ function Plot({ months, view }: { months: MonthValue[]; view: { w: number; h: nu
             top: `${Math.max((y(months[hovered].value) / VIEW_H) * 100 - 22, 0)}%`,
           }}
         >
-          <div className="mb-0.5 text-[0.65rem] opacity-80">{months[hovered].label}</div>
+          <div className="mb-0.5 text-[0.65rem] opacity-80">{monthWithYear(months[hovered].period)}</div>
           <div>
             {money(months[hovered].value)}
             {months[hovered].estimated ? " · partly estimated" : ""}

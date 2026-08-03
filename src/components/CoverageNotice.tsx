@@ -25,17 +25,12 @@ export function CoverageNotice({ coverage }: { coverage: PeriodCoverage | null }
     names.length <= 2 ? names.join(" and ") : `${names.slice(0, 2).join(", ")} +${names.length - 2} more`;
 
   return (
-    <p
+    <div
       className={`border-l-2 px-2.5 py-1.5 text-[0.75rem] text-faint ${
         hasUnknownShortfall ? "border-chart2 bg-chip/50" : "border-rule"
       }`}
-      title={gaps
-        .map(
-          (g) =>
-            `${g.name}: ${g.kind === "NO_DATA" ? "no data for this period" : `${money(g.contributed)} from a mid-period start`}`,
-        )
-        .join("\n")}
     >
+      <p>
       <span className={`font-semibold ${hasUnknownShortfall ? "text-acc" : ""}`}>
         {hasUnknownShortfall ? "Partial coverage" : "Not directly comparable"}
       </span>{" "}
@@ -55,6 +50,37 @@ export function CoverageNotice({ coverage }: { coverage: PeriodCoverage | null }
           but earlier months have none of it.
         </>
       )}
-    </p>
+      </p>
+      {/* WHICH accounts, reachable. The list truncates to "+N more" and the
+          full set lived only in a title attribute, which does not exist on
+          touch — on the page where this notice's whole job is to say what the
+          number is missing. A native disclosure, closed by default, so the
+          notice keeps its one-line weight. */}
+      {gaps.length > 2 && (
+        <details className="mt-1">
+          <summary className="tap44 inline-flex cursor-pointer text-[0.72rem] text-acc hover:underline">
+            which accounts
+          </summary>
+          <ul className="mt-1 grid gap-0.5">
+            {gaps.map((g) => (
+              <li key={g.name} className="flex gap-2">
+                <span>—</span>
+                <span>
+                  {g.name}:{" "}
+                  {g.kind === "NO_DATA" ? (
+                    "no data for this period"
+                  ) : (
+                    <>
+                      <span className="font-money tabular">{money(g.contributed)}</span> from a mid-period
+                      start
+                    </>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
   );
 }

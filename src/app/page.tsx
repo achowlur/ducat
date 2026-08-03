@@ -4,6 +4,7 @@ import { SyncNowButton } from "../components/SyncNowButton";
 import { amount, dateTime, money, pct } from "../lib/ui/format";
 import { getOverviewData, STALE_DISPLAY_DAYS } from "../lib/ui/overview";
 import { STATUS_DOT } from "../lib/ui/providers";
+import { PageTitle, SectionTitle } from "../components/ui/headings";
 import { transactionsHref } from "../lib/ui/categoryFilter";
 
 export const dynamic = "force-dynamic";
@@ -22,14 +23,6 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const DONUT_COLORS = ["bg-chart1", "bg-chart2", "bg-pie3", "bg-pie4"];
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h3 className="mb-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
-      {children}
-    </h3>
-  );
-}
 
 /**
  * One of the three balance groups. These were rows inside the account table
@@ -124,6 +117,7 @@ export default async function OverviewPage() {
 
   return (
     <>
+      <PageTitle>Overview</PageTitle>
       <div className="flex flex-wrap items-center gap-x-8 gap-y-1 border-b border-rule py-2 text-[0.78rem] text-faint">
         {simplefin !== undefined && (
           <span>
@@ -221,13 +215,13 @@ export default async function OverviewPage() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-ink">
-                <th className="py-1 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                <th scope="col" className="py-1 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                   Account
                 </th>
-                <th className="w-px whitespace-nowrap py-1 pl-3 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                <th scope="col" className="w-px whitespace-nowrap py-1 pl-3 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                   As of
                 </th>
-                <th className="w-px whitespace-nowrap py-1 pl-3 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                <th scope="col" className="w-px whitespace-nowrap py-1 pl-3 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                   Balance
                 </th>
               </tr>
@@ -442,12 +436,20 @@ export default async function OverviewPage() {
             data.runway === null ? (
               `${data.balances.cashAccounts} account${data.balances.cashAccounts === 1 ? "" : "s"}`
             ) : (
-              <span title={`Your last ${data.runway.basisMonths} complete months ran ${money(data.runway.low)} to ${money(data.runway.high)}`}>
+              <span>
                 <span className="mr-1.5 whitespace-nowrap rounded-[2px] bg-chip px-1 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.08em] text-acc">
                   Projected
                 </span>
                 <span className="font-money font-semibold text-ink">{data.runway.months} months</span> at{" "}
                 {money(data.runway.monthlySpending)}/mo
+                {/* The spread the average hides, printed rather than hovered.
+                    A projection to one decimal place over months that ran
+                    $3,125.52 to $13,746.27 — a 4.4× range — was stating far
+                    more confidence than it has, and the only qualification
+                    lived in a title attribute no touch device can open. */}
+                <span className="block font-money text-[0.68rem] tabular">
+                  {data.runway.basisMonths} months ran {money(data.runway.low)}–{money(data.runway.high)}
+                </span>
               </span>
             )
           }

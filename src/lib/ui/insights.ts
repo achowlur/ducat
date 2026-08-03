@@ -35,7 +35,7 @@ import { countsAsCash, readCashAccountIds } from "./liquidity";
 import { getAccountCoverage, getPeriodCoverage } from "./coverage";
 import { monthlyRows, ofType } from "./insightRows";
 import { selectPeriod } from "./periodNav";
-import { higherThan, money, monthLabel, pct, titleCase } from "./format";
+import { higherThan, money, monthLabel, pct, shortDate, titleCase } from "./format";
 
 export interface InsightRow {
   id: string;
@@ -178,7 +178,10 @@ function renderRecurring(p: RecurringChargePayload, tracked: boolean): InsightRo
   const price = p.priceIncreased
     ? `raised to ${money(p.lastAmount)} (was ${money(p.previousAverageAmount ?? p.averageAmount)})`
     : `${money(p.averageAmount)} ${p.cadence.toLowerCase()}`;
-  return `${titleCase(p.merchant)} — ${price} · ${p.occurrences} charges · last ${p.lastDate}${
+  // shortDate, not the raw ISO string: this line sits among "Jul 9 – Jul 20",
+  // "in 3d · Aug 6" and "~September 2028", so a bare 2026-07-06 was the only
+  // machine-shaped date on the page.
+  return `${titleCase(p.merchant)} — ${price} · ${p.occurrences} charges · last ${shortDate(new Date(`${p.lastDate}T12:00:00Z`))}${
     tracked ? " · registered" : ""
   }`;
 }

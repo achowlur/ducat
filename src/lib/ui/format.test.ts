@@ -35,3 +35,29 @@ describe("titleCase", () => {
     expect(titleCase("casey's general store")).toBe("Casey's General Store");
   });
 });
+
+describe("titleCase and domain suffixes", () => {
+  /**
+   * The dot is a word separator, which is right for a name and wrong for a
+   * domain: /insights rendered its two subscription merchants as
+   * "Coursera.Org" and "Link.Com".
+   */
+  it("leaves a domain suffix lowercase", () => {
+    expect(titleCase("coursera.org")).toBe("Coursera.org");
+    expect(titleCase("link.com")).toBe("Link.com");
+    expect(titleCase("company.io")).toBe("Company.io");
+  });
+
+  it("still capitalises after a dot that is really a separator", () => {
+    expect(titleCase("st. louis market")).toBe("St. Louis Market");
+  });
+
+  /**
+   * The suffix list contains "co", so a word merely STARTING with one of them
+   * must not be swallowed — the guard is a boundary, not a prefix match.
+   */
+  it("does not lowercase a word that merely begins with a suffix", () => {
+    expect(titleCase("coring services")).toBe("Coring Services");
+    expect(titleCase("acme.commerce")).toBe("Acme.Commerce");
+  });
+});

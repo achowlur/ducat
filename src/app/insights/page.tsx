@@ -5,6 +5,7 @@ import { getInsightsPageData, type InsightRow } from "../../lib/ui/insights";
 import { GOAL_RATE_MIN_MONTHS, type GoalAssessment } from "../../lib/insights/goals";
 import { type ReadinessAssessment } from "../../lib/insights/readiness";
 import { money, monthLabel, shortDate, titleCase } from "../../lib/ui/format";
+import { PageTitle } from "../../components/ui/headings";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +27,11 @@ const CHIP_CLASS: Record<InsightRow["tone"], string> = {
  * carry it now (pace, commitments, goals), and the moment a forecast reads
  * like an observation the app is asserting what it does not know.
  */
+// inline-block, so the box survives an inline parent: the same class string
+// measured 76.1 × 19.8 inside a flex row and 76.1 × 14.0 inside a bare <p>,
+// i.e. one chip at two heights on one page.
 const PROJECTED_CHIP =
-  "whitespace-nowrap rounded-[2px] bg-chip px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-acc";
+  "inline-block whitespace-nowrap rounded-[2px] bg-chip px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-acc";
 
 /**
  * The ASSUMED variant of the same chip family: for numbers the operator TYPED
@@ -37,7 +41,7 @@ const PROJECTED_CHIP =
  * claim than an observed cadence, and it should not wear the stronger chip.
  */
 const ASSUMED_CHIP =
-  "whitespace-nowrap rounded-[2px] border border-rule px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-faint";
+  "inline-block whitespace-nowrap rounded-[2px] border border-rule px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-faint";
 
 /**
  * One declared goal against the observed savings rate. Every refusal renders
@@ -355,14 +359,24 @@ function ReadinessBlock({
           also names the source and series, and as-of is the OBSERVATION date
           — a national average must never be mistakable for a personal quote,
           nor a stalled series for a current one. */}
-      <details className="pt-2.5 text-[0.78rem] text-faint">
+      <details className="group pt-2.5 text-[0.78rem] text-faint">
         <summary
-          className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-2 [&::-webkit-details-marker]:hidden"
+          className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-2 max-md:min-h-[44px] max-md:items-center [&::-webkit-details-marker]:hidden"
           title={`${c.ratePct}% / ${c.termYears} yr · property tax ${c.taxPctYr}%/yr · insurance ${c.insurancePctYr}%/yr · PMI ${c.pmiPctYr}%/yr below ${c.downPct}% down · closing ${c.closingPct}% of price${c.rateSource === undefined ? "" : ` · rate observed ${c.asOf} (${c.rateSource.provider} ${c.rateSource.seriesId})`}`}
         >
           <span className={ASSUMED_CHIP}>Assumed</span>
           <span>
             rate{c.rateSource !== undefined && ` (${c.rateSource.provider} ${c.rateSource.seriesId})`}, term, tax, insurance, PMI, closing · as of {c.asOf}
+          </span>
+          {/* The native marker is hidden and the only preview was a title
+              attribute, so nothing at all said the five numbers the whole
+              panel leans on were one tap away — least of all on touch, where
+              the title does not exist. One glyph, rotated when open. */}
+          <span
+            aria-hidden="true"
+            className="text-[0.7rem] transition-transform group-open:rotate-90"
+          >
+            ›
           </span>
         </summary>
         <p className="pt-1.5">
@@ -400,6 +414,7 @@ export default async function InsightsPage({
 
   return (
     <div className="py-5">
+      <PageTitle>Insights</PageTitle>
       <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-ink pb-3">
         <span className="flex items-center gap-2 font-money text-[0.85rem]">
           {data.prevPeriod !== null ? (
@@ -451,9 +466,9 @@ export default async function InsightsPage({
           disagrees with the ranking can see what it was based on. */}
       {data.digest.length > 0 ? (
         <section className="mt-4">
-          <h3 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
+          <h2 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
             Worth your attention
-          </h3>
+          </h2>
           {data.digest.map((row, i) => (
             <div
               key={`${row.chip}-${i}`}
@@ -573,9 +588,9 @@ export default async function InsightsPage({
             <span className={PROJECTED_CHIP}>
               Projected
             </span>
-            <h3 className="text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
+            <h2 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
               Already committed — next {data.commitments.windowDays} days
-            </h3>
+            </h2>
             <span className="ml-auto font-money text-[0.95rem] font-semibold tabular">
               {money(data.commitments.total)}
             </span>
@@ -629,9 +644,9 @@ export default async function InsightsPage({
           config, not a health question every instance has. */}
       {data.goals.length > 0 && (
         <section className="mt-4">
-          <h3 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
+          <h2 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
             Savings goals
-          </h3>
+          </h2>
           {data.goals.map((g) => (
             <GoalRow key={g.goal.id} g={g} />
           ))}
@@ -652,9 +667,9 @@ export default async function InsightsPage({
           here, deliberately. */}
       {data.readiness !== null && (
         <section className="mt-4">
-          <h3 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
+          <h2 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
             House readiness
-          </h3>
+          </h2>
           <ReadinessBlock
             r={data.readiness}
             fundName={data.goals.length > 0 ? data.goals[0].goal.name : null}
@@ -670,9 +685,9 @@ export default async function InsightsPage({
           goals, and an empty heading would imply the engine went looking. */}
       {data.trips.length > 0 && (
         <section className="mt-4">
-          <h3 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
+          <h2 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
             Trips &amp; projects
-          </h3>
+          </h2>
           {data.trips.map((t) => (
             <div
               key={t.label}
@@ -694,10 +709,20 @@ export default async function InsightsPage({
                   ({t.periodRowCount} row{t.periodRowCount === 1 ? "" : "s"})
                 </span>
               </span>
+              {/* The running total is only worth printing when it DIFFERS from
+                  the period's. A trip that fits inside the month on screen
+                  produced "July 2026: −$667.03 (2 rows)" and "running −$667.03
+                  · 2 rows" on the same line — one figure twice, in two
+                  formats. The transfer count is a separate fact and survives
+                  either way. */}
               <span className="ml-auto whitespace-nowrap font-money text-[0.78rem] tabular text-faint">
-                running {money(t.runningNet)} · {t.rowCount} row{t.rowCount === 1 ? "" : "s"}
+                {(t.runningNet !== t.periodNet || t.rowCount !== t.periodRowCount) && (
+                  <>
+                    running {money(t.runningNet)} · {t.rowCount} row{t.rowCount === 1 ? "" : "s"}
+                  </>
+                )}
                 {t.transferCount > 0 &&
-                  ` · ${t.transferCount} transfer${t.transferCount === 1 ? "" : "s"}`}
+                  `${t.runningNet !== t.periodNet || t.rowCount !== t.periodRowCount ? " · " : ""}${t.transferCount} transfer${t.transferCount === 1 ? "" : "s"}`}
               </span>
             </div>
           ))}
@@ -717,9 +742,9 @@ export default async function InsightsPage({
       {visibleGroups.map((group) => (
         <section key={group.title} className="pt-5">
           <div className="mb-2 flex items-baseline justify-between gap-3">
-            <h3 className="text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
+            <h2 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
               {group.title}
-            </h3>
+            </h2>
             {group.note !== null && (
               <span className="font-money text-[0.75rem] tabular text-faint">{group.note}</span>
             )}

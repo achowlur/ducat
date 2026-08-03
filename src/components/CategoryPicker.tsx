@@ -493,12 +493,36 @@ export function CategoryButton({
   const ruleRef = useRef<HTMLButtonElement>(null);
   const tripRef = useRef<HTMLButtonElement>(null);
   const [menu, setMenu] = useState<"closed" | "actions" | "cadence">("closed");
+  const menuRef = useRef<HTMLSpanElement>(null);
   const [subPending, startSub] = useTransition();
   const [subError, setSubError] = useState<string | null>(null);
 
   const open = target !== null && target.transactionId === transactionId;
   const pending = pendingId === transactionId;
   const name = nameOf(categoryId);
+
+  // The picker beside it has had Escape, click-outside and focus restore since
+  // it was built; this menu had none, so opening one and changing your mind
+  // left it open, opening a second left BOTH open, and Escape did nothing.
+  // Same three affordances, same reasons.
+  useEffect(() => {
+    if (menu === "closed") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setMenu("closed");
+      ruleRef.current?.focus();
+    };
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current !== null && !menuRef.current.contains(e.target as Node)) setMenu("closed");
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [menu]);
 
   const show = (ruleMode: boolean, seed: string) => {
     const anchor = (ruleMode ? ruleRef.current : triggerRef.current) ?? triggerRef.current;
@@ -569,7 +593,7 @@ export function CategoryButton({
         </span>
       )}
       {menu === "actions" && (
-        <span className="inline-flex items-center gap-1">
+        <span ref={menuRef} className="inline-flex items-center gap-1">
           <button
             type="button"
             onClick={() => {
@@ -629,10 +653,12 @@ export function CategoryButton({
               trip
             </button>
           )}
+          {/* Was 5.0 × 14.9px with no padding — the only way out of a menu
+              that ignored Escape and click-outside. */}
           <button
             type="button"
             onClick={() => setMenu("closed")}
-            className="text-[0.62rem] text-faint hover:text-ink"
+            className="tap44 px-1 py-0.5 text-[0.62rem] text-faint hover:text-ink"
             aria-label="Close merchant actions"
           >
             ×

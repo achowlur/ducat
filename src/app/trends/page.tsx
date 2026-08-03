@@ -6,6 +6,7 @@ import { CoverageNotice } from "../../components/CoverageNotice";
 import { amount, money, monthLabel } from "../../lib/ui/format";
 import { getPeriodCoverage } from "../../lib/ui/coverage";
 import { getTrendsData } from "../../lib/ui/trends";
+import { PageTitle, SectionTitle } from "../../components/ui/headings";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +14,6 @@ const DONUT_COLORS = ["bg-chart1", "bg-chart2", "bg-pie3", "bg-pie4"];
 
 /** Month step: a 44px touch target below md, the original glyph above it. */
 const ARROW = "inline-block px-1 text-center max-md:min-h-[44px] max-md:min-w-[44px] max-md:-my-3 max-md:py-3";
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h3 className="mb-1 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">{children}</h3>
-  );
-}
 
 export default async function TrendsPage({
   searchParams,
@@ -38,9 +33,25 @@ export default async function TrendsPage({
 
   const coverage = await getPeriodCoverage(data.period);
   const estimatedMonths = data.netWorth.filter((m) => m.estimated).length;
+  // Shares are percentages of ONE whole, so they are rounded together: floor
+  // every row, then hand the leftover points to the largest fractional parts.
+  // Rounding each independently let the column sum to 101%.
+  const sharePct = ((): number[] => {
+    const raw = data.categories.map((c) => (c.share === null ? null : c.share * 100));
+    const out = raw.map((v) => (v === null ? 0 : Math.floor(v)));
+    const total = out.reduce((a, b) => a + b, 0);
+    const whole = raw.some((v) => v !== null) ? 100 : 0;
+    const order = raw
+      .map((v, i) => ({ i, frac: v === null ? -1 : v - Math.floor(v) }))
+      .filter((x) => x.frac >= 0)
+      .sort((a, b) => b.frac - a.frac);
+    for (let k = 0; k < whole - total && k < order.length; k += 1) out[order[k].i] += 1;
+    return out;
+  })();
 
   return (
     <div className="grid gap-9 py-5">
+      <PageTitle>Trends</PageTitle>
       <CoverageNotice coverage={coverage} />
       {/* Three full-width rows, not two columns plus a full-width row.
           `lg:grid-cols-2` sized this page in inverse proportion to what each
@@ -126,16 +137,16 @@ export default async function TrendsPage({
               <table className="min-w-[260px] max-w-[640px] flex-1 border-collapse">
                 <thead>
                   <tr className="border-b border-ink">
-                    <th className="py-1 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                    <th scope="col" className="py-1 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       Category
                     </th>
-                    <th className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                    <th scope="col" className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       Spent
                     </th>
-                    <th className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                    <th scope="col" className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       Prior
                     </th>
-                    <th className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                    <th scope="col" className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       Share
                     </th>
                   </tr>
@@ -181,8 +192,14 @@ export default async function TrendsPage({
                       <td className="py-1.5 text-right font-money text-[0.85rem] tabular text-faint">
                         {c.previousSpending === null ? "new" : amount(c.previousSpending)}
                       </td>
+                      {/* Largest remainder, not per-row rounding: six
+                          independently-rounded shares summed to 101% in June
+                          2026 (49+21+11+8+7+4+1), which reads as an arithmetic
+                          error in a column of percentages of one whole. The
+                          dash stays for a category that ended in credit — it
+                          draws no arc and holds no share. */}
                       <td className="py-1.5 text-right font-money text-[0.78rem] tabular text-faint">
-                        {c.share === null ? "—" : `${Math.round(c.share * 100)}%`}
+                        {c.share === null ? "—" : `${sharePct[i]}%`}
                       </td>
                     </tr>
                   ))}

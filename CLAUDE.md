@@ -315,7 +315,16 @@ regeneration.
   a screen exists for never lives in a column that can be scrolled off — the
   ledger's amount moves into the merchant sub-line below md.
 - DATES pin to UTC; INSTANTS render local wall-clock plus zone name via
-  dateTime(); the zone comes from DUCAT_TIMEZONE, never TZ.
+  dateTime(); the zone comes from DUCAT_TIMEZONE, never TZ. Never print a raw
+  ISO string in prose — shortDate/monthLabel exist.
+- Headings come from components/ui/headings.tsx and NOWHERE else: one h1 per
+  tab (visually hidden — the nav carries the visible name), SectionTitle is
+  h2, SubsectionTitle h3. Six tabs previously had four different answers and
+  no h1 at all. Every `th` carries scope.
+- A figure the reader must be able to discount states its uncertainty in TEXT,
+  never in a title= — hover does not exist on the device this is read on.
+  Percentages of one whole round by largest remainder, or a column of them
+  sums to 101%.
 
 ## Rules — performance → docs/conventions/performance.md
 

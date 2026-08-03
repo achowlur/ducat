@@ -2,6 +2,7 @@ import { cronSummary, getProvidersData, STATUS_CHIP, STATUS_DOT } from "../../li
 import { dateTime } from "../../lib/ui/format";
 import { isCloudMode } from "../../lib/auth/mode";
 import vercelConfig from "../../../vercel.json";
+import { PageTitle, SectionTitle, SubsectionTitle } from "../../components/ui/headings";
 
 export const dynamic = "force-dynamic";
 
@@ -21,20 +22,13 @@ const CLOUD_RESIDUAL_RISKS = [
   "If that trade-off is not acceptable, local mode is unchanged and takes the data back onto your own machine.",
 ];
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h4 className="mb-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.13em] text-faint">
-      {children}
-    </h4>
-  );
-}
-
 export default async function ProvidersPage() {
   const providers = await getProvidersData();
   const cloud = isCloudMode();
 
   return (
     <div className="grid gap-10 py-5">
+      <PageTitle>Providers</PageTitle>
       {/* Where the data RESTS, which the per-connector cards deliberately do not
           claim. They were written when localhost was the only mode and said
           things like "fully local; no third party involved" — true then, false
@@ -83,7 +77,7 @@ export default async function ProvidersPage() {
             accept by believing it. */}
         {cloud && (
           <div className="mt-3">
-            <SectionTitle>Residual risks you are accepting</SectionTitle>
+            <SubsectionTitle>Residual risks you are accepting</SubsectionTitle>
             <ul className="grid gap-2">
               {CLOUD_RESIDUAL_RISKS.map((risk, i) => (
                 <li key={risk} className="flex gap-2 text-[0.8rem] leading-relaxed">
@@ -99,12 +93,16 @@ export default async function ProvidersPage() {
       {providers.map(({ health, configured, setupHint, syncLogs }) => (
         <section key={health.connectorType}>
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b-2 border-ink pb-2">
-            <span className="text-[1rem] font-semibold">
+            {/* The connector NAME is the heading its parts belong under. It
+                was a plain span, so navigating by heading gave "Residual risks
+                you are accepting" three times with nothing naming which
+                connector owned them. */}
+            <h2 className="text-[1rem] font-semibold">
               <span
                 className={`mr-2 inline-block h-2.5 w-2.5 rounded-full ${STATUS_DOT[health.status] ?? STATUS_DOT.UNKNOWN}`}
               />
               {health.trustCard.displayName}
-            </span>
+            </h2>
             <span
               className={`rounded-[2px] px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] ${
                 STATUS_CHIP[health.status] ?? STATUS_CHIP.UNKNOWN
@@ -112,16 +110,33 @@ export default async function ProvidersPage() {
             >
               {health.status}
             </span>
+            {/* The unit is per-connector. One template printed "0 accounts"
+                over a CSV importer that had brought in 2128 transactions (it
+                targets EXISTING accounts, so its own account count is
+                correctly zero and semantically useless) and over a rate index
+                that will never have an account at all. FRED does not "sync"
+                either — health.ts calls its own value the last successful
+                FETCH while the page printed the word sync over it. */}
             <span className="text-[0.78rem] text-faint">
-              {health.accountCount} account{health.accountCount === 1 ? "" : "s"}
-              {health.lastSuccessfulSyncAt !== null &&
-                ` · last successful sync ${dateTime(health.lastSuccessfulSyncAt)}`}
+              {health.connectorType === "FRED"
+                ? health.lastSuccessfulSyncAt === null
+                  ? "no observation stored"
+                  : `latest observation fetched ${dateTime(health.lastSuccessfulSyncAt)}`
+                : health.connectorType === "CSV"
+                  ? health.lastSuccessfulSyncAt === null
+                    ? "no imports yet"
+                    : `last import ${dateTime(health.lastSuccessfulSyncAt)}`
+                  : `${health.accountCount} account${health.accountCount === 1 ? "" : "s"}${
+                      health.lastSuccessfulSyncAt === null
+                        ? ""
+                        : ` · last successful sync ${dateTime(health.lastSuccessfulSyncAt)}`
+                    }`}
             </span>
           </div>
 
           <div className="grid gap-6 pt-3 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="lg:col-start-1 lg:row-start-1">
-              <SectionTitle>Signals</SectionTitle>
+              <SubsectionTitle>Signals</SubsectionTitle>
               <ul className="grid gap-1 text-[0.85rem]">
                 {health.reasons.map((reason) => (
                   <li key={reason} className="flex gap-2">
@@ -133,7 +148,7 @@ export default async function ProvidersPage() {
 
               {setupHint !== null && (
                 <div className="mt-3 border-l-2 border-acc bg-chip px-3 py-2">
-                  <SectionTitle>Set up</SectionTitle>
+                  <SubsectionTitle>Set up</SubsectionTitle>
                   <code className="block whitespace-pre-wrap font-money text-[0.75rem] leading-relaxed">
                     {setupHint}
                   </code>
@@ -157,10 +172,10 @@ export default async function ProvidersPage() {
             </div>
 
             <div className="border-rule lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-l lg:pl-6">
-              <SectionTitle>Data path</SectionTitle>
+              <SubsectionTitle>Data path</SubsectionTitle>
               <p className="mb-4 text-[0.82rem] leading-relaxed">{health.trustCard.dataPath}</p>
 
-              <SectionTitle>Residual risks you are accepting</SectionTitle>
+              <SubsectionTitle>Residual risks you are accepting</SubsectionTitle>
               <ul className="mb-4 grid gap-2">
                 {health.trustCard.residualRisks.map((risk, i) => (
                   <li key={risk} className="flex gap-2 text-[0.8rem] leading-relaxed">
@@ -170,7 +185,7 @@ export default async function ProvidersPage() {
                 ))}
               </ul>
 
-              <SectionTitle>Revocation</SectionTitle>
+              <SubsectionTitle>Revocation</SubsectionTitle>
               <p className="text-[0.8rem] leading-relaxed">{health.trustCard.revocation}</p>
             </div>
 
@@ -183,7 +198,7 @@ export default async function ProvidersPage() {
                 one on your phone". Desktop is unchanged: explicit placement
                 puts it back under Signals in the left column. */}
             <div className="lg:col-start-1 lg:row-start-2">
-                  <SectionTitle>Sync history {syncLogs.length > 0 && `(last ${syncLogs.length})`}</SectionTitle>
+                  <SubsectionTitle>Sync history {syncLogs.length > 0 && `(last ${syncLogs.length})`}</SubsectionTitle>
                   {syncLogs.length === 0 ? (
                     <p className="text-[0.8rem] text-faint">No syncs recorded yet.</p>
                   ) : (
@@ -192,6 +207,7 @@ export default async function ProvidersPage() {
                         <tr className="border-b border-ink">
                           {["When", "Outcome", "Imported", "Skipped", "Rules", "Transfers"].map((h, i) => (
                             <th
+                              scope="col"
                               key={h}
                               className={`py-1 text-[0.66rem] font-semibold uppercase tracking-[0.1em] text-faint ${
                                 i < 2 ? "text-left" : "text-right"

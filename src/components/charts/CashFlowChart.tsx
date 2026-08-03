@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { money } from "../../lib/ui/format";
-import { axisMoney, niceTicks } from "./scale";
+import { axisMoney, labelStepFor, monthWithYear, niceTicks } from "./scale";
 
 interface MonthFlow {
   period: string;
@@ -68,8 +68,7 @@ export function CashFlowChart({ months }: { months: MonthFlow[] }) {
    * different Junes were indistinguishable. Thin the labels to what fits, and
    * step from the END so the newest month is always one of them.
    */
-  const MIN_LABEL_PX = 26;
-  const labelStep = Math.max(1, Math.ceil(MIN_LABEL_PX / slot));
+  const labelStep = labelStepFor(slot, 26);
   const labelled = (i: number) => (latest - i) % labelStep === 0;
 
   // Where each year begins, for the divider and the year caption. The first
@@ -170,12 +169,25 @@ export function CashFlowChart({ months }: { months: MonthFlow[] }) {
             >
               {/* generous invisible hit target for the whole month */}
               <rect x={PLOT_LEFT + slot * i} y={PLOT_TOP} width={slot} height={PLOT_BOTTOM - PLOT_TOP} fill="transparent" />
-              <rect x={x} y={y(m.income)} width={BAR_W} height={PLOT_BOTTOM - y(m.income)} rx="2" fill="var(--chart2)" />
+              {/* Clamped at 0. A month whose reimbursements outran its
+                  spending gives a NEGATIVE height, which is invalid SVG — the
+                  element simply does not render, so four months drew a tall
+                  income bar beside nothing and read as "spent nothing" rather
+                  than "was net refunded". The stub below the axis is what
+                  distinguishes the two. */}
+              <rect
+                x={x}
+                y={y(m.income)}
+                width={BAR_W}
+                height={Math.max(0, PLOT_BOTTOM - y(m.income))}
+                rx="2"
+                fill="var(--chart2)"
+              />
               <rect
                 x={x + BAR_W + PAIR_GAP}
-                y={y(m.spending)}
+                y={m.spending < 0 ? PLOT_BOTTOM : y(m.spending)}
                 width={BAR_W}
-                height={PLOT_BOTTOM - y(m.spending)}
+                height={m.spending < 0 ? 3 : Math.max(0, PLOT_BOTTOM - y(m.spending))}
                 rx="2"
                 fill="var(--chart1)"
               />
@@ -223,7 +235,7 @@ export function CashFlowChart({ months }: { months: MonthFlow[] }) {
             top: 0,
           }}
         >
-          <div className="mb-0.5 text-[0.65rem] opacity-80">{months[hovered].label}</div>
+          <div className="mb-0.5 text-[0.65rem] opacity-80">{monthWithYear(months[hovered].period)}</div>
           <div>income {money(months[hovered].income)}</div>
           <div>spending {money(months[hovered].spending)}</div>
           <div>net {money(months[hovered].net)}</div>

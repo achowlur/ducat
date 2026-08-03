@@ -121,6 +121,65 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   both clocks and names no cause. `/accounts` still has NO last-sync line of
   its own, which is what makes the sync-relative number harder to interpret
   here than on Overview; that gap is open (docs/backlog.md).
+- The POLISH pass (2026-08-03), the last of the five waves. Grouped by what
+  each item actually was, because the list read as 38 unrelated things and was
+  not:
+  STRUCTURE. Six tabs had four different answers to "what is a section
+  heading" — `<h3>` at 0.72rem/0.14em on Overview, Trends and Insights (three
+  separate local copies of one function), `<h4>` at 0.68rem/0.13em on
+  Providers, a styled non-heading on Accounts, nothing at all on
+  Transactions — and NO tab had an `<h1>`, so every outline began at level 3
+  or 4 under nothing. One module now (components/ui/headings.tsx): a
+  visually-hidden h1 per tab (the nav carries the visible name, and a nav
+  active state is an affordance, not a heading), SectionTitle at h2,
+  SubsectionTitle at h3 for /providers' per-connector parts, whose connector
+  NAME became the h2 those parts belong under — navigating by heading gave
+  "Residual risks you are accepting" three times with nothing saying which
+  connector owned them. Every `th` carries `scope`, and the eight account
+  selects and links that all announced the same thing now name their account.
+  HOVER IS NOT AN AFFORDANCE. Load-bearing text lived in `title=` on five of
+  six tabs, and touch has no hover: the runway's variability range (a
+  projection to one decimal over months that ran $3,125.52–$13,746.27, a 4.4×
+  spread, qualified nowhere else), the coverage notice's full account list
+  behind "+6 more" on the very notice whose job is to say what is missing, and
+  the ASSUMED disclosure, whose native marker was hidden so nothing at all
+  said five numbers were one tap away. All three are now text or a real
+  disclosure. The merchant actions menu got the Escape, click-outside and
+  padded close target its sibling picker has had since it was built — opening
+  one and changing your mind left it open, and opening a second left both.
+  ARITHMETIC THAT SHOWED. Shares rounded independently summed to 101%
+  (49+21+11+8+7+4+1 in June 2026); they round by largest remainder now. Four
+  cash-flow bars carried a NEGATIVE SVG height — invalid, so the element never
+  rendered and a net-refund month read as "spent nothing" beside a tall income
+  bar; clamped, with a below-axis stub so the two states differ. A flat
+  sparkline normalised every point to zero and drew along the FLOOR, reading
+  as "at its low" when the truth was "unchanged" — mid-height now — and its
+  aria-label announced the 12 points drawn beside a visible "34 snapshots".
+  DATED, NOT HYPOTHETICAL. The net-worth axis labelled every month
+  unconditionally and had no year band. Comfortable at 7 points; mobile
+  spacing is 246/(n−1) against 17-18px labels, so it touches at n=13, and the
+  series began 2026-01 and gains one a month — January 2027. It now shares
+  `labelStepFor` with the cash-flow axis, which takes the SPACING rather than
+  the count, because bars occupy n slots and line points sit at n−1 intervals.
+  Tooltips gained their year: the axis thins labels and carries a year band
+  precisely because "Jun" appears three times, and the tooltip — the only
+  place exact figures live — printed the bare month.
+  UNITS AND WORDS. `titleCase` treats a dot as a word separator, right for
+  "St. Louis" and wrong for a domain, so subscriptions read "Coursera.Org";
+  the suffix list is guarded with `(?![a-z])` so "Coring Services" survives.
+  /providers printed "0 accounts" over a CSV importer that had brought in 2128
+  transactions (it targets EXISTING accounts, so its count is correctly zero
+  and semantically useless) and over a rate index that will never have one —
+  and called FRED's last FETCH a sync. The ledger's row count gained a
+  thousands separator beside amounts the same page formats with one. The FLOW
+  select read "All" while Uncategorized was quietly applying
+  `flow: { not: TRANSFER }` — the same dishonesty the category select's
+  synthetic entry was invented to kill, one control to the left.
+  THE MIRROR OF OVERVIEW'S REVIEW PANEL. That panel had to learn to STATE
+  "all clear" rather than imply it by absence. The ledger's "group by payee"
+  pill had the opposite failure: the boldest control on the page urged you
+  into a backlog empty for months, so "there is work" could not be told from
+  "there is none". Gated on `reviewPool`, which was already queried.
 - The /trends PROPORTION pass (2026-08-03) answered the backlog's own open
   question. `lg:grid-cols-2` sized the page in inverse proportion to what each
   block had to say: at 1652px the cash-flow chart — 26 months and growing —

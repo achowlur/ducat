@@ -4,6 +4,7 @@ import { AccountTypeSelect } from "../../components/AccountTypeSelect";
 import { Sparkline } from "../../components/Sparkline";
 import { amount } from "../../lib/ui/format";
 import { getAccountsData } from "../../lib/ui/accounts";
+import { PageTitle } from "../../components/ui/headings";
 
 export const dynamic = "force-dynamic";
 
@@ -39,12 +40,14 @@ export default async function AccountsPage() {
 
   return (
     <div className="py-5">
+      <PageTitle>Accounts</PageTitle>
       <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b border-ink">
             {COLUMNS.map((c, i) => (
               <th
+                scope="col"
                 key={`${c.label}-${i}`}
                 className={`py-1 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint ${c.className}`}
               >
@@ -108,8 +111,13 @@ export default async function AccountsPage() {
                   <td className="hidden py-2 pr-3 md:table-cell">
                     {a.snapshotCount >= 2 ? (
                       <span className="inline-flex items-center gap-2" title={`${a.snapshotCount} balance snapshots, latest ${a.latestSnapshotDate}`}>
-                        <Sparkline values={a.snapshotSeries} />
-                        <span className="text-[0.68rem] text-faint">{a.snapshotCount} snapshots</span>
+                        <Sparkline values={a.snapshotSeries} totalCount={a.snapshotCount} />
+                        <span className="text-[0.68rem] text-faint">
+                          {a.snapshotCount} snapshots
+                          {a.snapshotCount > a.snapshotSeries.length && (
+                            <span className="text-faint"> · last {a.snapshotSeries.length} shown</span>
+                          )}
+                        </span>
                       </span>
                     ) : (
                       <span
@@ -130,7 +138,7 @@ export default async function AccountsPage() {
                     )}
                   </td>
                   <td className="hidden py-2 pr-3 md:table-cell">
-                    <AccountTypeSelect accountId={a.id} type={a.type} />
+                    <AccountTypeSelect accountId={a.id} accountName={a.name} type={a.type} />
                   </td>
                   <td className="py-2 text-right">
                     <Link
@@ -146,7 +154,12 @@ export default async function AccountsPage() {
             </Fragment>
           ))}
           <tr>
-            <td className="border-t-2 border-ink py-2 font-semibold">Net worth</td>
+            {/* Explicitly sized: this cell alone carried no text-size class, so it
+                  inherited 16px while the figure it names is 13.6px — the label
+                  outweighing its own number. */}
+              <th scope="row" className="border-t-2 border-ink py-2 text-left text-[0.85rem] font-semibold">
+                Net worth
+              </th>
             <td className="border-t-2 border-ink py-2 text-right font-money text-[0.85rem] font-semibold tabular">
               {amount(data.totalBalance)}
             </td>
