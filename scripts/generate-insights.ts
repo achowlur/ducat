@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { generateInsights } from '../src/lib/insights/engine';
 import { prisma } from '../src/lib/prisma';
+import { printDatabase } from './database-label';
 import type { PeriodGranularity } from '../src/types/contracts';
 
 const GRANULARITIES: PeriodGranularity[] = ['WEEK', 'MONTH', 'QUARTER', 'YEAR'];
@@ -17,6 +18,12 @@ function parseGranularity(): PeriodGranularity {
 
 async function main(): Promise<void> {
   const granularity = parseGranularity();
+  // This script REPLACES insight rows, so it belongs to the same family as the
+  // ten others that lead with their target. It was the one row-writer that did
+  // not say which database it was about to rewrite — and it is run against both
+  // by design, because analyzer changes only reach a screen once the stored
+  // payloads are regenerated.
+  printDatabase();
   const result = await generateInsights(prisma, { granularity });
 
   console.log(`Generated ${result.created} insights at ${result.granularity} granularity`);
