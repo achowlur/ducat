@@ -31,12 +31,18 @@ export function AppNav() {
     const el = activeTab.current;
     const box = rail.current;
     if (el === null || box === null) return;
-    const overflowsRight = el.offsetLeft + el.offsetWidth > box.scrollLeft + box.clientWidth;
-    const overflowsLeft = el.offsetLeft < box.scrollLeft;
-    if (!overflowsRight && !overflowsLeft) return;
+    // Measured from the RAIL, via rects. `offsetLeft` is relative to
+    // `offsetParent`, and the rail is not positioned, so that origin was an
+    // ancestor further up the page — the difference is this element's own left
+    // inset, and it left the active tab clipped by exactly that much (17px on
+    // /transactions). Rects are in one coordinate space by definition.
+    const start = el.getBoundingClientRect().left - box.getBoundingClientRect().left + box.scrollLeft;
+    const end = start + el.offsetWidth;
+    if (start >= box.scrollLeft && end <= box.scrollLeft + box.clientWidth) return;
     // Centre it when there is room to, so the tabs either side stay visible
     // and the rail reads as a rail rather than as a truncated list.
-    box.scrollLeft = Math.max(0, el.offsetLeft - (box.clientWidth - el.offsetWidth) / 2);
+    const centred = start - (box.clientWidth - el.offsetWidth) / 2;
+    box.scrollLeft = Math.max(0, Math.min(centred, box.scrollWidth - box.clientWidth));
   }, [pathname]);
 
   return (
