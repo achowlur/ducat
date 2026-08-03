@@ -5,9 +5,10 @@ import type { PrismaClient } from "../../generated/prisma/client";
  * whole group, never a filtered subset: renaming only the rows a filter
  * happens to show would silently split the trip. Renaming onto a label that
  * already has rows is a MERGE, allowed on purpose (two half-named trips are
- * a real state); the band's control says so before anything is written.
- * Reversible by renaming back: a label exists only as the value on its rows,
- * so there is nothing else to move and nothing left behind to clean up.
+ * a real state); the band's control says so before anything is written. A
+ * plain rename is reversible by renaming back — a label exists only as the
+ * value on its rows, so there is nothing else to move — but a MERGE is not:
+ * the partition between the two groups is gone, which is why it warns.
  *
  * Shared by the renameGroup server action and the invariant tests — the
  * restoreTransactions pattern, so the test exercises the real write.

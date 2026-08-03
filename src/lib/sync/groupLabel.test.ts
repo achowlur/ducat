@@ -249,6 +249,7 @@ describe("groupLabel is a view, never a re-bucketing", () => {
 
   it("rename rewrites the WHOLE group and nothing else — analytics stay byte-identical", async () => {
     const before = await snapshotInsights();
+    const breakdownsBefore = await snapshotBreakdowns();
     const untagged = await prisma.transaction.count({ where: { groupLabel: null } });
     const tagged = await prisma.transaction.count({ where: { groupLabel: LABEL } });
     expect(tagged).toBeGreaterThan(0);
@@ -266,6 +267,7 @@ describe("groupLabel is a view, never a re-bucketing", () => {
 
     await generateInsights(prisma);
     expect(await snapshotInsights()).toEqual(before);
+    expect(await snapshotBreakdowns()).toEqual(breakdownsBefore);
   });
 
   it("renaming onto an existing label MERGES the two groups", async () => {

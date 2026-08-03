@@ -229,12 +229,17 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   not"). Renaming onto an existing label MERGES the two groups, allowed on
   purpose (two half-named trips are a real state); the note appears the
   moment the typed name matches one, before anything is written, and a
-  case-insensitive match adopts the existing casing — the picker's
-  fork-prevention applied here. After a rename the client lands on the
-  renamed group's URL, because the old ?group= would show the
-  honest-but-jarring empty band. Reversible by renaming back, with no
-  snapshot machinery: a label exists only as the value on its rows, so
-  there is nothing else to move. The write is shared with the tests through
+  case-insensitive match adopts the existing casing — client-side for the
+  note, and enforced SERVER-side at write time, because the client's label
+  list can be stale against another session and the write is what must not
+  fork a case-variant (the action returns the label it wrote; the client
+  navigates to that). After a rename the client lands on the renamed
+  group's URL, because the old ?group= would show the honest-but-jarring
+  empty band. A plain rename is reversible by renaming back, with no
+  snapshot machinery — a label exists only as the value on its rows, so
+  there is nothing else to move — but a MERGE is not reversible: the
+  partition between the groups is gone, which is exactly why the warning
+  comes before the save. The write is shared with the tests through
   renameGroupRows (sync/groups.ts) — the restoreTransactions pattern — and
   the invariant extends to it: rename + regenerate stays byte-identical,
   pinned beside the merge and same-name-no-op cases.

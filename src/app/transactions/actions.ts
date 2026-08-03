@@ -160,26 +160,44 @@ export async function setTransactionGroup(
 /**
  * Rename a trip across the WHOLE group — every row carrying the tag, never
  * the filtered view the operator happens to be standing in (see
- * renameGroupRows for the semantics: whole group, merge-on-collision,
- * reversible by renaming back). No insight regeneration: no analyzer reads
+ * renameGroupRows for the semantics). A plain rename is reversible by
+ * renaming back; a MERGE is not — the partition is gone — which is why the
+ * control warns before saving. No insight regeneration: no analyzer reads
  * groupLabel, and the invariant test pins that a rename changes nothing.
+ *
+ * Returns the label actually written: casing of an existing group is
+ * adopted HERE as well as in the client, because the client's label list
+ * can be stale against another session, and the write is what must not
+ * fork a case-variant. The client navigates to what came back.
  */
-export async function renameGroup(from: string, to: string): Promise<number> {
+export async function renameGroup(
+  from: string,
+  to: string,
+): Promise<{ count: number; label: string }> {
   await requireSession();
   const source = normalizeGroupLabel(from);
-  const target = normalizeGroupLabel(to);
+  const typed = normalizeGroupLabel(to);
   if (source === null) throw new Error("No trip named to rename.");
-  if (target === null) {
+  if (typed === null) {
     throw new Error(
       to.trim() === ""
         ? "A trip needs a name."
         : `Trip names cap at ${MAX_GROUP_LABEL} characters.`,
     );
   }
+  const labelRows = await prisma.transaction.findMany({
+    where: { groupLabel: { not: null } },
+    distinct: ["groupLabel"],
+    select: { groupLabel: true },
+  });
+  const existing = labelRows
+    .map((r) => r.groupLabel)
+    .find((l): l is string => l !== null && l !== source && l.toLowerCase() === typed.toLowerCase());
+  const target = existing ?? typed;
   const count = await renameGroupRows(prisma, source, target);
   revalidatePath("/transactions");
   revalidatePath("/insights"); // the TRIPS section reads the tags directly
-  return count;
+  return { count, label: target };
 }
 
 /**

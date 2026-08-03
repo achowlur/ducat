@@ -49,10 +49,14 @@ export function RenameGroup({
     setFailed(false);
     startTransition(async () => {
       try {
-        await renameGroup(label, target);
+        // The action returns the label it actually wrote (it re-adopts an
+        // existing group's casing server-side — this list can be stale).
+        const written = await renameGroup(label, target);
         // The old ?group= URL would show the honest-but-jarring empty band;
-        // land on the renamed group instead.
-        router.replace(groupHref(target));
+        // land on the renamed group instead. groupHref writes ?group= alone,
+        // deliberately dropping period/account/flow/q — after a rename the
+        // whole group is the natural view.
+        router.replace(groupHref(written.label));
         setOpen(false);
       } catch {
         setFailed(true);

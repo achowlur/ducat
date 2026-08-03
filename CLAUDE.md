@@ -287,7 +287,8 @@ regeneration.
   is ABSENT, never empty; an untagged row's picker starts with NOTHING
   active, so bare Enter writes nothing; RENAME (the band's control) rewrites
   the WHOLE group, never the filtered view, and renaming onto an existing
-  label MERGES — said before saving.
+  label MERGES — warned before saving, because a merge does not undo by
+  renaming back; casing adoption is enforced server-side.
 - Charts are hand-rolled SVG; no chart library, no webfonts anywhere (CSP).
   niceTicks guarantees last tick ≥ max; value labels are collision-checked.
 - Overview is HEADLINE → DETAIL → TOTAL; the grouping figures are a
