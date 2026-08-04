@@ -428,3 +428,35 @@ turned up so it isn't rediscovered:
   beside percentages, whether the column should carry a ratio at all rather
   than the prior period's dollars, and why the table is half the width of
   the space it already owns.
+
+- **A DATABASE-UNREACHABLE state that says so — raised 2026-08-04 during a real
+  outage, not yet built.** Every server-rendered page currently falls through to
+  the generic error boundary ("Something went wrong") when the database cannot
+  be reached, which is the same thing it says for a null dereference or a bad
+  payload. On 2026-08-04 Turso returned HTTP 502 to every query for over an
+  hour and the app was indistinguishable from broken code: diagnosing it took
+  a Vercel log read, a probe of `/api/diag/timing`, and finally the Turso
+  console failing to connect from the operator's own browser. The page could
+  have said it in one glance.
+  What the signal actually looks like, recorded so it need not be re-derived:
+  `DriverAdapterError: SERVER_ERROR: Server returned HTTP status 502` wrapped
+  as `PrismaClientKnownRequestError` with `code: 'P2010'` and
+  `clientVersion: '7.8.0'`, and — the part that distinguishes it from a
+  misconfiguration — the request takes 6 to 10 SECONDS before failing, because
+  Prisma opens a connection to Turso and waits. A missing or malformed
+  `DATABASE_URL` fails fast; an unreachable database fails slow. `P1001`
+  (can't reach database server) and `P1017` (server closed the connection)
+  belong in the same bucket.
+  The shape to build: catch it where the page data is fetched, and render a
+  state that names the condition — the database is unreachable, this is not
+  your data being wrong, it may be temporary — WITHOUT claiming to know whose
+  fault it is, since the app cannot tell a Turso incident from a revoked token
+  from a lapsed plan. It must never imply the data is gone: a 502 is a serving
+  failure and says nothing about what is stored. LOCAL mode gets the same
+  treatment for a missing `data/ducat.db`, where the honest advice differs
+  (run the seed, or check the path).
+  One trap this outage exposed, worth stating because it nearly produced a
+  false verification twice: any check that asserts a string is ABSENT passes
+  on a page that failed to render. Both the login redirect and the error
+  boundary returned "clean" for probes looking for removed text. A test or a
+  probe for this state must assert on content that is PRESENT.
