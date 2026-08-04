@@ -287,8 +287,16 @@ rules you create, MANUAL categorizations, insight dismissals. Those are the
 valuable part, and nothing reconciles them.
 
 Cloud is the natural primary — it has the cron and it's the one on your phone.
-So stop syncing locally, and leave the local database frozen as a realistic
-development fixture.
+So stop syncing locally: never point `sync:simplefin` or a CSV import at the
+local database once the cloud is real, because two independent writers is
+exactly how the hand-made work diverges.
+
+Local is not frozen, though — it is a MIRROR. After a data change lands on the
+cloud and you have confirmed it there, bring local into line by copying the
+cloud down (see below). One writer, one direction, and the two agree. A local
+database that has silently drifted is worse than no local database: it is a
+development fixture that no longer reproduces the bug you are chasing, and it
+is the thing you would restore from on the day you need it most.
 
 ### Back the cloud up
 
@@ -306,6 +314,34 @@ Pro — which covers "I just deleted the wrong thing" and nothing else. The
 failures this app has actually had were silent wrong numbers found days later.
 A local file is also a different failure domain: an account problem, a revoked
 token or a lapsed plan doesn't reach your disk.
+
+### Bring local back into line with the cloud
+
+After a data change is live on the cloud and you have confirmed it there,
+mirror it down. `turso:copy` deliberately REFUSES a destination that already
+holds transactions ("a one-way copy into a fresh instance, not a merge"), so
+the local file is moved aside rather than written over in place:
+
+```bash
+npm run cloud:backup                      # with the two Turso vars set
+mv data/ducat.db data/ducat-superseded.db
+DATABASE_URL="file:./data/ducat.db" npx tsx scripts/turso-copy.ts   --from="libsql://…turso.io" --apply    # TURSO_AUTH_TOKEN set for the source
+```
+
+Then prove they agree rather than assuming it:
+
+```bash
+npx tsx scripts/fingerprint-db.ts                                   # local
+DATABASE_URL="libsql://…" TURSO_AUTH_TOKEN="…" npx tsx scripts/fingerprint-db.ts
+```
+
+The `WHOLE DATABASE` line must be identical. Row counts and sums are not
+enough — they are blind to a changed category, a flipped `dismissed` or an
+edited rule, which is precisely the hand-made work this is protecting.
+
+Do it AFTER the nightly cron, not before: `0 23 * * *` UTC, and Vercel Hobby
+fires 8-43 minutes late, so 23:50 UTC clears it. Copying beforehand
+permanently captures yesterday.
 
 A backup is an ordinary Ducat database, so you can open one directly:
 

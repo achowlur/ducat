@@ -28,6 +28,7 @@
     "schema:push": "tsx scripts/push-schema.ts",
     "turso:copy": "tsx scripts/turso-copy.ts",
     "cloud:backup": "tsx scripts/cloud-backup.ts",
+    "db:fingerprint": "tsx scripts/fingerprint-db.ts",
     "rules:audit": "tsx scripts/audit-rules.ts",
     "rules:simulate": "tsx scripts/simulate-rule-matching.ts",
     "accounts:cash": "tsx scripts/set-cash-accounts.ts",

@@ -264,3 +264,43 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   them: a dead brokerage feed stops refreshing the BALANCE, which
   `staleBalanceDays: 5` catches sooner than a 30-day volume window could and
   without depending on whether a dividend happened to be due.
+
+- LOCAL MIRRORS CLOUD (2026-08-04). The rule: anything touching Turso DATA
+  lands on the cloud first, is CONFIRMED there by the operator, and is then
+  copied down to local — and the two are PROVED equal rather than assumed.
+  Cloud is the only writer; local is a mirror, not a second history.
+  This SUPERSEDES the older "leave the local database frozen as a realistic
+  development fixture" in DEPLOY.md, which has been amended. The half of that
+  advice which survives is the half that mattered: never point
+  `sync:simplefin` or a CSV import at local once the cloud is real, because
+  two independent writers is exactly how the hand-made work — rules, MANUAL
+  categorizations, dismissals — diverges beyond reconciling. Mirroring
+  DOWNWARD is the opposite operation: it makes them converge. A local database
+  that has silently drifted is worse than none, being both a fixture that no
+  longer reproduces the bug you are chasing and the thing you would restore
+  from on the day you need it most.
+  The MECHANISM has a guard worth knowing before you meet it: `turso:copy`
+  refuses a destination holding any transactions ("a one-way copy into a fresh
+  instance, not a merge"), so the local file is moved aside and recreated
+  rather than written over in place. Full procedure in DEPLOY.md under "Bring
+  local back into line with the cloud".
+  PROOF is `scripts/fingerprint-db.ts`, and it exists because counts are not
+  proof. `cloud:backup` already verifies nine row counts and eight aggregates,
+  which answers "did the copy land" and not "is every row identical" — a table
+  can hold the right number of rows summing to the right total while a
+  category changed, a `dismissed` flipped, or a rule was edited. The
+  fingerprint hashes every row of every table, sorted so physical order cannot
+  matter, and reduces to one `WHOLE DATABASE` digest to compare by eye. It
+  runs against `file:` and `libsql:` through the SAME client deliberately:
+  values that took different paths out of the database would compare the
+  paths, not the data.
+  TIMING is part of the rule. Mirror AFTER the nightly cron, never before —
+  `0 23 * * *` UTC with Vercel Hobby firing 8-43 minutes late, so 23:50 UTC
+  clears it. Proved the hard way on the day this was written: a backup taken
+  at 18:54 EDT diverged from the cloud six minutes later when the 19:00 cron
+  ran, and the fingerprint correctly reported eight tables differing. Reading
+  that as corruption would have been the wrong conclusion — the giveaway was
+  +1 SyncLog, +21 transactions and +21 BalanceSnapshots, exactly one snapshot
+  per account, which is the sync pipeline's signature and nothing else's. The
+  hand-made digests (Rule, Category, TrackedSubscription) were byte-identical
+  throughout, which is what said the backup was intact.

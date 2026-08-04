@@ -184,6 +184,10 @@ regeneration.
 - TWO DATABASES: code ships with git push, DATA does not. Every data change
   runs against BOTH; verify on <your-deployment>.vercel.app; every row-writing
   script prints its database label FIRST — read it.
+- LOCAL MIRRORS CLOUD, always. Anything touching Turso DATA lands on the cloud
+  first, is CONFIRMED there by the operator, and is then copied down to local —
+  and the two are PROVED equal by matching fingerprint-db.ts digests, never
+  assumed. Cloud is the only writer; local is a mirror, not a second history.
 - Pack drift is counted by pendingPackRules and surfaced on Overview's
   review panel (npm run upgrade); rule changes are never auto-applied.
 - SCHEMA is the third upgrade axis: npm run schema:push diffs and only ever
