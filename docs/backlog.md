@@ -460,3 +460,60 @@ turned up so it isn't rediscovered:
   on a page that failed to render. Both the login redirect and the error
   boundary returned "clean" for probes looking for removed text. A test or a
   probe for this state must assert on content that is PRESENT.
+
+- **SCHEDULED LOCAL BACKUPS — raised 2026-08-04 after a two-hour Turso outage,
+  not yet built.** Turso's us-east-1 router returned 502 to every query for
+  over an hour. Nothing was lost, but the operator had no local copy at the
+  time and `cloud:backup` cannot run when the database is unreachable — the
+  one moment you want a backup is the one moment you cannot take one. Free-plan
+  point-in-time recovery reaches back 24 hours, and it lives in the same
+  failure domain as the outage.
+  Shape agreed, in four parts. (1) A wrapper the Windows Task Scheduler can
+  fire, sourcing the two Turso variables from somewhere gitignored or from
+  Windows Credential Manager — never inline. (2) Timing is load-bearing:
+  **23:50 UTC**, AFTER the `0 23 * * *` cron plus Hobby's documented 8-43
+  minutes of lateness. Backing up before the sync permanently captures
+  yesterday, which is exactly the mistake made by hand on the day this was
+  raised. (3) A `Setting` row recording the last backup instant, so
+  `/providers` can render "last local backup: N days ago" and escalate it the
+  way balance and rate staleness already do — a backup job that dies quietly
+  is worse than none, because you believe you are covered, and this app's own
+  doctrine is that all-clear must be STATED. (4) Retention: `cloud:backup`
+  never overwrites, so prune to ~14 dailies plus one a month beyond.
+  Verification already exists (`npm run db:fingerprint`, 2026-08-04) and the
+  scheduled job should use it rather than trusting row counts.
+  REJECTED, with the reason recorded so it is not re-proposed: a scheduled
+  GitHub Action or any cloud CI pulling the backup. It is the obvious
+  suggestion and it puts transaction data in a third party that is not the
+  operator's own single-tenant infrastructure — the data-locality HARD RULE.
+  The backup has to land on hardware the operator controls.
+
+- **A NET-WORTH GOAL: "reach $X, and when at this rate" — raised 2026-08-04,
+  DISCUSS BEFORE BUILDING.** The idea: declare a target net worth and have the
+  app say how long it takes at observed growth, the way a savings goal already
+  projects a landing month.
+  It is not the savings goal with a bigger number, and the difference is the
+  whole design question. A cash goal projects from money SAVED — income not
+  spent — and the existing panel already prints a reconciliation line beside
+  it because even that assumes every saved dollar stays in cash. Net worth
+  moves for a second reason the operator does not control: July 2026 alone
+  moved the portfolio -$18,935.72 on market movement. A single "growth rate"
+  that blends saving with market returns would project a landing date built
+  half on a decision and half on a guess, and would read as a promise. The
+  engine already keeps these apart on purpose — `marketGains` is reported
+  separately from income, `investmentNetFlows` counts only money crossing the
+  account boundary, and the readiness panel refuses liquidation-funded
+  deposits outright because after-tax proceeds are `known:false`.
+  So the open questions, all worth answering before any code: does the
+  projection split contributed dollars from market movement and say so, or
+  refuse a single rate entirely? What return assumption is honest for the
+  market half — and does a TYPED assumption belong behind the same ASSUMED
+  disclosure the readiness panel uses, with its as-of date? How much history
+  is enough, given net worth needs SNAPSHOTS and only seven months exist, six
+  of them partly estimated? What does it print when the rate is negative, or
+  when a bad quarter puts the target further away than last month — a goal
+  that silently moves its own date is worse than one that refuses?
+  Related and already built: `goals-and-insights.md` (cash goals, the
+  reconciliation line, house readiness, the typed-first rate resolution) and
+  `money-and-analytics.md` (net worth requires snapshots; never reconstruct an
+  investment balance from transactions).
