@@ -32,9 +32,11 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   options) × 228 rows = 1672, which was 53.4% of the document; rendering the
   list once on demand took `/transactions` from 3132 elements to 1728 and from
   1465 `<option>` to 57. It renders in a PORTAL because the table's
-  `overflow-x` container clips the other axis too. Four bugs in it were
+  `overflow-x` container clips the other axis too. FIVE bugs in it were
   invisible in source and only appeared by driving the real page, so drive it
-  after any change: (1) `disabled` cannot hold focus, so disabling the trigger
+  after any change — and the fifth (below) was invisible in the DOM as well,
+  which is the sharper lesson: reading the accessibility tree back is not
+  looking at the thing. Take a screenshot, or measure the rendered rect: (1) `disabled` cannot hold focus, so disabling the trigger
   during the write blurred to `<body>` and lost your place after every
   categorization — it uses `aria-disabled` plus handler guards; (2) a popover
   that assumes its own height runs off the screen (a 579px list, 275px down an
@@ -44,7 +46,21 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   (4) the active option starts on the row's CURRENT category and, when
   searching, on the first PREFIX match, because substring search is better than
   native type-ahead ("housing" finds "Rent & Housing") but must not lose it
-  ("g" has to mean Gas, not Dining). `GroupedReview` deliberately keeps its
+  ("g" has to mean Gas, not Dining); (5) the anchor's rect must be measured
+  ONCE, at open, because the anchor can be UNMOUNTED while the popover is
+  still up and a detached node measures an all-zero rect. Found on the
+  DEPLOYMENT 2026-08-03, in the trip picker: its `trip` button lives inside
+  the row's actions menu, that menu closes on the first mousedown outside
+  itself — which a portaled popover always is — so the first keystroke after
+  opening re-rendered the popover against a detached anchor and floored it
+  into the top-left corner (`left: 8px; top: 4px`, with a viewport-tall
+  `max-height: 1546px`). Both pickers now freeze the rect in a `useState`
+  initialiser beside the `desktop` check, which is safe precisely because the
+  popover already dismisses on scroll and resize. Two reviews and the whole
+  look-at-everything UI pass missed this, every one of them reading DOM text
+  and finding it correct — the picker's options, wording and keyboard
+  behaviour were right the entire time, and only its pixels were wrong.
+  `GroupedReview` deliberately keeps its
   `<select>`: its choice is STAGED before a write that can rewrite dozens of
   rows, which is a different contract, and it is not on the hot path.
 - The `?category=` filter takes a LIST, and `src/lib/ui/categoryFilter.ts` is

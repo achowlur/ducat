@@ -193,6 +193,13 @@ function Picker({
   // Read once per opening rather than subscribed: the picker is mounted by a
   // click and unmounted on close, so a resize between the two cannot happen.
   const [desktop] = useState(() => window.matchMedia(DESKTOP).matches);
+  // The anchor's rect is measured ONCE, for a harder reason than `desktop`:
+  // the anchor can be UNMOUNTED while this popover is still open, and a
+  // detached node measures an all-zero rect, which floors the popover into
+  // the top-left corner of the screen on the next keystroke. Freezing is safe
+  // because the popover dismisses on scroll and resize, so the rect it holds
+  // cannot drift out from under it.
+  const [rect] = useState(() => target.anchor.getBoundingClientRect());
 
   const q = query.trim().toLowerCase();
   const groups = useMemo(() => {
@@ -301,7 +308,6 @@ function Picker({
   let position: React.CSSProperties;
   let shell: string;
   if (desktop) {
-    const rect = target.anchor.getBoundingClientRect();
     const left = Math.min(Math.max(VIEWPORT_EDGE, rect.left), window.innerWidth - POPOVER_WIDTH - VIEWPORT_EDGE);
     // Measure the room rather than assuming a height. Guessing one put a 579px
     // popover under a row 275px down an 800px viewport and ran it 58px off the

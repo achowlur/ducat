@@ -165,6 +165,15 @@ function Popover({
   // Read once per opening: mounted by a click, unmounted on close, so a
   // resize between the two cannot happen.
   const [desktop] = useState(() => window.matchMedia(DESKTOP).matches);
+  // The anchor's rect is measured ONCE, and this one is not a nicety: the
+  // `trip` button that anchors this popover lives INSIDE the row's actions
+  // menu, and that menu closes on the first mousedown outside itself — which
+  // a portaled popover always is. So clicking or typing in here unmounts the
+  // anchor, a detached node measures an all-zero rect, and the next render
+  // floors the popover into the top-left corner (left 8, top 4, with a
+  // viewport-tall max-height). Observed on the deployment 2026-08-03.
+  // Freezing is safe: the popover dismisses on scroll and resize.
+  const [rect] = useState(() => target.anchor.getBoundingClientRect());
 
   const q = query.trim().toLowerCase();
   const typed = normalizeGroupLabel(query);
@@ -273,7 +282,6 @@ function Popover({
   let position: React.CSSProperties;
   let shell: string;
   if (desktop) {
-    const rect = target.anchor.getBoundingClientRect();
     const left = Math.min(
       Math.max(VIEWPORT_EDGE, rect.left),
       window.innerWidth - POPOVER_WIDTH - VIEWPORT_EDGE,

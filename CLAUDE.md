@@ -278,8 +278,11 @@ regeneration.
   shows the month being LIVED IN; empty says "nothing recorded yet" plus a
   quiet prior-month link, and every printed total is spendingBreakdown's.
 - The ledger's category control is ONE picker in a PORTAL; drive the real
-  page after any change to it — its four bugs were invisible in source.
-  GroupedReview keeps its <select> deliberately.
+  page after any change to it — its five bugs were invisible in source, and
+  the fifth was invisible in the DOM too: LOOK at a portal's pixels, an
+  anchor rect is measured ONCE at open (a detached anchor measures zero and
+  floors the popover into the corner). GroupedReview keeps its <select>
+  deliberately.
 - ?category= is an INCLUSION list, written/read ONLY by
   ui/categoryFilter.ts; null means the Uncategorized bucket; the multi-id
   group lives in where.AND; the select needs its synthetic entry.
