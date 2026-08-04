@@ -16,7 +16,7 @@ import {
 import { upcomingCommitments, type UpcomingCommitments } from "../health/commitments";
 import { getSubscriptionStatuses, matchesSubscription } from "../health/subscriptions";
 import { computePace, isComparableBaseline, type Pace } from "../insights/pace";
-import { computeDigest, type DigestItem } from "../insights/digest";
+import { anomalyDedupeKey, computeDigest, type DigestItem } from "../insights/digest";
 import { assessGoals, GOAL_RATE_MONTHS, parseGoals, SAVINGS_GOALS_KEY, type GoalAssessment } from "../insights/goals";
 import {
   assessReadiness,
@@ -160,7 +160,16 @@ function renderDigest(item: DigestItem): DigestRow {
       return {
         chip: "One-off",
         tone: "neutral",
-        text: `${titleCase(item.subject)} ${money(item.amount)}, against ${money(item.baseline ?? 0)} typical`,
+        // The RANK, not just the median it beat. This row now replaces the
+        // anomaly row it was promoted from rather than sitting above a second
+        // copy, and the rank is the only thing that copy contributed —
+        // "higher than N%" is what the anomaly convention requires the UI to
+        // show, precisely because a ratio against a heavy-tailed median reads
+        // as a claim about what a dinner costs.
+        text:
+          item.rank === undefined
+            ? `${titleCase(item.subject)} ${money(item.amount)}, against ${money(item.baseline ?? 0)} typical`
+            : `${titleCase(item.subject)} ${money(item.amount)} — ${higherThan(item.rank.percentileOfHistory, item.rank.of)} (median ${money(item.baseline ?? 0)})`,
         // Deliberately NOT annualised: it happened once, so once is the cost.
         consequence: "one-off, not recurring",
         stake: item.stake,
@@ -214,8 +223,11 @@ function renderCashFlow(p: CashFlowTrendPayload): InsightRow["text"] {
 /** Named because the annualised total is hung off this group by title. */
 const RECURRING_TITLE = "Recurring charges";
 
+/** Named because the digest suppresses rows from this group by title. */
+const ANOMALY_TITLE = "Anomalies";
+
 const GROUPS: { type: InsightType; title: string }[] = [
-  { type: "ANOMALY", title: "Anomalies" },
+  { type: "ANOMALY", title: ANOMALY_TITLE },
   { type: "RECURRING_CHARGE", title: RECURRING_TITLE },
   { type: "NET_WORTH_GROWTH", title: "Net worth" },
   { type: "CASH_FLOW_TREND", title: "Cash flow" },
@@ -319,6 +331,14 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   const lapsed = (row: { type: string; payload: unknown }) =>
     row.type === "RECURRING_CHARGE" && !isActive(row.payload as RecurringChargePayload, asOf);
 
+  // Built here because the rows lose their payload the moment they become
+  // InsightRows, and the suppression below needs the identity, not the prose.
+  const anomalyKeyByRowId = new Map<string, string | null>(
+    inPeriod
+      .filter((r) => r.type === "ANOMALY")
+      .map((r) => [r.id, anomalyDedupeKey(r.payload as unknown as AnomalyPayload)]),
+  );
+
   const groups = GROUPS.map((g) => ({
     title: g.title,
     note: null as string | null,
@@ -410,7 +430,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     })
     .map((r) => r.payload);
 
-  const digest = computeDigest({
+  const digestItems = computeDigest({
     spending: thisPeriod?.payload ?? null,
     priorSpending: comparablePriors,
     // Dismissed rows do not get to lead the page — dismissing one is a
@@ -422,7 +442,42 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
       .filter((r) => r.type === "ANOMALY" && !r.dismissed)
       .map((r) => r.payload as unknown as AnomalyPayload),
     minOccurrences: DEFAULT_RECURRING_OPTIONS.minOccurrences,
-  }).map(renderDigest);
+  });
+  const digest = digestItems.map(renderDigest);
+
+  /**
+   * A finding the digest LED with does not also appear as a row below it.
+   *
+   * The two read the same insights, so a promoted one printed twice about
+   * 400px apart, in different words and a different order — and for a
+   * category, against a different baseline: July's Groceries led with
+   * "$448.89, against $107.12 in comparable months" and reappeared as "total
+   * $448.89 — higher than all prior months (median $78.24)". Two medians for
+   * one category on one screen. Both are right (the digest measures against
+   * COMPARABLE periods, the anomaly against ALL history) and that is exactly
+   * why showing both without a word of explanation is worse than showing one.
+   *
+   * The digest wins because it is the page's lead and it ranks by what the
+   * finding COSTS, and because digest.ts already decided this for the
+   * category case — "CATEGORY_TOTAL anomalies are left out: category movement
+   * is already covered above, and better" — a decision that governed what
+   * entered the digest and never reached what the stream printed.
+   *
+   * Nothing is lost: the promoted row now carries the rank ("higher than N%")
+   * that was the anomaly stream's own contribution. Dismissed anomalies never
+   * enter the digest, so they are never suppressed by it — they stay where a
+   * reader who asks for dismissed rows expects them.
+   */
+  const promoted = new Set(
+    digestItems.map((i) => i.dedupeKey).filter((k): k is string => k !== null),
+  );
+  const anomalyGroup = groups.find((g) => g.title === ANOMALY_TITLE);
+  if (anomalyGroup !== undefined && promoted.size > 0) {
+    anomalyGroup.rows = anomalyGroup.rows.filter((r) => {
+      const key = anomalyKeyByRowId.get(r.id);
+      return key === undefined || key === null || !promoted.has(key);
+    });
+  }
 
   let pace: Pace | null = null;
   if (viewingCurrentPeriod && thisPeriod !== undefined) {

@@ -185,3 +185,33 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
 - Since 2026-08-02 the period selector also DEFAULTS to the lived-in month
   (evidence in ui-and-pages.md), so the goals and readiness panels are what
   bare /insights opens on — the gating itself is unchanged.
+- A finding the DIGEST leads with is not printed again as a row below it
+  (2026-08-03). The digest and the streams read the same insights, so a
+  promoted one appeared twice about 400px apart, in different words and a
+  different order: May's two anomalies led the page and then repeated
+  verbatim-but-reworded under "Anomalies". For a CATEGORY it was worse than
+  redundant — July's Groceries led with "$448.89, against $107.12 in comparable
+  months" and reappeared as "total $448.89 — higher than all prior months
+  (median $78.24)". Two medians for one category on one screen, 263px apart,
+  both correct: the digest measures against COMPARABLE periods and the anomaly
+  against ALL history. Nothing said so, which is what made it a contradiction
+  rather than two facts.
+  digest.ts had already decided this for the category case and only half
+  applied it — "CATEGORY_TOTAL anomalies are left out: category movement is
+  already covered above, and better" governed what ENTERED the digest and
+  never reached what the stream PRINTED.
+  Each item now carries the `dedupeKey` of what it was built from
+  (`txn:<id>`, `cat:<categoryId|name:…>`), computed on both sides by the
+  exported `anomalyDedupeKey` so the two cannot drift, and the page filters
+  the Anomalies group by the keys the digest actually KEPT — after the stake
+  floor and the four-item cap, so an anomaly that did not make the cut still
+  appears below. Dismissed anomalies never enter the digest, so they are never
+  suppressed by it.
+  Nothing is lost in the promotion: the digest's ONE_OFF row now prints the
+  RANK ("higher than 90% of your Shopping (median $132.46)") rather than its
+  old "against $132.46 typical". The rank was the anomaly stream's whole
+  contribution and the convention requires it — a ratio against a heavy-tailed
+  median reads as a claim about what a dinner costs. Verified on real data:
+  May and June promote both anomalies and the Anomalies heading disappears
+  entirely; July suppresses only the Groceries CATEGORY_TOTAL and keeps the
+  two transaction anomalies the four-item cap left out.

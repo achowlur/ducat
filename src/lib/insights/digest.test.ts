@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeDigest } from './digest';
+import { anomalyDedupeKey, computeDigest } from './digest';
 import type {
   AnomalyPayload,
   RecurringChargePayload,
@@ -38,14 +38,16 @@ function anomaly(p: Partial<AnomalyPayload> & { amount: number }): AnomalyPayloa
   return {
     kind: p.kind ?? 'TRANSACTION',
     granularity: 'MONTH',
-    transactionId: 't1',
-    categoryId: 'cat-dining',
+    // These three were hardcoded and silently ignored an override, which is
+    // fine until a test needs to vary the identity or the rank.
+    transactionId: p.transactionId ?? 't1',
+    categoryId: p.categoryId ?? 'cat-dining',
     categoryName: p.categoryName ?? 'Dining',
     description: p.description ?? 'Fawn Den',
     amount: p.amount,
     typicalAmount: p.typicalAmount ?? 25,
     deviation: 4,
-    percentileOfHistory: 0.98,
+    percentileOfHistory: p.percentileOfHistory ?? 0.98,
   };
 }
 
@@ -198,5 +200,106 @@ describe('computeDigest', () => {
 
   it('says nothing when nothing qualifies', () => {
     expect(computeDigest(base)).toEqual([]);
+  });
+});
+
+describe('dedupeKey — what the streams below must not print twice', () => {
+  /**
+   * The digest and the anomaly stream read the SAME rows, so a promoted
+   * finding appeared twice ~400px apart. The key is how the page matches one
+   * against the other; both sides compute it through `anomalyDedupeKey`, so
+   * these assertions are what stops the two drifting.
+   */
+  it('keys a promoted one-off to the transaction it came from', () => {
+    const [item] = computeDigest({
+      ...base,
+      anomalies: [anomaly({ amount: 659.24, transactionId: 'txn-abc' })],
+    });
+    expect(item.kind).toBe('ONE_OFF');
+    expect(item.dedupeKey).toBe('txn:txn-abc');
+    expect(anomalyDedupeKey(anomaly({ amount: 1, transactionId: 'txn-abc' }))).toBe('txn:txn-abc');
+  });
+
+  it('keys a category drift to the category, matching a CATEGORY_TOTAL anomaly', () => {
+    const [item] = computeDigest({
+      ...base,
+      spending: spending([{ name: 'Groceries', spending: 173.2 }]),
+      priorSpending: [
+        spending([{ name: 'Groceries', spending: 30 }]),
+        spending([{ name: 'Groceries', spending: 40 }]),
+      ],
+    });
+    expect(item.kind).toBe('CATEGORY_DRIFT');
+    expect(item.dedupeKey).toBe('cat:cat-groceries');
+    // The July contradiction: one category, two medians, 263px apart. The
+    // anomaly row must resolve to the same key so it can be suppressed.
+    expect(
+      anomalyDedupeKey({
+        kind: 'CATEGORY_TOTAL',
+        transactionId: null,
+        categoryId: 'cat-groceries',
+        categoryName: 'Groceries',
+      }),
+    ).toBe('cat:cat-groceries');
+  });
+
+  /**
+   * An uncategorized anomaly has no categoryId, so the key falls back to the
+   * name — the same fallback the digest's own `keyOf` uses. If these two
+   * disagreed, an uncategorized finding would print twice forever.
+   */
+  it('falls back to the name when a category has no id, on both sides', () => {
+    const [item] = computeDigest({
+      ...base,
+      spending: { ...spending([]), categories: [{ categoryId: null, categoryName: null, spending: 200, previousSpending: null, deltaPct: null }] },
+      priorSpending: [
+        { ...spending([]), categories: [{ categoryId: null, categoryName: null, spending: 20, previousSpending: null, deltaPct: null }] },
+        { ...spending([]), categories: [{ categoryId: null, categoryName: null, spending: 30, previousSpending: null, deltaPct: null }] },
+      ],
+    });
+    expect(item.dedupeKey).toBe('cat:name:uncategorized');
+    expect(
+      anomalyDedupeKey({ kind: 'CATEGORY_TOTAL', transactionId: null, categoryId: null, categoryName: null }),
+    ).toBe('cat:name:uncategorized');
+  });
+
+  /**
+   * A price rise and a new commitment come from the recurring stream, which is
+   * a separate question — suppressing rows there is not part of this fix, so
+   * they must carry no key at all rather than a key that matches nothing.
+   */
+  it('gives recurring-sourced items no key', () => {
+    const items = computeDigest({
+      ...base,
+      recurring: [recurring({ merchant: 'verizon', lastAmount: 40, previousAverageAmount: 20, priceIncreased: true })],
+    });
+    expect(items).not.toHaveLength(0);
+    for (const i of items) expect(i.dedupeKey).toBeNull();
+  });
+
+  /**
+   * The rank is the anomaly stream's whole contribution, and the promoted row
+   * replaces that stream's row — so it has to travel with the item or the
+   * page loses "higher than N%" entirely.
+   */
+  it('carries the rank forward so promotion drops nothing', () => {
+    const [item] = computeDigest({
+      ...base,
+      anomalies: [anomaly({ amount: 659.24, categoryName: 'Shopping', percentileOfHistory: 0.9 })],
+    });
+    expect(item.rank).toEqual({ percentileOfHistory: 0.9, of: 'your Shopping' });
+  });
+
+  /**
+   * An item the digest DROPS — below the stake floor, or past the four-item
+   * cap — was never promoted, so its row must survive in the stream below.
+   * The suppression keys off the RETURNED list for exactly this reason.
+   */
+  it('does not key an anomaly that never made the cut', () => {
+    const items = computeDigest({
+      ...base,
+      anomalies: [anomaly({ amount: 12, transactionId: 'txn-small' })],
+    });
+    expect(items.map((i) => i.dedupeKey)).not.toContain('txn:txn-small');
   });
 });

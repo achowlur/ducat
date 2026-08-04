@@ -38,6 +38,49 @@ export interface DigestItem {
   baseline: number | null;
   /** Dollars over the next twelve months if it holds — the ranking key. */
   stake: number;
+  /**
+   * WHAT THIS WAS BUILT FROM, so the streams below can decline to print the
+   * same finding a second time.
+   *
+   * The digest is the page's lead and the streams are its detail, but they
+   * read the same rows, so a promoted finding appeared twice ~400px apart in
+   * different words and a different order — and for a category, against a
+   * different baseline entirely: July's Groceries led with "$448.89, against
+   * $107.12 in comparable months" and reappeared as "total $448.89 — higher
+   * than all prior months (median $78.24)". Two medians for one category on
+   * one screen, because the digest measures against COMPARABLE periods and
+   * the anomaly against ALL history. Both are correct; printing both without
+   * saying so is not.
+   *
+   * Null for items with no single source row (a price rise and a new
+   * commitment are read from the recurring stream, which is a separate
+   * question and not touched here).
+   */
+  dedupeKey: string | null;
+  /**
+   * ONE_OFF only: the anomaly's RANK, carried so promotion does not silently
+   * drop it. `higherThan` is the anomaly section's whole contribution — the
+   * convention requires a rank rather than a ratio — and the digest's own
+   * "against $X typical" states the median without it.
+   */
+  rank?: { percentileOfHistory: number | undefined; of: string };
+}
+
+/**
+ * The identity a digest item and an insight row share, so the page can match
+ * one against the other. Exported because BOTH sides must compute it the same
+ * way, and two copies of this rule would drift.
+ */
+export function anomalyDedupeKey(a: {
+  kind: 'TRANSACTION' | 'CATEGORY_TOTAL';
+  transactionId: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
+}): string | null {
+  if (a.kind === 'TRANSACTION') {
+    return a.transactionId === null ? null : `txn:${a.transactionId}`;
+  }
+  return `cat:${keyOf(a)}`;
 }
 
 /** /insights reads monthly periods, so a period is a month. */
@@ -119,6 +162,7 @@ export function computeDigest(input: {
         amount: round2(c.spending),
         baseline: round2(baseline),
         stake: round2(delta * PERIODS_PER_YEAR),
+        dedupeKey: `cat:${keyOf(c)}`,
       });
     }
   }
@@ -135,6 +179,7 @@ export function computeDigest(input: {
           amount: round2(r.lastAmount),
           baseline: round2(r.previousAverageAmount),
           stake: round2(delta * perYear),
+          dedupeKey: null,
         });
       }
     } else if (r.occurrences <= minOccurrences) {
@@ -147,6 +192,7 @@ export function computeDigest(input: {
         amount: round2(r.averageAmount),
         baseline: null,
         stake: round2(r.averageAmount * perYear),
+        dedupeKey: null,
       });
     }
   }
@@ -163,6 +209,11 @@ export function computeDigest(input: {
       amount: round2(a.amount),
       baseline: round2(a.typicalAmount),
       stake: round2(a.amount),
+      dedupeKey: anomalyDedupeKey(a),
+      rank: {
+        percentileOfHistory: a.percentileOfHistory,
+        of: `your ${a.categoryName ?? 'spending here'}`,
+      },
     });
   }
 

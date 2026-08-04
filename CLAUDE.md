@@ -229,6 +229,10 @@ regeneration.
   recurring.ts and the audit together.
 - Recurring is NOT subscribed: NOT_SUBSCRIPTION_CATEGORIES excludes by
   CATEGORY, not by merchant name.
+- A finding the DIGEST leads with is not printed again below it: items carry a
+  dedupeKey (anomalyDedupeKey, computed on both sides) and the Anomalies group
+  is filtered by the keys the digest KEPT. The promoted row carries the rank,
+  so nothing is lost.
 - "Counts as cash" is a Setting (cash.additionalAccountIds via
   accounts:cash), never an account-type change — retyping breaks net worth.
 - npm run goals --add is NOT idempotent (slugs dedupe, content does not):
