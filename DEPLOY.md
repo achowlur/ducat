@@ -325,8 +325,21 @@ the local file is moved aside rather than written over in place:
 ```bash
 npm run cloud:backup                      # with the two Turso vars set
 mv data/ducat.db data/ducat-superseded.db
-DATABASE_URL="file:./data/ducat.db" npx tsx scripts/turso-copy.ts   --from="libsql://…turso.io" --apply    # TURSO_AUTH_TOKEN set for the source
+DATABASE_URL="file:./data/ducat.db" npx prisma migrate deploy
+DATABASE_URL="file:./data/ducat.db" npx tsx scripts/turso-copy.ts   --from="./data/backups/ducat-<the file just written>.db" --apply
 ```
+
+`migrate deploy` is not optional and is easy to miss: `turso:copy` copies ROWS,
+not tables, so a destination moved aside leaves nothing to copy INTO. The
+libSQL client creates the missing file on connect, so the symptom is a 0-byte
+`ducat.db` and a failure counting `Transaction` rather than a clear "no
+database". The `sqlite` provider takes `migrate deploy` against a `file:` URL
+directly — the "can't target it" caveat above is about `libsql://` over HTTP.
+
+Copying from the BACKUP rather than from Turso is deliberate: the backup has
+already been verified against the cloud, so the copy needs no credentials, no
+network, and cannot be caught out by a sync landing mid-transfer. Copy from
+`libsql://…` instead only if you have no current backup.
 
 Then prove they agree rather than assuming it:
 

@@ -304,3 +304,15 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   per account, which is the sync pipeline's signature and nothing else's. The
   hand-made digests (Rule, Category, TrackedSubscription) were byte-identical
   throughout, which is what said the backup was intact.
+  The MISSING STEP, found the first time the procedure was walked (2026-08-04):
+  `turso:copy` copies ROWS, not TABLES, so a destination moved aside has
+  nothing to copy into and needs `prisma migrate deploy` first. The failure is
+  not obvious — the libSQL client CREATES the missing file on connect, so the
+  evidence is a 0-byte `data/ducat.db` and an error counting `Transaction`,
+  which reads like a copy bug rather than a missing schema. The `sqlite`
+  provider accepts `migrate deploy` against a `file:` URL; only `libsql://`
+  over HTTP is out of its reach.
+  Mirror from the verified BACKUP rather than from Turso when one exists: no
+  credentials, no network, and no chance of a sync landing mid-transfer. The
+  backup has already been proved digest-equal to the cloud, so it is the same
+  data by definition.
