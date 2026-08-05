@@ -1,5 +1,7 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { isAuthEnabled, isTotpConfigured } from "../../lib/auth/mode";
+import { DEVICE_COOKIE, verifyDeviceToken } from "../../lib/auth/session";
 import { login } from "./actions";
 
 /**
@@ -19,7 +21,12 @@ export default async function LoginPage({
 }) {
   if (!isAuthEnabled()) redirect("/");
   const { error } = await searchParams;
-  const totp = isTotpConfigured();
+  // What this decides is only what the FORM SHOWS. The action re-checks the
+  // device cookie itself before waiving anything, so a doctored form cannot
+  // talk its way past the second factor.
+  const deviceToken = (await cookies()).get(DEVICE_COOKIE)?.value;
+  const remembered = deviceToken !== undefined && (await verifyDeviceToken(deviceToken));
+  const totp = isTotpConfigured() && !remembered;
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-sm flex-col justify-center">
@@ -40,19 +47,34 @@ export default async function LoginPage({
           />
         </label>
         {totp && (
-          <label className="flex flex-col gap-1 text-[0.75rem] uppercase tracking-[0.1em] text-faint">
-            Authenticator code
-            <input
-              type="text"
-              name="code"
-              required
-              inputMode="numeric"
-              pattern="[0-9]{6}"
-              maxLength={6}
-              autoComplete="one-time-code"
-              className="rounded border-2 border-rule bg-transparent px-3 py-2 font-money text-base tracking-[0.3em] text-ink outline-none focus:border-acc"
-            />
-          </label>
+          <>
+            <label className="flex flex-col gap-1 text-[0.75rem] uppercase tracking-[0.1em] text-faint">
+              Authenticator code
+              <input
+                type="text"
+                name="code"
+                required
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                autoComplete="one-time-code"
+                className="rounded border-2 border-rule bg-transparent px-3 py-2 font-money text-base tracking-[0.3em] text-ink outline-none focus:border-acc"
+              />
+            </label>
+            {/* Ticked by default: on a single-user instance the device in
+                your hand is almost always yours. Untick it on anything
+                borrowed — that is the whole point of it being a choice. */}
+            <label className="tap44 flex items-center gap-2 text-[0.78rem] text-faint">
+              <input type="checkbox" name="remember" defaultChecked className="h-4 w-4 accent-acc" />
+              Remember this device for 90 days
+            </label>
+          </>
+        )}
+        {remembered && (
+          <p className="text-[0.75rem] text-faint">
+            This device is remembered, so no code is needed. Rotating your password or
+            authenticator secret asks every device for a code again.
+          </p>
         )}
         {error !== undefined ? (
           <p className="text-[0.8rem] text-neg">{totp ? "Incorrect password or code." : "Incorrect password."}</p>

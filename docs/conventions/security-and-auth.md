@@ -77,3 +77,41 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   deliberately: losing the authenticator is solved by removing the env var
   and redeploying — an in-app reset would be a second factor only against
   attackers who don't attack the app.
+- REMEMBERED DEVICES waive the CODE, never the password (built 2026-08-05,
+  operator ask: "a known IP list or something so my devices don't need this
+  every login"). An IP allowlist was the proposal and was REJECTED with the
+  reason recorded, because it will be proposed again: the phone is this
+  app's primary reader and sits behind carrier-grade NAT, so its address
+  rotates constantly and is SHARED with strangers on the same carrier — an
+  allowlist either fails on mobile or authorizes thousands of people. Home
+  IPs are dynamic, any allowlisted network trusts every other device on it
+  (guest wifi, coffee shop), and the client address arrives in a header that
+  must never be trusted unverified. The thing worth trusting is the DEVICE,
+  not its network location.
+  The mechanism: after a login that presented a valid code, and only if the
+  operator ticked "remember this device", a SECOND signed cookie (fin_device,
+  90 days, HttpOnly) is issued. Later logins on that browser need the
+  password alone. Three properties make it strictly weaker than a session
+  and therefore safe to hold longer:
+  (1) IT GRANTS NOTHING. Stolen without the password it is worthless — it
+      only waives a step. Middleware never reads it.
+  (2) IT CANNOT BE ESCALATED. Both cookies are signed with the SAME key and
+      carry the SAME credential fingerprint, so a device cookie pasted into
+      fin_session would have verified and granted full access with no
+      password at all. Each token now names its own type (typ: session |
+      device) and every verifier demands it; auth.test.ts pins both
+      directions, and the live probe pins that /providers 307s a device
+      cookie presented as a session.
+  (3) IT IS EARNED, NOT INHERITED. The device cookie is issued only when a
+      code was verified IN THAT REQUEST — a remembered login cannot mint a
+      fresh one, so an enrollment cannot renew itself past its 90 days.
+  The page decides only what the FORM SHOWS; the action re-checks the cookie
+  itself, so a doctored form cannot talk past the factor. Ticked by default
+  because on a single-user instance the device in hand is almost always the
+  operator's; the tick is what makes a borrowed browser a deliberate choice.
+  UN-REMEMBERING is rotation: the cookie carries the credential fingerprint,
+  so changing the password or the TOTP secret asks every device for a code
+  again. There is deliberately no device list — one user, one revocation.
+  STATED ON /providers, because the trust page must not overstate the
+  perimeter: a remembered device is only as protected as the password, for
+  90 days. That sentence is the honest cost of the convenience.

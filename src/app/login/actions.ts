@@ -4,7 +4,15 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { isTotpConfigured } from "../../lib/auth/mode";
 import { verifyPassword } from "../../lib/auth/password";
-import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from "../../lib/auth/session";
+import {
+  createDeviceToken,
+  createSessionToken,
+  DEVICE_COOKIE,
+  DEVICE_MAX_AGE,
+  SESSION_COOKIE,
+  SESSION_MAX_AGE,
+  verifyDeviceToken,
+} from "../../lib/auth/session";
 import { TOTP_COUNTER_SETTING_KEY, verifyTotp } from "../../lib/auth/totp";
 import { prisma } from "../../lib/prisma";
 
@@ -29,7 +37,15 @@ export async function login(formData: FormData): Promise<void> {
     redirect("/login?error=1");
   }
 
-  if (isTotpConfigured()) {
+  // A remembered device waives the CODE, never the password — and the check
+  // happens HERE, not on the page that drew the form: a hidden field or a
+  // missing input proves nothing, the signed cookie does.
+  const deviceToken = (await cookies()).get(DEVICE_COOKIE)?.value;
+  const remembered =
+    deviceToken !== undefined && (await verifyDeviceToken(deviceToken));
+  let passedTotpNow = false;
+
+  if (isTotpConfigured() && !remembered) {
     const code = String(formData.get("code") ?? "");
     const row = await prisma.setting.findUnique({ where: { key: TOTP_COUNTER_SETTING_KEY } });
     const stored = Number(row?.value ?? "0");
@@ -67,16 +83,31 @@ export async function login(formData: FormData): Promise<void> {
     if (!claimed) {
       redirect("/login?error=1");
     }
+    passedTotpNow = true;
   }
 
+  const jar = await cookies();
   const token = await createSessionToken();
-  (await cookies()).set(SESSION_COOKIE, token, {
+  jar.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });
+
+  // Remembering is EARNED by a code presented in this very request — never
+  // inherited from an already-remembered login, which would let one
+  // enrollment renew itself forever and outlive the 90 days it promised.
+  if (passedTotpNow && formData.get("remember") !== null) {
+    jar.set(DEVICE_COOKIE, await createDeviceToken(), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: DEVICE_MAX_AGE,
+    });
+  }
   redirect("/");
 }
 

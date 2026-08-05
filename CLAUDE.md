@@ -401,8 +401,18 @@ regeneration.
   the session fingerprint digests BOTH secrets — enabling or rotating either
   evicts every session. ONE generic login error, never which factor failed.
 - Never propose SMS, email, or push as a factor — each requires a third-party
-  call the HARD RULES ban. /providers' perimeter line states which factors
-  are configured and must keep matching isTotpConfigured().
+  call the HARD RULES ban, and never an IP allowlist (CGNAT rotates and is
+  shared; a network is not a device). /providers' perimeter line states which
+  factors are configured and must keep matching isTotpConfigured().
+- A remembered device (fin_device, 90d) waives the CODE, never the password:
+  it grants nothing alone, is EARNED by a code in that same request, and
+  every token names its own typ — both cookies share a signing key, so
+  without that claim a device cookie IS a session cookie. Rotation
+  un-remembers everything; the login PAGE only picks the form, the ACTION
+  re-checks the cookie.
+- `npm test` excludes `.claude/**` (vitest.config.ts): agent worktrees there
+  are full repo copies, and without it the suite silently doubles and gates
+  on another branch's work.
 
 ## Verified load-bearing (three reviews, 2026-07-26) — do not "clean up"
 

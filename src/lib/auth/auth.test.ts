@@ -1,6 +1,11 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { hashPassword, verifyPassword } from "./password";
-import { createSessionToken, verifySessionToken } from "./session";
+import {
+  createDeviceToken,
+  createSessionToken,
+  verifyDeviceToken,
+  verifySessionToken,
+} from "./session";
 
 describe("password (scrypt)", () => {
   it("verifies the correct password and rejects a wrong one", () => {
@@ -30,6 +35,34 @@ describe("session (jose HS256)", () => {
     expect(await verifySessionToken(token)).toBe(true);
     expect(await verifySessionToken(`${token}tampered`)).toBe(false);
     expect(await verifySessionToken("garbage")).toBe(false);
+  });
+
+  it("a device token is NOT a session token — the escalation both cookies' shared signing key invites", async () => {
+    const device = await createDeviceToken();
+    // Pasting the remembered-device cookie into fin_session must not grant
+    // access: it verifies under the same key and carries the same `pw`, so
+    // only the type claim stands between "skip the code" and "no password".
+    expect(await verifySessionToken(device)).toBe(false);
+    expect(await verifyDeviceToken(device)).toBe(true);
+  });
+
+  it("a session token is not accepted as a device token either", async () => {
+    const session = await createSessionToken();
+    expect(await verifyDeviceToken(session)).toBe(false);
+  });
+
+  it("rotating a credential un-remembers every device", async () => {
+    const before = process.env.AUTH_TOTP_SECRET;
+    try {
+      process.env.AUTH_TOTP_SECRET = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+      const device = await createDeviceToken();
+      expect(await verifyDeviceToken(device)).toBe(true);
+      process.env.AUTH_TOTP_SECRET = "ROTATEDROTATEDROTATEDROTATEDROTA";
+      expect(await verifyDeviceToken(device)).toBe(false);
+    } finally {
+      if (before === undefined) delete process.env.AUTH_TOTP_SECRET;
+      else process.env.AUTH_TOTP_SECRET = before;
+    }
   });
 
   it("enabling or rotating the TOTP secret evicts existing sessions — the upgrade moment must kill pre-2FA sessions", async () => {

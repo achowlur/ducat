@@ -226,14 +226,35 @@ then requires password **and** code, submitted together.
 
 An authenticator app is the only second factor this app will ever offer: SMS,
 email and push all require a third-party service, which the HARD RULES ban.
-Codes are **one-use** (the accepted counter is stored in the database, so a
-phished code dies the moment the real login lands). Enabling or rotating the
-secret **logs out every existing session** — deliberate: the moment you add a
-second factor is exactly the moment pre-2FA sessions should die. What it does
-NOT cover: a stolen session cookie is valid until it expires — the factor
-protects login, not the transport. Recovery is operating your own
-infrastructure: lose the authenticator, remove `AUTH_TOTP_SECRET` from the
-environment and redeploy. There is no in-app reset, deliberately.
+Codes are **one-use** (the accepted counter is stored in the database and
+claimed by compare-and-set, so a phished code dies the moment the real login
+lands — even if both arrive at once). Enabling or rotating the secret **logs
+out every existing session** — deliberate: the moment you add a second factor
+is exactly the moment pre-2FA sessions should die. What it does NOT cover: a
+stolen session cookie is valid until it expires — the factor protects login,
+not the transport. Recovery is operating your own infrastructure: lose the
+authenticator, remove `AUTH_TOTP_SECRET` from the environment and redeploy.
+There is no in-app reset, deliberately.
+
+**Remembered devices.** The login form offers "remember this device for 90
+days" (ticked by default) whenever it asks for a code. Tick it and that
+browser gets a separate signed cookie; later logins on it need the **password
+alone**. Untick it on anything borrowed. The trade-offs, stated plainly:
+
+- The device cookie **waives the code, it does not grant access** — stolen
+  without your password it is worth nothing, and presenting it as a session
+  cookie fails (each token names its own type; a test pins this).
+- A remembered device is therefore **only as protected as your password**,
+  for 90 days. That is the convenience you are buying.
+- Remembering is earned by a code **in that same login**, never inherited, so
+  one enrollment cannot renew itself forever.
+- To un-remember everything, rotate `SESSION_SECRET` or `AUTH_TOTP_SECRET` —
+  every device is asked for a code again (and every session ends).
+
+An IP allowlist was considered instead and **rejected**: phones sit behind
+carrier-grade NAT, so the address rotates and is shared with strangers, home
+IPs are dynamic, and any allowlisted network trusts every other device on it.
+Device identity is the thing worth trusting; network location is not.
 
 Set these BEFORE the first deploy, or redeploy after adding them — Vercel
 applies env-var changes to new deployments, not running ones. Note that a
