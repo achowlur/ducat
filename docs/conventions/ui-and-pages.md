@@ -452,3 +452,49 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   (`?logs=<connector>&logsPage=<n>`, clamped into range, one connector paged
   at a time) reaches every older row. Same pager idiom as /transactions:
   ‹ newer / older › with disabled spans, page X of Y, tap44.
+
+- An SVG `<title>` takes ONE string child, never two (2026-08-04). MiniDonut's
+  slice tooltip was written as two JSX children — the label/percent template
+  and a conditional `" — view transactions"` — which JSX compiles to a
+  two-element `children` array. React serializes a `<title>` from `children`
+  only when it is a single string: `pushTitleImpl` coerces
+  `Array.isArray(children) ? (children.length < 2 ? children[0] : null)
+  : children`, so an array of two becomes `null` and the server emitted
+  `<title></title>`, in place, while the client rendered the text. That is a
+  hydration mismatch, and its blast radius is the whole document — React's
+  recovery re-renders from `<html>` down, which discards the `data-theme` the
+  pre-paint script in layout.tsx had stamped there and re-inserts that script
+  as a DOM node (inserted scripts never execute), so the attribute never comes
+  back. Overview was the only page drawing a donut, so Overview was the only
+  page that ignored a saved light/dark theme and rendered sepia — the `:root`
+  fallback — for everyone else.
+
+  The diagnosis is the lesson, three times over. First, THE DEV SERVER
+  TERMINAL WAS ALREADY SAYING IT: React logs the exact cause and the exact fix
+  ("try rewriting it using a template string") once per rendered slice, on the
+  server, where nobody was reading. Check that terminal before the browser
+  console. Second, the browser console's own claim was a red herring —
+  `data-theme` missing from `<html>` looks like the cause and is actually the
+  CONSEQUENCE, and `<html>` already carried suppressHydrationWarning, which
+  covers attributes and would never have produced this. The real node only
+  appears in the dev overlay's tree diff, which the console message truncates;
+  open the overlay (or read `[data-nextjs-dialog]` inside `nextjs-portal`'s
+  shadow root) for the diff and the file:line. Third, "every page is broken"
+  was one page: the overlay badge and the console both persist across SOFT
+  navigations, so an error on `/` follows the reader to `/providers` and
+  `/insights`; and `/login` REDIRECTS to `/` when the gate is off, which is
+  how the login screen appeared to fail too. Hard-navigate each route before
+  believing a bug is global — only `/` ever threw.
+
+  PRODUCTION HAD IT TOO, silently: the coercion is identical in the production
+  React build, so the deployment served the same stripped theme with only a
+  minified `#418` in the console and no overlay. "Prod looks fine" was the
+  interactions working — hydration failure is RECOVERABLE, so handlers do
+  attach and clicks do work, in dev as well. Whatever made handlers dead in
+  dev was the corrupted-`.next` failure documented in CLAUDE.md, which is a
+  different bug with an overlapping symptom; a clean worktree checkout never
+  reproduced it. Pinned by MiniDonut.test.ts, which asserts on the SERVER
+  MARKUP because neither the source (the JSX reads as one string) nor the
+  hydrated DOM (the client tree is correct) shows the defect. That test is
+  also why the repo now has a vitest.config.ts: tsconfig sets `jsx: preserve`,
+  so vitest could not import a .tsx component at all.

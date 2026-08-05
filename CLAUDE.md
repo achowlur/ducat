@@ -320,6 +320,15 @@ regeneration.
   the WHOLE group, never the filtered view, and renaming onto an existing
   label MERGES — warned before saving, because a merge does not undo by
   renaming back; casing adoption is enforced server-side.
+- An SVG `<title>` takes ONE string child: two JSX children serialize as
+  `<title></title>` server-side, and the mismatch re-renders from `<html>`
+  down, stripping the pre-paint data-theme — Overview alone rendered sepia
+  for light/dark readers, in PRODUCTION too. Read the DEV SERVER TERMINAL
+  first (React names the node and the fix there); the browser console
+  truncates the tree diff and blames the theme attribute, which is the
+  consequence. One page's error follows soft navigation to every other, and
+  /login redirects to / when the gate is off — hard-navigate before
+  believing a bug is global.
 - Charts are hand-rolled SVG; no chart library, no webfonts anywhere (CSP).
   niceTicks guarantees last tick ≥ max; value labels are collision-checked.
   A viewBox scales its TYPE with its container, so width buys legibility and
