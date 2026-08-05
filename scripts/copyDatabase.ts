@@ -8,8 +8,37 @@
  * be a second place for the transfer-pair handling to rot.
  */
 import { execFileSync } from 'node:child_process';
+import { renameSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { createClient, type Client, type InStatement } from '@libsql/client';
+
+/**
+ * Rename that outwaits a lingering file lock. On Windows the libSQL client's
+ * close() releases its SQLite handle ASYNCHRONOUSLY, so a rename issued right
+ * after close() races it and loses — measured EBUSY on the first live
+ * scheduled-backup run, immediately after the fingerprints had matched.
+ * Antivirus scanners briefly lock fresh .db files the same way. The release
+ * measured 7.75s on a real run (255ms in isolation — the gap is the price of
+ * the preceding whole-database read), so the bound is ~30 seconds: wildly
+ * more than observed, still finite, and the wait is logged when it happens.
+ */
+export async function renameWhenReleased(
+  from: string,
+  to: string,
+  log?: (line: string) => void,
+): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      renameSync(from, to);
+      if (attempt > 1) log?.(`  (rename waited ${(attempt - 1) * 250}ms for the file handle to release)`);
+      return;
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if ((code !== 'EBUSY' && code !== 'EPERM') || attempt >= 120) throw e;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+}
 
 /** Parents before children. Within a table, self-references are deferred. */
 export const TABLES = [

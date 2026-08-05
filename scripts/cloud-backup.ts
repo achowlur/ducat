@@ -26,9 +26,9 @@
  */
 import 'dotenv/config';
 import { createClient } from '@libsql/client';
-import { mkdirSync, renameSync, statSync } from 'node:fs';
+import { mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { backupToFile } from './copyDatabase';
+import { backupToFile, renameWhenReleased } from './copyDatabase';
 import { backupFileName } from './retention';
 
 const DIR = join('data', 'backups');
@@ -61,12 +61,12 @@ async function main(): Promise<void> {
   try {
     const { ok, totalRows } = await backupToFile(cloud, partial, (l) => console.log(l));
     if (!ok) {
-      renameSync(partial, `${path}.unverified`);
+      await renameWhenReleased(partial, `${path}.unverified`);
       console.error(`\nBackup did NOT verify. Quarantined as ${path}.unverified — unusable.`);
       process.exitCode = 1;
       return;
     }
-    renameSync(partial, path);
+    await renameWhenReleased(partial, path);
     const kb = Math.round(statSync(path).size / 1024);
     console.log(`\nBacked up ${totalRows} rows to ${path} (${kb} KB).`);
     console.log(`Inspect it with:  DATABASE_URL="file:./${path.replace(/\\/g, '/')}" npm run dev`);

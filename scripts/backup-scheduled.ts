@@ -34,12 +34,12 @@
  *      docs/conventions/sync-and-data-ops.md). A failed run writes NO
  *      Setting — /providers' age measures days since the last PROVEN copy.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, appendFileSync, renameSync, statSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, appendFileSync, statSync, unlinkSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { createClient } from '@libsql/client';
 import { parse } from 'dotenv';
 import { BACKUP_SETTING_KEY, type StoredBackupRun } from '../src/lib/health/backup';
-import { backupToFile } from './copyDatabase';
+import { backupToFile, renameWhenReleased } from './copyDatabase';
 import { databaseLabel } from './database-label';
 import { fingerprintOf, type DatabaseFingerprint } from './fingerprintDatabase';
 import { backupFileName, planRetention } from './retention';
@@ -100,9 +100,9 @@ const upsertSettingSql =
  * never. (The copy itself lands on a `.partial` name for the same reason: a
  * hard crash mid-copy leaves nothing bearing the verified name either.)
  */
-function quarantine(partialPath: string, finalPath: string, log: (l: string) => void): string {
+async function quarantine(partialPath: string, finalPath: string, log: (l: string) => void): Promise<string> {
   const target = `${finalPath}.unverified`;
-  renameSync(partialPath, target);
+  await renameWhenReleased(partialPath, target);
   log(`  quarantined as ${basename(target)} — retention ignores it; inspect or delete it by hand`);
   return target;
 }
@@ -135,7 +135,7 @@ async function main(): Promise<void> {
     // 1. Copy + the count/aggregate verification cloud:backup has always done.
     const { ok, totalRows } = await backupToFile(cloud, partial, log);
     if (!ok) {
-      quarantine(partial, path, log);
+      await quarantine(partial, path, log);
       throw new Error(`count/aggregate verification FAILED — quarantined as ${basename(path)}.unverified.`);
     }
 
@@ -159,13 +159,13 @@ async function main(): Promise<void> {
       log('  MISMATCH — per-table digests, both sides:');
       digestTable(cloudFp, 'cloud', log);
       digestTable(fileFp, 'file', log);
-      quarantine(partial, path, log);
+      await quarantine(partial, path, log);
       throw new Error(
         `content fingerprints differ (${differing.join(', ')}). A write likely landed mid-copy — ` +
           `the file is quarantined for inspection, NOT a proven backup, and no Setting is written.`,
       );
     }
-    renameSync(partial, path);
+    await renameWhenReleased(partial, path, log);
     log(`  match: WHOLE DATABASE ${fileFp.overall} on both sides — ${basename(path)} now bears its verified name`);
 
     // 3. Retention — only now, with a proven new backup in hand.
