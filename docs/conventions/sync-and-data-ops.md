@@ -316,3 +316,108 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   credentials, no network, and no chance of a sync landing mid-transfer. The
   backup has already been proved digest-equal to the cloud, so it is the same
   data by definition.
+
+- SCHEDULED LOCAL BACKUPS (built 2026-08-04, the day of the outage that
+  justified them). Turso's us-east-1 router returned 502 to every query for
+  over two hours; nothing was lost, but there was no local copy at the time,
+  and `cloud:backup` cannot run against an unreachable database — the one
+  moment you want a backup is the one moment you cannot take one. Free-plan
+  point-in-time recovery reaches back 24 hours and lives in the same failure
+  domain as the outage. So a Windows scheduled task fires
+  `scripts/backup-scheduled.ts` nightly at 23:50 UTC (after the `0 23 * * *`
+  sync cron plus Hobby's 8-43 minutes of lateness — the same timing rule the
+  mirror procedure above records, and got wrong by hand on the day it was
+  raised).
+  WHERE THE SIGNAL LIVES was the one design question left open, and the
+  answer is the CLOUD, for a reason worth keeping: the `backup.lastRun`
+  Setting exists so /providers can say "last local backup: N days ago" and
+  escalate silence, and the operator reads /providers on the PHONE — the
+  cloud instance, whose filesystem could never see `data/backups/`. A
+  local-only Setting (invisible where it is read) and a
+  newest-file-in-the-directory derivation (impossible where it is read) both
+  fail the same test. The apparent circularity — the backup writes to the
+  cloud, which the mirror rule says must then be copied down — dissolves
+  because the wrapper writes the byte-identical value to BOTH databases in
+  the same run, cloud first: the wrapper IS the mirror step for the one row
+  it owns, and nothing is left over to re-mirror. Consequences accepted with
+  eyes open: each backup FILE carries the PREVIOUS run's Setting (the row is
+  written only after the new file is verified), which is truthful — a
+  restored backup reports the last backup that existed when it was taken;
+  and a run that verifies but fails the cloud Setting write reports failure
+  while the file quietly exists, which errs on the side the doctrine wants
+  (claiming less coverage than you have, never more).
+  THE SETTING MEANS VERIFIED. It is written only after the whole-database
+  content fingerprints of the new file and the cloud MATCH — counts and
+  aggregates still run first, but they are blind to a changed category or a
+  flipped `dismissed` — so the age /providers renders is "days since the
+  last PROVEN copy", not "days since the task last tried". A failed run
+  writes no Setting and deletes no file. Manual `cloud:backup` runs do not
+  update it either: they count-verify only, and the line must never claim
+  fingerprint proof it does not have.
+  ESCALATION counts MISSED NIGHTS, and the arithmetic is worth stating
+  because the first draft got it wrong: the Setting's `at` lands minutes
+  after the 23:50 UTC slot, so floor(elapsed/24h) EQUALS the number of
+  silent nights — age 1 is one missed night (a machine off overnight —
+  travel makes that routine): OK; age 2 is the second silent night, the task
+  not firing: WARN (`> 1`). Past a week (age 8+): ERROR, the level a failed
+  sync gets. The draft shipped WARN at `> 2` believing age 2 meant one
+  missed night; the adversarial review proved age 2 is only reachable after
+  TWO missed slots, so every document promised a warning one night earlier
+  than the code delivered. Floor-of-elapsed needs no headroom — it already
+  IS the night count. The same review separated the UNITS: escalation uses
+  elapsed nights, but the page's "today / yesterday / N days ago" words are
+  CALENDAR words and come from calendarDaysAgo (ui/format.ts), counted in
+  the display zone — floor-of-elapsed says "today" beside a timestamp the
+  reader can see is yesterday's. The escalation sentence carries no number
+  at all, so the one printed count (calendar) can never contradict it.
+  Deliberately tighter than `staleBalanceDays: 5` — that watches a
+  third-party feed's publication cadence; this watches our own task, which
+  has no holidays. Absent the Setting entirely, /providers renders NO backup
+  line (the FRED precedent: an instance that never opted in carries no
+  signal), which is what keeps the line honest for local-only users who
+  have no cloud database to back up.
+  RETENTION is "~14 dailies plus one a month", made precise as: every file
+  on the 14 most recent DISTINCT DATES present stays — dates, not files, so
+  a manual backup beside the scheduled one is never deleted; distinct dates
+  PRESENT, not calendar days, so a week of downtime still leaves 14 restore
+  points — and beyond those dates the newest file of each calendar month
+  survives. Only exact `ducat-YYYY-MM-DD-HHMM.db` names are ever candidates;
+  `backup.log`, superseded files and anything hand-renamed are ignored by
+  construction. Pruning runs only AFTER the new backup has fingerprint-
+  verified, so a failing job can never eat history. `planRetention` is pure
+  and clock-free (scripts/retention.ts, pinned by tests).
+  THE CANONICAL NAME IS EARNED, and this is what makes the previous sentence
+  actually true — the adversarial review caught the gap in the first draft:
+  a failed run that leaves its file under the canonical name has poisoned
+  retention, because retention judges by filename alone. The leftover counts
+  as a daily date, and once its month ages out of the 14-date window,
+  newest-of-month elects it the month's PERMANENT keeper — a later healthy
+  run then deletes every proven backup of that month and preserves the one
+  file known to be bad. So both backup scripts copy onto `.partial` and
+  rename to the canonical name only after verification passes (a hard crash
+  leaves `.partial`); a verification failure renames to `.unverified`
+  (inspectable forever, candidate never). The invariant: a file named
+  `ducat-YYYY-MM-DD-HHMM.db` is always a backup that passed its checks —
+  count/aggregate for a manual `cloud:backup`, fingerprints for the
+  scheduled wrapper. Both quarantine suffixes are pinned in
+  retention.test.ts as never-touched.
+  CREDENTIALS come from `.env.backup` (gitignored via `.env*`), read
+  EXCLUSIVELY — never `.env`, which points at the local database, and never
+  the shell, so a terminal still holding cloud variables cannot redirect the
+  script, and the Task Scheduler's bare session behaves identically to a
+  hand run. The task itself runs S4U ("run whether user is logged on or
+  not", no stored password), which is what makes it truly windowless — the
+  operator asked for zero popups — plus StartWhenAvailable so a machine
+  asleep at 23:50 UTC runs the backup on wake (late is always safe; only
+  EARLY captures yesterday).
+  A TRAP found during the build, recorded because it will bite again: the
+  fingerprint's row serialisation joins fields with `\x01` and rows with
+  `\x02` — RAW control characters in the original inline code, invisible in
+  an editor, and silently dropped the first time the hashing core was
+  extracted to `fingerprintDatabase.ts`. Every digest changed; on identical
+  data the cloud-vs-file comparison would have failed every night. They are
+  escape sequences now, and `fingerprintDatabase.test.ts` pins the exact
+  serialisation with a fixture digest — if that constant ever changes, every
+  recorded digest (mirror proofs, stored `backup.lastRun` rows) becomes
+  incomparable with new output, which is precisely what the pin is there to
+  make deliberate.

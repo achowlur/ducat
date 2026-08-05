@@ -1,4 +1,10 @@
 import { prisma } from "../prisma";
+import {
+  BACKUP_SETTING_KEY,
+  deriveBackupStatus,
+  parseBackupRun,
+  type BackupSignal,
+} from "../health/backup";
 import { getProviderHealth } from "../health/health";
 import { PROVIDER_TRUST_CARDS } from "../health/providers";
 import type { ProviderHealth, ProviderId } from "../health/types";
@@ -51,6 +57,19 @@ export function cronSummary(schedule: string): string {
   const daily = /^0 (\d{1,2}) \* \* \*$/.exec(schedule);
   if (daily === null) return `on the schedule \`${schedule}\` (UTC)`;
   return `once a day at ${daily[1].padStart(2, '0')}:00 UTC`;
+}
+
+/**
+ * The last verified local backup, as THIS database's Setting records it —
+ * which is the point of the Setting's cloud placement: the phone reads the
+ * cloud instance, whose filesystem could never see data/backups/. Null when
+ * never recorded (fresh instance, or a local-only user with no cloud
+ * database to back up), and then /providers renders no backup line at all —
+ * the FRED precedent for a feature never opted into.
+ */
+export async function getBackupSignal(now: Date = new Date()): Promise<BackupSignal | null> {
+  const row = await prisma.setting.findUnique({ where: { key: BACKUP_SETTING_KEY } });
+  return deriveBackupStatus(parseBackupRun(row?.value ?? null), now);
 }
 
 export interface SyncLogRow {

@@ -315,6 +315,137 @@ failures this app has actually had were silent wrong numbers found days later.
 A local file is also a different failure domain: an account problem, a revoked
 token or a lapsed plan doesn't reach your disk.
 
+### Scheduled local backups (Windows)
+
+The manual command works until the day it can't: on 2026-08-04 Turso's
+us-east-1 router returned 502 to every query for over two hours, and
+`cloud:backup` cannot run against an unreachable database — the one moment you
+want a backup is the one moment you cannot take one. The scheduled form takes
+one every night while everything is healthy, so an outage always finds a
+recent copy already on your disk.
+
+**Set up once:**
+
+1. Create `.env.backup` in the repo root — gitignored (the `.env*` rule),
+   never committed — holding exactly two lines:
+
+   ```
+   DATABASE_URL="libsql://<db>-<org>.<region>.turso.io"
+   TURSO_AUTH_TOKEN="<database token>"
+   ```
+
+   The wrapper reads this file **exclusively** — never `.env` (which points at
+   the local database) and never the shell environment — so a terminal still
+   holding cloud variables cannot redirect it, and the Task Scheduler's bare
+   session behaves identically to a hand run.
+
+2. Prove it end to end by hand before scheduling anything:
+
+   ```bash
+   npm run backup:scheduled -- --dry-run
+   npm run backup:scheduled
+   ```
+
+   `--dry-run` takes and fingerprint-verifies a real backup but only *reports*
+   what pruning and the Setting write would do.
+
+3. Register the scheduled task from an elevated-or-not PowerShell (it runs as
+   you, no admin needed). The XML form is used because it pins the trigger to
+   **UTC** (the `Z` suffix — Task Scheduler's "synchronize across time zones"),
+   which a plain `New-ScheduledTaskTrigger` cannot express:
+
+   ```powershell
+   Register-ScheduledTask -TaskName "Ducat nightly backup" -Xml (Get-Content "<repo>\scripts\backup-task.xml" -Raw)
+   ```
+
+   (The repo does not ship `backup-task.xml` because it embeds absolute
+   machine paths; generate it from the template below or ask the assistant
+   session that registers it to write one.) The template:
+
+   ```xml
+   <?xml version="1.0" encoding="UTF-16"?>
+   <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+     <RegistrationInfo>
+       <Description>Ducat: nightly verified local backup of the cloud database. 23:50 UTC — after the 23:00 sync cron plus Vercel Hobby's 8-43 min lateness; backing up earlier captures yesterday.</Description>
+     </RegistrationInfo>
+     <Triggers>
+       <CalendarTrigger>
+         <StartBoundary>2026-08-04T23:50:00Z</StartBoundary>
+         <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>
+         <Enabled>true</Enabled>
+       </CalendarTrigger>
+     </Triggers>
+     <Principals>
+       <Principal id="Author">
+         <UserId>YOUR-PC\you</UserId>
+         <LogonType>S4U</LogonType>
+         <RunLevel>LeastPrivilege</RunLevel>
+       </Principal>
+     </Principals>
+     <Settings>
+       <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+       <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+       <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+       <StartWhenAvailable>true</StartWhenAvailable>
+       <ExecutionTimeLimit>PT1H</ExecutionTimeLimit>
+       <Enabled>true</Enabled>
+     </Settings>
+     <Actions Context="Author">
+       <Exec>
+         <Command>C:\path\to\repo\scripts\backup-scheduled.cmd</Command>
+         <WorkingDirectory>C:\path\to\repo</WorkingDirectory>
+       </Exec>
+     </Actions>
+   </Task>
+   ```
+
+   Two choices in there are the point. `LogonType S4U` is "run whether user is
+   logged on or not" without a stored password — the task runs in session 0,
+   so **no console window ever appears** while you're using the machine.
+   `StartWhenAvailable` means a machine that was asleep at 23:50 UTC runs the
+   backup on wake: late is always safe — only *early* (before the sync cron)
+   captures yesterday.
+
+4. Confirm it fires without waiting a day:
+
+   ```powershell
+   Start-ScheduledTask -TaskName "Ducat nightly backup"
+   Get-ScheduledTaskInfo -TaskName "Ducat nightly backup" | Select LastRunTime, LastTaskResult
+   ```
+
+   `LastTaskResult` 0 is success; then read the tail of
+   `data\backups\backup.log`, which every run appends to.
+
+**What a run does, in order — each step gates the next:**
+
+1. Copies every table to a new dated file under `data/backups/` — on a
+   `.partial` name, because the canonical `ducat-….db` name is **earned by
+   verification** — and runs the same nine row counts + eight aggregates
+   `cloud:backup` checks.
+2. Content-fingerprints the **cloud** and the **file** (`db:fingerprint`'s
+   whole-database digest) and compares. Counts are blind to a changed
+   category or a flipped `dismissed`; the digest is not. On a match the file
+   takes its canonical name. A mismatch — usually a write landing mid-copy —
+   fails the run and **quarantines** the file as `.unverified`: inspectable,
+   but invisible to retention, so a bad file can never later be elected a
+   month's keeper while proven backups are deleted around it.
+3. Prunes retention: every file on the 14 most recent distinct backup dates
+   stays, plus the newest file of each older month. Only exact
+   `ducat-YYYY-MM-DD-HHMM.db` names are candidates; `backup.log`, `.partial`,
+   `.unverified` and anything hand-renamed are never touched. Pruning never
+   runs on a failed backup.
+4. Writes the `backup.lastRun` Setting — `{at, file, wholeDigest, rows}` — to
+   the **cloud first**, then byte-identically to the local mirror: the
+   wrapper is that one row's mirror step, so the mirror rule stays whole. A
+   failed run writes no Setting.
+
+**The signal:** `/providers` ("This instance") shows *"Last local backup: N
+days ago"* with the verified row count and digest, read from that Setting —
+which is why it works on the phone, where `data/backups/` does not exist. It
+escalates like balance staleness: WARN on the second silent night, ERROR past
+a week. The line appears after the first verified run and never disappears —
+a backup job that dies quietly is worse than none.
+
 ### Bring local back into line with the cloud
 
 After a data change is live on the cloud and you have confirmed it there,

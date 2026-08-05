@@ -8,11 +8,12 @@
  * changed category on one transaction, a flipped `dismissed`, a renamed group
  * label, an edited rule. Counts and sums are blind to all of it.
  *
- * So this hashes CONTENT. Every row of every table is serialised
- * deterministically, the serialised rows are sorted (so physical order and
- * rowid assignment cannot matter), and the result is one SHA-256 per table.
- * Two databases whose per-table digests all match are identical in every
- * column of every row.
+ * So this hashes CONTENT — the core lives in `fingerprintDatabase.ts`, shared
+ * with the scheduled backup wrapper, which runs the same comparison
+ * unattended. Every row of every table is serialised deterministically, the
+ * serialised rows are sorted (so physical order and rowid assignment cannot
+ * matter), and the result is one SHA-256 per table. Two databases whose
+ * per-table digests all match are identical in every column of every row.
  *
  * Runs against `file:` and `libsql:` URLs through the SAME client, which is
  * the point — comparing values that took different paths out of the database
@@ -30,29 +31,10 @@
  *   DATABASE_URL="file:./data/backups/ducat-2026-08-04-1854.db" npx tsx scripts/fingerprint-db.ts
  */
 import 'dotenv/config';
-import { createHash } from 'node:crypto';
 import { createClient } from '@libsql/client';
 import { CHECK_SQL, TABLES } from './copyDatabase';
 import { databaseLabel } from './database-label';
-
-/**
- * Deterministic across the two clients. Keys are sorted so column order in
- * the result set cannot change the digest; bigint and binary are tagged
- * rather than coerced, so a 1 and a "1" can never hash alike.
- */
-function canonical(row: Record<string, unknown>): string {
-  const keys = Object.keys(row).sort();
-  const parts = keys.map((k) => {
-    const v = row[k];
-    if (v === null || v === undefined) return `${k}:null`;
-    if (typeof v === 'bigint') return `${k}:n(${v.toString()})`;
-    if (typeof v === 'number') return `${k}:n(${Number.isInteger(v) ? v.toFixed(0) : v.toString()})`;
-    if (v instanceof Uint8Array) return `${k}:b(${Buffer.from(v).toString('hex')})`;
-    if (v instanceof Date) return `${k}:d(${v.toISOString()})`;
-    return `${k}:s(${String(v)})`;
-  });
-  return parts.join('');
-}
+import { fingerprintOf } from './fingerprintDatabase';
 
 /** Extra aggregates beyond CHECK_SQL — the fields hand-editing actually touches. */
 const EXTRA_SQL: Record<string, string> = {
@@ -80,21 +62,14 @@ async function main(): Promise<void> {
   const db = createClient(url.startsWith('libsql://') ? { url, authToken } : { url });
 
   console.log('Per-table content digest (sha256 of every row, order-independent)');
-  const digests: Record<string, string> = {};
+  const fp = await fingerprintOf(db);
   for (const table of TABLES) {
-    const res = await db.execute(`select * from "${table}"`);
-    const lines = res.rows.map((r) => canonical(r as unknown as Record<string, unknown>)).sort();
-    const digest = createHash('sha256').update(lines.join('')).digest('hex').slice(0, 16);
-    digests[table] = digest;
-    console.log(`  ${table.padEnd(20)} ${String(res.rows.length).padStart(6)} rows  ${digest}`);
+    const t = fp.tables[table];
+    console.log(`  ${table.padEnd(20)} ${String(t.rows).padStart(6)} rows  ${t.digest}`);
   }
 
   // One digest over the per-table digests: a single value to compare by eye.
-  const overall = createHash('sha256')
-    .update(TABLES.map((t) => `${t}=${digests[t]}`).join('|'))
-    .digest('hex')
-    .slice(0, 16);
-  console.log(`  ${'WHOLE DATABASE'.padEnd(20)} ${' '.repeat(11)} ${overall}`);
+  console.log(`  ${'WHOLE DATABASE'.padEnd(20)} ${' '.repeat(11)} ${fp.overall}`);
 
   console.log('\nAggregates (the eight cloud:backup already checks)');
   for (const [k, sql] of Object.entries(CHECK_SQL)) {

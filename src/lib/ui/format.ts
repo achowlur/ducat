@@ -88,6 +88,28 @@ export function dateTime(d: Date): string {
 }
 
 /**
+ * Whole CALENDAR days between an instant and now, counted in the display
+ * zone — the arithmetic behind "today" / "yesterday" / "N days ago" labels.
+ * Floor-of-elapsed-hours is the wrong tool for those words: an event at
+ * 7:52 PM read the next morning is 12 hours old but is YESTERDAY, and a
+ * label that says "today" beside a timestamp the reader can see is
+ * yesterday's contradicts itself. Counted in the same zone dateTime()
+ * renders, so the words and the timestamp always agree on which day it was.
+ */
+export function calendarDaysAgo(d: Date, now: Date = new Date()): number {
+  // en-CA formats as YYYY-MM-DD; parsing that at UTC midnight makes the
+  // subtraction exact whole days regardless of DST inside the interval.
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: DISPLAY_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const dayStart = (x: Date) => Date.parse(`${fmt.format(x)}T00:00:00Z`);
+  return Math.round((dayStart(now) - dayStart(d)) / 86_400_000);
+}
+
+/**
  * Display-only title case for normalized merchant strings ("zelle payment
  * to john smith" → "Zelle Payment To John Smith"). The lowercase original
  * stays untouched in the DB — it's the rule-matching key. Known trade-off:

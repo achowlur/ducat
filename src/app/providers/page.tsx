@@ -1,5 +1,5 @@
-import { cronSummary, getProvidersData, STATUS_CHIP, STATUS_DOT } from "../../lib/ui/providers";
-import { dateTime } from "../../lib/ui/format";
+import { cronSummary, getBackupSignal, getProvidersData, STATUS_CHIP, STATUS_DOT } from "../../lib/ui/providers";
+import { calendarDaysAgo, dateTime } from "../../lib/ui/format";
 import { isCloudMode } from "../../lib/auth/mode";
 import vercelConfig from "../../../vercel.json";
 import { PageTitle, SectionTitle, SubsectionTitle } from "../../components/ui/headings";
@@ -23,7 +23,7 @@ const CLOUD_RESIDUAL_RISKS = [
 ];
 
 export default async function ProvidersPage() {
-  const providers = await getProvidersData();
+  const [providers, backup] = await Promise.all([getProvidersData(), getBackupSignal()]);
   const cloud = isCloudMode();
 
   return (
@@ -66,6 +66,44 @@ export default async function ProvidersPage() {
             <>Nothing is scheduled here: a local instance syncs when you run a sync, and not otherwise.</>
           )}
         </p>
+
+        {/* The last VERIFIED local backup, from the backup.lastRun Setting —
+            deliberately a database row rather than a look at data/backups/,
+            because this page is read from the cloud instance whose filesystem
+            could never see that directory. Written only after the content
+            fingerprints of the backup and the cloud MATCHED, so the age is
+            "days since the last PROVEN copy". Absent until the first verified
+            run ever, then present forever — a backup job that dies quietly is
+            worse than none, and all-clear must be stated. */}
+        {backup !== null && (
+          <p className="mt-3 text-[0.82rem] leading-relaxed">
+            <span
+              className={`mr-2 inline-block h-2.5 w-2.5 rounded-full ${STATUS_DOT[backup.status] ?? STATUS_DOT.UNKNOWN}`}
+            />
+            {/* Calendar words come from CALENDAR arithmetic in the display
+                zone, not from ageDays — that counts elapsed 24h periods (the
+                escalation unit), and floor-of-elapsed says "today" beside a
+                timestamp the reader can see is yesterday's. */}
+            Last local backup:{" "}
+            <strong>
+              {(() => {
+                const days = calendarDaysAgo(new Date(backup.run.at));
+                return days <= 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
+              })()}
+            </strong>{" "}
+            ({dateTime(new Date(backup.run.at))}) — {backup.run.rows} rows verified by content digest{" "}
+            <span className="font-money">{backup.run.wholeDigest}</span>, written to{" "}
+            <span className="font-money">data/backups/{backup.run.file}</span> on the machine that runs the
+            nightly schedule.{" "}
+            {backup.reason !== null && (
+              <span
+                className={`font-semibold ${backup.status === "ERROR" ? "text-neg" : "text-chart2"}`}
+              >
+                {backup.reason}
+              </span>
+            )}
+          </p>
+        )}
 
         {/* Every connector below carries three parts — data path, residual
             risks, revocation — and this block, the one describing where the

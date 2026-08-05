@@ -15,23 +15,23 @@
  * anything. `data/` is gitignored, and keeping the dev database out of the way
  * means a stray `db:seed` or migration can't eat the backup.
  *
+ * This is the MANUAL, credentials-in-the-shell form. The nightly scheduled
+ * form is `backup:scheduled`, which shares this exact copy-and-verify core
+ * (`backupToFile` in copyDatabase.ts) and adds fingerprint verification,
+ * retention pruning and the `backup.lastRun` Setting. This one deliberately
+ * adds none of that: it never deletes a file and never writes a row.
+ *
  * The output is an ordinary Ducat database. To inspect one, point the app at it:
  *   DATABASE_URL="file:./data/backups/<file>" npm run dev
  */
 import 'dotenv/config';
 import { createClient } from '@libsql/client';
-import { mkdirSync, statSync } from 'node:fs';
+import { mkdirSync, renameSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { clearAndCopy, integrityOf, readPlan, verifyAgainst, baselineSql } from './copyDatabase';
+import { backupToFile } from './copyDatabase';
+import { backupFileName } from './retention';
 
 const DIR = join('data', 'backups');
-
-/** Local time, minute resolution, sortable: ducat-2026-07-26-2145.db */
-function stamp(): string {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
-}
 
 async function main(): Promise<void> {
   const cloudUrl = process.env.DATABASE_URL;
@@ -48,36 +48,30 @@ async function main(): Promise<void> {
   }
 
   mkdirSync(DIR, { recursive: true });
-  const path = join(DIR, `ducat-${stamp()}.db`);
+  const path = join(DIR, backupFileName(new Date()));
+  // Written as .partial and renamed only after verifying, so a failed or
+  // interrupted run leaves nothing the scheduled wrapper's retention pass
+  // could mistake for a proven backup (only exact ducat-….db names are
+  // pruning candidates — see scripts/retention.ts).
+  const partial = `${path}.partial`;
   const cloud = createClient({ url: cloudUrl, authToken });
-  const local = createClient({ url: `file:${path.replace(/\\/g, '/')}` });
   console.log(`From: ${new URL(cloudUrl).host}`);
   console.log(`To:   ${path}`);
 
   try {
-    const plan = await readPlan(cloud);
-    const total = plan.reduce((s, p) => s + p.rows.length, 0);
-    if (total === 0) {
-      throw new Error('The cloud database is empty. Refusing to write an empty backup.');
-    }
-    const checks = await integrityOf(cloud);
-
-    // A brand-new file has no tables; give it the schema before filling it.
-    await local.executeMultiple(baselineSql());
-    await clearAndCopy(local, plan, (l) => console.log(l));
-
-    console.log('\nVerifying against the cloud:');
-    if (!(await verifyAgainst(local, plan, checks, (l) => console.log(l)))) {
-      console.error(`\nBackup did NOT verify. Treat ${path} as unusable.`);
+    const { ok, totalRows } = await backupToFile(cloud, partial, (l) => console.log(l));
+    if (!ok) {
+      renameSync(partial, `${path}.unverified`);
+      console.error(`\nBackup did NOT verify. Quarantined as ${path}.unverified — unusable.`);
       process.exitCode = 1;
       return;
     }
+    renameSync(partial, path);
     const kb = Math.round(statSync(path).size / 1024);
-    console.log(`\nBacked up ${total} rows to ${path} (${kb} KB).`);
+    console.log(`\nBacked up ${totalRows} rows to ${path} (${kb} KB).`);
     console.log(`Inspect it with:  DATABASE_URL="file:./${path.replace(/\\/g, '/')}" npm run dev`);
   } finally {
     cloud.close();
-    local.close();
   }
 }
 

@@ -188,6 +188,22 @@ regeneration.
   first, is CONFIRMED there by the operator, and is then copied down to local —
   and the two are PROVED equal by matching fingerprint-db.ts digests, never
   assumed. Cloud is the only writer; local is a mirror, not a second history.
+- backup:scheduled (the 23:50 UTC Windows task) is the ONLY writer of Setting
+  backup.lastRun: CLOUD first, then byte-identical to local — the wrapper IS
+  that row's mirror step — and only AFTER whole-database fingerprints MATCH;
+  a failed run writes no row and deletes nothing, so /providers' backup age
+  means nights since the last PROVEN copy. Manual cloud:backup never updates it.
+- The canonical ducat-YYYY-MM-DD-HHMM.db name is EARNED by verification:
+  both backup scripts copy onto .partial and rename only after checks pass;
+  failures quarantine as .unverified. Retention prunes only exact canonical
+  names — a failed or crashed run must never leave a file it would count,
+  or the leftover is one day elected a month's sole keeper.
+- The backup wrapper reads .env.backup EXCLUSIVELY — never .env, never the
+  shell. Retention keeps every file on the 14 newest backup DATES plus the
+  newest per month beyond, and prunes only after the new backup verified.
+- The fingerprint serialisation is PINNED (fingerprintDatabase.test.ts): its
+  \x01/\x02 separators were nearly lost invisibly once; changing the pinned
+  digest orphans every recorded digest, so it is done deliberately or never.
 - Pack drift is counted by pendingPackRules and surfaced on Overview's
   review panel (npm run upgrade); rule changes are never auto-applied.
 - SCHEMA is the third upgrade axis: npm run schema:push diffs and only ever

@@ -9,7 +9,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import type { Client, InStatement } from '@libsql/client';
+import { createClient, type Client, type InStatement } from '@libsql/client';
 
 /** Parents before children. Within a table, self-references are deferred. */
 export const TABLES = [
@@ -122,6 +122,38 @@ export async function clearAndCopy(
     }
     for (let i = 0; i < fixes.length; i += CHUNK) await dest.batch(fixes.slice(i, i + CHUNK), 'write');
     log(`  ${table.padEnd(20)} ${rows.length} rows${fixes.length > 0 ? `, ${fixes.length} self-references` : ''}`);
+  }
+}
+
+/**
+ * The whole `cloud:backup` core — source database to a verified file — shared
+ * with the scheduled wrapper so there is exactly one implementation of "write
+ * a backup that has been checked against its source". The file gets the
+ * schema first (a brand-new file has no tables), then every row, then the
+ * count/aggregate verification. Content fingerprints are the CALLER's second
+ * check, deliberately separate: this function proves the copy landed, the
+ * fingerprint proves every row is identical.
+ */
+export async function backupToFile(
+  src: Client,
+  filePath: string,
+  log: (line: string) => void,
+): Promise<{ ok: boolean; totalRows: number }> {
+  const dest = createClient({ url: `file:${filePath.replace(/\\/g, '/')}` });
+  try {
+    const plan = await readPlan(src);
+    const totalRows = plan.reduce((s, p) => s + p.rows.length, 0);
+    if (totalRows === 0) {
+      throw new Error('The source database is empty. Refusing to write an empty backup.');
+    }
+    const checks = await integrityOf(src);
+    await dest.executeMultiple(baselineSql());
+    await clearAndCopy(dest, plan, log);
+    log('\nVerifying against the source:');
+    const ok = await verifyAgainst(dest, plan, checks, log);
+    return { ok, totalRows };
+  } finally {
+    dest.close();
   }
 }
 
