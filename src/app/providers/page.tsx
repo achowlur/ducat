@@ -1,6 +1,7 @@
-import { cronSummary, getBackupSignal, getProvidersData, STATUS_CHIP, STATUS_DOT } from "../../lib/ui/providers";
+import Link from "next/link";
+import { cronSummary, getBackupSignal, getProvidersData, LOGS_PAGE_SIZE, STATUS_CHIP, STATUS_DOT } from "../../lib/ui/providers";
 import { calendarDaysAgo, dateTime } from "../../lib/ui/format";
-import { isCloudMode } from "../../lib/auth/mode";
+import { isCloudMode, isTotpConfigured } from "../../lib/auth/mode";
 import vercelConfig from "../../../vercel.json";
 import { PageTitle, SectionTitle, SubsectionTitle } from "../../components/ui/headings";
 
@@ -15,15 +16,31 @@ const CRON_SCHEDULE = vercelConfig.crons[0].schedule;
  * per-CONNECTOR — this is a property of where the data rests, which is the one
  * claim the connectors deliberately do not make.
  */
-const CLOUD_RESIDUAL_RISKS = [
-  "Turso encrypts at rest, but it can read your data while serving queries. Encryption at rest is not encryption from the operator of the database.",
-  "This is not end-to-end encryption. Client-side keys, with the analyzers running in your browser, are deliberately deferred — so “we can't read it even if breached” is not a claim this deployment can make.",
-  "The password gate is the whole perimeter. Anyone who has it has the data, and the app has no second factor.",
-  "If that trade-off is not acceptable, local mode is unchanged and takes the data back onto your own machine.",
-];
+function cloudResidualRisks(totp: boolean): string[] {
+  return [
+    "Turso encrypts at rest, but it can read your data while serving queries. Encryption at rest is not encryption from the operator of the database.",
+    "This is not end-to-end encryption. Client-side keys, with the analyzers running in your browser, are deliberately deferred — so “we can't read it even if breached” is not a claim this deployment can make.",
+    // The perimeter line tells the truth about which factors are actually
+    // configured — a trust page that says "no second factor" over an instance
+    // that has one is wrong in the reassuring direction's mirror image, and
+    // just as corrosive.
+    totp
+      ? "The perimeter is the password gate plus a one-use authenticator code. The second factor protects LOGIN only: a stolen session cookie (valid up to 30 days) bypasses it. Losing the authenticator means removing AUTH_TOTP_SECRET from this instance's environment — there is no in-app reset, deliberately."
+      : "The password gate is the whole perimeter. Anyone who has it has the data. A second factor is available but not enabled on this instance: npm run auth:set-totp.",
+    "If that trade-off is not acceptable, local mode is unchanged and takes the data back onto your own machine.",
+  ];
+}
 
-export default async function ProvidersPage() {
-  const [providers, backup] = await Promise.all([getProvidersData(), getBackupSignal()]);
+export default async function ProvidersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ logs?: string; logsPage?: string }>;
+}) {
+  const { logs, logsPage } = await searchParams;
+  const [providers, backup] = await Promise.all([
+    getProvidersData({ connector: logs, page: Number(logsPage) }),
+    getBackupSignal(),
+  ]);
   const cloud = isCloudMode();
 
   return (
@@ -117,7 +134,7 @@ export default async function ProvidersPage() {
           <div className="mt-3">
             <SubsectionTitle>Residual risks you are accepting</SubsectionTitle>
             <ul className="grid gap-2">
-              {CLOUD_RESIDUAL_RISKS.map((risk, i) => (
+              {cloudResidualRisks(isTotpConfigured()).map((risk, i) => (
                 <li key={risk} className="flex gap-2 text-[0.8rem] leading-relaxed">
                   <span className="font-money text-faint">{i + 1}.</span>
                   <span>{risk}</span>
@@ -128,7 +145,7 @@ export default async function ProvidersPage() {
         )}
       </section>
 
-      {providers.map(({ health, configured, setupHint, syncLogs }) => (
+      {providers.map(({ health, configured, setupHint, syncLogs, logsTotal, logsPage }) => (
         <section key={health.connectorType}>
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b-2 border-ink pb-2">
             {/* The connector NAME is the heading its parts belong under. It
@@ -236,7 +253,16 @@ export default async function ProvidersPage() {
                 one on your phone". Desktop is unchanged: explicit placement
                 puts it back under Signals in the left column. */}
             <div className="lg:col-start-1 lg:row-start-2">
-                  <SubsectionTitle>Sync history {syncLogs.length > 0 && `(last ${syncLogs.length})`}</SubsectionTitle>
+                  {/* Five rows answer "did last night work"; the pager reaches
+                      the rest. The old `take: 20` with nothing past 20 was the
+                      capping-without-paging bug /transactions shipped twice —
+                      SyncLog outgrows 20 within a month of nightly syncs, and
+                      the overflow was silently unreachable. */}
+                  <SubsectionTitle>
+                    Sync history{" "}
+                    {logsTotal > 0 &&
+                      `(${(logsPage - 1) * LOGS_PAGE_SIZE + 1}–${(logsPage - 1) * LOGS_PAGE_SIZE + syncLogs.length} of ${logsTotal})`}
+                  </SubsectionTitle>
                   {syncLogs.length === 0 ? (
                     <p className="text-[0.8rem] text-faint">No syncs recorded yet.</p>
                   ) : (
@@ -292,6 +318,33 @@ export default async function ProvidersPage() {
                         ))}
                       </tbody>
                     </table>
+                  )}
+                  {logsTotal > LOGS_PAGE_SIZE && (
+                    <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-money text-[0.75rem]">
+                      {logsPage > 1 ? (
+                        <Link
+                          href={`/providers?logs=${health.connectorType}&logsPage=${logsPage - 1}`}
+                          className="tap44 font-semibold text-acc hover:underline"
+                        >
+                          ‹ newer
+                        </Link>
+                      ) : (
+                        <span className="text-faint">‹ newer</span>
+                      )}
+                      <span>
+                        page {logsPage} of {Math.ceil(logsTotal / LOGS_PAGE_SIZE)}
+                      </span>
+                      {logsPage < Math.ceil(logsTotal / LOGS_PAGE_SIZE) ? (
+                        <Link
+                          href={`/providers?logs=${health.connectorType}&logsPage=${logsPage + 1}`}
+                          className="tap44 font-semibold text-acc hover:underline"
+                        >
+                          older ›
+                        </Link>
+                      ) : (
+                        <span className="text-faint">older ›</span>
+                      )}
+                    </p>
                   )}
             </div>
           </div>

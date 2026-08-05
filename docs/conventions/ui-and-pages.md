@@ -443,3 +443,12 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   renameGroupRows (sync/groups.ts) — the restoreTransactions pattern — and
   the invariant extends to it: rename + regenerate stays byte-identical,
   pinned beside the merge and same-name-no-op cases.
+
+- /providers SYNC HISTORY PAGINATES at five rows (2026-08-04, operator ask).
+  The original shape — `take: 20` with nothing reachable past 20 — was the
+  capping-without-paging bug /transactions shipped twice, latent here because
+  SyncLog outgrows 20 within a month of nightly syncs and the overflow was
+  silently invisible. Five rows answer "did last night work"; the pager
+  (`?logs=<connector>&logsPage=<n>`, clamped into range, one connector paged
+  at a time) reaches every older row. Same pager idiom as /transactions:
+  ‹ newer / older › with disabled spans, page X of Y, tap44.

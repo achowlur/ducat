@@ -385,6 +385,15 @@ regeneration.
   Server Action responses; keep it.
 - The dev CSP needs 'unsafe-eval' and the HMR websocket; production gets
   neither — don't "tighten" them away.
+- The second factor is TOTP via AUTH_TOTP_SECRET, opt-in and env-only:
+  verified at LOGIN in the Node action (never middleware), password checked
+  FIRST, codes ONE-USE via the auth.totpLastCounter Setting floor CLAIMED by
+  compare-and-set (a lost claim is a failed login — plain upsert raced), and
+  the session fingerprint digests BOTH secrets — enabling or rotating either
+  evicts every session. ONE generic login error, never which factor failed.
+- Never propose SMS, email, or push as a factor — each requires a third-party
+  call the HARD RULES ban. /providers' perimeter line states which factors
+  are configured and must keep matching isTotpConfigured().
 
 ## Verified load-bearing (three reviews, 2026-07-26) — do not "clean up"
 

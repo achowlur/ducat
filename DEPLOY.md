@@ -191,6 +191,7 @@ and the localhost host-allowlist 403s it. Safe by default.
 | `SESSION_SECRET` | from step 4 |
 | `CRON_SECRET` | from step 4 |
 | `SIMPLEFIN_ACCESS_URL` | your SimpleFIN access URL |
+| `AUTH_TOTP_SECRET` | *optional* — base32 secret from `npm run auth:set-totp` (second factor) |
 | `NEXT_TELEMETRY_DISABLED` | `1` |
 | `DUCAT_TIMEZONE` | your zone, e.g. `America/New_York` |
 
@@ -209,6 +210,30 @@ moves either.
 
 Auth **fails closed**: a `libsql://` deployment without `AUTH_PASSWORD_HASH` +
 `SESSION_SECRET` refuses to serve rather than run open.
+
+### Optional: a second factor (authenticator app)
+
+```bash
+npm run auth:set-totp
+```
+
+The script generates a TOTP secret, has you add it to your authenticator app
+(any of them — SHA-1, 6 digits, 30 seconds is every app's default), and
+**verifies one code before printing the env line**, so a mistyped secret is
+caught at enrollment rather than at tomorrow's locked-out login. Set the
+printed `AUTH_TOTP_SECRET` in the environment and redeploy; the login form
+then requires password **and** code, submitted together.
+
+An authenticator app is the only second factor this app will ever offer: SMS,
+email and push all require a third-party service, which the HARD RULES ban.
+Codes are **one-use** (the accepted counter is stored in the database, so a
+phished code dies the moment the real login lands). Enabling or rotating the
+secret **logs out every existing session** — deliberate: the moment you add a
+second factor is exactly the moment pre-2FA sessions should die. What it does
+NOT cover: a stolen session cookie is valid until it expires — the factor
+protects login, not the transport. Recovery is operating your own
+infrastructure: lose the authenticator, remove `AUTH_TOTP_SECRET` from the
+environment and redeploy. There is no in-app reset, deliberately.
 
 Set these BEFORE the first deploy, or redeploy after adding them — Vercel
 applies env-var changes to new deployments, not running ones. Note that a

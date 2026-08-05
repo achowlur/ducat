@@ -22,16 +22,21 @@ function secretKey(): Uint8Array {
 }
 
 /**
- * Non-reversible fingerprint of the password hash, embedded in the token and
- * re-checked on every request. Without it, changing your password leaves every
- * existing session valid for its full 30 days — so the natural response to
- * "someone has my password" (run auth:set-password, update the env var) would
- * not actually evict them. A digest, not the hash itself: JWT payloads are
- * readable by anyone holding the cookie.
+ * Non-reversible fingerprint of the CREDENTIAL SET — password hash plus the
+ * TOTP secret — embedded in the token and re-checked on every request.
+ * Without it, changing your password leaves every existing session valid for
+ * its full 30 days — so the natural response to "someone has my password"
+ * (run auth:set-password, update the env var) would not actually evict them.
+ * The TOTP secret is in the digest for the same reason: rotating it (or
+ * ENABLING it — the upgrade moment, when pre-2FA sessions should die) evicts
+ * every session that predates it. A digest, not the secrets themselves: JWT
+ * payloads are readable by anyone holding the cookie. The `|` separator
+ * keeps the two inputs from ever colliding across the boundary.
  */
 async function passwordFingerprint(): Promise<string> {
   const hash = process.env.AUTH_PASSWORD_HASH ?? "";
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(hash));
+  const totp = process.env.AUTH_TOTP_SECRET ?? "";
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${hash}|${totp}`));
   return Array.from(new Uint8Array(digest).slice(0, 8))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");

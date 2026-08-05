@@ -94,7 +94,20 @@ export interface ProviderView {
   /** Shown when the provider isn't set up yet — the exact command to run. */
   setupHint: string | null;
   syncLogs: SyncLogRow[];
+  /** Every log row this connector has, not just the page shown. */
+  logsTotal: number;
+  /** 1-based page the syncLogs slice is. */
+  logsPage: number;
 }
+
+/**
+ * Sync-history page size. Five rows answer "is it running and did last night
+ * work"; everything older is a record you consult, one page at a time. The
+ * old shape — `take: 20` with no way past 20 — was the capping-without-paging
+ * bug /transactions shipped twice, latent here because SyncLog outgrows 20
+ * within a month of nightly syncs.
+ */
+export const LOGS_PAGE_SIZE = 5;
 
 const SETUP_HINTS: Record<ProviderId, string> = {
   // Deliberately says "this instance's environment" rather than ".env": the
@@ -113,10 +126,26 @@ const SETUP_HINTS: Record<ProviderId, string> = {
  * trust card (data path, residual risks, revocation) is readable BEFORE
  * connecting, which is when it matters most. The access URL itself is a
  * credential and is never read into page data — only its presence.
+ *
+ * `paging` selects which connector's history is being paged (from
+ * `?logs=&logsPage=`); every other connector shows page 1. The page is
+ * clamped into range, so a hand-typed `?logsPage=99` lands on the last
+ * page rather than an empty table.
  */
-export async function getProvidersData(): Promise<ProviderView[]> {
+export async function getProvidersData(
+  paging: { connector?: string; page?: number } = {},
+): Promise<ProviderView[]> {
   const health = await getProviderHealth(prisma);
   const byType = new Map(health.map((h) => [h.connectorType, h]));
+
+  // ONE groupBy carries every connector's total: a count() inside the loop
+  // would be three sequential round trips (one of them FRED's, which writes
+  // no SyncLog and counts zero forever), and on Turso the COUNT of round
+  // trips is the cost (performance.md). A zero total also skips that
+  // connector's page query, so the whole pager costs the page nothing over
+  // the pre-pagination shape.
+  const totals = await prisma.syncLog.groupBy({ by: ["connectorType"], _count: true });
+  const totalFor = new Map(totals.map((t) => [t.connectorType, t._count]));
 
   const views: ProviderView[] = [];
   for (const card of Object.values(PROVIDER_TRUST_CARDS)) {
@@ -135,11 +164,20 @@ export async function getProvidersData(): Promise<ProviderView[]> {
         gappedAccounts: [],
       };
 
-    const logs = await prisma.syncLog.findMany({
-      where: { connectorType: card.connectorType },
-      orderBy: { finishedAt: "desc" },
-      take: 20,
-    });
+    const logsTotal = totalFor.get(card.connectorType) ?? 0;
+    const lastPage = Math.max(1, Math.ceil(logsTotal / LOGS_PAGE_SIZE));
+    const requested =
+      paging.connector === card.connectorType && Number.isInteger(paging.page) ? paging.page! : 1;
+    const logsPage = Math.min(Math.max(1, requested), lastPage);
+    const logs =
+      logsTotal === 0
+        ? []
+        : await prisma.syncLog.findMany({
+            where: { connectorType: card.connectorType },
+            orderBy: { finishedAt: "desc" },
+            take: LOGS_PAGE_SIZE,
+            skip: (logsPage - 1) * LOGS_PAGE_SIZE,
+          });
 
     const configured =
       card.connectorType === "SIMPLEFIN"
@@ -151,6 +189,8 @@ export async function getProvidersData(): Promise<ProviderView[]> {
     views.push({
       health: h,
       configured,
+      logsTotal,
+      logsPage,
       setupHint:
         ((card.connectorType === "SIMPLEFIN" || card.connectorType === "FRED") && !configured) ||
         (existing === null && card.connectorType === "CSV")

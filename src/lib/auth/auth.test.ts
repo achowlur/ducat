@@ -31,4 +31,24 @@ describe("session (jose HS256)", () => {
     expect(await verifySessionToken(`${token}tampered`)).toBe(false);
     expect(await verifySessionToken("garbage")).toBe(false);
   });
+
+  it("enabling or rotating the TOTP secret evicts existing sessions — the upgrade moment must kill pre-2FA sessions", async () => {
+    const before = process.env.AUTH_TOTP_SECRET;
+    try {
+      delete process.env.AUTH_TOTP_SECRET;
+      const pre2fa = await createSessionToken();
+      expect(await verifySessionToken(pre2fa)).toBe(true);
+
+      process.env.AUTH_TOTP_SECRET = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+      expect(await verifySessionToken(pre2fa)).toBe(false);
+
+      const with2fa = await createSessionToken();
+      expect(await verifySessionToken(with2fa)).toBe(true);
+      process.env.AUTH_TOTP_SECRET = "ROTATEDROTATEDROTATEDROTATEDROTA";
+      expect(await verifySessionToken(with2fa)).toBe(false);
+    } finally {
+      if (before === undefined) delete process.env.AUTH_TOTP_SECRET;
+      else process.env.AUTH_TOTP_SECRET = before;
+    }
+  });
 });
