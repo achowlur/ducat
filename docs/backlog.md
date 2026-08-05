@@ -352,8 +352,19 @@ turned up so it isn't rediscovered:
   income minus non-housing (the budget is ≤ 0 and it says so, naming the
   floor as the reason); nothing computed across coverage-incomplete periods.
 
-- **User documentation before anyone else runs this — AUDITED 2026-08-01, NOT
-  WRITTEN.** Verdict: a stranger cannot follow everything today. README covers
+- **User documentation before anyone else runs this — AUDITED 2026-08-01,
+  WRITTEN 2026-08-01 (the user-docs commit).** Shipped: docs/getting-started.md,
+  docs/csv-import.md, docs/lifecycle.md, docs/troubleshooting.md, and
+  README's command table brought up to reality. The audit below is kept
+  because it is the specification those docs answer.
+  ONE RESIDUAL, and it is the entry's own lesson repeating: the command
+  table DRIFTS. As of 2026-08-05 it is missing `auth:set-password`,
+  `auth:set-totp`, `backup:scheduled`, `db:fingerprint`, `db:reset` and
+  `readiness` — six user-facing commands, four of them added after the docs
+  were written. Anything that adds a `package.json` script owes this table a
+  row in the same commit. (`postinstall`, `lint` and `turso:baseline` are
+  internal and deliberately unlisted.)
+  The original audit verdict: a stranger cannot follow everything today. README covers
   setup, the trust model and both data-in paths, but its command table is
   missing `upgrade`, `accounts:cash`, `rules:audit`, `rules:simulate`,
   `import:balances` and `schema:push`, and the `goals` row predates the `cash`
@@ -376,8 +387,24 @@ turned up so it isn't rediscovered:
   feed warning, surfaced on the provider health line). History accumulates
   going forward since syncs never delete; CSV import is the backfill path for
   anything older, and dedups on (accountId, externalId).
-- **A LOOK-AT-EVERYTHING UI pass across all six tabs — raised 2026-08-03, not
-  yet run.** Every surface has been built or amended by a different session
+- **A LOOK-AT-EVERYTHING UI pass across all six tabs — raised 2026-08-03, RUN
+  AND SHIPPED 2026-08-03.** Six agents ran as designed and their findings
+  landed in seven commits: the correctness pass (six correctness fixes), then waves 1-5 —
+  wave 1 (eight surfaces that stated something untrue), wave 2 (the phone
+  pass the 44px commit started), wave 3 (space spent on what each block has
+  to say), wave 4 (the trust page states what cloud mode costs), wave 5
+  (polish) — plus two more that day for the nav scroll origin and the
+  picker anchor. The rules they produced are in CLAUDE.md and
+  docs/conventions/ui-and-pages.md; that is where the outcome lives.
+  THE STARTING COMPLAINT IS FIXED, both halves: /trends' three blocks now
+  stack FULL WIDTH (`lg:grid-cols-2` is gone, its removal recorded as a
+  rule), and the category column carries the prior period's DOLLARS instead
+  of the five-units-per-column ratio — so the multiplier form that "nobody
+  has defended since it was written" no longer exists. The `new` / em-dash /
+  null-base refusals were kept, as required.
+  The design below is kept because it is the shape any FUTURE pass should
+  take, and because the paragraph after it records what was measured.
+  Every surface has been built or amended by a different session
   against a different question, and nobody has since sat down and simply
   LOOKED at all six as a set: Overview, Trends, Insights, Transactions,
   Accounts, Providers. The shape agreed for it: SIX PARALLEL AGENTS, one per
