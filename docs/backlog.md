@@ -564,3 +564,33 @@ turned up so it isn't rediscovered:
   reconciliation line, house readiness, the typed-first rate resolution) and
   `money-and-analytics.md` (net worth requires snapshots; never reconstruct an
   investment balance from transactions).
+
+- **HOUSEKEEPING, all three verified 2026-08-05 so nobody re-derives them.**
+  Small, safe, and written down only because each is invisible until someone
+  goes looking.
+  (1) **README's command table has drifted again** — the exact failure the
+  user-documentation entry above was raised for, repeating one audit later.
+  Missing today: `auth:set-password`, `auth:set-totp`, `backup:scheduled`,
+  `db:fingerprint`, `db:reset`, `readiness`. Four of the six were added in
+  the two days after the docs were written, which is the point: the table
+  does not drift by neglect, it drifts by SHIPPING. `postinstall`, `lint`
+  and `turso:baseline` are internal and correctly unlisted, so the fix is
+  six rows, not nine. The durable form of the fix is the rule — a commit
+  adding a `package.json` script owes the table a row in the SAME commit —
+  because a table repaired by hand every few weeks is a table that is wrong
+  most of the time.
+  (2) **Two stray local branches**, `worktree-agent-a34f1d476df744515` (tip
+  dated 2026-08-01) and `worktree-agent-aa70ec551e1faa0b0` (tip dated
+  2026-08-02), left by earlier agent worktrees. VERIFIED SAFE: both report
+  `git rev-list --count main..<branch>` = 0, so every commit on them is
+  already in main and `git branch -d` (the variant that REFUSES an unmerged
+  branch) will take them without complaint. If it ever complains, that is
+  new information — read the commits before reaching for `-D`.
+  (3) **An empty worktree directory**,
+  `.claude/worktrees/nostalgic-engelbart-d7787b`. Git has already
+  de-registered it (`git worktree list` shows only the main checkout) and
+  it holds zero entries, but Windows refuses the `rmdir` with "Device or
+  resource busy" while the session that created it still holds a working
+  directory inside. It deletes cleanly once that session exits — there is
+  nothing to recover and nothing to be careful about, which is exactly why
+  it would otherwise sit there for months.
