@@ -462,7 +462,27 @@ turned up so it isn't rediscovered:
   probe for this state must assert on content that is PRESENT.
 
 - **SCHEDULED LOCAL BACKUPS — raised 2026-08-04 after a two-hour Turso outage,
-  not yet built.** Turso's us-east-1 router returned 502 to every query for
+  BUILT 2026-08-04, the same day.** Shipped as the shape below agreed, plus
+  the answers to what it left open, all recorded with evidence in
+  docs/conventions/sync-and-data-ops.md: the `backup.lastRun` Setting lives
+  in the CLOUD (the phone is the primary read; the wrapper writes it cloud
+  first, then byte-identically to local — the mirror step for that one row),
+  and it means FINGERPRINT-VERIFIED, written only after the whole-database
+  digests of the new file and the cloud match. What the build taught, so it
+  is not relearned: the canonical `ducat-….db` filename is EARNED — a failed
+  run's leftover under that name would eventually be elected a month's sole
+  retention keeper while proven backups were deleted around it (adversarial
+  review caught it; copies land on `.partial`, failures quarantine as
+  `.unverified`); the WARN threshold shipped one night looser than every
+  document promised until the same review recounted it (floor-of-elapsed
+  already IS the missed-night count); Windows holds a just-closed libSQL
+  file handle for ~8 seconds after a whole-database read, so backup renames
+  retry (`renameWhenReleased`); and registering an S4U task requires an
+  elevated shell. Registered, fired headless (LastTaskResult 0, next fire
+  23:50 UTC), signal live on the cloud /providers, and cloud/local proved
+  digest-equal (`657c0c69e641281a` both sides) the same night. The original
+  entry stays below because it is the design's evidence.
+  Turso's us-east-1 router returned 502 to every query for
   over an hour. Nothing was lost, but the operator had no local copy at the
   time and `cloud:backup` cannot run when the database is unreachable — the
   one moment you want a backup is the one moment you cannot take one. Free-plan
