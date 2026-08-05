@@ -75,12 +75,18 @@ export function MiniDonut({
     <svg viewBox="0 0 220 200" className={className} role="img" aria-label={`Spending by category: ${label}`}>
       <g stroke="var(--paper)" strokeWidth="2">
         {paths.map((p) => {
+          // ONE string child, never two. React serializes <title> from `children`
+          // only when it is a single string; an array of two makes the server emit
+          // `<title></title>` while the client renders the text, and the resulting
+          // hydration mismatch throws away the whole document — taking the
+          // pre-paint data-theme with it, so Overview alone rendered sepia for
+          // anyone who had chosen light or dark. Pinned by MiniDonut.test.ts.
+          const tip = `${p.slice.label}: ${(p.slice.share * 100).toFixed(1)}%${
+            hrefFor === undefined ? "" : " — view transactions"
+          }`;
           const arc = (
             <path key={p.slice.label} d={p.d} fill={p.color} className={hrefFor === undefined ? "" : "cursor-pointer"}>
-              <title>
-                {`${p.slice.label}: ${(p.slice.share * 100).toFixed(1)}%`}
-                {hrefFor === undefined ? "" : " — view transactions"}
-              </title>
+              <title>{tip}</title>
             </path>
           );
           if (hrefFor === undefined) return arc;
