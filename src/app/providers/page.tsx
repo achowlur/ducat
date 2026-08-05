@@ -25,7 +25,7 @@ function cloudResidualRisks(totp: boolean): string[] {
     // that has one is wrong in the reassuring direction's mirror image, and
     // just as corrosive.
     totp
-      ? "The perimeter is the password gate plus a one-use authenticator code. The second factor protects LOGIN only: a stolen session cookie (valid up to 30 days) bypasses it. Losing the authenticator means removing AUTH_TOTP_SECRET from this instance's environment — there is no in-app reset, deliberately."
+      ? "The perimeter is the password gate plus a one-use authenticator code. The second factor protects LOGIN only: a stolen session cookie (valid up to 30 days) bypasses it. On a device you chose to remember, the password alone unlocks it for 90 days — that cookie grants nothing by itself, but it does mean a remembered device is only as protected as your password. Rotating either secret un-remembers every device; losing the authenticator means removing AUTH_TOTP_SECRET from this instance's environment, as there is no in-app reset, deliberately."
       : "The password gate is the whole perimeter. Anyone who has it has the data. A second factor is available but not enabled on this instance: npm run auth:set-totp.",
     "If that trade-off is not acceptable, local mode is unchanged and takes the data back onto your own machine.",
   ];
