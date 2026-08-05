@@ -349,10 +349,12 @@ recent copy already on your disk.
    `--dry-run` takes and fingerprint-verifies a real backup but only *reports*
    what pruning and the Setting write would do.
 
-3. Register the scheduled task from an elevated-or-not PowerShell (it runs as
-   you, no admin needed). The XML form is used because it pins the trigger to
-   **UTC** (the `Z` suffix — Task Scheduler's "synchronize across time zones"),
-   which a plain `New-ScheduledTaskTrigger` cannot express:
+3. Register the scheduled task from an **elevated** PowerShell (Run as
+   administrator) — registering an S4U task from a normal shell fails with
+   `Access is denied`, measured here, even for your own account. The XML form
+   is used because it pins the trigger to **UTC** (the `Z` suffix — Task
+   Scheduler's "synchronize across time zones"), which a plain
+   `New-ScheduledTaskTrigger` cannot express:
 
    ```powershell
    Register-ScheduledTask -TaskName "Ducat nightly backup" -Xml (Get-Content "<repo>\scripts\backup-task.xml" -Raw)
