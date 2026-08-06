@@ -618,3 +618,69 @@ turned up so it isn't rediscovered:
   adding a `package.json` script owes the table a row in the SAME commit —
   because a table repaired by hand every few weeks is a table that is wrong
   most of the time.
+
+## Left open by the 2026-08-06 session
+
+Each verified the day it was written, so nobody re-derives it. None is a
+blocker; all are the kind of thing that is invisible until someone looks.
+
+- **The cloud-mode DATABASE-UNREACHABLE page has never been SEEN — open, and
+  the reason is structural.** The classifier, the copy and the local-mode
+  states are all proven (a real unreachable `libsql://` host produced a real
+  `DriverAdapterError`, HTTP 404 after 2.2 s with no `code`, classified
+  correctly and rendered the cloud text byte for byte; both local states were
+  driven in a browser across all six routes). What has never been loaded is the
+  cloud PAGE itself, because a `libsql://` URL turns the auth gate on by design
+  (`isAuthEnabled()` includes `isCloudMode()`), so the page sits behind a login
+  and the database it would report on is the one that is unreachable.
+  Closing it needs a human at the keyboard: a scratch instance in cloud mode
+  pointed at a dead host, with the operator's own password and code, for one
+  screenshot. `.claude/dev-scratch.cmd` carries the line, commented. Nothing
+  else is missing, and this is NOT worth manufacturing a session for — record
+  it the next time a real outage happens, which is when the state was going to
+  earn its keep anyway.
+
+- **`requireSession()` throws where it could redirect — a decision, not a
+  cleanup.** Behind the current middleware its throw cannot fire at all: an
+  unauthenticated Server Action POST is answered 401 at the transport before
+  any action code runs (measured, in production). It is kept as defence in
+  depth because Next's guidance is not to trust the transport gate alone and
+  because the matcher could change. The alternative is for it to
+  `redirect("/login")` instead, which would take the error boundary out of the
+  auth path entirely and land the reader on the login screen with no
+  intermediate state. That is a behavioural change to the auth layer, and
+  CLAUDE.md deliberately keeps the boundary for Server Action responses — so it
+  wants a decision, not a refactor. Related evidence:
+  docs/conventions/security-and-auth.md.
+
+- **`/api/diag/timing` fails illegibly during the exact outage it is for.** It
+  calls `requireSession()` then runs every probe with NO error handling, so an
+  unreachable database gives an unhandled rejection and a 500 — on the endpoint
+  that was one of the three steps the 2026-08-04 diagnosis actually took. Worse,
+  its `connect` probe cannot detect a database that is reachable but EMPTY: the
+  raw `SELECT 1` it probes with succeeds against a brand-new zero-table file
+  (measured), so the probe reports a healthy connection while every real query
+  fails. It is operator-only and session-gated, so this is diagnosis quality
+  rather than a user-facing defect — but the whole point of the unreachable
+  work was that diagnosis took too long.
+
+- **Two script-hygiene gaps, verified 2026-08-06.** (1)
+  `scripts/install-rule-pack.ts` writes rows — it installs pack rules,
+  retroactively recategorizes transactions and regenerates insights — and does
+  NOT print a database label, where 15 other scripts do. It is the one
+  row-writer that never says which database it is about to change, against a
+  rule the README states as a contract. (2) `scripts/audit-subscriptions.ts`
+  imports `prisma` without `import 'dotenv/config'`, unlike 20 siblings, so
+  `npm run subs:audit` never reads `.env` — `DATABASE_URL` is unset and
+  `src/lib/prisma.ts` falls back to its built-in `file:./data/ducat.db`. It
+  therefore audits the default path rather than the configured database, and
+  says nothing about doing so. Read-only, so nothing can be damaged; it can
+  simply be answering about the wrong file.
+
+- **`/accounts` still has no last-sync line of its own.** Its per-account
+  "Nd behind" is measured against the last successful sync, matching Overview,
+  but this page never prints WHEN that sync was — so the number is harder to
+  interpret here than on Overview, which carries the instant in its header.
+  Recorded because docs/conventions/ui-and-pages.md already says this gap is
+  open and points here, and until now there was nothing here to point at.
+
