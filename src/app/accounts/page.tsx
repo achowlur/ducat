@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { AccountTypeSelect } from "../../components/AccountTypeSelect";
 import { Sparkline } from "../../components/Sparkline";
-import { amount } from "../../lib/ui/format";
+import { amount, dateTime } from "../../lib/ui/format";
 import { getAccountsData } from "../../lib/ui/accounts";
 import { PageTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
@@ -46,6 +46,23 @@ async function renderAccounts() {
   return (
     <div className="py-5">
       <PageTitle>Accounts</PageTitle>
+      {/* The clock every "Nd behind" below is measured against. Overview has
+          carried this instant since it was built; this page did not, so its
+          rows quoted an age against something the reader could not see — the
+          one thing that made the same figure harder to read here than there.
+          It also retires a `title=`: the row chip's tooltip existed to carry
+          the second clock, and hover is not an affordance on the device this
+          is read on. */}
+      <p className="pb-3 text-[0.78rem] text-faint">
+        {data.lastSyncAt === null ? (
+          "No sync has finished successfully yet, so the balance ages below have nothing to measure against."
+        ) : (
+          <>
+            Balance ages below count from the last successful sync,{" "}
+            <span className="font-money">{dateTime(data.lastSyncAt)}</span>.
+          </>
+        )}
+      </p>
       <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>

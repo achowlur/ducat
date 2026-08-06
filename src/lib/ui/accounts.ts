@@ -49,6 +49,13 @@ export interface AccountDetail {
 export interface AccountsPageData {
   groups: { type: string; label: string; accounts: AccountDetail[] }[];
   totalBalance: number;
+  /**
+   * When the last successful sync finished — the clock every `balanceLagDays`
+   * on this page is measured against. Already queried for that arithmetic; it
+   * just never reached the page, which left every "Nd behind" measured against
+   * an instant the reader could not see. Null until a sync has ever succeeded.
+   */
+  lastSyncAt: Date | null;
 }
 
 const DAY_MS = 86_400_000;
@@ -124,5 +131,6 @@ export async function getAccountsData(now: Date = new Date()): Promise<AccountsP
   return {
     groups,
     totalBalance: details.reduce((sum, d) => sum + d.balance, 0),
+    lastSyncAt: lastSync?.finishedAt ?? null,
   };
 }

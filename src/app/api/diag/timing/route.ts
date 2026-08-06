@@ -1,5 +1,6 @@
 import { prisma } from "../../../../lib/prisma";
 import { requireSession } from "../../../../lib/auth/requireSession";
+import { databaseFailure } from "../../../../lib/ui/dbHealth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -134,9 +135,60 @@ async function runConcurrently(): Promise<number> {
   return round(performance.now() - t0);
 }
 
+/** Host or "local file", defensively — a malformed URL must not throw in the catch. */
+function databaseName(): string {
+  const url = process.env.DATABASE_URL ?? "";
+  if (!url.startsWith("libsql://")) return "local file";
+  try {
+    return new URL(url).host;
+  } catch {
+    return "unparseable DATABASE_URL";
+  }
+}
+
+/**
+ * This endpoint is READ DURING AN OUTAGE — probing it was one of the three
+ * steps the 2026-08-04 diagnosis actually took — and it used to answer that
+ * moment with an unhandled rejection and a 500, which says nothing. It now
+ * reports the condition in the same terms the pages do, from the same
+ * classifier, so the two cannot disagree about what is wrong.
+ *
+ * Note what this does NOT fix, because it cannot: `connectMs` below times a
+ * bare `SELECT 1`, which SQLite answers without opening any table — so it
+ * succeeds against a reachable database that has no schema at all (measured).
+ * A healthy `connectMs` is evidence of a reachable server and nothing more.
+ * The queries after it are what discover a missing table, and now they say so.
+ */
 export async function GET(): Promise<Response> {
   await requireSession();
+  try {
+    return await measure();
+  } catch (error) {
+    const failure = databaseFailure(error);
+    // A bug still 500s. Dressing one up as an outage here would repeat the
+    // mistake this whole classifier exists to end, one layer down.
+    if (failure === null) throw error;
+    return Response.json(
+      {
+        database: databaseName(),
+        region: process.env.VERCEL_REGION ?? "local",
+        msSinceFunctionBoot: Date.now() - bootedAt,
+        // Named, not diagnosed: this cannot tell a provider incident from a
+        // revoked token from a lapsed plan, and neither can the pages.
+        failure: failure.kind,
+        reported: failure.detail,
+        measurements: null,
+        // "the database did not answer" was wrong for `no-tables`, where it
+        // answered perfectly well and simply lacks the table. This says only
+        // what is true of every kind.
+        note: "No timings were taken: the probe queries could not run.",
+      },
+      { status: 503, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+}
 
+async function measure(): Promise<Response> {
   // The first database call of a request absorbs connection setup, and whatever
   // runs first wears it. That is not a subtle effect: `rows` once reported
   // 194.1ms in a response whose concurrent group — which runs that same query —
@@ -173,9 +225,8 @@ export async function GET(): Promise<Response> {
 
   const rowsOf = (name: string): number => perQuery.find((q) => q.name === name)?.rows ?? 0;
 
-  const url = process.env.DATABASE_URL ?? "";
   const body = {
-    database: url.startsWith("libsql://") ? new URL(url).host : "local file",
+    database: databaseName(),
     region: process.env.VERCEL_REGION ?? "local",
     // Small = this request paid a cold start, which is worth knowing before
     // reading anything else here as typical.

@@ -640,29 +640,40 @@ blocker; all are the kind of thing that is invisible until someone looks.
   it the next time a real outage happens, which is when the state was going to
   earn its keep anyway.
 
-- **`requireSession()` throws where it could redirect — a decision, not a
-  cleanup.** Behind the current middleware its throw cannot fire at all: an
-  unauthenticated Server Action POST is answered 401 at the transport before
-  any action code runs (measured, in production). It is kept as defence in
-  depth because Next's guidance is not to trust the transport gate alone and
-  because the matcher could change. The alternative is for it to
-  `redirect("/login")` instead, which would take the error boundary out of the
-  auth path entirely and land the reader on the login screen with no
-  intermediate state. That is a behavioural change to the auth layer, and
-  CLAUDE.md deliberately keeps the boundary for Server Action responses — so it
-  wants a decision, not a refactor. Related evidence:
-  docs/conventions/security-and-auth.md.
+- **`requireSession()` throws where it could redirect — DECIDED 2026-08-06:
+  KEEP THE THROW. Not a defect.** Recorded so it is not reopened.
+  Changing it would edit code that provably cannot execute: an unauthenticated
+  Server Action POST is answered 401 at the transport before any action code
+  runs (measured, in production), and GETs are redirected to /login — so no
+  request reaches this function without a session. A redirect would therefore
+  change nothing a reader ever sees.
+  It would also be WRONG for one of its callers. `requireSession` guards
+  `/api/diag/timing` as well as the Server Actions, and `redirect()` in a route
+  handler answers a JSON endpoint with a 307 to an HTML page — worse than the
+  throw for anything reading it programmatically. One function, two calling
+  conventions, and only the throw suits both.
+  What made the throw look broken was never the throw: it was the BOUNDARY
+  reading a message production does not send, and the copy it showed. Both are
+  fixed (docs/conventions/security-and-auth.md). The throw stays as defence in
+  depth, which is what Next's own guidance asks for and what a future change to
+  the middleware matcher would need.
 
-- **`/api/diag/timing` fails illegibly during the exact outage it is for.** It
-  calls `requireSession()` then runs every probe with NO error handling, so an
-  unreachable database gives an unhandled rejection and a 500 — on the endpoint
-  that was one of the three steps the 2026-08-04 diagnosis actually took. Worse,
-  its `connect` probe cannot detect a database that is reachable but EMPTY: the
-  raw `SELECT 1` it probes with succeeds against a brand-new zero-table file
-  (measured), so the probe reports a healthy connection while every real query
-  fails. It is operator-only and session-gated, so this is diagnosis quality
-  rather than a user-facing defect — but the whole point of the unreachable
-  work was that diagnosis took too long.
+- **`/api/diag/timing` failed illegibly during the exact outage it is for —
+  FIXED 2026-08-06.** It ran every probe with no error handling, so an
+  unreachable database gave an unhandled rejection and a 500, on the endpoint
+  that was one of the three steps the 2026-08-04 diagnosis actually took. It
+  now catches, classifies with the SAME `databaseFailure` the pages use — so
+  the two cannot disagree about what is wrong — and answers 503 naming the
+  condition. A non-database error still 500s, deliberately.
+  THE `SELECT 1` BLINDNESS IS NOT FIXED AND SHOULD NOT BE: `connectMs` times a
+  bare `SELECT 1` precisely because it touches no table, which is what makes it
+  a clean measure of connection setup (performance.md depends on that). The
+  consequence is that it succeeds against a reachable database with no schema
+  at all. Rather than break the measurement, the endpoint now reports what the
+  real queries found: pointed at an empty database it answers
+  `failure: "no-tables", reported: "Transaction"` where it used to 500. The
+  header comment states that a healthy `connectMs` is evidence of a reachable
+  server and nothing more.
 
 - **Two script-hygiene gaps, verified 2026-08-06, BOTH FIXED 2026-08-06.**
   `install-rule-pack` calls `printDatabase()` before it writes anything, and
@@ -686,10 +697,14 @@ blocker; all are the kind of thing that is invisible until someone looks.
   says nothing about doing so. Read-only, so nothing can be damaged; it can
   simply be answering about the wrong file.
 
-- **`/accounts` still has no last-sync line of its own.** Its per-account
-  "Nd behind" is measured against the last successful sync, matching Overview,
-  but this page never prints WHEN that sync was — so the number is harder to
-  interpret here than on Overview, which carries the instant in its header.
-  Recorded because docs/conventions/ui-and-pages.md already says this gap is
-  open and points here, and until now there was nothing here to point at.
+- **`/accounts` had no last-sync line of its own — FIXED 2026-08-06.** Its
+  per-account "Nd behind" counts from the last successful sync, matching
+  Overview, but the page never printed WHEN that sync was — so the figure was
+  measured against an instant the reader could not see, which is the whole
+  reason it was harder to read here than on Overview. `getAccountsData` already
+  queried that row for the arithmetic; it just never reached the page. It now
+  returns `lastSyncAt` and the page leads with it, through `dateTime()` like
+  every other instant, and says so explicitly when no sync has ever succeeded.
+  It also retires a `title=`: the row chip's tooltip existed to carry the
+  second clock, and hover is not an affordance on the device this is read on.
 
