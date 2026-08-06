@@ -50,9 +50,11 @@ async function renderAccounts() {
           carried this instant since it was built; this page did not, so its
           rows quoted an age against something the reader could not see — the
           one thing that made the same figure harder to read here than there.
-          It also retires a `title=`: the row chip's tooltip existed to carry
-          the second clock, and hover is not an affordance on the device this
-          is read on. */}
+          The row chip's `title=` STAYS: it carries both clocks and asserts no
+          cause, which was a deliberate 2026-08-03 correction. What changes is
+          that it is no longer the only place the second clock lives, so a
+          reader on a phone — where hover does not exist — is no longer the one
+          who goes without it. */}
       <p className="pb-3 text-[0.78rem] text-faint">
         {data.lastSyncAt === null ? (
           "No sync has finished successfully yet, so the balance ages below have nothing to measure against."

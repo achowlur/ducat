@@ -705,6 +705,11 @@ blocker; all are the kind of thing that is invisible until someone looks.
   queried that row for the arithmetic; it just never reached the page. It now
   returns `lastSyncAt` and the page leads with it, through `dateTime()` like
   every other instant, and says so explicitly when no sync has ever succeeded.
-  It also retires a `title=`: the row chip's tooltip existed to carry the
-  second clock, and hover is not an affordance on the device this is read on.
+  The row chip's `title=` STAYS, and the first draft of this entry wrongly said
+  it had been retired. That tooltip carries both clocks and asserts no cause,
+  which was a deliberate 2026-08-03 correction; removing it would undo one
+  recorded decision while claiming to honour another. What actually changed is
+  that it is no longer the ONLY place the second clock lives — which is the
+  part the no-hover rule cares about, because the phone reader was the one
+  going without.
 
