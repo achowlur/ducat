@@ -26,8 +26,12 @@ export default async function RootLayout({
   const showLock = isAuthEnabled() && !onLogin;
   const modeBadge = isCloudMode() ? "cloud" : "127.0.0.1";
 
+  // `data-auth` on <html> publishes whether a password gate EXISTS, for the
+  // error boundary — a client component that cannot call isAuthEnabled()
+  // itself. Same channel the theme already uses. It leaks nothing: the login
+  // screen announces the gate to anyone who loads the app.
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-auth={isAuthEnabled() ? "on" : "off"} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>

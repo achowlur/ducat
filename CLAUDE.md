@@ -400,6 +400,10 @@ regeneration.
   request, so a password change evicts sessions.
 - Middleware redirects navigations only — the error boundary exists for
   Server Action responses; keep it.
+- The error boundary branches on `error.digest` set at the THROW, never on
+  `error.message` — production replaces the message, so a message test passes
+  in dev and is dead on the deployment; and it claims nothing about what a
+  failed action wrote.
 - The dev CSP needs 'unsafe-eval' and the HMR websocket; production gets
   neither — don't "tighten" them away.
 - The second factor is TOTP via AUTH_TOTP_SECRET, opt-in and env-only:

@@ -21,9 +21,47 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   full 30 days. A digest, not the hash — JWT payloads are readable by whoever
   holds the cookie.
 - Middleware redirects NAVIGATIONS only, never Server Action responses. A tab
-  left open past its session throws instead of redirecting, which is why an
-  error boundary exists — without one the whole app drops to Next's bare error
-  screen.
+  left open past its session gets an error response instead of a redirect,
+  which is why an error boundary exists — without one the whole app drops to
+  Next's bare error screen.
+  CORRECTED 2026-08-06, because the sentence above used to say the tab "throws"
+  and the boundary was built on that belief. It does not. A Server Action POSTs
+  to its page path, middleware matches it, and a request with no valid session
+  is answered `401 Unauthorized` (`text/plain`) at the transport — measured by
+  sending exactly that request. `requireSession()` never runs. There is no path
+  that reaches it without a session at all: GETs are redirected to /login,
+  POSTs are 401'd. Its throw is defence in depth and nothing else, kept because
+  Next's guidance is not to trust the transport gate alone and because the
+  matcher could change.
+  So the boundary's `expired` branch was dead TWICE OVER, and the second reason
+  is the one that generalises: it tested `/not authenticated/i` against
+  `error.message`, and IN PRODUCTION THERE IS NO MESSAGE. Next's
+  `create-error-handler` hashes it into a digest and the flight client rebuilds
+  a fresh Error reading "The specific message is omitted in production builds…".
+  Any boundary branch keyed on the message therefore passes in dev and is dead
+  on the deployment — the one place it matters. The fix is a DIGEST set at the
+  throw (`SESSION_EXPIRED_DIGEST`, lib/auth/digests.ts, in its own module
+  because the thrower imports next/headers and the boundary is "use client").
+  Next preserves one we set: its own source says "the error already has a
+  digest, respect the original digest, so it won't get re-generated"
+  (`if (!err.digest)`).
+  WHAT THE READER ACTUALLY SEES was the real defect, and repairing the branch
+  alone would have changed none of it, since the branch still cannot fire behind
+  middleware. The generic state claimed "Your data is unchanged; retrying is
+  safe". Both halves were wrong: a Server Action can throw AFTER a partial
+  write, so the boundary cannot know what landed; and for the case this screen
+  shows most — a lapsed session answered 401 — retrying fails identically. It
+  now says the action didn't complete and to reload to see the current state,
+  names a lapsed sign-in as a cause ONLY where a gate exists, and offers Sign in
+  beside Back to overview. "Nothing was lost" survives in the expired branch
+  alone, where it is true: `requireSession()` is the first statement in every
+  action. Whether a gate exists reaches the client component through
+  `data-auth` on `<html>`, the channel the theme already uses, read in an effect
+  so a server-rendered boundary cannot mismatch on hydration.
+  NOT REPRODUCIBLE END TO END, and the reason is the finding itself: no request
+  can reach `requireSession` without a session, so a live "Session expired"
+  render cannot be manufactured without a valid-then-invalid cookie. Pinned by
+  boundaryCopy.test.ts and by reading Next's own source, not by a live capture.
 - The dev CSP needs `'unsafe-eval'` and a same-origin HMR websocket for Fast
   Refresh. Don't remove them while "tightening" `next.config.ts` — production
   gets neither.

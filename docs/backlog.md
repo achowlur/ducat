@@ -495,29 +495,24 @@ turned up so it isn't rediscovered:
   both databases, so it is a decision rather than a cleanup, and it belongs to
   whoever next touches the upgrade path.
 
-- **`app/error.tsx` is half dead in production — found 2026-08-06 while
-  proving the entry above, NOT fixed.** Its `expired` branch tests
-  `/not authenticated/i` against `error.message`, but Next 15 replaces a
-  server error's message with a digest before the boundary ever sees it: the
-  client rebuilds a fresh Error reading "The specific message is omitted in
-  production builds…". Verified in this repo's own node_modules (next 15.5.20 —
-  `create-error-handler.js` sets the digest, `resolveErrorProd` builds the
-  replacement). So on the deployment — the one DEPLOY.md calls "the one on your
-  phone" — the "Session expired" heading and its Sign-in link can never appear,
-  and the single failure that boundary's own comment says it exists for (a tab
-  left open past the 30-day session) gets the generic text and a "Back to
-  overview" link that bounces straight to /login. It works in dev, which is why
-  nobody has seen it.
-  The fix is not obvious, which is why this is an entry and not a commit. A
-  pre-set `.digest` DOES survive Next's handler (`if (!err.digest)`), so a
-  sentinel is technically possible — but the generated digest is
-  `stringHash(message + stack)`, it moves with any line-number shift, and
-  nothing else in this codebase matches magic strings from a client component.
-  The honest alternatives are to fix it where the throw happens
-  (`requireSession()` could redirect rather than throw, which middleware
-  already does for navigations), or to drop the branch and let the generic
-  state stand — which at least stops promising a state that cannot occur.
-  Decide before touching it; do not simply widen the regex.
+- **`app/error.tsx` was half dead in production — found 2026-08-06 proving the
+  entry above, FIXED 2026-08-06.** Its `expired` branch tested
+  `/not authenticated/i` against `error.message`, and Next 15 replaces a server
+  error's message with a digest before the boundary ever sees it — so the
+  "Session expired" state could never appear on the deployment, the one place
+  the failure it exists for actually happens.
+  INVESTIGATING IT FOUND A SECOND, LARGER REASON, and that is what changed the
+  fix: the branch is unreachable regardless. A Server Action POSTs to its page
+  path, middleware matches it, and a request carrying no valid session is
+  answered 401 at the transport — measured by sending exactly that request — so
+  `requireSession()` never runs. Repairing the regex alone would therefore have
+  changed nothing a reader sees.
+  So both halves shipped: the throw now carries a stable DIGEST (the one field
+  that survives a production build) for the paths where it can fire, and the
+  generic copy was rewritten, because it had promised “Your data is unchanged;
+  retrying is safe” and both halves were wrong — an action can throw after a
+  partial write, and retrying a lapsed session fails identically. Evidence in
+  docs/conventions/security-and-auth.md.
 
 - **SCHEDULED LOCAL BACKUPS — raised 2026-08-04 after a two-hour Turso outage,
   BUILT 2026-08-04, the same day.** Shipped as the shape below agreed, plus
