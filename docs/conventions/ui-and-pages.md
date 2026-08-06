@@ -498,3 +498,133 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   hydrated DOM (the client tree is correct) shows the defect. That test is
   also why the repo now has a vitest.config.ts: tsconfig sets `jsx: preserve`,
   so vitest could not import a .tsx component at all.
+
+- A DATABASE THAT CANNOT BE REACHED SAYS SO (built 2026-08-06, from the
+  2026-08-04 outage). Turso's us-east-1 router answered every query with HTTP
+  502 for over two hours, and every page fell through to `app/error.tsx` —
+  which says "Something went wrong", the same words it shows for a null
+  dereference. The app was indistinguishable from broken code: diagnosing it
+  took a Vercel log read, a probe of `/api/diag/timing`, and finally the Turso
+  console failing to connect from the operator's own browser. The page could
+  have said it in one glance.
+  Now it does. `src/lib/ui/dbHealth.ts` classifies a caught error;
+  `withDatabaseNotice` (components/DatabaseNotice.tsx) wraps each page's render
+  and swaps in `DatabaseUnavailable`; anything the classifier does not
+  positively recognise is RETHROWN, so an ordinary bug still looks like a bug —
+  trading one indistinguishable failure for another would buy nothing.
+
+  WHAT THE COPY MAY AND MAY NOT CLAIM, which is the actual design:
+  it NAMES NO CULPRIT — a provider incident, a revoked token and a lapsed plan
+  are the same silence from here, so the page prints what it OBSERVED (the
+  host, the HTTP status or transport code — the two facts that cost a log read
+  to recover) and stops. It NEVER IMPLIES THE DATA IS GONE: failing to reach a
+  database is a failure to SERVE and says nothing about what is stored. And the
+  missing-table state carries NO such reassurance, deliberately — a table that
+  is not there is a real absence, and "nothing was lost" there would be exactly
+  the fabrication `known:false` and the null `pctDelta` exist to refuse. Advice
+  is mode-scoped, which is the second reason this cannot live in the boundary:
+  "it may be temporary, try again" is right for a cloud outage and useless for
+  a checkout that was never migrated.
+
+  WHY NOT `app/error.tsx`, since that is the obvious home. Two structural
+  reasons, both verified against next 15.5.20 in this repo's own node_modules.
+  (1) In PRODUCTION the message never crosses the wire: `create-error-handler`
+  replaces it with a digest, and the client rebuilds a fresh Error reading "The
+  specific message is omitted in production builds…". So a boundary cannot tell
+  a 502 from a null deref. (2) It is a `"use client"` component: it cannot read
+  `DATABASE_URL` or `isCloudMode()`, so it cannot give the advice that fits.
+  The boundary keeps its Server-Action job (security-and-auth.md) and is not
+  the thing being replaced. FOUND WHILE PROVING THIS, and left standing as its
+  own item in docs/backlog.md: the same redaction makes error.tsx's own
+  `/not authenticated/i` branch dead in production, so the "Session expired"
+  heading and its Sign-in link — the one failure that boundary's comment says
+  it exists for — can never appear on the deployment.
+
+  THREE MEASUREMENTS THAT CONTRADICT THE OUTAGE NOTES, taken 2026-08-06 against
+  @prisma/client 7.8.0 + @prisma/adapter-libsql across eleven scenarios. Do not
+  re-derive them from the original entry, which was written from one Vercel log
+  line and generalised.
+  (1) `code` IS NOT A DISCRIMINATOR. The recorded `P2010` is real but belongs
+  to the RAW path — `$queryRaw`, i.e. `/api/diag/timing`, which is where the
+  operator was looking. A model query throws a bare `DriverAdapterError` with
+  no `code` property at all. And `P2010` fires just as happily for a SQL typo
+  against a perfectly healthy database (measured), so keying on it would have
+  put "the database is unreachable" on top of a query bug.
+  (2) `P1001` and `P1017` CANNOT FIRE through this adapter. Prisma raises them
+  only for `cause.kind` of `DatabaseNotReachable` / `ConnectionClosed`, and
+  `@prisma/adapter-libsql`'s error mapper never returns either kind. A branch
+  for them would be dead code, so there isn't one.
+  (3) TIMING IS NOT A DISCRIMINATOR EITHER. The notes recorded 6-10 seconds as
+  the tell that separates an unreachable database from a misconfiguration; that
+  is the undici CONNECT TIMEOUT and only appears for a blackholed host (10.7 s
+  measured). An answering-but-failing edge takes ~2.2 s and a DNS failure ~90
+  ms — so "slow" spans 11 ms to 10.7 s across the unreachable cases alone.
+  What DOES discriminate is the MESSAGE chain, plus one gate: `clientVersion`.
+  A dead Turso host and a dead FRED host both throw a byte-identical
+  `TypeError: fetch failed` with an `ENOTFOUND` cause, and the only difference
+  is that Prisma stamps `clientVersion` on anything it rethrows from a query.
+  Without that gate a failed rates fetch inside the same try block reports
+  itself as a database outage — measured both ways, not theorised.
+
+  AND THE BIGGEST ONE: A MISSING `data/ducat.db` DOES NOT FAIL. libSQL CREATES
+  the file, so local mode's real symptom is `no such table: main.Setting`
+  against a brand-new empty database — not a connection error, and it silently
+  leaves an empty file behind. `prisma.$queryRaw\`SELECT 1\`` even SUCCEEDS
+  against it, so `/api/diag/timing`'s connect probe cannot detect this state at
+  all. That is why there is a fourth kind, `no-tables`, with its own wording
+  and its own advice. The only local case that genuinely fails to OPEN is a
+  missing PARENT DIRECTORY, and it arrives with `code: ""` — the property
+  exists and is falsy, so a predicate written as `if (e.code)` skips it in
+  silence.
+
+  WHAT ADVERSARIAL REVIEW CAUGHT, all of it the same mistake — copy asserting
+  more than the error observed — and worth keeping because the first draft read
+  as careful and was not.
+  (a) `no-tables` said "this app's schema has never been applied to it". One
+  missing table cannot support that: a database ONE RELEASE BEHIND throws the
+  identical error while holding a year of real transactions, and that is not a
+  hypothetical here — it is the `schema:push` split this repo documents as a
+  routine hazard (reproduced against a real database with the init migration
+  applied and the later ones withheld: `account.findMany()` returned a row,
+  `trackedSubscription.findMany()` threw). It now names BOTH readings, because
+  the evidence distinguishes neither.
+  (b) The cloud advice offered `schema:push` alone, and `schema:push` REFUSES a
+  database with no tables at all — so the empty case was handed the one command
+  that cannot work on it. `turso:push` leads now, with `schema:push` for a
+  database merely behind.
+  (c) The cloud advice also explained a name typo as "an empty one is created
+  on first contact" — true of a local `file:` path, false of Turso, where a
+  name that does not exist is refused and surfaces as UNREACHABLE instead. The
+  local sentence was correct and stayed; the cloud one was carried over
+  unexamined.
+  (d) `unopenable` blamed a missing folder. SQLITE_CANTOPEN (14) is the whole
+  report and covers a directory, a permissions refusal and a missing parent
+  alike, so it now says the OPEN failed and lists where to look.
+  (e) "Try again" dropped the QUERY. Middleware's `x-app-path` is the pathname
+  only, so retrying from `/transactions?payees=1&period=2026-03&page=4` landed
+  on page 1 of the unfiltered ledger — the one control whose entire job is to
+  re-ask the SAME question, silently asking a different one. The query travels
+  in its own header (`x-app-query`) rather than widening `x-app-path`, which
+  the layout compares against `"/login"` and which `/login?error=1` would break.
+  Note what the component test could NOT catch: it hands `path` in, so it pins
+  the rendering and never the wiring that produces it.
+
+  ASSERT ON WHAT IS PRESENT, NEVER ON WHAT IS ABSENT. This nearly produced a
+  false verification twice during the outage: every probe was written to check
+  that the old text was GONE, and an absent-string check passes on a page that
+  failed to render entirely — which is the state under test. Both the login
+  redirect and the error boundary came back "clean" that way. So
+  `DatabaseUnavailable` takes its four facts as PROPS and is pure and
+  synchronous — no `headers()`, no `process.env` — purely so its real markup can
+  be rendered and asserted outside Next, the MiniDonut precedent again. Every
+  test names a sentence the reader must actually see.
+  VERIFIED FOR REAL, not only by unit test: against a genuinely unopenable
+  database all six routes rendered the named state in the browser (200, not
+  500, and no console or dev-terminal warnings); against an empty one they
+  rendered the missing-table state; and against a genuinely unreachable
+  `libsql://` host the real `DriverAdapterError` (HTTP 404 after 2.2 s, no
+  `code`, `clientVersion` 7.8.0) classified correctly and produced the
+  cloud-mode text byte for byte. The cloud-mode PAGE cannot be loaded locally
+  without a login — a `libsql://` URL turns the auth gate on by design
+  (`isAuthEnabled()` includes `isCloudMode()`), and forging a session to see it
+  is not a thing to build; that last step needs the operator at the keyboard.

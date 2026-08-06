@@ -23,6 +23,7 @@ import { parseCategoryParam } from "../../lib/ui/categoryFilter";
 import { parseGroupParam } from "../../lib/ui/groupFilter";
 import { merchantLabel } from "../../lib/ui/merchantLabel";
 import { PageTitle } from "../../components/ui/headings";
+import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
 // This page's actions are the slowest in the app: categorizing a group calls
@@ -156,11 +157,18 @@ const COLUMNS = [
   { label: "Amount", className: "hidden text-right md:table-cell" },
 ];
 
-export default async function TransactionsPage({
-  searchParams,
-}: {
-  searchParams: Promise<Params>;
-}) {
+export default async function TransactionsPage(props: { searchParams: Promise<Params> }) {
+  return withDatabaseNotice(() => renderTransactions(props));
+}
+
+/**
+ * Wrapped rather than guarded at each call site: this page builds its queries
+ * inline instead of behind a lib/ui getter, and issues them at three points —
+ * the Promise.all, the reimbursement candidate pool and the payee queue — with
+ * derivation interleaved between them. One wrapper covers all three without
+ * touching the Promise.all that performance.md pins as this page's data budget.
+ */
+async function renderTransactions({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
 
   const page = Math.max(1, Math.floor(Number(params.page ?? "1")) || 1);

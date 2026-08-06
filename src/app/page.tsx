@@ -6,6 +6,7 @@ import { getOverviewData, STALE_DISPLAY_DAYS } from "../lib/ui/overview";
 import { STATUS_DOT } from "../lib/ui/providers";
 import { PageTitle, SectionTitle } from "../components/ui/headings";
 import { transactionsHref } from "../lib/ui/categoryFilter";
+import { withDatabaseNotice } from "../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
 // Server Actions run under their page's budget, and "Sync now" calls the same
@@ -64,6 +65,10 @@ interface ReviewItem {
 }
 
 export default async function OverviewPage() {
+  return withDatabaseNotice(renderOverview);
+}
+
+async function renderOverview() {
   const data = await getOverviewData();
   const simplefinConfigured = (process.env.SIMPLEFIN_ACCESS_URL ?? "") !== "";
   const simplefin = data.health.find((h) => h.connectorType === "SIMPLEFIN");

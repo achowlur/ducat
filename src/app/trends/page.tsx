@@ -7,6 +7,7 @@ import { amount, money, monthLabel } from "../../lib/ui/format";
 import { getPeriodCoverage } from "../../lib/ui/coverage";
 import { getTrendsData } from "../../lib/ui/trends";
 import { PageTitle, SectionTitle } from "../../components/ui/headings";
+import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,13 @@ const DONUT_COLORS = ["bg-chart1", "bg-chart2", "bg-pie3", "bg-pie4"];
 /** Month step: a 44px touch target below md, the original glyph above it. */
 const ARROW = "inline-block px-1 text-center max-md:min-h-[44px] max-md:min-w-[44px] max-md:-my-3 max-md:py-3";
 
-export default async function TrendsPage({
+export default async function TrendsPage(props: {
+  searchParams: Promise<{ period?: string }>;
+}) {
+  return withDatabaseNotice(() => renderTrends(props));
+}
+
+async function renderTrends({
   searchParams,
 }: {
   searchParams: Promise<{ period?: string }>;

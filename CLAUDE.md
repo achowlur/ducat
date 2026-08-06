@@ -206,6 +206,9 @@ regeneration.
   digest orphans every recorded digest, so it is done deliberately or never.
 - Pack drift is counted by pendingPackRules and surfaced on Overview's
   review panel (npm run upgrade); rule changes are never auto-applied.
+- A commit adding a `package.json` script owes README's command table a row in
+  the SAME commit — commandTable.test.ts fails otherwise, and its INTERNAL
+  list, each entry carrying its reason, is the only exemption.
 - SCHEMA is the third upgrade axis: npm run schema:push diffs and only ever
   ADDS; one refusal blocks the whole run; an empty database goes to
   turso:push.
@@ -343,6 +346,11 @@ regeneration.
 - Overview's review panel renders in BOTH states — "all clear" must be
   stated, not implied by absence; the three-level staleness escalation is
   deliberate.
+- A database that cannot be REACHED is named on the page in both modes, never
+  dropped to the generic boundary, naming no culprit and never implying the
+  data is gone — and every test or probe for a failure state asserts on content
+  that is PRESENT, since an absent-string check passes on a page that never
+  rendered.
 - Per-account "Nd behind" measures against the LAST SYNC, never against now.
 - PHONE IS THE PRIMARY READ. Every control clears 44px below md via the
   `.tap44` utility (min-height, never the header's negative-margin pair —

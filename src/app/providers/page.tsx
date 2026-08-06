@@ -4,6 +4,7 @@ import { calendarDaysAgo, dateTime } from "../../lib/ui/format";
 import { isCloudMode, isTotpConfigured } from "../../lib/auth/mode";
 import vercelConfig from "../../../vercel.json";
 import { PageTitle, SectionTitle, SubsectionTitle } from "../../components/ui/headings";
+import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,13 @@ function cloudResidualRisks(totp: boolean): string[] {
   ];
 }
 
-export default async function ProvidersPage({
+export default async function ProvidersPage(props: {
+  searchParams: Promise<{ logs?: string; logsPage?: string }>;
+}) {
+  return withDatabaseNotice(() => renderProviders(props));
+}
+
+async function renderProviders({
   searchParams,
 }: {
   searchParams: Promise<{ logs?: string; logsPage?: string }>;

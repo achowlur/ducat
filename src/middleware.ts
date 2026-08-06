@@ -32,9 +32,17 @@ function textResponse(message: string, status: number): NextResponse {
 
 // Pass the resolved path to the layout (via a request header it can't spoof —
 // we overwrite it) so it can hide the app chrome on /login.
+//
+// The QUERY travels separately rather than widening x-app-path, because the
+// layout compares that header with `=== "/login"` and /login is reached as
+// /login?error=1. The database-unavailable notice needs the whole thing: its
+// "Try again" is the one control whose job is to re-ask the SAME question, and
+// four of the six pages it can appear on keep their entire view state in the
+// query (page, period, category, group, payee queue).
 function passthrough(request: NextRequest, pathname: string): NextResponse {
   const headers = new Headers(request.headers);
   headers.set("x-app-path", pathname);
+  headers.set("x-app-query", request.nextUrl.search);
   return NextResponse.next({ request: { headers } });
 }
 

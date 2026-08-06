@@ -358,12 +358,11 @@ turned up so it isn't rediscovered:
   README's command table brought up to reality. The audit below is kept
   because it is the specification those docs answer.
   ONE RESIDUAL, and it is the entry's own lesson repeating: the command
-  table DRIFTS. As of 2026-08-05 it is missing `auth:set-password`,
-  `auth:set-totp`, `backup:scheduled`, `db:fingerprint`, `db:reset` and
-  `readiness` — six user-facing commands, four of them added after the docs
-  were written. Anything that adds a `package.json` script owes this table a
-  row in the same commit. (`postinstall`, `lint` and `turso:baseline` are
-  internal and deliberately unlisted.)
+  table DRIFTS — it was repaired here and wrong again within four days.
+  REPAIRED AND GUARDED 2026-08-06; the story is in
+  docs/conventions/sync-and-data-ops.md and the guard is
+  scripts/commandTable.test.ts. Kept as one line rather than three copies of
+  the same paragraph, which is what this file had.
   The original audit verdict: a stranger cannot follow everything today. README covers
   setup, the trust model and both data-in paths, but its command table is
   missing `upgrade`, `accounts:cash`, `rules:audit`, `rules:simulate`,
@@ -457,36 +456,68 @@ turned up so it isn't rediscovered:
   the space it already owns.
 
 - **A DATABASE-UNREACHABLE state that says so — raised 2026-08-04 during a real
-  outage, not yet built.** Every server-rendered page currently falls through to
-  the generic error boundary ("Something went wrong") when the database cannot
-  be reached, which is the same thing it says for a null dereference or a bad
-  payload. On 2026-08-04 Turso returned HTTP 502 to every query for over an
-  hour and the app was indistinguishable from broken code: diagnosing it took
-  a Vercel log read, a probe of `/api/diag/timing`, and finally the Turso
-  console failing to connect from the operator's own browser. The page could
-  have said it in one glance.
-  What the signal actually looks like, recorded so it need not be re-derived:
-  `DriverAdapterError: SERVER_ERROR: Server returned HTTP status 502` wrapped
-  as `PrismaClientKnownRequestError` with `code: 'P2010'` and
-  `clientVersion: '7.8.0'`, and — the part that distinguishes it from a
-  misconfiguration — the request takes 6 to 10 SECONDS before failing, because
-  Prisma opens a connection to Turso and waits. A missing or malformed
-  `DATABASE_URL` fails fast; an unreachable database fails slow. `P1001`
-  (can't reach database server) and `P1017` (server closed the connection)
-  belong in the same bucket.
-  The shape to build: catch it where the page data is fetched, and render a
-  state that names the condition — the database is unreachable, this is not
-  your data being wrong, it may be temporary — WITHOUT claiming to know whose
-  fault it is, since the app cannot tell a Turso incident from a revoked token
-  from a lapsed plan. It must never imply the data is gone: a 502 is a serving
-  failure and says nothing about what is stored. LOCAL mode gets the same
-  treatment for a missing `data/ducat.db`, where the honest advice differs
-  (run the seed, or check the path).
-  One trap this outage exposed, worth stating because it nearly produced a
-  false verification twice: any check that asserts a string is ABSENT passes
-  on a page that failed to render. Both the login redirect and the error
-  boundary returned "clean" for probes looking for removed text. A test or a
-  probe for this state must assert on content that is PRESENT.
+  outage, BUILT 2026-08-06.** Shipped as designed: `src/lib/ui/dbHealth.ts`
+  classifies the caught error, `withDatabaseNotice` wraps all six pages'
+  renders, and `DatabaseUnavailable` names the condition without naming a
+  culprit and without ever implying the data is gone. The evidence lives in
+  docs/conventions/ui-and-pages.md — the copy doctrine, why the generic
+  boundary structurally cannot do this job, and the assert-on-PRESENT rule —
+  and that is where the outcome lives.
+  THE SIGNAL RECORDED HERE WAS PARTLY WRONG, which is why this is now a pointer
+  rather than a second copy. Measuring eleven scenarios on 2026-08-06
+  contradicted three claims made from a single Vercel log line: `P2010`
+  belongs to the `$queryRaw` path only (a model query throws a bare
+  `DriverAdapterError` with NO `code`, and `P2010` fires just as happily for
+  a SQL typo against a healthy database); `P1001`/`P1017` cannot fire through
+  this adapter at all, so a branch for them would be dead code; and the 6-10
+  second signature is undici's connect timeout for a BLACKHOLED host, not a
+  general tell — an answering-but-failing edge takes ~2.2 s and a DNS failure
+  ~90 ms. Biggest of all: a missing `data/ducat.db` does NOT fail, because
+  libSQL creates the file, so local mode's real symptom is a missing TABLE and
+  needed a fourth state with its own advice. Read the convention file, not this
+  paragraph, before touching the classifier.
+
+- **`npm run upgrade` skips insight regeneration whenever the rule pack is
+  already current — found 2026-08-06 auditing README's table, NOT fixed.**
+  scripts/upgrade.ts returns at "Nothing to do." the moment `pendingPackRules`
+  is 0, and the `generateInsights` call sits below that return — so the one
+  command the docs point at for "after `git pull`, bring this database up to
+  the checked-out code" does nothing at all after a release that changed
+  analyzer math and shipped no new pack rules, which is the common case in this
+  repo. The comment directly above that call states the opposite intent
+  ("Doing it unconditionally here costs one pass and removes the case where new
+  rules changed nothing today but the stored insights predate them anyway"), so
+  the early return defeats a decision already made deliberately.
+  README's row now describes the ACTUAL behaviour and points at
+  `npm run insights:generate` for that case, so nothing is currently
+  misleading. The fix itself is small — make the pack install conditional
+  rather than the whole run — but it changes what a row-writing command does to
+  both databases, so it is a decision rather than a cleanup, and it belongs to
+  whoever next touches the upgrade path.
+
+- **`app/error.tsx` is half dead in production — found 2026-08-06 while
+  proving the entry above, NOT fixed.** Its `expired` branch tests
+  `/not authenticated/i` against `error.message`, but Next 15 replaces a
+  server error's message with a digest before the boundary ever sees it: the
+  client rebuilds a fresh Error reading "The specific message is omitted in
+  production builds…". Verified in this repo's own node_modules (next 15.5.20 —
+  `create-error-handler.js` sets the digest, `resolveErrorProd` builds the
+  replacement). So on the deployment — the one DEPLOY.md calls "the one on your
+  phone" — the "Session expired" heading and its Sign-in link can never appear,
+  and the single failure that boundary's own comment says it exists for (a tab
+  left open past the 30-day session) gets the generic text and a "Back to
+  overview" link that bounces straight to /login. It works in dev, which is why
+  nobody has seen it.
+  The fix is not obvious, which is why this is an entry and not a commit. A
+  pre-set `.digest` DOES survive Next's handler (`if (!err.digest)`), so a
+  sentinel is technically possible — but the generated digest is
+  `stringHash(message + stack)`, it moves with any line-number shift, and
+  nothing else in this codebase matches magic strings from a client component.
+  The honest alternatives are to fix it where the throw happens
+  (`requireSession()` could redirect rather than throw, which middleware
+  already does for navigations), or to drop the branch and let the generic
+  state stand — which at least stops promising a state that cannot occur.
+  Decide before touching it; do not simply widen the regex.
 
 - **SCHEDULED LOCAL BACKUPS — raised 2026-08-04 after a two-hour Turso outage,
   BUILT 2026-08-04, the same day.** Shipped as the shape below agreed, plus
@@ -565,9 +596,22 @@ turned up so it isn't rediscovered:
   `money-and-analytics.md` (net worth requires snapshots; never reconstruct an
   investment balance from transactions).
 
-- **HOUSEKEEPING, all three verified 2026-08-05 so nobody re-derives them.**
+- **HOUSEKEEPING, all three verified 2026-08-05, ALL THREE DONE 2026-08-06.**
   Small, safe, and written down only because each is invisible until someone
-  goes looking.
+  goes looking. What shipped, in order:
+  (1) The command table is repaired and, more to the point, GUARDED —
+  `scripts/commandTable.test.ts` now fails `npm test` when a script has no
+  row. The audit found the list below UNDERCOUNTED: seven commands were
+  missing, not six (`simplefin:claim` was overlooked because it appears in
+  README prose, and prose is not the index), and six rows already in the table
+  had drifted besides. Evidence in docs/conventions/sync-and-data-ops.md.
+  (2) Both stray branches deleted with `git branch -d` — re-verified at 0
+  commits ahead of main first, and the safe variant took them without
+  complaint. (3) The empty worktree directory removed; the shell holding it
+  open had exited, and it was confirmed empty (zero entries, recursive) before
+  the `rmdir`.
+  The original entry stays below because it is the evidence for why the first
+  item needed a test rather than another repair.
   (1) **README's command table has drifted again** — the exact failure the
   user-documentation entry above was raised for, repeating one audit later.
   Missing today: `auth:set-password`, `auth:set-totp`, `backup:scheduled`,
@@ -579,18 +623,3 @@ turned up so it isn't rediscovered:
   adding a `package.json` script owes the table a row in the SAME commit —
   because a table repaired by hand every few weeks is a table that is wrong
   most of the time.
-  (2) **Two stray local branches**, `worktree-agent-a34f1d476df744515` (tip
-  dated 2026-08-01) and `worktree-agent-aa70ec551e1faa0b0` (tip dated
-  2026-08-02), left by earlier agent worktrees. VERIFIED SAFE: both report
-  `git rev-list --count main..<branch>` = 0, so every commit on them is
-  already in main and `git branch -d` (the variant that REFUSES an unmerged
-  branch) will take them without complaint. If it ever complains, that is
-  new information — read the commits before reaching for `-D`.
-  (3) **An empty worktree directory**,
-  `.claude/worktrees/nostalgic-engelbart-d7787b`. Git has already
-  de-registered it (`git worktree list` shows only the main checkout) and
-  it holds zero entries, but Windows refuses the `rmdir` with "Device or
-  resource busy" while the session that created it still holds a working
-  directory inside. It deletes cleanly once that session exits — there is
-  nothing to recover and nothing to be careful about, which is exactly why
-  it would otherwise sit there for months.

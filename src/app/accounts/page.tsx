@@ -5,6 +5,7 @@ import { Sparkline } from "../../components/Sparkline";
 import { amount } from "../../lib/ui/format";
 import { getAccountsData } from "../../lib/ui/accounts";
 import { PageTitle } from "../../components/ui/headings";
+import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,10 @@ const COLUMNS = [
 ];
 
 export default async function AccountsPage() {
+  return withDatabaseNotice(renderAccounts);
+}
+
+async function renderAccounts() {
   const data = await getAccountsData();
 
   if (data.groups.length === 0) {

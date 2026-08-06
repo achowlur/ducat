@@ -54,6 +54,39 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   move money between categories, and this codebase's grain is visible over
   silent. Anything that must be run once per database belongs in that panel,
   not only in a README nobody re-reads.
+- README's command table DRIFTS BY SHIPPING, which is why remembering does not
+  fix it. The table is the index of everything an operator runs; it was audited
+  and repaired on 2026-08-01 (the user-docs commit) as part of writing the user docs, and by
+  2026-08-05 it was wrong again — and FOUR of the six commands missing that
+  second time had been added in the two days AFTER those docs were written. So
+  the failure mode is not neglect between audits, it is the ordinary act of
+  landing a script: the commit that adds it is the only moment anyone knows
+  what it does, and that is exactly the commit that does not think about the
+  README. A table repaired by hand every few weeks is a table that is wrong
+  most of the time.
+  The 2026-08-06 repair found the backlog's own list UNDERCOUNTED, which is the
+  same lesson once more: it named six missing commands and there were SEVEN —
+  `simplefin:claim` was missed because it appears in README PROSE, and a
+  reader checking "is it documented?" saw it and moved on. Prose is not the
+  index. Six rows already IN the table had also drifted, two of them in a way
+  the README makes load-bearing: it states that rows marked "names the database
+  first" print their target, so the ABSENCE of that marker is itself a claim,
+  and both `insights:generate` and `import:balances` had gained the label in
+  code while their rows still denied it. `rules:retarget` was the worst — the
+  row described only its original `--category` mode, and the command now
+  requires a `--match=` selector the row never mentioned, so the row could not
+  be followed to a working invocation at all.
+  The durable fix is `scripts/commandTable.test.ts`, not the convention line:
+  it fails `npm test` when a script has no row, when a row names a script that
+  no longer exists, and when the INTERNAL exemption list goes stale. Written as
+  a test rather than a rule because the rule form is precisely what had already
+  failed twice. INTERNAL currently exempts five, each with its reason recorded
+  beside it: `postinstall` and `lint` (never typed by a user of the app),
+  `turso:baseline` (a sub-step of `turso:push`, documented in DEPLOY.md), and
+  `build`/`start` — those two deliberately live in the "Measuring performance"
+  prose instead, because a bare table row would strip the
+  never-build-while-the-dev-server-runs hazard off the one command in the repo
+  that corrupts `.next/`.
 - CODE and DATA upgrade separately, and so does SCHEMA — `npm run schema:push`
   is the third one. `prisma migrate deploy` cannot reach libSQL over HTTP, so a
   column added in a release reached the cloud only when someone remembered to

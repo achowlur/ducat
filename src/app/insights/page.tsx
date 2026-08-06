@@ -6,6 +6,7 @@ import { GOAL_RATE_MIN_MONTHS, type GoalAssessment } from "../../lib/insights/go
 import { type ReadinessAssessment } from "../../lib/insights/readiness";
 import { money, monthLabel, shortDate, titleCase } from "../../lib/ui/format";
 import { PageTitle } from "../../components/ui/headings";
+import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
 
@@ -391,7 +392,13 @@ function ReadinessBlock({
   );
 }
 
-export default async function InsightsPage({
+export default async function InsightsPage(props: {
+  searchParams: Promise<{ period?: string; show?: string }>;
+}) {
+  return withDatabaseNotice(() => renderInsights(props));
+}
+
+async function renderInsights({
   searchParams,
 }: {
   searchParams: Promise<{ period?: string; show?: string }>;

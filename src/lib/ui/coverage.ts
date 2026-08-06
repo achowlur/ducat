@@ -29,24 +29,30 @@ export async function getPeriodCoverage(period: string): Promise<PeriodCoverage 
   if (period === "") return null;
   const accounts = await getAccountCoverage();
   if (accounts.length === 0) return null;
+  // The catch covers the PARSE and nothing else. It used to wrap the query
+  // below as well, which turned a database failure into a silently absent
+  // coverage notice — on the one notice whose job is to say data is missing,
+  // and on the two pages (/trends, /insights) that would otherwise now name
+  // the condition. Narrowed 2026-08-06 alongside the unreachable state.
+  let rough: PeriodCoverage;
   try {
-    const rough = periodCoverage(period, accounts);
-    if (rough.complete) return null;
-
-    const spend = await prisma.transaction.groupBy({
-      by: ["accountId"],
-      where: {
-        flow: "OUTFLOW",
-        date: { gte: periodStart(period), lt: periodEndExclusive(period) },
-      },
-      _sum: { amount: true },
-    });
-    const byAccount = new Map(spend.map((s) => [s.accountId, Math.abs(Number(s._sum.amount ?? 0))]));
-    return periodCoverage(
-      period,
-      accounts.map((a) => ({ ...a, periodSpending: byAccount.get(a.accountId) ?? 0 })),
-    );
+    rough = periodCoverage(period, accounts);
   } catch {
     return null; // unparseable period key — nothing useful to say
   }
+  if (rough.complete) return null;
+
+  const spend = await prisma.transaction.groupBy({
+    by: ["accountId"],
+    where: {
+      flow: "OUTFLOW",
+      date: { gte: periodStart(period), lt: periodEndExclusive(period) },
+    },
+    _sum: { amount: true },
+  });
+  const byAccount = new Map(spend.map((s) => [s.accountId, Math.abs(Number(s._sum.amount ?? 0))]));
+  return periodCoverage(
+    period,
+    accounts.map((a) => ({ ...a, periodSpending: byAccount.get(a.accountId) ?? 0 })),
+  );
 }

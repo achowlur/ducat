@@ -84,25 +84,32 @@ snapshots for investment accounts.
 | `npm run dev` | Dev server, bound to `127.0.0.1` |
 | `npm test` | Vitest suite |
 | `npm run db:seed` | Load deterministic fixture data — destructive: wipes accounts, transactions, rules and insights; refuses over existing transactions without `-- --yes` |
-| `npm run insights:generate` | Regenerate insights (`-- --granularity=WEEK\|MONTH\|QUARTER\|YEAR`) |
-| `npm run sync:simplefin` | Sync from your SimpleFIN feed — names the database first |
+| `npm run db:reset` | Wipe every row **including** `Setting`, so the next sync refetches full history rather than a short incremental window — destructive and irreversible; refuses without `-- --yes` |
+| `npm run insights:generate` | Regenerate insights (`-- --granularity=WEEK\|MONTH\|QUARTER\|YEAR`) — names the database first |
+| `npm run simplefin:claim` | Exchange a one-time SimpleFIN setup token (`-- <setup-token>`) for the permanent access URL — prints the `SIMPLEFIN_ACCESS_URL` line to paste into `.env`, and never writes a secret to a file itself |
+| `npm run sync:simplefin` | Sync from your SimpleFIN feed (`-- --since=YYYY-MM-DD` widens the window, `--granularity=MONTH`) — names the database first |
 | `npm run import:csv` | Import a CSV (see above) |
-| `npm run import:balances` | Import month-end balance snapshots for investment accounts (`-- --template [--months=N]` prints a fill-in CSV; `--dry-run` previews) |
-| `npm run upgrade` | After `git pull`, bring this database up to the checked-out code: install missing pack rules, regenerate insights (`-- --check` reports without writing) — names the database first |
-| `npm run rules:retarget` | Point rules at a different category and re-apply (dry run; `-- --apply` writes) — names the database first |
-| `npm run rules:install` | Install the starter category-rule pack |
+| `npm run import:balances` | Import month-end balance snapshots for investment accounts (`-- --template [--months=N]` prints a fill-in CSV; `--dry-run` previews) — names the database first |
+| `npm run upgrade` | After `git pull`, bring this database up to the checked-out code: install missing pack rules, then regenerate insights (`-- --check` reports without writing). It stops at "nothing to do" when no pack rules are pending, so a release that changed only analyzer math still needs `npm run insights:generate` — names the database first |
+| `npm run rules:retarget` | Edit existing rules in place — category, match field or match operator — and re-apply (`-- --match=<value,value>` plus at least one of `--category="<Name>"`, `--field=<FIELD>`, `--operator=<OP>`; dry run, `--apply` writes) — names the database first |
+| `npm run rules:install` | Install the starter category-rule pack and retroactively categorize existing transactions (idempotent: re-running adds only what is missing) |
 | `npm run rules:audit` | Report rules that match more merchants than the one they were built from (read-only) — names the database first |
 | `npm run rules:simulate` | Report every disagreement between the current and the retired CONTAINS matcher, over real rows plus generated probes (read-only) — names the database first |
 | `npm run goals` | List/declare savings goals shown on /insights (`-- --add --name=… --target=…` or `--house-price=… [--down=20 --closing=3]`, `--accounts=<list>` or `--accounts=cash`, optional `--by=YYYY-MM`; `--remove=…`) — names the database first |
+| `npm run readiness` | List/declare the house-readiness config behind /insights' readiness panel (`-- --floor=… --rate=… --term=… --tax=… --insurance=… --pmi=… --closing=… --down=…`, all equals-form; `--as-of=YYYY-MM-DD` dates a typed rate, `--fetched-rate` uses the stored FRED observation instead, `--clear` removes the panel) — names the database first |
 | `npm run accounts:cash` | List which accounts count as spendable cash; mark non-checking ones (`-- --add=…` / `-- --remove=…`) — names the database first |
-| `npm run health` | Print the provider-health panel (no network) |
+| `npm run health` | Print the provider-health panel and the tracked-subscription reconciliation (read-only, no network) |
 | `npm run subs:audit` | Report what subscription detection missed and which gate rejected it (read-only) |
 | `npm run repair:text` | Strip undecodable characters from imported names/descriptions (dry run; `-- --apply` writes) |
 | `npm run repair:merchants` | Re-normalize stored merchant names after a normalizer change (dry run; `-- --apply` writes) |
+| `npm run auth:set-password` | Generate the login gate's `AUTH_PASSWORD_HASH` and `SESSION_SECRET` — you type the password into the terminal (echo muted, 8 characters minimum, asked twice); the values are printed to paste into `.env` or Vercel and nothing is stored |
+| `npm run auth:set-totp` | Generate the opt-in second factor `AUTH_TOTP_SECRET` and prove enrollment before deploying it — asks for one code from your authenticator and refuses the secret if it does not verify (offline; nothing stored). Enabling or rotating it logs out every session |
 | `npm run turso:push` | Apply the schema to a fresh cloud database (see [DEPLOY.md](DEPLOY.md)) |
 | `npm run schema:push` | Diff `prisma/schema.prisma` against a database that already has data and apply the additive part (dry run; `-- --apply` writes) — names the database first |
 | `npm run turso:copy` | Copy this database into a fresh cloud one (dry run; `-- --apply` writes) |
 | `npm run cloud:backup` | Pull the cloud database into a dated file under `data/backups/` |
+| `npm run backup:scheduled` | The nightly cloud→local backup the 23:50 UTC task fires: copy, fingerprint-verify (a mismatch quarantines as `.unverified`), prune retention, then record `backup.lastRun`. Credentials come from `.env.backup` only, never `.env` or the shell. `-- --dry-run` still copies and verifies, and skips only the pruning and the Setting |
+| `npm run db:fingerprint` | Print per-table and whole-database content digests — the read-only proof that two databases hold identical rows, where counts and sums are blind (a changed category, a flipped `dismissed`) — names the database first |
 
 Commands marked "names the database first" print which database they are about
 to touch as their first line — read it. Code travels with `git pull`; data does

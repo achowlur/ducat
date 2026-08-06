@@ -117,8 +117,12 @@ async function emitTemplate(months: number): Promise<void> {
 
 async function main(): Promise<void> {
   // Every script that writes rows names its database first — this one was the
-  // last without the label.
-  console.log(`\nDatabase: ${databaseLabel()}\n`);
+  // last without the label. On STDERR, because `--template` writes a CSV to
+  // stdout and the operator is told to redirect it: on stdout the label became
+  // the file's first line, and a blank line its second, so the template no
+  // longer parsed as the CSV it had just been asked for. Every other human
+  // line on that path is already console.error for the same reason.
+  console.error(`\nDatabase: ${databaseLabel()}\n`);
   const file = process.argv[2];
   const dryRun = process.argv.includes('--dry-run');
 
