@@ -9,8 +9,18 @@
  * argued from the list rather than from a guess.
  *
  * Run: npm run subs:audit
+ *
+ * `dotenv/config` FIRST, and it is load-bearing rather than boilerplate: this
+ * script imports `prisma`, which reads DATABASE_URL at construction and falls
+ * back to `file:./data/ducat.db` when it is unset. Without dotenv the audit
+ * silently read that built-in default instead of the configured database — so
+ * it could answer confidently about the wrong file, which is the one failure a
+ * read-only tool can still cause. It names its database first for the same
+ * reason, as the other two audits do.
  */
+import 'dotenv/config';
 import { prisma } from '../src/lib/prisma';
+import { printDatabase } from './database-label';
 import {
   detectRecurringCharges,
   DEFAULT_RECURRING_OPTIONS,
@@ -155,6 +165,7 @@ function classify(merchant: string, list: TxnData[]): Verdict {
 }
 
 async function main(): Promise<void> {
+  printDatabase();
   const rows = await prisma.transaction.findMany({
     select: {
       id: true,

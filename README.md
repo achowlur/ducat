@@ -92,14 +92,14 @@ snapshots for investment accounts.
 | `npm run import:balances` | Import month-end balance snapshots for investment accounts (`-- --template [--months=N]` prints a fill-in CSV; `--dry-run` previews) — names the database first |
 | `npm run upgrade` | After `git pull`, bring this database up to the checked-out code: install missing pack rules, then regenerate insights (`-- --check` reports without writing). It stops at "nothing to do" when no pack rules are pending, so a release that changed only analyzer math still needs `npm run insights:generate` — names the database first |
 | `npm run rules:retarget` | Edit existing rules in place — category, match field or match operator — and re-apply (`-- --match=<value,value>` plus at least one of `--category="<Name>"`, `--field=<FIELD>`, `--operator=<OP>`; dry run, `--apply` writes) — names the database first |
-| `npm run rules:install` | Install the starter category-rule pack and retroactively categorize existing transactions (idempotent: re-running adds only what is missing) |
+| `npm run rules:install` | Install the starter category-rule pack and retroactively categorize existing transactions (idempotent: re-running adds only what is missing) — names the database first |
 | `npm run rules:audit` | Report rules that match more merchants than the one they were built from (read-only) — names the database first |
 | `npm run rules:simulate` | Report every disagreement between the current and the retired CONTAINS matcher, over real rows plus generated probes (read-only) — names the database first |
 | `npm run goals` | List/declare savings goals shown on /insights (`-- --add --name=… --target=…` or `--house-price=… [--down=20 --closing=3]`, `--accounts=<list>` or `--accounts=cash`, optional `--by=YYYY-MM`; `--remove=…`) — names the database first |
 | `npm run readiness` | List/declare the house-readiness config behind /insights' readiness panel (`-- --floor=… --rate=… --term=… --tax=… --insurance=… --pmi=… --closing=… --down=…`, all equals-form; `--as-of=YYYY-MM-DD` dates a typed rate, `--fetched-rate` uses the stored FRED observation instead, `--clear` removes the panel) — names the database first |
 | `npm run accounts:cash` | List which accounts count as spendable cash; mark non-checking ones (`-- --add=…` / `-- --remove=…`) — names the database first |
 | `npm run health` | Print the provider-health panel and the tracked-subscription reconciliation (read-only, no network) |
-| `npm run subs:audit` | Report what subscription detection missed and which gate rejected it (read-only) |
+| `npm run subs:audit` | Report what subscription detection missed and which gate rejected it (read-only) — names the database first |
 | `npm run repair:text` | Strip undecodable characters from imported names/descriptions (dry run; `-- --apply` writes) |
 | `npm run repair:merchants` | Re-normalize stored merchant names after a normalizer change (dry run; `-- --apply` writes) |
 | `npm run auth:set-password` | Generate the login gate's `AUTH_PASSWORD_HASH` and `SESSION_SECRET` — you type the password into the terminal (echo muted, 8 characters minimum, asked twice); the values are printed to paste into `.env` or Vercel and nothing is stored |

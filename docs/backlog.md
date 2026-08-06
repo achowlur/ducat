@@ -664,7 +664,16 @@ blocker; all are the kind of thing that is invisible until someone looks.
   rather than a user-facing defect — but the whole point of the unreachable
   work was that diagnosis took too long.
 
-- **Two script-hygiene gaps, verified 2026-08-06.** (1)
+- **Two script-hygiene gaps, verified 2026-08-06, BOTH FIXED 2026-08-06.**
+  `install-rule-pack` calls `printDatabase()` before it writes anything, and
+  `audit-subscriptions` now loads `dotenv/config` and names its database too —
+  README's rows carry the marker for both, since the marker is a contract about
+  what a command prints. Proven by pointing `DOTENV_CONFIG_PATH` at an env file
+  holding a DIFFERENT path and watching both commands report it: the local
+  `.env` sets `DATABASE_URL` to exactly the built-in fallback
+  (`file:./data/ducat.db`), which is why the dotenv gap was invisible and why a
+  same-value run proves nothing. The original entry follows.
+  (1)
   `scripts/install-rule-pack.ts` writes rows — it installs pack rules,
   retroactively recategorizes transactions and regenerates insights — and does
   NOT print a database label, where 15 other scripts do. It is the one
