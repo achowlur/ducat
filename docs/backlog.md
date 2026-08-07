@@ -713,3 +713,37 @@ blocker; all are the kind of thing that is invisible until someone looks.
   part the no-hover rule cares about, because the phone reader was the one
   going without.
 
+- **LOCAL RUNS ONE NIGHTLY SYNC BEHIND CLOUD, PERMANENTLY — diagnosed
+  2026-08-06, DECIDED: leave it.** Recorded because the local app looks
+  broken when it is not, and because the next session would otherwise read
+  local figures as current.
+  The nightly `backup:scheduled` job ARCHIVES; it does not RESTORE. It pulls
+  the cloud database into `data/backups/ducat-YYYY-MM-DD-HHMM.db` and never
+  writes `data/ducat.db`, which is the database the local app reads. The only
+  thing it puts there is the single `backup.lastRun` Setting row — which is
+  why `data/ducat.db` carries a file timestamp from the backup run while its
+  CONTENTS are days older. That timestamp is the trap: the file looks fresh
+  and is not.
+  Measured the day this was written: local `fe4b39aeb52cb301`, 2,745
+  transactions, net worth $685,279.28; cloud `a07ab18481f93f93`, 1,064
+  transactions, $690,917.43 — exactly one nightly sync of drift, and it
+  reappears every night, because the Vercel cron syncs SimpleFIN into the
+  CLOUD only and nothing pulls those rows back down.
+  This does NOT contradict the LOCAL MIRRORS CLOUD rule, and the distinction
+  is worth keeping straight: that rule governs DELIBERATE data changes —
+  rules, settings, goals — which land on cloud, are confirmed, then copied
+  down and proved equal by digest. It never governed the nightly feed.
+  NO RESTORE COMMAND EXISTS and one was declined on purpose. `cloud:backup`
+  pulls cloud into a dated file and `turso:copy` pushes local into a fresh
+  cloud database; nothing goes backup → `data/ducat.db`. A `db:restore` was
+  proposed and rejected: the backup's value is being a VERIFIED ARCHIVE, and
+  a command that overwrites the working database would discard anything
+  local-only without being able to tell that it had. Copy the file by hand on
+  the rare occasion local needs to be current. If that is ever revisited, the
+  bar is: canonical filenames only (never a `.unverified`), refuse without
+  explicit confirmation, and print both digests before and after so the
+  operator sees what is being replaced with what.
+  PRACTICAL CONSEQUENCE, for whoever verifies next: localhost is the right
+  place to check STRUCTURE and behaviour, and the wrong place to read
+  FIGURES. Anything about balances, counts or totals is checked on the
+  deployment.
