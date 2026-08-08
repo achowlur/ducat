@@ -413,12 +413,14 @@ turned up so it isn't rediscovered:
   WHAT THE IMPORT PATH STILL LACKS, read out of `scripts/import-csv.ts` and
   `src/lib/sync/sync.ts` on 2026-08-08 (the label was added the same day; it
   was the last row-writing script without one):
-  - NO DRY RUN. `runSync` has one mode and it writes: accounts created or
-    updated, balance snapshots, `createMany` of the rows, one UPDATE per rule
-    application, two per transfer pair, the rate Setting, every insight row for
-    the affected periods, `lastSync:CSV`, and a SyncLog row on the failure path
-    as well as the success one. Nothing wraps it in a transaction, so an abort
-    halfway leaves accounts created and some rows imported.
+  - NO DRY RUN — BUILT 2026-08-08, see the verdict below. `runSync` still has
+    one mode and it writes: accounts created or updated, balance snapshots,
+    `createMany` of the rows, one UPDATE per rule application, two per transfer
+    pair, the rate Setting, every insight row for the affected periods,
+    `lastSync:CSV`, and a SyncLog row on the failure path as well as the
+    success one. Nothing wraps it in a transaction, so an abort halfway leaves
+    accounts created and some rows imported — which is why the preview is a
+    separate read-only path rather than a flag threaded through the writer.
   - `skipInsights` EXISTS IN `SyncOptions` AND THE CLI CANNOT REACH IT. Its own
     comment names this exact case ("batching several CSV imports"), and
     `sync.ts` claims a batched import "fetches once instead of once per file" —
@@ -449,7 +451,11 @@ turned up so it isn't rediscovered:
     destination holding transactions — and `db:restore` was declined on purpose
     (see the local-drift entry below). The pre-import backup is the only
     recovery, and it is a manual one.
-  VERDICT ON `--dry-run`: BUILD IT, and build it as a read-only BRANCH of the
+  VERDICT ON `--dry-run`: BUILD IT — BUILT 2026-08-08 to this bar exactly, and
+  what it found while being built (that `--until` is silently the balance
+  guard) is in docs/conventions/sync-and-data-ops.md with the rest of the
+  evidence. The reasoning is kept because it is what constrains changes to it:
+  a read-only BRANCH of the
   path that writes, never a second implementation of the pipeline. It is cheap
   because the uncertain half is already pure and already runs before any write
   — the `CsvConnector` constructor parses, routes, normalizes and hashes in

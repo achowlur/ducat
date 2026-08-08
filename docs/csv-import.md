@@ -28,6 +28,29 @@ npm run import:csv -- <file.csv> --mapping=<id> --name="<account>" \
 slug of institution + name; reuse the same value when importing newer exports
 of the same account so new rows deduplicate into it.
 
+### Preview it first (`--dry-run`)
+
+```bash
+npm run import:csv -- <file.csv> --mapping=<id> --name="…" --type=… --institution="…" --dry-run
+```
+
+Reports what the import would do and writes nothing — no transactions, no
+balance, no snapshot, no sync log. Worth doing before every file, because an
+import has no undo: a re-downloaded export whose text differs by one character
+re-imports rather than deduplicates, and nothing records which file produced
+which rows.
+
+It tells you which account each file would land in (and whether that means
+creating one), how many rows are new against how many are already present, what
+the balance write would be, how many rows your rules would categorize, and how
+many payee decisions the grouped review would ask you for afterwards — the last
+being the number that actually costs you time on a long backfill.
+
+Two things it does **not** claim, because it cannot count them without writing:
+transfer-pair linking and insight regeneration. Both still run during the real
+import, which is why the payee count is an upper bound — every pair linked
+takes two more rows out of the review queue.
+
 ### Backfilling behind a live feed
 
 To load old history into an account a live connector already owns, pass
@@ -38,6 +61,13 @@ the date the feed's coverage starts (the cap is exclusive).
 sources: a CSV row's id is a hash of its own content, while a feed row carries
 the feed's own id, so the same purchase arriving from both would land twice.
 The cap keeps the two sources on either side of a date instead.
+
+The cap has a second job its name does not suggest. An **un**capped import
+reports the file's newest row as the account's *current* balance, and that write
+lands even on an account another connector owns — so a forgotten `--until`
+rolls a live balance back to whatever the file happened to end at, until the
+next sync corrects it. With the cap set, the import writes no balance and no
+snapshot at all. `--dry-run` prints which of the two you are about to do.
 
 ## Multi-account files (Fidelity)
 

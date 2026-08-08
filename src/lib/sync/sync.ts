@@ -1,5 +1,5 @@
 import type { Connector, PeriodGranularity } from '../../types/contracts';
-import type { PrismaClient } from '../../generated/prisma/client';
+import type { Account, PrismaClient } from '../../generated/prisma/client';
 import { generateInsights, type GenerateResult } from '../insights/engine';
 import { refreshMortgageRate } from '../rates/mortgageRate';
 import { applyRules, toRuleTxns } from './rules';
@@ -31,6 +31,54 @@ const DAY_MS = 86_400_000;
 
 function lastSyncKey(connectorType: string): string {
   return `lastSync:${connectorType}`;
+}
+
+/**
+ * The account a normalized one would land in: this connector's own if it has
+ * one, otherwise ANY account carrying that externalId.
+ *
+ * The externalId-only fallback is what lets a CSV backfill fill in an account a
+ * live connector already owns instead of forking a second copy of the same
+ * real-world account — externalIds are connector-issued ids or user-chosen
+ * slugs, so a cross-connector match is deliberate.
+ *
+ * Exported because `previewImport` has to answer "create, or land in what is
+ * already there?" with the SAME lookup. A preview holding its own copy would
+ * get the backfill case backwards — announcing a new account for precisely the
+ * invocation the dry run exists to check.
+ */
+export async function findExistingAccount(
+  prisma: PrismaClient,
+  externalId: string,
+  connectorType: string,
+): Promise<Account | null> {
+  return (
+    (await prisma.account.findFirst({ where: { externalId, connectorType } })) ??
+    (await prisma.account.findFirst({ where: { externalId } }))
+  );
+}
+
+/** Dedupe identity of a stored transaction: the (accountId, externalId) unique. */
+export function transactionKey(accountId: string, externalId: string): string {
+  return `${accountId}|${externalId}`;
+}
+
+/**
+ * Which of these (accountId, externalId) pairs the database already holds.
+ * Shared with the preview for the same reason as the lookup above: "how many of
+ * these rows are already here" is the question a dry run exists to answer, and
+ * a second copy of the key format would answer it differently.
+ */
+export async function existingTransactionKeys(
+  prisma: PrismaClient,
+  accountIds: string[],
+  externalIds: string[],
+): Promise<Set<string>> {
+  const rows = await prisma.transaction.findMany({
+    where: { accountId: { in: accountIds }, externalId: { in: externalIds } },
+    select: { accountId: true, externalId: true },
+  });
+  return new Set(rows.map((t) => transactionKey(t.accountId, t.externalId)));
 }
 
 /**
@@ -104,15 +152,10 @@ async function runPipeline(
   const accountIdByExternalId = new Map<string, string>();
 
   for (const a of normalizedAccounts) {
-    // Prefer an account this connector already owns. The externalId-only
-    // fallback is what lets a CSV backfill land IN an existing account (pass
-    // that account's externalId to the importer) instead of creating a second
-    // copy of the same real-world account — externalIds are connector-issued
-    // ids or user-chosen slugs, so a cross-connector match is deliberate.
-    const existing =
-      (await prisma.account.findFirst({
-        where: { externalId: a.externalId, connectorType: connector.type },
-      })) ?? (await prisma.account.findFirst({ where: { externalId: a.externalId } }));
+    // Pass that account's externalId to the importer and a CSV backfill lands
+    // IN it rather than beside it; see findExistingAccount for why the fallback
+    // is deliberate.
+    const existing = await findExistingAccount(prisma, a.externalId, connector.type);
     let id: string;
     if (existing === null) {
       const created = await prisma.account.create({
@@ -165,19 +208,16 @@ async function runPipeline(
 
   const fetched = await connector.fetchTransactions(since);
   const mappable = fetched.filter((t) => accountIdByExternalId.has(t.accountExternalId));
-  const existingIds = new Set(
-    (
-      await prisma.transaction.findMany({
-        where: {
-          accountId: { in: [...accountIdByExternalId.values()] },
-          externalId: { in: mappable.map((t) => t.externalId) },
-        },
-        select: { accountId: true, externalId: true },
-      })
-    ).map((t) => `${t.accountId}|${t.externalId}`),
+  const existingIds = await existingTransactionKeys(
+    prisma,
+    [...accountIdByExternalId.values()],
+    mappable.map((t) => t.externalId),
   );
   const fresh = mappable.filter(
-    (t) => !existingIds.has(`${accountIdByExternalId.get(t.accountExternalId) as string}|${t.externalId}`),
+    (t) =>
+      !existingIds.has(
+        transactionKey(accountIdByExternalId.get(t.accountExternalId) as string, t.externalId),
+      ),
   );
 
   await prisma.transaction.createMany({

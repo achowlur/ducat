@@ -179,8 +179,13 @@ regeneration.
 - SimpleFIN timestamps are deliberately left alone — any "fix" moves
   correct dates too.
 - CSV backfill: --external-id targets an existing account, --until stops at
-  feed coverage; overlapping rows NEVER dedupe across sources; unroutable
-  rows are skipped and reported.
+  feed coverage AND is the only thing stopping an uncapped import rewriting a
+  live balance BACKWARD; overlapping rows NEVER dedupe across sources;
+  unroutable rows are skipped and reported.
+- import:csv --dry-run is a READ-ONLY BRANCH of the writer, never a second
+  pipeline: it shares sync.ts's account lookup and dedupe key, is pinned
+  against a real runSync by test, and states what it cannot count (transfer
+  pairs, insights) instead of implying zero.
 - TWO DATABASES: code ships with git push, DATA does not. Every data change
   runs against BOTH; verify on <your-deployment>.vercel.app; every row-writing
   script prints its database label FIRST — read it.

@@ -21,6 +21,56 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   per-account when NO `--external-id` is given; routing is driven by whether the
   caller passes a resolver, so per-account files still work under that mapping.
   Unroutable rows are skipped and reported, never guessed.
+- `import:csv --dry-run` (BUILT 2026-08-08) is a READ-ONLY BRANCH of the path
+  that writes, and the distinction is the whole design. A preview that
+  re-implements the pipeline is worse than none: it is confidence without
+  evidence, handed to someone about to write rows they cannot take back — an
+  import has no undo, since a re-downloaded export whose text differs by one
+  character re-imports rather than dedupes and nothing records which file
+  produced which rows. So `previewImport` is handed the SAME connector object
+  `runSync` would get, and calls `sync.ts`'s own `findExistingAccount` and
+  `existingTransactionKeys`/`transactionKey` — both extracted from
+  `runPipeline` in the same commit, so the writer is their only other caller.
+  The account lookup is the one that had to be shared: its externalId-only
+  fallback is what makes a backfill land IN a live account, and a preview
+  holding a private copy would announce CREATE for precisely the invocation the
+  flag exists to check, talking the operator out of a backfill that was going
+  to work. The rule matcher and the payee grouper are already pure and are
+  called, not copied — the grouper against the same
+  `categoryId: null, flow != TRANSFER, reimbursesId: null` selection
+  `/transactions?payees=1` makes.
+  ANTI-DRIFT IS A TEST, not a rule, for the reason the command table already
+  learned: `previewImport.test.ts` runs the preview and then a real `runSync`
+  over the same fixture and asserts they agree about rows landing, rows already
+  present, accounts created, snapshots and rules fired; a second test censuses
+  EVERY table before and after (not just the ones a preview "should" touch —
+  the failure mode is a write added to the pipeline later) and asserts nothing
+  moved, `SyncLog` included, since `runSync` logs every run including the ones
+  that throw.
+  IT REFUSES TWO ANSWERS out loud: transfer-pair linking and insight
+  regeneration, both of which run over rows the preview has not written. That
+  makes the payee-decision count an UPPER BOUND — every pair linked takes two
+  more rows out of the review queue — and the report says so rather than
+  letting the number read as exact. Silence would have been the fabrication.
+  WHAT BUILDING IT FOUND, which is the argument for having built it: `--until`
+  is silently the BALANCE GUARD. With the cap set, `listAccounts` reports
+  `isStale` and nothing is written; without it, a mapping carrying a
+  running-balance column reports the file's newest row as the CURRENT balance
+  and `runSync` writes it — the `foreign` check protects institution, name and
+  currency, never the balance, and no date comparison stops it moving backward.
+  The preview prints `REPLACES <live balance> dated <live date>` and a WARNING
+  when the write would date the balance earlier; the write path was left
+  unchanged, because a refusal there is a behaviour change and this was a
+  reporting job.
+  WRITE-BY-DEFAULT WAS KEPT deliberately, matching `import:balances` — the
+  closest sibling, also a file importer, also previewed with `--dry-run` —
+  rather than `schema:push`/`turso:copy`, which are dry by default. Flipping it
+  would have broken every documented invocation and every operator's habit.
+  PROVED ON THE COMMAND, not only in the suite: against a throwaway database,
+  `npm run db:fingerprint` read `f3d007c9c97ce0b1` before and after a dry run
+  that reported it would import 4 rows, and the real import of the same file
+  landed exactly the counts the preview had printed (1 account created, 10
+  imported, 0 already present, 6 rules applied).
 - CODE ships with `git push`; DATA does not. There are TWO databases — local
   `file:./data/ducat.db` and the cloud Turso one — and anything that writes
   ROWS (retargeting a rule, recategorizing, `reapplyRules`, regenerating

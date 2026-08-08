@@ -73,6 +73,15 @@ export class CsvConnector implements Connector {
   /** Rows dropped by the mapping's skipRowWhen filter (pending transactions). */
   skippedRows = 0;
 
+  /**
+   * Rows parsed and routed to an account, BEFORE any `until` cap — so a dry run
+   * can say how many rows the cap is removing, which is the only way to see
+   * that `--until` landed where it was meant to.
+   */
+  get parsedRows(): number {
+    return this.rows.length;
+  }
+
   constructor(
     content: string,
     mapping: CsvMapping,
