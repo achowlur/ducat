@@ -19,14 +19,20 @@ and the only symptom is rows quietly landing in the wrong category — or a
 
 ### `npm run upgrade` — after every `git pull`
 
-Installs any rule-pack rules this database is missing and regenerates
-insights. Idempotent: it creates only what is absent and never edits a rule
-you changed yourself (your own rules outrank the shipped pack anyway).
-`-- --check` reports the gap without writing.
+Installs any rule-pack rules this database is missing, and regenerates the
+monthly insight rows — the second part every time, whether or not there were
+rules to install. That is the half that matters after a version which changed
+no rules at all: the analyzers are code, the numbers on your screens are rows
+in your database, and nothing else brings the two back into agreement.
+Idempotent: it creates only what is absent and never edits a rule you changed
+yourself (your own rules outrank the shipped pack anyway). `-- --check`
+reports the gap without writing.
 
-**How you know you need it:** Overview's "Needs review" panel counts the
-missing rules and names this command whenever a database is behind. It says
-nothing when there is nothing to do.
+**How you know you need it:** run it after every `git pull`, full stop — a
+release can change what the analyzers compute without shipping a single rule,
+and nothing announces that. Overview's "Needs review" panel counts missing
+RULES and names this command when a database is behind on them; its silence
+means the rules are current, not that this command has nothing to do.
 
 ### `npm run schema:push` — after a version that changes the schema
 

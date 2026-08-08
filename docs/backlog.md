@@ -477,8 +477,20 @@ turned up so it isn't rediscovered:
   needed a fourth state with its own advice. Read the convention file, not this
   paragraph, before touching the classifier.
 
-- **`npm run upgrade` skips insight regeneration whenever the rule pack is
-  already current — found 2026-08-06 auditing README's table, NOT fixed.**
+- **`npm run upgrade` skipped insight regeneration whenever the rule pack was
+  already current — found 2026-08-06 auditing README's table, FIXED
+  2026-08-08.** Call-site sequencing only: the early return is gone, the pack
+  install and its result logs are wrapped in `if (pending > 0)`, and
+  `generateInsights` runs unconditionally below them; neither
+  `sync/rulePack.ts` nor `insights/engine.ts` was touched. The four decisions
+  it forced (`--check` gains a line, "Nothing to do." is deleted rather than
+  reworded, MONTH stays hardcoded with no `--granularity`, and no pure function
+  was extracted — with the reason that one cannot fail on this bug), what it
+  makes true of the two-database rule, and the one dismissal that cannot
+  survive it are all in docs/conventions/sync-and-data-ops.md. README,
+  DEPLOY.md and docs/lifecycle.md were corrected in the same commit: all three
+  described the skip as intended behaviour, and none of them is guarded by a
+  test. The original entry follows, because it is the evidence.
   scripts/upgrade.ts returns at "Nothing to do." the moment `pendingPackRules`
   is 0, and the `generateInsights` call sits below that return — so the one
   command the docs point at for "after `git pull`, bring this database up to

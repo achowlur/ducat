@@ -54,6 +54,65 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   move money between categories, and this codebase's grain is visible over
   silent. Anything that must be run once per database belongs in that panel,
   not only in a README nobody re-reads.
+- ANALYZER MATH IS THE THIRD THING `git pull` CARRIES AND THE DATABASE DOES NOT,
+  and `npm run upgrade` skipped it from the day it shipped (2026-07-31) until
+  2026-08-08. `pendingPackRules === 0` hit an early return printing "Nothing to
+  do.", and `generateInsights` sat BELOW that return — under a comment stating
+  the opposite intent, which is the tell worth remembering: the decision to
+  regenerate unconditionally had already been made and written down, and the
+  control flow quietly defeated it. So the one command every doc points at after
+  a `git pull` did nothing at all after a release that changed only analyzer
+  math, which is this repo's commonest kind of release. Insights are COMPUTED
+  ONCE AND STORED; changed analyzer code reaches a screen through nothing else.
+  The fix is call-site sequencing only — early return deleted, `installRulePack`
+  and its result logs wrapped in `if (pending > 0)`, `generateInsights` left
+  unconditional below. `sync/rulePack.ts` and `insights/engine.ts` were
+  deliberately not touched.
+  FOUR DECISIONS CAME WITH IT, each recorded because the next reader will ask.
+  (1) `--check` gained a second line ("A real run regenerates the monthly
+  insight rows whatever that count says"). Its whole job is to report what a
+  real run would do, and the count it prints now decides the pack install ALONE
+  — reporting the count by itself would understate the run, which is the same
+  class of mistake the bug was. (2) "Nothing to do." was DELETED rather than
+  reworded: there is no longer a real run that does nothing, so any wording of
+  it is false. The rule-pack line above it ("up to date — nothing to install")
+  survives, because that claim was always scoped to the pack and stays true.
+  (3) MONTH stays HARDCODED, and no `--granularity` flag was added. Every screen
+  reads MONTH rows only (`ui/insightRows.ts` filters to them), so WEEK/QUARTER/
+  YEAR rows exist only where somebody ran `insights:generate --granularity=` and
+  are read by nothing; a flag would hand the operator a fourth thing to remember
+  to run four times, which is precisely the failure mode this command exists to
+  remove. Accepted and documented rather than fixed: those rows stay stale until
+  `insights:generate` refreshes them. (4) NO PURE FUNCTION WAS EXTRACTED, against
+  the repo's usual grain (`schema-delta.ts`, `retention.ts`, both pinned by
+  tests). The reason is that the extraction cannot fail on this bug: a
+  `planUpgrade(pending, checkOnly)` returning two booleans pins the DECISION,
+  while the regression lived in `main()`'s control flow — a future early return
+  above the call site passes that test untouched. Worse, the natural call shape
+  is `if (plan.regenerateInsights) …`, which puts the regeneration back behind a
+  boolean the moment the fix removes one. `upgrade.ts` remains untested (its
+  `main()` runs at module load), and the guard is that the comment now describes
+  the code instead of contradicting it.
+  WHAT THIS MAKES TRUE OF THE TWO DATABASES: `upgrade` is now a GUARANTEED
+  row-writer, so the run-once-per-database rule bites every single time rather
+  than only when the pack moved. The caveat that follows, stated so nobody reads
+  it as a broken mirror: cloud and local hold DIFFERENT TRANSACTION SETS by
+  design (local runs a nightly sync behind — see the entry in the backlog), so
+  running `upgrade` on both produces Insight rows that legitimately DO NOT
+  fingerprint-match. Regenerating is not a data change to be mirrored down; it
+  is each database recomputing from what it holds. And the digest moves even on
+  ONE database with nothing else changed: measured locally on 2026-08-08, a run
+  against a current pack left every other table and all 22 aggregates
+  byte-identical while `Insight` went `0f13a2df71f6b7bf` → `a8b4b2e72ada0f38`
+  at the same 225 rows, because regeneration DELETES AND RECREATES the rows and
+  their ids travel into the hash. So a whole-database digest taken after an
+  upgrade cannot be compared with one taken before it, on either side.
+  THE ONE IRREVERSIBLE EFFECT, and it is small but real: regeneration carries
+  the `dismissed` flag forward for insights of the same identity (`identityOf`
+  in `insights/engine.ts`, pinned by `engine.test.ts`), so ordinary dismissals
+  survive. A dismissed insight the CHANGED analyzer no longer emits has no row
+  to carry the flag onto, and its dismissal is gone for good. That is the price
+  of the command doing what it always said it did.
 - README's command table DRIFTS BY SHIPPING, which is why remembering does not
   fix it. The table is the index of everything an operator runs; it was audited
   and repaired on 2026-08-01 (the user-docs commit) as part of writing the user docs, and by

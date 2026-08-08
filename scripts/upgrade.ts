@@ -16,9 +16,18 @@ import { databaseLabel } from './database-label';
  * weeks exactly this way.
  *
  * Idempotent and safe to run at any time: it creates only what is missing and
- * never edits a rule you have changed. Insights regenerate afterwards so
- * categories and insight rows cannot end up disagreeing — the same contract
- * `retarget-rule.ts` holds.
+ * never edits a rule you have changed. The PACK INSTALL is the only part that
+ * depends on anything being pending. Insights regenerate on every real run,
+ * because analyzer math ships with `git pull` exactly as rules do and reaches
+ * stored rows through nothing at all — so a release that changed only the
+ * analyzers has no other way to reach a screen, and categories and insight
+ * rows cannot end up disagreeing either (the contract `retarget-rule.ts`
+ * holds). It therefore WRITES ROWS every real run, current pack or not.
+ *
+ * Regeneration is MONTH only — the granularity every screen reads
+ * (`ui/insightRows.ts`). WEEK/QUARTER/YEAR rows exist only where somebody ran
+ * `insights:generate --granularity=`, are read by nothing, and stay as they
+ * are until that same command refreshes them.
  *
  * It does NOT touch the schema. A Prisma migration still has to be applied by
  * hand on Turso (see DEPLOY.md); this refuses to pretend otherwise.
@@ -38,24 +47,27 @@ async function main(): Promise<void> {
   }
 
   if (checkOnly) {
+    // The count above decides the pack install and nothing else, so reporting
+    // it alone would understate what a real run does.
     console.log('\n--check: nothing written.');
-    return;
-  }
-  if (pending === 0) {
-    console.log('\nNothing to do.');
+    console.log('A real run regenerates the monthly insight rows whatever that count says.');
     return;
   }
 
-  const result = await installRulePack(prisma);
-  console.log(`  Categories created: ${result.categoriesCreated}`);
-  console.log(`  Rules created: ${result.rulesCreated} (${result.rulesSkipped} already present)`);
-  console.log(`  Transactions recategorized: ${result.transactionsRecategorized}`);
+  if (pending > 0) {
+    const result = await installRulePack(prisma);
+    console.log(`  Categories created: ${result.categoriesCreated}`);
+    console.log(`  Rules created: ${result.rulesCreated} (${result.rulesSkipped} already present)`);
+    console.log(`  Transactions recategorized: ${result.transactionsRecategorized}`);
+  }
 
-  // installRulePack regenerates insights only when it moved rows. Doing it
-  // unconditionally here costs one pass and removes the case where new rules
-  // changed nothing today but the stored insights predate them anyway.
+  // Unconditional, and the pack count above must never gate it: installRulePack
+  // regenerates only when it MOVED ROWS, and an upgrade shipping no new rules
+  // still ships analyzer math the stored rows predate. An early return above
+  // this line ("Nothing to do.") defeated exactly that, and made the one command
+  // the docs point at after `git pull` a no-op in the commonest case.
   const insights = await generateInsights(prisma, { granularity: 'MONTH' });
-  console.log(`  Insights regenerated: ${insights.created} across ${insights.periods.length} periods`);
+  console.log(`\nInsights regenerated: ${insights.created} across ${insights.periods.length} months`);
 
   console.log('\nDone. Run this once per database — DATA does not travel with git push.');
 }

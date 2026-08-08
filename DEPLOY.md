@@ -295,17 +295,21 @@ generated Prisma client is gitignored, so this step is what creates it on Vercel
 `git push` deploys the code. It does **not** touch your data, and a newer
 version can ship categorization rules your database has never seen — the app
 keeps using the old set, the deploy is green, and the only symptom is
-transactions landing in the wrong category. So after pulling a new version, run
-this once **per database**:
+transactions landing in the wrong category. The same is true of the analyzers:
+insights are computed once and STORED, so a version that changed how a number
+is calculated leaves the old number on the page until the rows are regenerated.
+So after pulling a new version, run this once **per database**:
 
 ```bash
 npm run upgrade
 ```
 
-It installs any pack rules that are missing and regenerates insights. It is
-idempotent, creates only what is absent, and never edits a rule you have
-changed yourself — a hand-tuned rule at priority ≤50 still outranks the whole
-pack. `npm run upgrade -- --check` reports the gap without writing.
+It installs any pack rules that are missing — and regenerates the monthly
+insight rows every time, missing rules or not, which is what covers the
+analyzer half above. It is idempotent, creates only what is absent, and never
+edits a rule you have changed yourself — a hand-tuned rule at priority ≤50
+still outranks the whole pack. `npm run upgrade -- --check` reports the rule
+gap without writing; a real run always writes the insight rows.
 
 For the cloud instance, point the two Turso variables at it for that one
 command, in a throwaway terminal you then close:
@@ -314,9 +318,11 @@ command, in a throwaway terminal you then close:
 DATABASE_URL="libsql://…turso.io" TURSO_AUTH_TOKEN="…" npm run upgrade
 ```
 
-You do not have to remember: Overview's **Needs review** panel counts the
-missing rules and names this command whenever a database is behind. It says
-nothing when there is nothing to do.
+Overview's **Needs review** panel counts the missing RULES and names this
+command whenever a database is behind on them — but that is the only half it
+can see. Nothing on any page can tell you the stored insights were computed by
+older analyzer code, so a silent panel is not a reason to skip this after a
+`git pull`.
 
 What this does **not** cover is a schema change — that is the other command,
 [`npm run schema:push`](#when-the-schema-changes). Run both after a version that

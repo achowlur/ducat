@@ -206,6 +206,10 @@ regeneration.
   digest orphans every recorded digest, so it is done deliberately or never.
 - Pack drift is counted by pendingPackRules and surfaced on Overview's
   review panel (npm run upgrade); rule changes are never auto-applied.
+- npm run upgrade regenerates insights on EVERY real run (MONTH only — what
+  screens read) and installs the pack only when rules are pending: it always
+  writes rows, Overview's silence speaks for RULES alone, and regenerated
+  Insight rows are NOT expected to fingerprint-match across the two databases.
 - A commit adding a `package.json` script owes README's command table a row in
   the SAME commit — commandTable.test.ts fails otherwise, and its INTERNAL
   list, each entry carrying its reason, is the only exemption.
