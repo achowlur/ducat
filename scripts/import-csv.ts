@@ -8,6 +8,7 @@ import { runSync } from '../src/lib/sync/sync';
 import { prisma } from '../src/lib/prisma';
 import { ACCOUNT_TYPES, type AccountType } from '../src/types/contracts';
 import { arg } from './args';
+import { printDatabase } from './database-label';
 
 /**
  * Usage (single account):
@@ -36,6 +37,13 @@ import { arg } from './args';
  */
 
 async function main(): Promise<void> {
+  // Before anything is read or written. This one imports rows that can never be
+  // deduped away afterwards — a CSV id is a content hash, so the same file run
+  // against the wrong database does not merge with what a feed already put
+  // there, it doubles it. Nothing here reports which database it landed in
+  // afterwards either: the counts read identically whichever one it was.
+  printDatabase();
+
   const file = process.argv[2];
   const mappingId = arg('mapping');
   if (file === undefined || file.startsWith('--') || mappingId === undefined) {
