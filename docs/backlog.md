@@ -386,6 +386,89 @@ turned up so it isn't rediscovered:
   feed warning, surfaced on the provider health line). History accumulates
   going forward since syncs never delete; CSV import is the backfill path for
   anything older, and dedups on (accountId, externalId).
+  THE PRICE IS REVIEW LABOUR, NOT ROWS — measured 2026-08-08 across the CSV
+  era (2024-06-28 → 2026-04-26), so the backfill can be budgeted before the
+  exports are pulled rather than discovered halfway through. Shattered merchant
+  strings arrive at ~7.5 per backfilled month and the rate is WORST IN THE
+  OLDEST MONTHS — ~9.8/month over 2024-07..2025-03 — so a 24-month backfill
+  adds ~180 of them at the flat rate and ~235 if it lands entirely in the old
+  stretch, against the 173 the entry above counts today: roughly DOUBLING the
+  pile, and more than doubling it if the oldest exports are the ones imported.
+  That number is also the one that looks alarming and is not. Every such row is
+  TRANSFER, dimmed at `opacity-60`, carries no category control and is excluded
+  from every analytic, so it costs nothing per row — the shattered-merchants
+  entry above measured exactly that and concluded LEAVE IT, and doubling a pile
+  whose per-row cost is zero does not change the conclusion. What it changes is
+  where those rows sit: they would no longer be archive on page 10, they would
+  be most of what a 24-month backfill puts into the ledger.
+  THE REAL COST IS GROUPED-REVIEW DECISIONS, at ~8.8 per backfilled month —
+  ~210 across 24 months, each one a person reading samples and choosing a
+  category, and each one becoming a priority-50 CONTAINS rule that outranks the
+  pack. That is the number to plan the labour against, and it is the reason to
+  backfill in date-ordered slices rather than in one run: the queue is worked
+  by hand and 210 decisions is not one sitting. Note the two per-month figures
+  disagree with the ~5.6 the shattered-merchants entry projects; they were
+  counted for different purposes and are NOT reconciled here, so plan against
+  7.5/9.8 and do not average them.
+  WHAT THE IMPORT PATH STILL LACKS, read out of `scripts/import-csv.ts` and
+  `src/lib/sync/sync.ts` on 2026-08-08 (the label was added the same day; it
+  was the last row-writing script without one):
+  - NO DRY RUN. `runSync` has one mode and it writes: accounts created or
+    updated, balance snapshots, `createMany` of the rows, one UPDATE per rule
+    application, two per transfer pair, the rate Setting, every insight row for
+    the affected periods, `lastSync:CSV`, and a SyncLog row on the failure path
+    as well as the success one. Nothing wraps it in a transaction, so an abort
+    halfway leaves accounts created and some rows imported.
+  - `skipInsights` EXISTS IN `SyncOptions` AND THE CLI CANNOT REACH IT. Its own
+    comment names this exact case ("batching several CSV imports"), and
+    `sync.ts` claims a batched import "fetches once instead of once per file" —
+    true only for a caller that passes the flag, and the only one that does is
+    the cron route. A multi-file backfill therefore regenerates every insight
+    and spends one FRED GET per file.
+  - `--until` IS ONE GLOBAL DATE. Feed coverage starts per account, so a
+    combined export routed to several accounts takes the same cap for all of
+    them: cut early and leave a gap, cut late and duplicate — and overlapping
+    rows never dedupe across sources, which is the whole reason the cap exists.
+  - `--until` IS ALSO THE BALANCE GUARD, which its name does not say. With the
+    cap set, `listAccounts` reports `isStale`, so the import writes no balance
+    and no snapshot. WITHOUT it, a mapping carrying a running-balance column
+    reports the file's newest row as the CURRENT balance, and `runSync` writes
+    it over the live account's — the `foreign` check protects institution, name
+    and currency, never the balance, and no date comparison stops it moving
+    BACKWARD. A forgotten `--until` on a Chase checking backfill rolls the live
+    balance back to the file's last row until the next sync.
+  - A BACKFILL PRODUCES NO HISTORICAL SNAPSHOTS, by that same branch. So 24
+    months of transactions is not 24 months of net worth: cash and credit
+    reconstruct, investment months stay `known:false` until `import:balances`
+    supplies month-end values. The running-balance column that could seed them
+    is parsed and then used only for the newest row.
+  - NO UNDO. CSV ids are content hashes, so a re-download whose description
+    text differs by a character re-imports rather than dedupes, and nothing
+    records which file produced which rows. Undoing a bad CLOUD import means a
+    fresh Turso database and a repointed Vercel — `turso:copy` refuses a
+    destination holding transactions — and `db:restore` was declined on purpose
+    (see the local-drift entry below). The pre-import backup is the only
+    recovery, and it is a manual one.
+  VERDICT ON `--dry-run`: BUILD IT, and build it as a read-only BRANCH of the
+  path that writes, never a second implementation of the pipeline. It is cheap
+  because the uncertain half is already pure and already runs before any write
+  — the `CsvConnector` constructor parses, routes, normalizes and hashes in
+  memory, `applyRules` and `detectTransferPairs` are pure functions, and dedupe
+  is one read query — so a preview can honestly report rows parsed, rows
+  skipped as pending, unroutable account values, per-account counts and date
+  ranges, what the cap removes, how many rows already exist, what the balance
+  write would be, and the two numbers this entry is about: new payee groups and
+  new shattered strings. It cannot report what insight regeneration will
+  produce and must not pretend to.
+  The honest substitute available TODAY is importing against a copy of a
+  verified `cloud:backup` and diffing digests, and it is strictly stronger
+  evidence — it exercises the real write path. It is also a multi-step manual
+  procedure that gets run once, where a dry run gets run before every file, and
+  it is a different database than the one that will be written. Do BOTH: the
+  dry run per file, the copy-and-diff once before the first real import. The
+  argument against building it — new code with no miles on it, landing
+  immediately before the import it is meant to protect — is real, and it is
+  what the branch-not-reimplementation bar answers.
 - **A LOOK-AT-EVERYTHING UI pass across all six tabs — raised 2026-08-03, RUN
   AND SHIPPED 2026-08-03.** Six agents ran as designed and their findings
   landed in seven commits: the correctness pass (six correctness fixes), then waves 1-5 —
