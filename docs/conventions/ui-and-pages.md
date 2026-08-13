@@ -63,6 +63,40 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   `GroupedReview` deliberately keeps its
   `<select>`: its choice is STAGED before a write that can rewrite dozens of
   rows, which is a different contract, and it is not on the hot path.
+- ESCAPE, CLICK-OUTSIDE and FOCUS RESTORE are owed by every popover on the
+  ledger, and the count is now THREE built without them: the category picker
+  had them from the start, the `rule` menu beside it was given them after
+  "opening one and changing your mind left it open, opening a second left
+  BOTH open", and `ReimburseControl` — the last control on the row — was
+  found the same way on 2026-08-12, reported by the operator with the
+  evidence still on screen. Its only dismissal was its own `cancel` link, so
+  two 256px panels sat stacked over the ledger, the lower one (measured at
+  x 1033, y 476) covering the upper one (x 1002, y 362, 270px tall) from
+  halfway down — including the candidates it had not shown yet and the
+  cancel that was the only way out of it. "Only one open at a time" needs no
+  coordinating state: another row's trigger is a click OUTSIDE this panel, so
+  click-outside buys it. The trigger also has to stay MOUNTED while the panel
+  is open — it used to be replaced by it — or Escape has nowhere to put focus
+  back and the anchor is measured detached, which is the trap above.
+- A control at the ROW'S RIGHT EDGE opens its panel LEFTWARD below md. The
+  ledger scrolls horizontally there, and left-anchoring put 138 of the
+  reimburse panel's 256px past the scroller's right edge at 375px — over half
+  of it, reachable only by scrolling the ledger sideways. `right-0` with
+  `md:left-0 md:right-auto` measured 0px hidden right and 3px left, desktop
+  untouched. The argument is not symmetry: you have to have scrolled the
+  trigger into view to click it, and right-anchoring is what lands the panel
+  in that same window.
+- The reimburse picker offers TWELVE candidates, not the ranker's default
+  five. Score is amount evidence times date decay, so a clean 1/3-of-dinner
+  three weeks back scores 0.34 against 0.3 for a shapeless "part of $X" from
+  yesterday — five slots is where real matches start losing to recent noise,
+  and the pinned test builds exactly that pool and asserts the clean split
+  survives at an index ≥ 5. Raising it cannot move the collapsed hint, which
+  takes `[0]` from a list a longer one shares its prefix with — the
+  wide-pool/narrow-pool equivalence still holds. The panel scrolls at 17rem
+  rather than growing, because a popover running off the bottom of a phone is
+  not a longer list, it is a shorter one; and the header says "closest first"
+  so a list that ends is not read as everything in the 45-day window.
 - The `?category=` filter takes a LIST, and `src/lib/ui/categoryFilter.ts` is
   the only place its format is written or read — link builders and the page
   share one encoder/decoder so they cannot drift. It exists because the donut's

@@ -20,6 +20,23 @@ export const REIMBURSE_LEAD_DAYS = 3;
 export const REIMBURSE_POOL_TAKE = 2000;
 
 /**
+ * How many ranked candidates the picker offers.
+ *
+ * `suggestReimbursements` defaults to 5, which is right for a hint and too
+ * few for a picker: the ranking multiplies amount evidence by date decay, so
+ * a clean 1/3-of-dinner from three weeks ago scores about the same as a
+ * shapeless "part of $X" from yesterday (0.85/(1+1.5) = 0.34 against 0.3),
+ * and five slots is where real matches start losing to recent noise. Twelve
+ * reaches past that without turning the panel into a list of everything in
+ * the 45-day window — and the panel scrolls, so length costs no layout.
+ *
+ * Raising it cannot change the collapsed hint: the page takes [0], and a
+ * longer list shares its prefix. That is what keeps the wide-pool/narrow-pool
+ * equivalence pinned in the tests true.
+ */
+export const REIMBURSE_CANDIDATE_LIMIT = 12;
+
+/**
  * Expenses nobody splits with the friend who Venmo'd them. Without this the
  * reimbursement ranker will happily offer "1/6 of your $6,300.49 tax payment",
  * because the arithmetic works. Uncategorized outflows stay splittable — a
@@ -110,7 +127,10 @@ export function makeCandidateFinder(
     if (inflow.accountType !== undefined && NON_REIMBURSABLE_ACCOUNT_TYPES.has(inflow.accountType)) {
       return [];
     }
-    return suggestReimbursements(inflow, rankable, { windowDays: REIMBURSE_WINDOW_DAYS }).flatMap((s) => {
+    return suggestReimbursements(inflow, rankable, {
+      windowDays: REIMBURSE_WINDOW_DAYS,
+      limit: REIMBURSE_CANDIDATE_LIMIT,
+    }).flatMap((s) => {
       const o = byId.get(s.id);
       if (o === undefined) return [];
       return [

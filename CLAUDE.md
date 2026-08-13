@@ -319,6 +319,11 @@ regeneration.
   anchor rect is measured ONCE at open (a detached anchor measures zero and
   floors the popover into the corner). GroupedReview keeps its <select>
   deliberately.
+- EVERY ledger popover owes ESCAPE, CLICK-OUTSIDE and FOCUS RESTORE, and the
+  reimburse picker was the third built without them: click-outside is what
+  makes "only one open at a time" free, and without it a second panel stacks
+  over the first. Below md a control at the row's right edge opens its panel
+  LEFTWARD, or most of it hangs off the horizontal scroller.
 - ?category= is an INCLUSION list, written/read ONLY by
   ui/categoryFilter.ts; null means the Uncategorized bucket; the multi-id
   group lives in where.AND; the select needs its synthetic entry.

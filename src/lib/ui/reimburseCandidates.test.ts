@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   makeCandidateFinder,
+  REIMBURSE_CANDIDATE_LIMIT,
   REIMBURSE_LEAD_DAYS,
   REIMBURSE_WINDOW_DAYS,
   type PoolOutflow,
@@ -124,6 +125,28 @@ describe('makeCandidateFinder', () => {
     expect(full).toMatchObject({ reason: 'exact amount', strong: true });
     const [part] = finder({ amount: 875, date: day(20) });
     expect(part).toMatchObject({ reason: 'part of $1750.00', strong: false });
+  });
+
+  // The picker offers more than the ranker's default five, and the two things
+  // that raise has to leave alone are the CAP and the HINT: the panel must stay
+  // a panel, and the collapsed dot on the row takes [0], which a longer list
+  // shares with a shorter one.
+  it('offers up to REIMBURSE_CANDIDATE_LIMIT candidates, keeping a match five slots would cut', () => {
+    // Amounts near 45×5 with a 2% slack read as approximate fifths, so these
+    // are STRONG and recent — the only thing that can outrank a strong older
+    // match, and what the real ledger is full of.
+    const pool = Array.from({ length: 30 }, (_, i) => out(`o${i}`, 200 + i, 20 - (i % 20)));
+    // A clean 1/3, three weeks back. Its evidence is better and its date worse.
+    pool.push(out('dinner', 135, 1, { categoryId: 'dining' }));
+    const candidates = makeCandidateFinder(pool, categoryName)({ amount: 45, date: day(22) });
+
+    expect(candidates).toHaveLength(REIMBURSE_CANDIDATE_LIMIT);
+    const dinner = candidates.findIndex((c) => c.id === 'dinner');
+    expect(dinner).toBeGreaterThanOrEqual(5); // five slots would have dropped it
+    expect(candidates[dinner]).toMatchObject({ reason: '1/3 of $135.00', strong: true });
+    // Strong evidence still never sorts below weak, however recent the weak one is.
+    const firstWeak = candidates.findIndex((c) => !c.strong);
+    if (firstWeak !== -1) expect(candidates.slice(firstWeak).every((c) => !c.strong)).toBe(true);
   });
 
   // The property the lazy picker depends on: the page ranks against ONE pool
