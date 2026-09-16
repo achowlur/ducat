@@ -22,7 +22,7 @@ const INTERNAL: Record<string, string> = {
   "turso:baseline":
     "emits baseline SQL to stdout and touches no database; a sub-step of turso:push, documented in DEPLOY.md",
   build:
-    "covered in prose under 'Measuring performance', where the never-build-while-dev-runs hazard travels with it — a bare row would strip the warning off the one command that corrupts .next/",
+    "covered in the prose under README's command table, where the never-build-while-dev-runs hazard travels with it — a bare row would strip the warning off the one command that corrupts .next/",
   start: "same prose; it only means anything paired with build, for measuring against a production build",
 };
 
