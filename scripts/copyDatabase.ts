@@ -10,7 +10,7 @@
 import { execFileSync } from 'node:child_process';
 import { renameSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { createClient, type Client, type InStatement } from '@libsql/client';
+import { createClient, type Client, type InStatement, type Transaction } from '@libsql/client';
 
 /**
  * Rename that outwaits a lingering file lock. On Windows the libSQL client's
@@ -123,12 +123,22 @@ export async function countRows(db: Client, table: TableName): Promise<number> {
   return Number((await db.execute(`select count(*) as c from ${q(table)}`)).rows[0].c);
 }
 
-/** Clears the destination in reverse dependency order, then fills it forwards. */
+/**
+ * Clears the destination in reverse dependency order, then fills it forwards.
+ *
+ * Accepts an open TRANSACTION as well as a client. Against a client every
+ * batch commits on its own, which suits copying into a brand-new file; the
+ * local mirror (mirrorLocal.ts) passes a transaction instead, so a failure
+ * part-way rolls back to the database it started with rather than leaving
+ * one half-cleared.
+ */
 export async function clearAndCopy(
-  dest: Client,
+  dest: Client | Transaction,
   plan: TablePlan[],
   log: (line: string) => void,
 ): Promise<void> {
+  const runBatch = (stmts: InStatement[]) =>
+    'commit' in dest ? dest.batch(stmts) : dest.batch(stmts, 'write');
   for (const { table } of [...plan].reverse()) await dest.execute(`delete from ${q(table)}`);
 
   for (const { table, columns, rows } of plan) {
@@ -137,7 +147,7 @@ export async function clearAndCopy(
     const insertCols = columns.filter((c) => !deferred.includes(c));
     const sql = `insert into ${q(table)} (${insertCols.map(q).join(', ')}) values (${insertCols.map(() => '?').join(', ')})`;
     const stmts: InStatement[] = rows.map((r) => ({ sql, args: insertCols.map((c) => r[c] as never) }));
-    for (let i = 0; i < stmts.length; i += CHUNK) await dest.batch(stmts.slice(i, i + CHUNK), 'write');
+    for (let i = 0; i < stmts.length; i += CHUNK) await runBatch(stmts.slice(i, i + CHUNK));
 
     // Second pass: the self-references, now that every target row exists.
     const fixes: InStatement[] = [];
@@ -149,7 +159,7 @@ export async function clearAndCopy(
         args: [...set.map((c) => r[c] as never), r.id as never],
       });
     }
-    for (let i = 0; i < fixes.length; i += CHUNK) await dest.batch(fixes.slice(i, i + CHUNK), 'write');
+    for (let i = 0; i < fixes.length; i += CHUNK) await runBatch(fixes.slice(i, i + CHUNK));
     log(`  ${table.padEnd(20)} ${rows.length} rows${fixes.length > 0 ? `, ${fixes.length} self-references` : ''}`);
   }
 }

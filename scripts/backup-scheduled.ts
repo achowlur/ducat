@@ -29,10 +29,17 @@
  *      keeper and delete the proven backups around it;
  *   3. retention pruning (~14 daily dates, newest-per-month beyond) — only
  *      after a verified new backup, so a failing job never eats history;
- *   4. the Setting, written to the CLOUD first and then byte-identically to
- *      the local mirror: the wrapper IS that row's mirror step (see
- *      docs/conventions/sync-and-data-ops.md). A failed run writes NO
- *      Setting — /providers' age measures days since the last PROVEN copy.
+ *   4. the LOCAL MIRROR: data/ducat.db becomes a copy of the verified file,
+ *      in one transaction, and only if nothing has written to local since it
+ *      was last mirrored (scripts/mirrorLocal.ts). A refusal or a rolled-back
+ *      failure leaves local completely untouched — local is written by
+ *      exactly one thing, a successful mirror — and is reported in the
+ *      Setting, so the phone sees it;
+ *   5. the Setting, carrying the mirror's outcome, written to the CLOUD first
+ *      and then — only after a successful mirror — byte-identically to local,
+ *      whose new state is then recorded for tomorrow's check. A failed run
+ *      writes NO Setting — /providers' age measures days since the last
+ *      PROVEN copy.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, appendFileSync, statSync, unlinkSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -42,13 +49,14 @@ import { BACKUP_SETTING_KEY, type StoredBackupRun } from '../src/lib/health/back
 import { backupToFile, renameWhenReleased } from './copyDatabase';
 import { databaseLabel } from './database-label';
 import { fingerprintOf, type DatabaseFingerprint } from './fingerprintDatabase';
+import { LOCAL_DB_PATH, MIRROR_STATE_PATH, mirrorIntoLocal, readMirrorState, recordMirrorState } from './mirrorLocal';
 import { backupFileName, planRetention } from './retention';
 import { hasFlag } from './args';
 
 const DIR = join('data', 'backups');
 const LOG_PATH = join(DIR, 'backup.log');
 const CRED_FILE = '.env.backup';
-const LOCAL_DB_PATH = join('data', 'ducat.db');
+const LOCAL_URL = `file:./${LOCAL_DB_PATH.replace(/\\/g, '/')}`;
 
 /** Console AND backup.log, line by line, so a crash still leaves a trail. */
 function makeLog(): (line: string) => void {
@@ -181,41 +189,67 @@ async function main(): Promise<void> {
     }
     if (plan.remove.length === 0) log('  nothing to remove');
 
-    // 4. The Setting — cloud first, then the local mirror, byte-identical.
+    // 4. The local mirror — from the file just proved equal to the cloud.
+    log(`\nLocal mirror: ${databaseLabel(LOCAL_URL)} <- ${basename(path)}`);
+    const mirror = await mirrorIntoLocal({
+      sourcePath: path,
+      localPath: LOCAL_DB_PATH,
+      unchangedSince: readMirrorState(MIRROR_STATE_PATH),
+      dryRun,
+      log,
+    });
+    if (mirror.status === 'mirrored') {
+      // Recorded at once: if the Setting writes below fail, tomorrow's check
+      // still compares against the local this run actually left behind.
+      recordMirrorState(mirror.after, mirror.source, MIRROR_STATE_PATH);
+      log(`  mirrored${mirror.changed ? '' : ' (already current)'}`);
+    } else if (mirror.status === 'ready') {
+      log('  checks pass — a real run would mirror');
+    } else {
+      log(`  LOCAL NOT UPDATED (${mirror.status}): ${mirror.detail}`);
+    }
+
+    // 5. The Setting — cloud first, then local only if local is now a mirror.
     const run: StoredBackupRun = {
       at: new Date().toISOString(),
       file: basename(path),
       wholeDigest: fileFp.overall,
       rows: totalRows,
+      ...(mirror.status === 'mirrored' || mirror.status === 'refused' || mirror.status === 'failed'
+        ? { localMirror: { status: mirror.status, detail: mirror.status === 'mirrored' ? null : mirror.detail } }
+        : {}),
     };
     const value = JSON.stringify(run);
     log(`\nSetting ${BACKUP_SETTING_KEY} = ${value}`);
     if (dryRun) {
-      log(`  would write to ${databaseLabel(url)} then ${databaseLabel(`file:./${LOCAL_DB_PATH.replace(/\\/g, '/')}`)}`);
+      log(`  would write to ${databaseLabel(url)}${mirror.status === 'ready' ? ` then ${databaseLabel(LOCAL_URL)}` : ''}`);
     } else {
       await cloud.execute({ sql: upsertSettingSql, args: [BACKUP_SETTING_KEY, value] });
       log(`  written to ${databaseLabel(url)}`);
-      if (existsSync(LOCAL_DB_PATH)) {
-        const local = createClient({ url: `file:./${LOCAL_DB_PATH.replace(/\\/g, '/')}` });
+      if (mirror.status === 'mirrored') {
+        const local = createClient({ url: LOCAL_URL });
         try {
           await local.execute({ sql: upsertSettingSql, args: [BACKUP_SETTING_KEY, value] });
-          log(`  written to ${databaseLabel(`file:./${LOCAL_DB_PATH.replace(/\\/g, '/')}`)} (same value — the mirror step for this row)`);
+          recordMirrorState(await fingerprintOf(local), mirror.source, MIRROR_STATE_PATH);
+          log(`  written to ${databaseLabel(LOCAL_URL)} (same value), and local's new state recorded`);
         } catch (e) {
-          // The cloud row — the one /providers on the phone reads — is in.
-          // A locked local file leaves the mirror one row behind, which the
-          // next run or the next mirror-down repairs; say so and finish.
-          log(`  WARNING: local mirror write failed (${e instanceof Error ? e.message : String(e)}) — local is one Setting row behind until the next run.`);
+          // The cloud row — the one /providers on the phone reads — is in, and
+          // local is a verified mirror one Setting row behind; the state
+          // recorded after the mirror still matches it, so tomorrow proceeds.
+          log(`  WARNING: local Setting write failed (${e instanceof Error ? e.message : String(e)}) — local is one Setting row behind until the next run.`);
         } finally {
           local.close();
         }
       } else {
-        log(`  NOTE: ${LOCAL_DB_PATH} does not exist on this machine — cloud Setting written, no local mirror to update.`);
+        log('  not written to local: local is not a current mirror (see above), and is left exactly as it was');
       }
     }
 
     const kb = Math.round(statSync(path).size / 1024);
     const secs = ((Date.now() - started.getTime()) / 1000).toFixed(1);
-    log(`\nOK: ${totalRows} rows → ${basename(path)} (${kb} KB, digest ${fileFp.overall}) in ${secs}s`);
+    const localNote =
+      mirror.status === 'mirrored' ? 'local mirrored' : mirror.status === 'ready' ? 'local would be mirrored' : `LOCAL NOT UPDATED: ${mirror.detail}`;
+    log(`\nOK: ${totalRows} rows → ${basename(path)} (${kb} KB, digest ${fileFp.overall}) in ${secs}s; ${localNote}`);
   } finally {
     cloud.close();
   }

@@ -13,7 +13,8 @@ import { databaseLabel } from './database-label';
  * balances count is exactly the thing the data cannot say: cash as a whole
  * breathes by a rent cycle and counts the emergency fund toward the house.
  * Same mechanism as `accounts:cash` — a `Setting`, per-instance operator
- * config, so declaring is a DATA change and has to be run once per database.
+ * config, so declaring is a DATA change: run it against the CLOUD, and the
+ * nightly mirror brings it to local (a local run makes that mirror refuse).
  *
  *   npm run goals
  *   npm run goals -- --add --name="House deposit" --target=60000 --by=2028-06 --accounts="savings,money market"

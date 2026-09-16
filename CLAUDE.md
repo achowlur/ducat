@@ -191,15 +191,21 @@ regeneration.
   against a real runSync by test, and states what it cannot count (transfer
   pairs, insights) instead of implying zero.
 - TWO DATABASES: code ships with git push, DATA does not. Every data change
-  runs against BOTH; verify on <your-deployment>.vercel.app; every row-writing
-  script prints its database label FIRST — read it.
+  runs against the CLOUD only; verify on <your-deployment>.vercel.app; the
+  nightly mirror brings local down. Every row-writing script prints its
+  database label FIRST — read it.
 - LOCAL MIRRORS CLOUD, always. Anything touching Turso DATA lands on the cloud
-  first, is CONFIRMED there by the operator, and is then copied down to local —
-  and the two are PROVED equal by matching fingerprint-db.ts digests, never
-  assumed. Cloud is the only writer; local is a mirror, not a second history.
+  first and reaches local through the nightly mirror (or db:mirror), PROVED
+  equal by fingerprint digests, never assumed. Cloud is the only writer; local
+  is a mirror, not a second history — a local write makes the mirror refuse.
+- The nightly mirror writes local ONLY while local still matches the digests
+  recorded after its last mirror (data/backups/mirror-state.json): ROWS in ONE
+  transaction, never a file swap (local keeps its migration history), proved
+  before commit. A refusal leaves local untouched and WARNs on /providers;
+  only db:mirror --confirm replaces a changed local, keeping the old file.
 - backup:scheduled (the 23:50 UTC Windows task) is the ONLY writer of Setting
-  backup.lastRun: CLOUD first, then byte-identical to local — the wrapper IS
-  that row's mirror step — and only AFTER whole-database fingerprints MATCH;
+  backup.lastRun: CLOUD first, then — after a successful mirror — to local;
+  and only AFTER whole-database fingerprints MATCH;
   a failed run writes no row and deletes nothing, so /providers' backup age
   means nights since the last PROVEN copy. Manual cloud:backup never updates it.
 - The canonical ducat-YYYY-MM-DD-HHMM.db name is EARNED by verification:
@@ -217,8 +223,8 @@ regeneration.
   review panel (npm run upgrade); rule changes are never auto-applied.
 - npm run upgrade regenerates insights on EVERY real run (MONTH only — what
   screens read) and installs the pack only when rules are pending: it always
-  writes rows, Overview's silence speaks for RULES alone, and regenerated
-  Insight rows are NOT expected to fingerprint-match across the two databases.
+  writes rows, Overview's silence speaks for RULES alone, and it runs against
+  the CLOUD — a local run would make tonight's mirror refuse.
 - A commit adding a `package.json` script owes README's command table a row in
   the SAME commit — commandTable.test.ts fails otherwise, and its INTERNAL
   list, each entry carrying its reason, is the only exemption.

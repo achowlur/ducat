@@ -119,6 +119,7 @@ async function renderProviders({
             <span className="font-money">{backup.run.wholeDigest}</span>, written to{" "}
             <span className="font-money">data/backups/{backup.run.file}</span> on the machine that runs the
             nightly schedule.{" "}
+            {backup.localMirrorLine !== null && <>{backup.localMirrorLine} </>}
             {backup.reason !== null && (
               <span
                 className={`font-semibold ${backup.status === "ERROR" ? "text-neg" : "text-chart2"}`}
