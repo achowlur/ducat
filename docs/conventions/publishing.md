@@ -1,13 +1,13 @@
 # Ducat — publishing conventions
 
-Added 2026-09-15, the day the repository went public. This file holds the
+Added 2026-09-16, the day the repository went public. This file holds the
 full evidence — what each rule costs and why the alternatives were rejected.
 The one-line enforceable rules live in CLAUDE.md and point here. Additions
 follow the same contract: rule line in CLAUDE.md, evidence here, never both
 in one place. This file is itself bound by the rule it documents: it carries
 no dollar amount, count, percentage, ratio, digest or hash anywhere below.
 
-- NO REAL FIGURES, ANYWHERE IN THE PUBLISHED TEXT (2026-09-15, publication).
+- NO REAL FIGURES, ANYWHERE IN THE PUBLISHED TEXT (2026-09-16, publication).
   From this date, every dollar amount and every count that appears in docs,
   comments, tests and commit messages is scaled by ONE unrecorded constant,
   drawn once and never written down anywhere in the repository — not in a
