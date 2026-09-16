@@ -1,5 +1,7 @@
 # Ducat — build history
 
+> Every figure in this file is scaled by one unrecorded constant: ratios are exact, no absolute value is real. See [publishing.md](conventions/publishing.md).
+
 Moved VERBATIM from CLAUDE.md on 2026-08-01 (the split). This file holds the
 full evidence — what each rule cost and why alternatives failed. The one-line
 enforceable rules live in CLAUDE.md and point here. Additions follow the same
