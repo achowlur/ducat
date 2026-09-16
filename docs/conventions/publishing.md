@@ -8,8 +8,8 @@ in one place. This file is itself bound by the rule it documents: it carries
 no dollar amount, count, percentage, ratio, digest or hash anywhere below.
 
 - NO REAL FIGURES, ANYWHERE IN THE PUBLISHED TEXT (2026-09-16, publication).
-  From this date, every dollar amount and every count that appears in docs,
-  comments, tests and commit messages is scaled by ONE unrecorded constant,
+  At publication, every dollar amount and every count that appeared in docs,
+  comments, tests and commit messages was scaled by ONE unrecorded constant,
   drawn once and never written down anywhere in the repository — not in a
   script, not in a config file, not in a comment explaining that scaling
   happened. It cannot be recovered from the published text, which is the
@@ -71,3 +71,29 @@ no dollar amount, count, percentage, ratio, digest or hash anywhere below.
   some stray file already exists on that one machine. Publication is what
   made that failure mode matter — before it, the only person who would ever
   clone the repository fresh was the same person, on the same machine.
+- NEW FIGURES ARE INVENTED, AND PUBLIC TEXT IS MORE THAN FILES (2026-09-16,
+  publication day). The scaling constant was destroyed once the rewrite was
+  verified, deliberately: kept anywhere, it would unscale every figure it
+  protects. That leaves no way to scale a figure written later, so a new
+  worked example uses an INVENTED figure, chosen to make its own story's
+  arithmetic agree and never read off the operator's data and then
+  adjusted. An invented figure cannot contradict a scaled one, because no
+  story spans both.
+  The same day showed that the files are not the whole public surface. Two
+  things reached, or nearly reached, public history without appearing in
+  any tracked file: a commit message that named a personal mail provider
+  while describing the file guard, caught by the verifier before the
+  repository went public; and a pull request merged through the GitHub web
+  interface, whose merge commit was signed with the account's personal
+  address, because a web merge uses the account email. That one was public
+  for about half an hour before the repository was deleted and recreated
+  from a corrected history, and it may survive in public event archives.
+  The account's email is now private, which prevents the repeat.
+  scripts/check-public-text.ts closes the rest in CI. Over the commits a
+  change brings in it reads every message and every author and committer
+  email, plus the branch name and the pull request's title and
+  description, applying the same shapes as the file guard (the rules live
+  once, in scripts/privacyScan.ts). On a pull request it prevents; on a
+  push to main it can only report, because a web merge's commit does not
+  exist until the merge. GitHub comments are published too, and nothing
+  checks them.

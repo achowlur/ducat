@@ -2,6 +2,8 @@ name: ci
 
 on:
   pull_request:
+    # edited: a changed title or description is re-checked for personal data
+    types: [opened, synchronize, reopened, edited]
   push:
     branches:
       - main
@@ -19,6 +21,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          # full history, so the commits this change brings in can be read
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -28,6 +33,17 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Check public text for personal data
+        # commit messages and identities, branch name, PR title and description;
+        # PR text reaches the script through env, never the shell line
+        run: npx tsx scripts/check-public-text.ts
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
 
       - name: Type check
         run: npx tsc --noEmit
