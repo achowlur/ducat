@@ -26,7 +26,7 @@ import {
 import { periodKey } from "../insights/periods";
 import { monthLabel, shortDate } from "./format";
 import { monthlyRows, ofType } from "./insightRows";
-import { spendingBreakdown, type DonutSliceData } from "./spendingBreakdown";
+import { OVERVIEW_SLICING, spendingBreakdown, type DonutSliceData } from "./spendingBreakdown";
 
 export interface AccountRow {
   id: string;
@@ -211,7 +211,7 @@ export async function getOverviewData(): Promise<OverviewData> {
   // under a "this month" caption. Both figures go through spendingBreakdown,
   // the single source of every printed total, so no second summation appears.
   const currentSpending = spendingSeries.find((s) => s.period === currentPeriod) ?? null;
-  const breakdown = currentSpending === null ? null : spendingBreakdown(currentSpending.payload);
+  const breakdown = currentSpending === null ? null : spendingBreakdown(currentSpending.payload, OVERVIEW_SLICING);
   const priorRows = spendingSeries.filter((s) => s.period < currentPeriod);
   const priorRow = priorRows[priorRows.length - 1] ?? null;
   const currentYear = currentPeriod.slice(0, 4);

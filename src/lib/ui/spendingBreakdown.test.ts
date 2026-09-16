@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SpendingByCategoryPayload } from "../../types/contracts";
-import { spendingBreakdown } from "./spendingBreakdown";
+import { sliceFill, sliceSwatch } from "./donutColors";
+import { OVERVIEW_SLICING, spendingBreakdown, wholePercents } from "./spendingBreakdown";
 
 function payload(
   categories: { name: string | null; spending: number }[],
@@ -139,5 +140,88 @@ describe("spendingBreakdown", () => {
     );
     expect(b.donut?.slices.map((s) => s.label)).toEqual(["Dining", "Groceries", "Transport"]);
     expect(b.credited).toBe(0);
+  });
+});
+
+describe("spendingBreakdown on Overview (every category at 3% or more)", () => {
+  const labels = (cats: { name: string | null; spending: number }[]) =>
+    spendingBreakdown(payload(cats), OVERVIEW_SLICING).donut?.slices.map((s) => s.label);
+
+  it("names every category at 3% or more and rolls the rest into Other", () => {
+    const b = spendingBreakdown(
+      payload([
+        { name: "Rent", spending: 50 },
+        { name: "Groceries", spending: 20 },
+        { name: "Dining", spending: 15 },
+        { name: "Transport", spending: 6 },
+        { name: "Shopping", spending: 4 },
+        { name: "Gas", spending: 3 }, // exactly 3% counts
+        { name: "Books", spending: 1 },
+        { name: "Fees", spending: 1 },
+      ]),
+      OVERVIEW_SLICING,
+    );
+    const slices = b.donut?.slices ?? [];
+    expect(slices.map((s) => s.label)).toEqual(["Rent", "Groceries", "Dining", "Transport", "Shopping", "Gas", "Other"]);
+    expect(slices.map((s) => s.isOther)).toEqual([false, false, false, false, false, false, true]);
+    expect(slices[6].categoryIds).toEqual(["cat-books", "cat-fees"]);
+  });
+
+  it("names a lone small category instead of hiding it in an Other of one", () => {
+    expect(
+      labels([
+        { name: "Rent", spending: 90 },
+        { name: "Groceries", spending: 9 },
+        { name: "Fees", spending: 1 },
+      ]),
+    ).toEqual(["Rent", "Groceries", "Fees"]);
+  });
+
+  it("caps the legend at eight rows, the eighth being Other", () => {
+    const ten = Array.from({ length: 10 }, (_, i) => ({ name: `Cat${i}`, spending: 20 - i }));
+    const b = spendingBreakdown(payload(ten), OVERVIEW_SLICING);
+    const slices = b.donut?.slices ?? [];
+    expect(slices).toHaveLength(8);
+    expect(slices[7].label).toBe("Other");
+    expect(slices[7].categoryIds).toEqual(["cat-cat7", "cat-cat8", "cat-cat9"]);
+    expect(slices.reduce((sum, s) => sum + s.share, 0)).toBeCloseTo(1, 10);
+  });
+
+  it("spends the eighth row on a category when exactly eight are everything", () => {
+    const eight = Array.from({ length: 8 }, (_, i) => ({ name: `Cat${i}`, spending: 20 - i }));
+    expect(labels(eight)).toEqual(eight.map((c) => c.name));
+  });
+
+  it("leaves /trends on its top three", () => {
+    const eight = Array.from({ length: 8 }, (_, i) => ({ name: `Cat${i}`, spending: 20 - i }));
+    expect(spendingBreakdown(payload(eight)).donut?.slices.map((s) => s.label)).toEqual([
+      "Cat0",
+      "Cat1",
+      "Cat2",
+      "Other",
+    ]);
+  });
+});
+
+describe("wholePercents", () => {
+  it("sums to exactly 100 where rounding each share alone overshoots", () => {
+    const shares = [0.495, 0.215, 0.115, 0.085, 0.065, 0.025];
+    expect(shares.reduce((sum, s) => sum + Math.round(s * 100), 0)).toBeGreaterThan(100);
+    const pct = wholePercents(shares);
+    expect(pct.reduce((a, b) => a + b, 0)).toBe(100);
+  });
+
+  it("gives a category in credit no points", () => {
+    expect(wholePercents([0.5, null, 0.5])).toEqual([50, 0, 50]);
+    expect(wholePercents([null])).toEqual([0]);
+  });
+});
+
+describe("donut colours", () => {
+  it("draws Other in the neutral whatever its position, and cycles the rest", () => {
+    expect(sliceFill({ isOther: true }, 0)).toBe("var(--pie-other)");
+    expect(sliceSwatch({ isOther: true }, 7)).toBe("bg-pie-other");
+    const named = Array.from({ length: 7 }, (_, i) => sliceFill({ isOther: false }, i));
+    expect(new Set(named).size).toBe(7);
   });
 });

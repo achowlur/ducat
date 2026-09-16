@@ -1,7 +1,6 @@
 import Link from "next/link";
+import { sliceFill } from "../lib/ui/donutColors";
 import type { DonutSliceData } from "../lib/ui/spendingBreakdown";
-
-const COLORS = ["var(--chart1)", "var(--chart2)", "var(--pie3)", "var(--pie4)"];
 
 interface Point {
   x: number;
@@ -64,7 +63,7 @@ export function MiniDonut({
     const a0 = angle;
     const a1 = Math.min(angle + sweep, 359.9);
     angle += sweep;
-    return { d: slicePath(cx, cy, 70, 40, a0, a1), color: COLORS[i % COLORS.length], slice: s };
+    return { d: slicePath(cx, cy, 70, 40, a0, a1), color: sliceFill(s, i), slice: s };
   });
 
   const label = slices
@@ -72,7 +71,11 @@ export function MiniDonut({
     .join(", ");
 
   return (
-    <svg viewBox="0 0 220 200" className={className} role="img" aria-label={`Spending by category: ${label}`}>
+    // Cropped to the ring (outer radius 70 plus the 2px stroke): the old 220×200
+    // box spent over a third of its width on padding, so a 200px donut drew a
+    // 127px ring. Nothing is drawn outside it — the hover tooltip lives on
+    // /trends' donut, not this one.
+    <svg viewBox="38 28 144 144" className={className} role="img" aria-label={`Spending by category: ${label}`}>
       <g stroke="var(--paper)" strokeWidth="2">
         {paths.map((p) => {
           // ONE string child, never two. React serializes <title> from `children`

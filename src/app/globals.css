@@ -157,6 +157,10 @@
   --chart2: #9c5a12;
   --pie3: #0e9178;
   --pie4: #b0421f;
+  --pie5: #6a4f9c;
+  --pie6: #667a1c;
+  --pie7: #a8346a;
+  --pie-other: #a39683;
 }
 
 :root[data-theme="light"] {
@@ -173,6 +177,10 @@
   --chart2: #a4762a;
   --pie3: #0e9178;
   --pie4: #b0421f;
+  --pie5: #6a4f9c;
+  --pie6: #647a1f;
+  --pie7: #a8346a;
+  --pie-other: #a3a7ab;
 }
 
 :root[data-theme="dark"] {
@@ -189,6 +197,10 @@
   --chart2: #bd7a26;
   --pie3: #2aa88f;
   --pie4: #cf5a33;
+  --pie5: #9a82d0;
+  --pie6: #9bb04a;
+  --pie7: #d0679a;
+  --pie-other: #686d74;
 }
 
 @theme inline {
@@ -205,6 +217,10 @@
   --color-chart2: var(--chart2);
   --color-pie3: var(--pie3);
   --color-pie4: var(--pie4);
+  --color-pie5: var(--pie5);
+  --color-pie6: var(--pie6);
+  --color-pie7: var(--pie7);
+  --color-pie-other: var(--pie-other);
   --font-ledger: Bahnschrift, "Segoe UI", system-ui, sans-serif;
   --font-money: "Cascadia Mono", Consolas, ui-monospace, monospace;
 }

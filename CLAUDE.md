@@ -364,6 +364,10 @@ regeneration.
   in inverse proportion to what each block had to say. The category column is
   the prior period's DOLLARS, never a ratio: one unit down the column, with
   `new` the only non-quantity.
+- Overview's ring names every category at ≥3% (eight legend rows max, the
+  last being Other, drawn NEUTRAL); /trends keeps its top three because its
+  table names the rest. One spendingBreakdown, two DonutSlicings; legend
+  percentages round together via wholePercents.
 - Overview is HEADLINE → DETAIL → TOTAL; the grouping figures are a
   full-width band BELOW the table, never rows inside it; freshness is a
   COLUMN.
