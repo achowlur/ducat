@@ -448,6 +448,10 @@ regeneration.
   account digits synthetic, no live deployment URL and no real email.
   scripts/privacy.test.ts guards the mechanical patterns; the rest is
   discipline.
+- Every change lands on a BRANCH and through a PULL REQUEST — never a commit
+  on main, Claude Code's sessions included — and a PR merges only on a green
+  `verify` check. The local pre-commit gate (`/verify`) is unchanged and
+  still runs first.
 
 ## Verified load-bearing (three reviews, 2026-07-26) — do not "clean up"
 
