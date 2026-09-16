@@ -45,3 +45,29 @@ no dollar amount, count, percentage, ratio, digest or hash anywhere below.
   discipline AT THE POINT OF WRITING, not on anything the suite enforces
   afterward. Naming that gap is the point: the test is a floor under the
   mechanical cases, not a substitute for scaling a figure before it is typed.
+- THE PR GATE, ADDED AT PUBLICATION, NOT BEFORE (2026-09-16). Before the
+  repository went public, the only gate a change had to pass was the local
+  pre-commit /verify — typecheck, lint, tests, a look at the running app —
+  run by hand on one machine, configured by hand over months of sessions.
+  That gate is real and stays; publication does not weaken it. But it proves
+  only that a change works on that particular machine, set up that
+  particular way. A public repository needs proof that a change stands up on
+  a machine nobody hand-configured at all, which is what a clean-checkout
+  `npm ci` on a fresh CI runner establishes and a local run cannot. So from
+  2026-09-16, every change lands on a branch and merges only through a pull
+  request gated on a green `verify` check in that clean environment — never
+  a direct commit to main — and this binds Claude Code's own sessions
+  exactly as it binds anyone else's. There is no exemption for a change that
+  "just" touches docs or scripts: docs/conventions/sync-and-data-ops.md
+  and docs/history.md both record documentation and tooling drifting out of
+  sync with the codebase precisely because such changes felt too small to
+  need a second look.
+  The two gates are complementary, not redundant. CI cannot do what the
+  local gate's last step does — load the affected page in the running dev
+  server and read back actual behavior — because CI has no running app to
+  read from; that check stays local and stays required. What CI adds is the
+  thing months of accumulated local state can hide from the person who
+  accumulated it: an undeclared dependency, a script that only works because
+  some stray file already exists on that one machine. Publication is what
+  made that failure mode matter — before it, the only person who would ever
+  clone the repository fresh was the same person, on the same machine.
