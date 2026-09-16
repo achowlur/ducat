@@ -5,8 +5,10 @@ get data in, sync, and what each screen is for.
 
 ## Install
 
+You need **Node.js 22 or newer** and **git**.
+
 ```bash
-git clone <this repo> && cd ducat
+git clone https://github.com/achowlur/ducat.git && cd ducat
 npm install
 cp .env.example .env            # defaults work as-is for local use
 npx prisma migrate deploy       # creates ./data/ducat.db
@@ -88,8 +90,9 @@ enough of the month has elapsed. An empty panel early on is normal.
 
 - [csv-import.md](csv-import.md) — CSV mappings, backfilling behind a live
   feed, month-end balance snapshots.
-- [lifecycle.md](lifecycle.md) — code, data and schema upgrade separately;
-  the commands you run once per database.
+- [lifecycle.md](lifecycle.md) — code, data and schema upgrade separately:
+  what to run after a `git pull`, and where data changes go if you also run
+  the cloud version.
 - [troubleshooting.md](troubleshooting.md) — symptoms and their fixes.
 - [../DEPLOY.md](../DEPLOY.md) — the optional self-hosted cloud deployment.
 

@@ -15,7 +15,7 @@ Miss this and you ship half-fixes: the code is current, the deploy is green,
 and the only symptom is rows quietly landing in the wrong category — or a
 `PrismaClientValidationError` on the one page that reads a new column.
 
-## The run-once-per-database commands
+## The commands that bring a database up to date
 
 ### `npm run upgrade` — after every `git pull`
 
@@ -52,8 +52,8 @@ the rules.
 ### `npm run goals` and `npm run accounts:cash` — when you configure
 
 Savings goals and the "counts as cash" account list are per-instance settings
-stored in the database. Declaring a goal on your laptop does nothing for your
-cloud instance — run the command once against each database you want it on.
+stored in the database. On a local-only install, run them locally; with a cloud
+deployment, run them against the cloud and let the mirror bring them down (below).
 Both print the current state when run with no flags; read that listing before
 adding, because re-adding an existing goal creates a duplicate rather than
 being ignored.
@@ -61,13 +61,21 @@ being ignored.
 ## Running local + cloud: the two-database model
 
 If you deployed to your own cloud ([DEPLOY.md](../DEPLOY.md)), there are two
-databases, and every one of the commands above runs **twice** — once per
-database. The cloud run points the environment at Turso for that one command,
-in a throwaway terminal you then close:
+databases but **one writer: the cloud**. Run `upgrade`, `goals` and
+`accounts:cash` against the cloud only, pointing the environment at Turso for
+that one command, in a throwaway terminal you then close:
 
 ```bash
 DATABASE_URL="libsql://…turso.io" TURSO_AUTH_TOKEN="…" npm run upgrade
 ```
+
+The nightly scheduled backup then mirrors local from the cloud — start it once
+with `npm run db:mirror -- --confirm` (DEPLOY.md, "Scheduled local backups").
+Don't run these commands against local: a local write makes that night's mirror
+refuse, so local stops updating and /providers says so. The **schema** is the
+exception, because the mirror copies rows, not table shapes: after a version
+that changes the schema, run `schema:push` on the cloud **and**
+`npx prisma migrate deploy` locally, or the mirror fails until they match.
 
 Two habits keep this honest:
 
@@ -80,7 +88,8 @@ Two habits keep this honest:
    instance, check the deployed app, not localhost. A green deploy says
    nothing about data.
 
-Once both instances are real, decide which one you write to and stick to it.
-Transactions self-heal (the dedupe key is the same on both sides), but rules,
-manual categorizations and dismissals drift apart with no way to reconcile
-them — [DEPLOY.md](../DEPLOY.md) covers this under "Living with two copies".
+Everything you do by hand — rules, manual categorizations, dismissals, goals —
+belongs on the cloud instance, and reaches local through the mirror. Work done
+only on localhost is either refused by the mirror or, after a confirmed
+`db:mirror`, replaced — [DEPLOY.md](../DEPLOY.md) covers this under "Living
+with two copies".
