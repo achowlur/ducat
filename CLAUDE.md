@@ -440,6 +440,15 @@ regeneration.
   are full repo copies, and without it the suite silently doubles and gates
   on another branch's work.
 
+## Rules — publishing → docs/conventions/publishing.md
+
+- Docs, comments, tests and commit messages carry NO real figures: money and
+  counts are scaled by an UNRECORDED constant, people are FICTIONAL, card
+  digits are 1234, reference codes synthetic, account names generic and
+  account digits synthetic, no live deployment URL and no real email.
+  scripts/privacy.test.ts guards the mechanical patterns; the rest is
+  discipline.
+
 ## Verified load-bearing (three reviews, 2026-07-26) — do not "clean up"
 
 Re-checked against current code by an independent reviewer and deliberately
