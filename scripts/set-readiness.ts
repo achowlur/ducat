@@ -14,7 +14,8 @@ import { databaseLabel } from './database-label';
  * Declare, list and clear the house-readiness config — the typed assumptions
  * and the one declared knob behind the /insights readiness panel. Same
  * mechanism as `goals` and `accounts:cash`: a `Setting`, per-instance operator
- * config, so declaring is a DATA change and has to be run once per database.
+ * config, so declaring is a DATA change: run it against the CLOUD, and the
+ * nightly mirror brings it to local (a local run makes that mirror refuse).
  *
  *   npm run readiness
  *   npm run readiness -- --floor=2000 --rate=6.5 --term=30 --tax=1.2 \

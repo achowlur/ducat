@@ -66,3 +66,45 @@ describe('deriveBackupStatus', () => {
     expect(deriveBackupStatus(RUN, afterMissedNights(-1))?.ageDays).toBe(0);
   });
 });
+
+describe('the local mirror in the backup signal', () => {
+  const mirrored = { ...RUN, localMirror: { status: 'mirrored' as const, detail: null } };
+  const refused = {
+    ...RUN,
+    localMirror: { status: 'refused' as const, detail: 'local changed since it was last mirrored (Setting)' },
+  };
+
+  it('round-trips the outcome, and reads a malformed one as absent rather than dropping the whole run', () => {
+    expect(parseBackupRun(JSON.stringify(refused))).toEqual(refused);
+    expect(parseBackupRun(JSON.stringify({ ...RUN, localMirror: { status: 'maybe' } }))).toEqual(RUN);
+  });
+
+  it('states a successful mirror in words, and stays OK', () => {
+    const signal = deriveBackupStatus(mirrored, afterMissedNights(0));
+    expect(signal?.status).toBe('OK');
+    expect(signal?.localMirrorLine).toBe('The local database was updated to match it.');
+    expect(signal?.reason).toBeNull();
+  });
+
+  // The failure the mirror exists to prevent is the local app quietly reading
+  // stale figures; a fresh backup must not hide it behind a green dot.
+  it('WARNs on a fresh backup whose mirror did not happen, and says why', () => {
+    const signal = deriveBackupStatus(refused, afterMissedNights(0));
+    expect(signal?.status).toBe('WARN');
+    expect(signal?.localMirrorLine).toBeNull();
+    expect(signal?.reason).toContain('NOT updated');
+    expect(signal?.reason).toContain('local changed since it was last mirrored (Setting)');
+  });
+
+  it("lets an aging backup's own reason lead, since its mirror is just as old", () => {
+    const signal = deriveBackupStatus(refused, afterMissedNights(BACKUP_ERROR_AFTER_NIGHTS + 1));
+    expect(signal?.status).toBe('ERROR');
+    expect(signal?.reason).toContain('Over a week');
+  });
+
+  it('adds nothing for a run recorded before the mirror existed', () => {
+    const signal = deriveBackupStatus(RUN, afterMissedNights(0));
+    expect(signal?.status).toBe('OK');
+    expect(signal?.localMirrorLine).toBeNull();
+  });
+});

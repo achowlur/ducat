@@ -343,9 +343,10 @@ So stop syncing locally: never point `sync:simplefin` or a CSV import at the
 local database once the cloud is real, because two independent writers is
 exactly how the hand-made work diverges.
 
-Local is not frozen, though — it is a MIRROR. After a data change lands on the
-cloud and you have confirmed it there, bring local into line by copying the
-cloud down (see below). One writer, one direction, and the two agree. A local
+Local is not frozen, though — it is a MIRROR. Make every data change on the
+cloud; the nightly scheduled backup copies it down to local after verifying it
+(see below), and `npm run db:mirror` does the same on demand. One writer, one
+direction, and the two agree. A local
 database that has silently drifted is worse than no local database: it is a
 development fixture that no longer reproduces the bug you are chasing, and it
 is the thing you would restore from on the day you need it most.
@@ -488,58 +489,57 @@ recent copy already on your disk.
    `ducat-YYYY-MM-DD-HHMM.db` names are candidates; `backup.log`, `.partial`,
    `.unverified` and anything hand-renamed are never touched. Pruning never
    runs on a failed backup.
-4. Writes the `backup.lastRun` Setting — `{at, file, wholeDigest, rows}` — to
-   the **cloud first**, then byte-identically to the local mirror: the
-   wrapper is that one row's mirror step, so the mirror rule stays whole. A
-   failed run writes no Setting.
+4. **Mirrors local**: `data/ducat.db` becomes a copy of the verified file —
+   its rows replaced in one transaction and proved equal to the backup before
+   it commits, so local keeps its schema and migration history and a failure
+   leaves it exactly as it was. It happens only while local still matches the
+   digests recorded after its last mirror (`data/backups/mirror-state.json`);
+   if anything wrote to local since, the mirror refuses rather than lose that
+   work. It also refuses until it has been started once with
+   `npm run db:mirror -- --confirm`, and it fails (rolled back) when the two
+   schemas differ — apply a schema change to both databases.
+5. Writes the `backup.lastRun` Setting — `{at, file, wholeDigest, rows,
+   localMirror}` — to the **cloud first**, then, only after a successful
+   mirror, to local, and records local's new state for the next night. A
+   refused or failed mirror leaves local completely untouched. A failed
+   backup writes no Setting.
 
 **The signal:** `/providers` ("This instance") shows *"Last local backup: N
 days ago"* with the verified row count and digest, read from that Setting —
 which is why it works on the phone, where `data/backups/` does not exist. It
 escalates like balance staleness: WARN on the second silent night, ERROR past
 a week. The line appears after the first verified run and never disappears —
-a backup job that dies quietly is worse than none.
+a backup job that dies quietly is worse than none. It also says whether local
+was updated to match, and WARNs — even on a fresh backup — when it was not,
+with the reason: a local app quietly reading stale figures is the failure the
+mirror exists to prevent.
 
 ### Bring local back into line with the cloud
 
-After a data change is live on the cloud and you have confirmed it there,
-mirror it down. `turso:copy` deliberately REFUSES a destination that already
-holds transactions ("a one-way copy into a fresh instance, not a merge"), so
-the local file is moved aside rather than written over in place:
+The nightly scheduled backup keeps local current by itself. To start it, or
+to bring local current before tonight, mirror from the newest verified backup:
 
 ```bash
-npm run cloud:backup                      # with the two Turso vars set
-mv data/ducat.db data/ducat-superseded.db
-DATABASE_URL="file:./data/ducat.db" npx prisma migrate deploy
-DATABASE_URL="file:./data/ducat.db" npx tsx scripts/turso-copy.ts   --from="./data/backups/ducat-<the file just written>.db" --apply
+npm run db:mirror              # report only: both digests, and whether local changed since its last mirror
+npm run db:mirror -- --confirm # replace local's rows with the backup's
 ```
 
-`migrate deploy` is not optional and is easy to miss: `turso:copy` copies ROWS,
-not tables, so a destination moved aside leaves nothing to copy INTO. The
-libSQL client creates the missing file on connect, so the symptom is a 0-byte
-`ducat.db` and a failure counting `Transaction` rather than a clear "no
-database". The `sqlite` provider takes `migrate deploy` against a `file:` URL
-directly — the "can't target it" caveat above is about `libsql://` over HTTP.
+It needs no credentials and no network: the backup has already been proved
+equal to the cloud, so copying from it cannot be caught out by a sync landing
+mid-transfer. With `--confirm` it first keeps the current local database as
+`data/ducat-superseded-YYYY-MM-DD-HHMM.db`, which nothing ever deletes, then
+replaces every row in one transaction and proves the result equal to the
+backup before committing. `-- --from=data/backups/ducat-….db` picks an older
+verified backup; `.partial` and `.unverified` files are refused.
 
-Copying from the BACKUP rather than from Turso is deliberate: the backup has
-already been verified against the cloud, so the copy needs no credentials, no
-network, and cannot be caught out by a sync landing mid-transfer. Copy from
-`libsql://…` instead only if you have no current backup.
+Read the report before confirming. If it says local HAS CHANGED since its last
+mirror, that work exists only on this machine and replacing local loses it —
+redo it on the cloud first. After a confirmed run the nightly job carries on
+from the recorded state.
 
-Then prove they agree rather than assuming it:
-
-```bash
-npx tsx scripts/fingerprint-db.ts                                   # local
-DATABASE_URL="libsql://…" TURSO_AUTH_TOKEN="…" npx tsx scripts/fingerprint-db.ts
-```
-
-The `WHOLE DATABASE` line must be identical. Row counts and sums are not
-enough — they are blind to a changed category, a flipped `dismissed` or an
-edited rule, which is precisely the hand-made work this is protecting.
-
-Do it AFTER the nightly cron, not before: `0 23 * * *` UTC, and Vercel Hobby
-fires 8-43 minutes late, so 23:50 UTC clears it. Copying beforehand
-permanently captures yesterday.
+Mirror AFTER the nightly cron, not before: `0 23 * * *` UTC, and Vercel Hobby
+fires 8-43 minutes late, so a backup taken earlier in the day permanently
+captures yesterday. The scheduled task runs at 23:50 UTC for that reason.
 
 A backup is an ordinary Ducat database, so you can open one directly:
 

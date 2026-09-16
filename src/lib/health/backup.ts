@@ -30,6 +30,26 @@ export interface StoredBackupRun {
   wholeDigest: string;
   /** Total rows the verified backup holds. */
   rows: number;
+  /**
+   * Whether the same run made the machine's local database a copy of the
+   * verified backup (scripts/mirrorLocal.ts). Absent on runs recorded before
+   * the mirror existed. `detail` says why when it did not happen.
+   */
+  localMirror?: LocalMirrorOutcome;
+}
+
+export interface LocalMirrorOutcome {
+  status: 'mirrored' | 'refused' | 'failed';
+  detail: string | null;
+}
+
+/** Tolerant like the rest: a malformed mirror field is treated as absent. */
+function parseLocalMirror(value: unknown): LocalMirrorOutcome | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const m = value as Record<string, unknown>;
+  if (m.status !== 'mirrored' && m.status !== 'refused' && m.status !== 'failed') return undefined;
+  if (m.detail !== null && typeof m.detail !== 'string') return undefined;
+  return { status: m.status, detail: m.detail };
 }
 
 export function parseBackupRun(raw: string | null): StoredBackupRun | null {
@@ -51,7 +71,14 @@ export function parseBackupRun(raw: string | null): StoredBackupRun | null {
     ) {
       return null;
     }
-    return { at: s.at, file: s.file, wholeDigest: s.wholeDigest, rows: s.rows };
+    const localMirror = parseLocalMirror(s.localMirror);
+    return {
+      at: s.at,
+      file: s.file,
+      wholeDigest: s.wholeDigest,
+      rows: s.rows,
+      ...(localMirror === undefined ? {} : { localMirror }),
+    };
   } catch {
     return null;
   }
@@ -90,6 +117,9 @@ export interface BackupSignal {
    * the exact instant, and a third count in a different unit beside those
    * two would read as a contradiction. */
   reason: string | null;
+  /** The local mirror stated in words when it happened; null when the run
+   * predates the mirror or the mirror did not happen (then `reason` says so). */
+  localMirrorLine: string | null;
 }
 
 /**
@@ -97,17 +127,32 @@ export interface BackupSignal {
  * never ran a scheduled backup (fresh deployment, local-only user) carries no
  * backup signal at all rather than a permanent nag. Once one verified run has
  * been recorded the signal exists forever, and silence escalates.
+ *
+ * A backup whose local mirror did not happen is at least WARN even when it is
+ * fresh: the local app is then reading data that is out of date, which is the
+ * failure the mirror exists to prevent, and it was invisible for weeks before.
+ * An aging backup's own reason still leads — its mirror is just as old.
  */
 export function deriveBackupStatus(run: StoredBackupRun | null, now: Date): BackupSignal | null {
   if (run === null) return null;
   const ageDays = Math.max(0, Math.floor((now.getTime() - Date.parse(run.at)) / DAY_MS));
-  const status: ProviderStatusLevel =
+  const ageStatus: ProviderStatusLevel =
     ageDays > BACKUP_ERROR_AFTER_NIGHTS ? 'ERROR' : ageDays > BACKUP_WARN_AFTER_NIGHTS ? 'WARN' : 'OK';
-  const reason =
-    status === 'OK'
+  const ageReason =
+    ageStatus === 'OK'
       ? null
-      : status === 'WARN'
+      : ageStatus === 'WARN'
         ? 'More than one night has passed without a verified backup — the nightly task is not completing; check data/backups/backup.log on the machine that runs it.'
         : 'Over a week without a verified backup — the schedule is broken; check data/backups/backup.log on the machine that runs it.';
-  return { status, ageDays, run, reason };
+
+  const mirror = run.localMirror;
+  const mirrorMissed = mirror !== undefined && mirror.status !== 'mirrored';
+  const status: ProviderStatusLevel = mirrorMissed && ageStatus === 'OK' ? 'WARN' : ageStatus;
+  const reason =
+    ageReason ??
+    (mirrorMissed
+      ? `The local database was NOT updated to match this backup, so the local app shows out-of-date figures: ${mirror.detail ?? 'no reason was recorded'}.`
+      : null);
+  const localMirrorLine = mirror?.status === 'mirrored' ? 'The local database was updated to match it.' : null;
+  return { status, ageDays, run, reason, localMirrorLine };
 }

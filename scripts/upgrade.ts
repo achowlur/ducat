@@ -69,7 +69,10 @@ async function main(): Promise<void> {
   const insights = await generateInsights(prisma, { granularity: 'MONTH' });
   console.log(`\nInsights regenerated: ${insights.created} across ${insights.periods.length} months`);
 
-  console.log('\nDone. Run this once per database — DATA does not travel with git push.');
+  console.log(
+    '\nDone. DATA does not travel with git push: run this against the CLOUD, and the nightly backup mirrors ' +
+      "local from it. A run against local makes tonight's mirror refuse.",
+  );
 }
 
 main()

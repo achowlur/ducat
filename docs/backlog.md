@@ -817,7 +817,10 @@ blocker; all are the kind of thing that is invisible until someone looks.
   going without.
 
 - **LOCAL RUNS ONE NIGHTLY SYNC BEHIND CLOUD, PERMANENTLY — diagnosed
-  2026-08-06, DECIDED: leave it.** Recorded because the local app looks
+  2026-08-06, DECIDED: leave it.**
+  SUPERSEDED 2026-09-16: local is now mirrored nightly — see
+  docs/conventions/sync-and-data-ops.md, LOCAL IS MIRRORED NIGHTLY. Kept for
+  the reasoning below, which that design answers rather than overrides. Recorded because the local app looks
   broken when it is not, and because the next session would otherwise read
   local figures as current.
   The nightly `backup:scheduled` job ARCHIVES; it does not RESTORE. It pulls

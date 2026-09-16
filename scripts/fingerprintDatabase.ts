@@ -51,7 +51,11 @@ export interface DatabaseFingerprint {
   overall: string;
 }
 
-export async function fingerprintOf(db: Client): Promise<DatabaseFingerprint> {
+/**
+ * Takes anything that can run a SELECT — a client, or an open transaction, so
+ * the local mirror can prove its copy BEFORE committing it.
+ */
+export async function fingerprintOf(db: Pick<Client, 'execute'>): Promise<DatabaseFingerprint> {
   const tables: Record<string, TableFingerprint> = {};
   for (const table of TABLES) {
     const res = await db.execute(`select * from "${table}"`);

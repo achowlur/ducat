@@ -149,7 +149,7 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   row-writer, so the run-once-per-database rule bites every single time rather
   than only when the pack moved. The caveat that follows, stated so nobody reads
   it as a broken mirror: cloud and local hold DIFFERENT TRANSACTION SETS by
-  design (local runs a nightly sync behind — see the entry in the backlog), so
+  design (local ran a nightly sync behind until LOCAL IS MIRRORED NIGHTLY), so
   running `upgrade` on both produces Insight rows that legitimately DO NOT
   fingerprint-match. Regenerating is not a data change to be mirrored down; it
   is each database recomputing from what it holds. And the digest moves even on
@@ -461,6 +461,43 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   backup has already been proved digest-equal to the cloud, so it is the same
   data by definition.
 
+- LOCAL IS MIRRORED NIGHTLY (2026-09-16), superseding "leave it" in the
+  backlog. That decision let local run a sync behind on two assumptions: the gap
+  stays one night, and a person copies the file down when it matters. Neither
+  held. The copies stopped, local fell weeks behind while its file timestamp —
+  refreshed every night by the backup's own Setting write — kept looking
+  current, and a bug in the cloud's data (the core-position sweep) had no rows
+  locally to be reproduced on. So the scheduled backup now finishes by making
+  `data/ducat.db` a copy of the file it has just proved equal to the cloud.
+  The objection that declined a restore command still stands, so the design
+  answers it instead of overriding it: overwriting local "would discard
+  anything local-only without being able to tell that it had". Now it can tell.
+  After every mirror, local's per-table fingerprint digests are recorded in
+  `data/backups/mirror-state.json`, and the next run compares local against them
+  first. Any difference means something wrote to local since, and the mirror
+  REFUSES, naming the tables, instead of losing that work. Only
+  `db:mirror --confirm` — run by a person who has read both digests, the bar the
+  declined proposal set — replaces a local that changed, and it keeps the old
+  file as `ducat-superseded-…` first. The first mirror needs that confirmation
+  too, because nothing yet proves local holds no work of its own.
+  ROWS, not the file. A backup is built from the schema and carries no Prisma
+  migration history; local does. Swapping files would strip that history, and
+  the next `prisma migrate dev` would offer to reset the database. So every table
+  is cleared and refilled inside ONE write transaction, fingerprinted INSIDE it,
+  and committed only on a match. `clearAndCopy` on its own commits batch by
+  batch, which suits a brand-new file and would leave a working database
+  half-cleared on a failure. The tests prove both guards by mutation: removing
+  the refusal, or running the copy without the transaction, each fails a test.
+  Local is written by exactly ONE thing now, a successful mirror. A refused or
+  failed mirror leaves it untouched — including the `backup.lastRun` row the
+  wrapper used to write regardless, which on its own would make every later
+  night look like a local change and refuse forever. The outcome travels in that
+  same Setting, so /providers on the phone WARNs on a fresh backup whose mirror
+  did not happen: the stale local went unnoticed for weeks precisely because
+  nothing said so. The consequence for every data change is to run it against
+  the CLOUD only; a local `upgrade`, goal or readiness declaration makes that
+  night's mirror refuse until confirmed. A schema change still has to reach
+  both databases, because rows only copy into a schema that matches.
 - SCHEDULED LOCAL BACKUPS (built 2026-08-04, the day of the outage that
   justified them). Turso's us-east-1 router returned 502 to every query for
   over two hours; nothing was lost, but there was no local copy at the time,
