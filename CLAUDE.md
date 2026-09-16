@@ -123,6 +123,10 @@ regeneration.
 - Never trust one connector's sign convention — investment-amount readers
   must be robust to Fidelity-CSV and SimpleFIN signing the same transfer
   oppositely.
+- Fidelity's sweep into the core position ("PURCHASE INTO CORE ACCOUNT") is
+  INTERNAL: a pack TRANSFER rule and a netWorth internal verb. Its sign
+  differs between accounts, so it is caught by WORDS; reapplying rules never
+  undoes a transfer pair it already won.
 - Anomaly baselines use ACTIVE periods only; anomalies RANK
   (maxPerBaseline: 1) with minPercentile 0.85 as an eligibility gate;
   displayed magnitude is a rank ("higher than N%"), never a ratio.

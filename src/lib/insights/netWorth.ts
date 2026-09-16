@@ -123,12 +123,16 @@ export function computeNetWorthGrowth(
    * ($59,552.76 of purchases against a $3,628.42 deposit) turned a real ~$2.5k gain
    * into a reported $64.79k one. Only genuine transfers count.
    *
+   * The automatic sweep of arriving cash into the core money-market position
+   * ("PURCHASE INTO CORE ACCOUNT") is the same kind of move. SimpleFIN signs it
+   * positive, so without the verb it read as a second deposit of the same total.
+   *
    * Classification is by exclusion because brokerage verbs are a small stable
    * set while transfer descriptors vary by institution; anything unrecognised
    * counts as a flow, which understates gains rather than inflating them.
    */
   const internalActivity =
-    /\b(you bought|you sold|reinvest\w*|dividend|interest\b|cap(ital)? gain|advisory fee|in lieu of|redemption|exchange (in|out))\b/i;
+    /\b(you bought|you sold|reinvest\w*|purchase into core|dividend|interest\b|cap(ital)? gain|advisory fee|in lieu of|redemption|exchange (in|out))\b/i;
   /**
    * Direction taken from the wording when the wording is unambiguous, because
    * sources disagree on the sign. The SAME monthly $3,628.42 transfer, same

@@ -81,6 +81,30 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   trades as plain OUTFLOWs while the CSV mapping flags them TRANSFER. Anything
   that reads transaction amounts for an investment account must be robust to
   both.
+- The sweep into a Fidelity account's core money-market position is INTERNAL
+  activity — not income, and not a transfer between accounts (2026-09-16).
+  After every cash arrival the SimpleFIN feed adds a line "PURCHASE INTO CORE
+  ACCOUNT <core fund> (Cash)", payee Fidelity, sometimes marked "MORNING
+  TRADE", for the same total as the cash that arrived. It is the movement the
+  pack already marks TRANSFER when it arrives worded "REINVESTMENT": cash
+  changing form inside one account, crossing no boundary. The two wordings
+  disagree on the SIGN between accounts — the reinvestment line arrives
+  negative, the core purchase positive — so nothing about the sign identifies
+  it, and nothing covered the second wording. Unmarked, each sweep did damage
+  three ways: it counted as INCOME in the cash-flow trend; it counted as money
+  CROSSING the boundary in the net-worth attribution, understating market
+  gains; and it was a transfer-pair CANDIDATE, the same amount on the same day
+  in another account from the funding debit, tying with the real deposit — so
+  pairing could link the debit to the sweep and leave the deposit counted as
+  income instead. Fixed by the WORDS: a flow-only DESCRIPTION rule beside the
+  reinvestment one (whose shipped value is never edited), and "purchase into
+  core" among netWorth's internal-activity verbs. Rules run before pairing and
+  pairing skips rows already TRANSFER, so a sweep classified at import leaves
+  the candidate set and the debit can only meet the deposit. History is only
+  partly repaired by installing the rule: `npm run upgrade` reclassifies every
+  sweep that sat unpaired, but reapplying rules never touches a transfer pair,
+  so a debit already linked to a sweep stays linked and its deposit stays
+  income until that pair is undone.
 - Anomaly baselines use only periods where the category actually had spending
   (`anomalies.ts`). Counting empty periods as $0 makes the median 0 for any
   category whose data starts partway through history — which, with accounts

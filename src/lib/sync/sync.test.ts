@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import type { Connector, NormalizedAccount, NormalizedTransaction } from '../../types/contracts';
 import { PrismaClient } from '../../generated/prisma/client';
 import { applyRules, type RuleData, type RuleTxn } from './rules';
+import { installRulePack } from './rulePack';
 import { runSync } from './sync';
 import { detectTransferPairs } from './transfers';
 
@@ -334,5 +335,90 @@ describe('runSync integration', () => {
       });
       expect(spy).not.toHaveBeenCalled();
     });
+  });
+});
+
+// Fidelity sweeps every cash arrival into the account's core money-market
+// position with a POSITIVE "PURCHASE INTO CORE ACCOUNT" line for the same total,
+// on the same day. Unmarked, it tied with the real deposit for the funding
+// account's debit and counted as income. The sweep is fed FIRST so that, without
+// the pack rule, it is the candidate pairing reaches first — the full pack is
+// installed so this exercises the rule exactly as it ships.
+describe('runSync: the sweep into the core position', () => {
+  let dir: string;
+  let prisma: PrismaClient;
+
+  const day = utc(2026, 7, 15);
+  const accounts: NormalizedAccount[] = [
+    {
+      externalId: 'ext-checking', connectorType: 'SIMPLEFIN', institution: 'Test Bank',
+      name: 'Checking', type: 'DEPOSITORY', currency: 'USD',
+      balance: 4000, balanceDate: day, isStale: false,
+    },
+    {
+      externalId: 'ext-brokerage', connectorType: 'SIMPLEFIN', institution: 'Fidelity Investments',
+      name: 'Brokerage', type: 'INVESTMENT', currency: 'USD',
+      balance: 9000, balanceDate: day, isStale: false,
+    },
+  ];
+  const txn = (
+    acct: string, externalId: string, amount: number, description: string, merchant: string,
+  ): NormalizedTransaction => ({
+    accountExternalId: acct, externalId, date: day, amount, description, normalizedMerchant: merchant,
+    flow: amount >= 0 ? 'INFLOW' : 'OUTFLOW', source: 'SIMPLEFIN',
+  });
+  const transactions = [
+    txn('ext-checking', 't-salary', 3000, 'EMPLOYER PAYROLL', 'employer'),
+    txn('ext-brokerage', 't-core', 500, 'PURCHASE INTO CORE ACCOUNT FIDELITY GOVERNMENT CASH RESERVES (FDRXX) (Cash)', 'fidelity'),
+    txn('ext-brokerage', 't-eft-in', 500, 'Electronic Funds Transfer Received (Cash)', 'fidelity'),
+    txn('ext-checking', 't-eft-out', -500, 'EFT TO BROKERAGE', 'eft to brokerage'),
+  ];
+
+  class SweepConnector implements Connector {
+    readonly type = 'SIMPLEFIN';
+    listAccounts(): Promise<NormalizedAccount[]> {
+      return Promise.resolve(accounts);
+    }
+    fetchTransactions(since: Date): Promise<NormalizedTransaction[]> {
+      return Promise.resolve(transactions.filter((t) => t.date.getTime() >= since.getTime()));
+    }
+  }
+
+  beforeAll(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'ducat-sweep-test-'));
+    const url = `file:${join(dir, 'test.db').replace(/\\/g, '/')}`;
+    const factory = new PrismaBetterSqlite3({ url });
+    const conn = await factory.connect();
+    const migrationsDir = join(process.cwd(), 'prisma', 'migrations');
+    for (const name of readdirSync(migrationsDir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort()) {
+      await conn.executeScript(readFileSync(join(migrationsDir, name, 'migration.sql'), 'utf8'));
+    }
+    await conn.dispose();
+    prisma = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url }) });
+    await installRulePack(prisma);
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('pairs the deposit with its debit, leaves the sweep TRANSFER and unpaired, and keeps it out of income', async () => {
+    const result = await runSync(prisma, new SweepConnector(), { since: utc(2026, 7, 1) });
+    expect(result.transfersLinked).toBe(1);
+
+    const byExternalId = (externalId: string) => prisma.transaction.findFirstOrThrow({ where: { externalId } });
+    const debit = await byExternalId('t-eft-out');
+    const deposit = await byExternalId('t-eft-in');
+    const sweep = await byExternalId('t-core');
+
+    expect(debit.transferPairId).toBe(deposit.id);
+    expect(deposit.transferPairId).toBe(debit.id);
+    expect(sweep.flow).toBe('TRANSFER');
+    expect(sweep.categorySource).toBe('RULE');
+    expect(sweep.transferPairId).toBeNull();
+
+    const cashFlow = await prisma.insight.findFirstOrThrow({ where: { type: 'CASH_FLOW_TREND', period: '2026-07' } });
+    expect((cashFlow.payload as { income: number }).income).toBe(3000); // the salary alone
   });
 });

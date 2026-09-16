@@ -28,10 +28,10 @@ const rules: RuleData[] = PACK_RULES.map((r, i) => ({
  * marks a payee TRANSFER carries no category, so collapsing the two would
  * make "excluded from spending" and "no idea" look identical.
  */
-function categorize(rawMerchant: string, description = rawMerchant): string | null {
+function categorize(rawMerchant: string, description = rawMerchant, amount = -25): string | null {
   const txn: RuleTxn = {
     id: "t1",
-    amount: -25,
+    amount,
     description,
     normalizedMerchant: normalizeMerchant(rawMerchant),
     accountName: "Checking",
@@ -227,6 +227,10 @@ describe("starter pack: structural descriptors", () => {
     ["LONG-TERM CAP GAIN FIDELITY CONTRAFUND (FZZBX) (Cash)", "Income"],
     ["SHORT-TERM CAP GAIN FIDELITY LARGE CAP STOCK (FZZCX) (Cash)", "Income"],
     ["REINVESTMENT FIDELITY 500 INDEX FUND (FZZAX) (Cash)", "TRANSFER"],
+    // The automatic sweep into the core position, with and without the
+    // "MORNING TRADE" marker the feed sometimes adds.
+    ["PURCHASE INTO CORE ACCOUNT FIDELITY GOVERNMENT CASH RESERVES (FDRXX) (Cash)", "TRANSFER"],
+    ["PURCHASE INTO CORE ACCOUNT MORNING TRADE FIDELITY GOVERNMENT MONEY MARKET (SPAXX) (Cash)", "TRANSFER"],
 
     // --- Taxes
     ["IRS              USATAXPYMT 041226 000000000000000 JANE H DOE", "Taxes"],
@@ -245,6 +249,15 @@ describe("starter pack: structural descriptors", () => {
 
   it.each(DESCRIPTORS)("%s → %s", (description, expected) => {
     expect(categorize(description)).toBe(expected);
+  });
+
+  // The feed signs the sweep POSITIVE (cash arriving in the core position)
+  // where the reinvestment line is negative; the rule reads the words, so
+  // either sign ends TRANSFER.
+  it("marks the core-position sweep TRANSFER whichever way it is signed", () => {
+    const sweep = "PURCHASE INTO CORE ACCOUNT FIDELITY GOVERNMENT MONEY MARKET (SPAXX) (Cash)";
+    expect(categorize("fidelity", sweep, 25)).toBe("TRANSFER");
+    expect(categorize("fidelity", sweep, -25)).toBe("TRANSFER");
   });
 
   it("does not let a card payment hide an ordinary purchase on the same statement", () => {
