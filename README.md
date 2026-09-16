@@ -1,83 +1,75 @@
 # Ducat
 
-A local-first personal finance tracker with an insights engine. By default it
-runs entirely on your machine — **your financial data never leaves
-`127.0.0.1`.** You bring your own bank connection (a SimpleFIN token) or import
-CSVs; there is no hosted service, no account to create, and no third party that
-custodies your data. An **optional** single-tenant cloud deployment (your own
-Turso + Vercel, still nobody else's servers) is covered in
-[DEPLOY.md](DEPLOY.md).
+[![ci](https://github.com/achowlur/ducat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/achowlur/ducat/actions/workflows/ci.yml)
 
-New here? [docs/getting-started.md](docs/getting-started.md) walks the first
-run end to end.
+Ducat is a personal finance tracker with an insights engine: it pulls in bank,
+card and brokerage accounts, categorizes every transaction, and reports cash
+flow, spending, net worth and anomalies. It is **local-first**: the server binds
+to `127.0.0.1` behind a host allowlist, the data is one SQLite file on your
+machine, and nothing leaves it but calls to your own SimpleFIN feed (plus a
+mortgage-rate lookup, only if you set `FRED_API_KEY`). No hosted service, no
+telemetry, no third-party CDN, no AI API, and never a bank credential. An
+optional single-tenant cloud mode runs on your own Vercel and Turso behind a
+login that fails closed ([DEPLOY.md](DEPLOY.md)). First run:
+[docs/getting-started.md](docs/getting-started.md).
 
-## Trust model
+## Architecture
 
-These are enforced, not just promised. They describe the default local mode;
-what changes in the optional cloud mode is spelled out in
-[DEPLOY.md](DEPLOY.md).
+- **Next.js 15** App Router on **React 19** — server components and server
+  actions — in **TypeScript strict mode**.
+- **Prisma 7** through the **libSQL** driver adapter: one client serves a local
+  SQLite file and a Turso database; the `DATABASE_URL` scheme picks the mode.
+- **Vitest**, including integration tests on real migrated SQLite files;
+  **ESLint 9**; Tailwind CSS 4 with shadcn/ui; charts are hand-rolled SVG.
+- **Layers depend downward only**: connectors → normalized schema
+  (`src/types/contracts.ts`) → insights engine → UI.
+- **CI** runs typecheck, lint, tests and a personal-data check on commits and PR
+  text; `main` changes only through a pull request with a green `verify` check.
 
-- **Nothing leaves the machine.** The only outbound network call the app ever
-  makes is to your SimpleFIN feed. A strict Content-Security-Policy
-  (`connect-src 'self'`) blocks any other fetch/XHR/WebSocket/beacon at the
-  browser boundary, so even a compromised dependency can't exfiltrate data.
-  No analytics, no telemetry (Next.js telemetry is disabled per-repo), no
-  third-party CDNs, no fonts loaded over the network, no LLM/AI API calls.
-- **Localhost only.** The server binds to `127.0.0.1`, and a host-allowlist
-  middleware rejects any request whose `Host` isn't loopback (anti-DNS-rebinding).
-- **No bank credentials, ever.** Bank auth happens entirely in SimpleFIN's
-  hosted flow. This app only ever holds a revocable, read-only *access URL*,
-  read from `.env` and kept in memory — never written to disk by the app,
-  never displayed in the UI.
-- **Secrets stay out of git.** `.env` and the SQLite database (`./data/`) are
-  gitignored.
+## How data flows
 
-## Stack
+1. **Ingest.** The SimpleFIN connector reads your own feed; the CSV connector
+   imports Chase, Wells Fargo and Fidelity exports. Both emit the same
+   normalized accounts and transactions: signed amounts (positive in, negative
+   out), a cleaned merchant name, and a flow (inflow, outflow or transfer).
+2. **Sync, in a fixed order** (`src/lib/sync/`): upsert accounts → balance
+   snapshots → deduplicated import → category rules → transfers → insights.
+3. **Categorize.** Rules run by priority and the first match wins — your own,
+   then a shipped pack of merchant and statement-descriptor rules. A category you
+   set by hand is never overwritten.
+4. **Detect transfers.** Exact opposite amounts in two of your accounts within
+   four days are paired and marked transfers, so moving money between your own
+   accounts never counts as spending or income.
+5. **Insights** (`src/lib/insights/`): cash-flow trend, spending by category,
+   net-worth growth split into contributions and market movement, recurring
+   charges and ranked anomalies, stored per period for the pages to read.
 
-Next.js 15 (App Router) · TypeScript (strict) · Tailwind + shadcn/ui ·
-Prisma + libSQL (a SQLite file locally; Turso in the optional cloud mode).
-Charts are hand-rolled SVG (no chart library, no webfonts).
+## Run it locally
 
-## Setup
-
+Requires Node.js 22 or newer.
 ```bash
-npm install
-cp .env.example .env            # then edit .env (see below)
-npx prisma migrate deploy       # create ./data/ducat.db
+npm ci
+cp .env.example .env            # local mode works with the defaults
+npx prisma migrate deploy       # creates ./data/ducat.db
+npm run db:seed                 # optional: deterministic sample data
+npm run insights:generate       # build insights for the sample data
 npm run dev                     # http://127.0.0.1:3000
+npm test                        # the Vitest suite
 ```
 
-### Getting data in
+For real data, run `npm run simplefin:claim -- <setup-token>` then
+`npm run sync:simplefin`, or import CSVs with `npm run import:csv`
+([docs/csv-import.md](docs/csv-import.md)).
 
-**Option A — try it immediately with fixture data:**
+## Engineering rules
 
-```bash
-npm run db:seed                 # deterministic sample accounts/transactions
-npm run insights:generate       # db:seed wipes insights — regenerate after
-```
+[CLAUDE.md](CLAUDE.md) holds the project's enforceable rules, one line each, and
+[docs/conventions/](docs/conventions/) holds the evidence behind every one.
 
-**Option B — connect real accounts via SimpleFIN** (bring your own token,
-~$15/yr paid by you to SimpleFIN; the maintainer custodies nothing):
+## Commands
 
-```bash
-npm run simplefin:claim -- <setup-token>   # prints an access URL
-# paste the printed SIMPLEFIN_ACCESS_URL into .env, then:
-npm run sync:simplefin
-```
-
-**Option C — import CSVs** (zero dependencies):
-
-```bash
-npm run import:csv -- <file.csv> \
-  --mapping=<chase-checking|chase-credit|wells-fargo|wells-fargo-headerless|fidelity> \
-  --name="<account>" --type=<DEPOSITORY|CREDIT|INVESTMENT|LOAN> --institution="<bank>"
-```
-
-See [docs/csv-import.md](docs/csv-import.md) for the mappings, backfilling
-behind a live feed (`--external-id`, `--until`), and month-end balance
-snapshots for investment accounts.
-
-## Useful commands
+<details>
+<summary>Every operator command</summary>
 
 | Command | What it does |
 | --- | --- |
@@ -88,7 +80,7 @@ snapshots for investment accounts.
 | `npm run insights:generate` | Regenerate insights (`-- --granularity=WEEK\|MONTH\|QUARTER\|YEAR`) — names the database first |
 | `npm run simplefin:claim` | Exchange a one-time SimpleFIN setup token (`-- <setup-token>`) for the permanent access URL — prints the `SIMPLEFIN_ACCESS_URL` line to paste into `.env`, and never writes a secret to a file itself |
 | `npm run sync:simplefin` | Sync from your SimpleFIN feed (`-- --since=YYYY-MM-DD` widens the window, `--granularity=MONTH`) — names the database first |
-| `npm run import:csv` | Import a CSV (see above; `-- --dry-run` reports what it would do and writes nothing) — names the database first |
+| `npm run import:csv` | Import a CSV (`-- <file.csv> --mapping=… --name=… --type=… --institution=…`; `--dry-run` reports what it would do and writes nothing) — names the database first |
 | `npm run import:balances` | Import month-end balance snapshots for investment accounts (`-- --template [--months=N]` prints a fill-in CSV; `--dry-run` previews) — names the database first |
 | `npm run upgrade` | After `git pull`, bring this database up to the checked-out code: install missing pack rules if any are pending, then regenerate the monthly insight rows — always, so a release that changed only analyzer math reaches the screens too (`-- --check` reports without writing). Writes rows on every real run, so run it against the CLOUD; the nightly backup mirrors local from it — names the database first |
 | `npm run rules:retarget` | Edit existing rules in place — category, match field or match operator — and re-apply (`-- --match=<value,value>` plus at least one of `--category="<Name>"`, `--field=<FIELD>`, `--operator=<OP>`; dry run, `--apply` writes) — names the database first |
@@ -112,39 +104,15 @@ snapshots for investment accounts.
 | `npm run db:mirror` | Make `data/ducat.db` a copy of the newest verified backup, on demand — reports both digests and whether local changed since its last mirror, and writes nothing without `-- --confirm` (which first keeps the current local as `data/ducat-superseded-<date>.db`). Run it once to start the nightly mirror |
 | `npm run db:fingerprint` | Print per-table and whole-database content digests — the read-only proof that two databases hold identical rows, where counts and sums are blind (a changed category, a flipped `dismissed`) — names the database first |
 
-Commands marked "names the database first" print which database they are about
-to touch as their first line — read it. Code travels with `git pull`; data does
-not, so anything that writes rows or settings has to be run once **per
-database**. [docs/lifecycle.md](docs/lifecycle.md) explains the model, and
-[docs/troubleshooting.md](docs/troubleshooting.md) covers the common failure
-symptoms.
+"Names the database first" means the first line says which database it will
+touch — read it. In cloud mode, change data on the cloud; the nightly backup
+mirrors local ([docs/lifecycle.md](docs/lifecycle.md)). `npm run build` and
+`npm run start` are left out on purpose: measure performance on the deployment,
+and never build while the dev server runs — they share `.next/`.
 
-## Measuring performance
+</details>
 
-Time has to be measured on the **deployment**, not localhost — localhost has no
-network, no cold start, a `file:` database instead of HTTP round trips, and a
-desktop CPU instead of a phone. Open `/api/diag/timing` on the deployed app
-(session-gated, read-only, sends nothing anywhere) for per-query round-trip
-costs, whether the invocation paid a cold start, and a `Server-Timing` header
-that DevTools renders under Network → Timing. Subtract its `pagePaysMs` from the
-page's TTFB to get render time.
+## Status and license
 
-Localhost is still the right place to measure *structure* — DOM node counts,
-how many queries a page issues, payload composition — since those are identical
-everywhere. Measure against a production build (`npm run build`, then
-`npm run start`), never against `npm run dev` — and never build while the dev
-server is running (see [docs/troubleshooting.md](docs/troubleshooting.md)).
-
-## Where your data lives
-
-`./data/ducat.db` (SQLite) — on your machine, gitignored. Delete it to start
-over. In the optional cloud mode it lives in your own Turso database instead
-(see [DEPLOY.md](DEPLOY.md)).
-
-## Project status
-
-This is a personal project, published as a portfolio piece rather than a
-product. There are no releases and no roadmap — what's in `main` is what
-exists. It isn't supported: issues and pull requests are welcome but may not
-get a response, and there's no guarantee of ongoing maintenance. It's licensed
-under AGPL-3.0 (see [LICENSE](LICENSE)).
+A personal project published as a portfolio piece, not a product: no releases,
+no roadmap and no promised support. Licensed under AGPL-3.0 ([LICENSE](LICENSE)).
