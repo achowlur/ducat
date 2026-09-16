@@ -172,6 +172,26 @@ describe('investment flows', () => {
     expect(july?.marketGains).toBe(1400); // the whole balance change is gain
   });
 
+  // After cash arrives, the feed sweeps it into the core money-market position
+  // with a POSITIVE line for the same total. It never crosses the boundary, so
+  // it must change neither the flows nor the gain the dividend alone produces.
+  it.each([
+    'PURCHASE INTO CORE ACCOUNT FIDELITY GOVERNMENT CASH RESERVES (FDRXX) (Cash)',
+    'PURCHASE INTO CORE ACCOUNT MORNING TRADE FIDELITY GOVERNMENT MONEY MARKET (SPAXX) (Cash)',
+  ])('treats the sweep into the core position as internal: %s', (sweep) => {
+    const dividend = txn({ accountId: 'brokerage', date: utc(2026, 7, 6), amount: 120, description: 'DIVIDEND RECEIVED FZZAX' });
+    const withoutSweep = computeNetWorthGrowth([brokerage], snapshots, [dividend], periods, 'MONTH').get('2026-07');
+    const withSweep = computeNetWorthGrowth(
+      [brokerage],
+      snapshots,
+      [dividend, txn({ accountId: 'brokerage', date: utc(2026, 7, 6), amount: 120, description: sweep })],
+      periods,
+      'MONTH',
+    ).get('2026-07');
+    expect(withSweep?.investmentNetFlows).toBe(0);
+    expect(withSweep?.marketGains).toBe(withoutSweep?.marketGains);
+  });
+
   // The same monthly transfer arrives +1400 from Fidelity's CSV and -1400 from
   // SimpleFIN. The wording is the reliable signal; the sign is not.
   it('takes direction from the wording when a source signs a transfer backwards', () => {

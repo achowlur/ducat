@@ -99,6 +99,14 @@ export const PACK_RULES: PackRule[] = [
   // is no second account for transfer-pair detection to match against — it can
   // only ever be caught by classification, not pairing.
   ...transferFlow(200, "DESCRIPTION", "reinvestment"),
+  // The same movement under Fidelity's other name for it: every cash arrival
+  // is swept into the account's core money-market position with a
+  // "PURCHASE INTO CORE ACCOUNT <core fund> (Cash)" line for the same total
+  // (sometimes "MORNING TRADE" too). Unlike the negative reinvestment line, the
+  // feed signs this one POSITIVE, so unmarked it read as income and as a
+  // transfer-pair candidate competing with the real deposit it sweeps. The
+  // shipped reinvestment value is never edited; this is a new one beside it.
+  ...transferFlow(201, "DESCRIPTION", "purchase into core account"),
 
   // Paying a credit card moves the same dollars between two of your own
   // accounts. Transfer-pair detection catches it only when BOTH sides are in
