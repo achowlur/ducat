@@ -139,3 +139,11 @@ server is running (see [docs/troubleshooting.md](docs/troubleshooting.md)).
 `./data/ducat.db` (SQLite) — on your machine, gitignored. Delete it to start
 over. In the optional cloud mode it lives in your own Turso database instead
 (see [DEPLOY.md](DEPLOY.md)).
+
+## Project status
+
+This is a personal project, published as a portfolio piece rather than a
+product. There are no releases and no roadmap — what's in `main` is what
+exists. It isn't supported: issues and pull requests are welcome but may not
+get a response, and there's no guarantee of ongoing maintenance. It's licensed
+under AGPL-3.0 (see [LICENSE](LICENSE)).
