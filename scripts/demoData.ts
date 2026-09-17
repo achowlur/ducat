@@ -23,8 +23,9 @@ import type { PrismaClient } from '../src/generated/prisma/client';
  * purchase keeps the review panel honest.
  *
  * NOTHING HERE IS REAL: the person, employer, landlord, payees, merchants,
- * institutions and amounts are invented; card digits are 1234 and account
- * digits 000N, per docs/conventions/publishing.md. Deterministic for a given
+ * institutions and amounts are invented; every account mask, the card's
+ * included, is in the synthetic ...000N series, per docs/conventions/publishing.md
+ * (the privacy scan reserves 1234 for card text, never an ellipsis mask). Deterministic for a given
  * `now` (a seeded LCG), so a screenshot retaken the same day is identical.
  */
 
@@ -76,6 +77,8 @@ const daysIn = (y: number, m0: number) => new Date(Date.UTC(y, m0 + 1, 0)).getUT
 const monthKey = (y: number, m0: number) => `${y}-${String(m0 + 1).padStart(2, '0')}`;
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 const mmdd = (d: Date) => `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}`;
+/** A rail reference in the privacy scan's synthetic WFCT shape (WFCT, seven digits, one character). */
+const refCode = (n: number, tail: string) => 'WFCT' + String(n).padStart(7, '0') + tail;
 
 export function buildDemoData(now: Date): DemoPlan {
   let lcg = 20260916;
@@ -164,7 +167,7 @@ export function buildDemoData(now: Date): DemoPlan {
     if (t8 !== null) pair('checking', 'ira', t8, 250, 'ROTH IRA CONTRIBUTION', 'CONTRIBUTION RECEIVED');
     const prior = cardSpendByMonth[cardSpendByMonth.length - 1];
     const t25 = on(mo, 25);
-    if (t25 !== null && prior !== undefined) pair('checking', 'card', t25, round2(prior), 'RIVERSTONE CARD PAYMENT ...1234', 'PAYMENT THANK YOU');
+    if (t25 !== null && prior !== undefined) pair('checking', 'card', t25, round2(prior), 'RIVERSTONE CARD PAYMENT ...0006', 'PAYMENT THANK YOU');
 
     // Subscriptions: the streaming price rose two months before the current one.
     const streaming = mo.index >= DEMO_HISTORY_MONTHS - 2 ? 17.99 : 15.49;
@@ -211,7 +214,7 @@ export function buildDemoData(now: Date): DemoPlan {
       if (d !== null && r !== null) {
         const dinner = add({ accountKey: 'card', date: d, amount: -186.4, description: 'HARBOR GRILL', merchant: 'harbor grill', flow: 'OUTFLOW', category: 'Dining' });
         card += 186.4;
-        add({ accountKey: 'checking', date: r, amount: 93.2, description: `ZELLE FROM JORDAN PARK ON ${mmdd(r)} REF # DEMO0000001`, merchant: 'zelle from jordan park', flow: 'INFLOW', category: null, reimburses: dinner });
+        add({ accountKey: 'checking', date: r, amount: 93.2, description: `ZELLE FROM JORDAN PARK ON ${mmdd(r)} REF # WFCT0000001J`, merchant: 'zelle from jordan park', flow: 'INFLOW', category: null, reimburses: dinner });
       }
     }
 
@@ -242,7 +245,7 @@ export function buildDemoData(now: Date): DemoPlan {
     const latest = i === alex.length - 1;
     add({
       accountKey: 'checking', date: d, amount: -58.4,
-      description: `ZELLE TO ALEX RIVERA ON ${mmdd(d)} REF # DEMO${String(100 + i).padStart(7, '0')}`,
+      description: `ZELLE TO ALEX RIVERA ON ${mmdd(d)} REF # ${refCode(100 + i, 'A')}`,
       merchant: 'zelle to alex rivera', flow: 'OUTFLOW',
       category: latest ? null : 'Utilities', categorySource: latest ? 'AGGREGATOR' : 'MANUAL',
     });
@@ -258,7 +261,7 @@ export function buildDemoData(now: Date): DemoPlan {
     const latest = i === sam.length - 1;
     add({
       accountKey: 'checking', date: d, amount: -(latest ? 210 : samAmounts[i % samAmounts.length]),
-      description: `ZELLE TO SAM LEE ON ${mmdd(d)} REF # DEMO${String(200 + i).padStart(7, '0')}`,
+      description: `ZELLE TO SAM LEE ON ${mmdd(d)} REF # ${refCode(200 + i, 'S')}`,
       merchant: 'zelle to sam lee', flow: 'OUTFLOW',
       category: latest ? null : 'Gifts', categorySource: latest ? 'AGGREGATOR' : 'RULE',
     });
@@ -305,7 +308,7 @@ export function buildDemoData(now: Date): DemoPlan {
   const accounts: DemoAccount[] = [
     { key: 'checking', name: 'Everyday Checking ...0001', institution: 'Harbor Community Bank', type: 'DEPOSITORY', balance: round2(checkingOpening + sumOf('checking')) },
     { key: 'savings', name: 'High-Yield Savings ...0002', institution: 'Harbor Community Bank', type: 'DEPOSITORY', balance: round2(9600 + sumOf('savings')) },
-    { key: 'card', name: 'Riverstone Rewards Visa ...1234', institution: 'Riverstone Card Services', type: 'CREDIT', balance: round2(-640 + sumOf('card')) },
+    { key: 'card', name: 'Riverstone Rewards Visa ...0006', institution: 'Riverstone Card Services', type: 'CREDIT', balance: round2(-640 + sumOf('card')) },
     { key: 'brokerage', name: 'Individual Brokerage ...0003', institution: 'Northwind Investments', type: 'INVESTMENT', balance: brokerage },
     { key: 'ira', name: 'Roth IRA ...0004', institution: 'Northwind Investments', type: 'INVESTMENT', balance: ira },
     { key: 'loan', name: 'Auto Loan ...0005', institution: 'Harbor Community Bank', type: 'LOAN', balance: round2(-16800 + sumOf('loan')) },

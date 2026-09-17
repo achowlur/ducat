@@ -11,6 +11,7 @@ import { suggestP2PCategories } from '../src/lib/sync/p2pSuggest';
 import { installRulePack, pendingPackRules } from '../src/lib/sync/rulePack';
 import type { AnomalyPayload, NetWorthGrowthPayload, RecurringChargePayload } from '../src/types/contracts';
 import { buildDemoData, DEMO_HISTORY_MONTHS, writeDemoData, type DemoPlan } from './demoData';
+import { scanText } from './privacyScan';
 
 /**
  * The demo exists to put something on every screen whatever day it is
@@ -109,7 +110,18 @@ describe.each(NOWS)('buildDemoData at %s', (iso) => {
   });
 
   it('carries only invented account identifiers', () => {
-    for (const a of plan.accounts) expect(a.name).toMatch(/\.\.\.(000\d|1234)$/);
+    for (const a of plan.accounts) expect(a.name).toMatch(/\.\.\.000\d$/);
+  });
+
+  it('passes the privacy scan on every string it would put on a public page', () => {
+    // privacy.test.ts scans TRACKED files, so a generator that is not yet
+    // committed escapes it on a local run — and a screenshot or the demo
+    // shows these strings, not the source. Scan what is generated.
+    const strings = [
+      ...plan.accounts.flatMap((a) => [a.name, a.institution]),
+      ...plan.txns.flatMap((t) => [t.description, t.merchant, t.groupLabel ?? '']),
+    ];
+    expect(scanText('demo data', strings.join('\n'))).toEqual([]);
   });
 });
 
