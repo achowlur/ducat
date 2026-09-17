@@ -4,6 +4,7 @@ import type {
   RecurringChargePayload,
   SpendingByCategoryPayload,
 } from '../../types/contracts';
+import { P2P_UNREVIEWED_ID } from '../p2p';
 import { round2 } from './stats';
 
 /**
@@ -149,6 +150,9 @@ export function computeDigest(input: {
 
     for (const c of spending.categories) {
       if (c.spending <= 0) continue;
+      // A review backlog is not a spending trend: "P2P — Unreviewed is up"
+      // says only that fewer payments have been confirmed yet.
+      if (c.categoryId === P2P_UNREVIEWED_ID) continue;
       const past = history.get(keyOf(c)) ?? [];
       if (past.length < MIN_CATEGORY_SAMPLES) continue;
       const baseline = median(past);

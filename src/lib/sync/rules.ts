@@ -1,15 +1,19 @@
 import type { TransactionFlow } from '../../types/contracts';
+import { isP2P } from '../p2p';
 
 /**
- * P2P payment processors: the payment rail says nothing about what the
- * money was FOR ("ZELLE TO JOHN SMITH" could be rent or a reimbursement),
- * so automated rules in the pack/heuristic bands never categorize these —
- * only explicit user rules (priority < USER_PRIORITY_MAX) may.
+ * The P2P pattern lives in ../p2p.ts; re-exported because the pack, grouping
+ * and their tests have always imported it from here.
  */
-export const P2P_PATTERN =
-  /\b(zelle|venmo|cash ?app|paypal|apple cash|google pay|western union|moneygram|wire transfer)\b/i;
+export { P2P_PATTERN } from '../p2p';
 
-/** Rules below this priority are user-authored and may categorize P2P. */
+/**
+ * Rules below this priority are user-authored. On a P2P payment the pack never
+ * applies, and a user rule applies on its own ONLY when it marks the payment a
+ * TRANSFER; a user rule that assigns a category becomes a SUGGESTION the
+ * operator confirms (suggestP2PCategories), so no P2P payment is categorized
+ * unseen.
+ */
 export const USER_PRIORITY_MAX = 100;
 
 /** Plain shapes so the matcher stays pure and unit-testable. */
@@ -214,8 +218,9 @@ export function applyRules(
   const applications: RuleApplication[] = [];
   for (const txn of txns) {
     if (txn.categorySource === 'MANUAL') continue;
-    const isP2p = P2P_PATTERN.test(txn.normalizedMerchant) || P2P_PATTERN.test(txn.description);
-    const applicable = isP2p ? active.filter((r) => r.priority < USER_PRIORITY_MAX) : active;
+    const applicable = isP2P(txn)
+      ? active.filter((r) => r.priority < USER_PRIORITY_MAX && r.setFlow === 'TRANSFER')
+      : active;
     const rule = applicable.find((r) => matches(r, txn, containsMode));
     if (rule !== undefined) {
       applications.push({
@@ -227,4 +232,23 @@ export function applyRules(
     }
   }
   return applications;
+}
+
+/**
+ * The user rule that WOULD categorize this P2P payment if P2P were not held for
+ * review: the first enabled user-band rule assigning a category (not a flow)
+ * that matches. applyRules no longer writes it; the review queue offers it as
+ * a suggestion instead.
+ */
+export function userCategoryRuleFor(
+  rules: RuleData[],
+  txn: RuleTxn,
+  containsMode: ContainsMode = 'LETTER_BOUNDARY',
+): RuleData | null {
+  return (
+    rules
+      .filter((r) => r.enabled && r.priority < USER_PRIORITY_MAX && r.setCategoryId !== null && r.setFlow === null)
+      .sort((a, b) => a.priority - b.priority)
+      .find((r) => matches(r, txn, containsMode)) ?? null
+  );
 }

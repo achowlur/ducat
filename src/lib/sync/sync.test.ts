@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Connector, NormalizedAccount, NormalizedTransaction } from '../../types/contracts';
 import { PrismaClient } from '../../generated/prisma/client';
-import { applyRules, type RuleData, type RuleTxn } from './rules';
+import { applyRules, userCategoryRuleFor, type RuleData, type RuleTxn } from './rules';
 import { installRulePack } from './rulePack';
 import { runSync } from './sync';
 import { detectTransferPairs } from './transfers';
@@ -50,9 +50,39 @@ describe('applyRules', () => {
   // collapsed. Matching literally meant a rule the user had just created
   // silently matched nothing.
   it('matches across bank column padding in the description', () => {
-    const r = rule({ matchField: 'DESCRIPTION', matchValue: 'zelle to jane doe', setCategoryId: 'cat-dining' });
+    // A TRANSFER rule, because it is the one kind a P2P payment still takes
+    // on its own; a category rule only suggests (next block).
+    const r = rule({ matchField: 'DESCRIPTION', matchValue: 'zelle to jane doe', setCategoryId: null, setFlow: 'TRANSFER' });
     const padded = txn({ description: 'ZELLE TO  JANE DOE ON 07/18 REF # WFCT0000000C' });
-    expect(applyRules([r], [padded])[0]?.categoryId).toBe('cat-dining');
+    expect(applyRules([r], [padded])[0]?.flow).toBe('TRANSFER');
+  });
+
+  describe('on a P2P payment', () => {
+    const zelle = txn({ description: 'ZELLE TO JANE DOE ON 07/18', normalizedMerchant: 'zelle to jane doe' });
+
+    it('never writes a user CATEGORY rule — that becomes a suggestion to confirm', () => {
+      const r = rule({ matchField: 'DESCRIPTION', matchValue: 'zelle to jane doe', setCategoryId: 'cat-rent' });
+      expect(applyRules([r], [zelle])).toEqual([]);
+      expect(userCategoryRuleFor([r], zelle)?.setCategoryId).toBe('cat-rent');
+    });
+
+    it('still applies a user TRANSFER rule on its own', () => {
+      const r = rule({ matchField: 'DESCRIPTION', matchValue: 'zelle to jane doe', setCategoryId: null, setFlow: 'TRANSFER' });
+      expect(applyRules([r], [zelle])).toEqual([{ txnId: 't1', ruleId: 'r1', categoryId: null, flow: 'TRANSFER' }]);
+      expect(userCategoryRuleFor([r], zelle)).toBeNull(); // a flow rule suggests no category
+    });
+
+    it('applies no pack-band rule, transfer or not', () => {
+      const pack = rule({ priority: 250, matchField: 'DESCRIPTION', matchValue: 'zelle', setCategoryId: null, setFlow: 'TRANSFER' });
+      expect(applyRules([pack], [zelle])).toEqual([]);
+    });
+
+    it('leaves a non-P2P row to category rules exactly as before', () => {
+      const r = rule({ matchField: 'DESCRIPTION', matchValue: 'corner cafe', setCategoryId: 'cat-dining' });
+      expect(applyRules([r], [txn({ description: 'CORNER CAFE', normalizedMerchant: 'corner cafe' })])[0]?.categoryId).toBe(
+        'cat-dining',
+      );
+    });
   });
 
   it('still refuses a genuinely different payee', () => {

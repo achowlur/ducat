@@ -1,4 +1,5 @@
 import type { AnomalyPayload, PeriodGranularity } from '../../types/contracts';
+import { isUnreviewedP2P } from '../p2p';
 import { inPeriod, periodStart } from './periods';
 import { reimbursementCredits } from './reimbursements';
 import { fractionBelow, mad, median, robustZ, robustZFrom, round2, round4 } from './stats';
@@ -115,6 +116,11 @@ export function detectTransactionAnomalies(
   const candidates = new Map<string, AnomalyPayload[]>();
   for (const t of outflows) {
     if (!inPeriod(t.date, period)) continue;
+    // An unconfirmed P2P payment is compared against its RAIL ("zelle
+    // transfer"), which pools rent, dinners and loans into one history — so
+    // "unusual" there means only "not yet categorized". It stays out until a
+    // person confirms what it was; then its category is the baseline.
+    if (isUnreviewedP2P(t)) continue;
     const amount = -t.amount;
     if (amount < options.minAmount) continue;
 

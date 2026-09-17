@@ -303,3 +303,17 @@ describe('dedupeKey — what the streams below must not print twice', () => {
     expect(items.map((i) => i.dedupeKey)).not.toContain('txn:txn-small');
   });
 });
+
+describe('computeDigest and P2P awaiting confirmation', () => {
+  it('never reports the review backlog as a spending drift', () => {
+    const p2p = (amount: number): SpendingByCategoryPayload => ({
+      ...spending([]),
+      totalSpending: amount,
+      categories: [
+        { categoryId: 'p2p-unreviewed', categoryName: 'P2P — Unreviewed', spending: amount, previousSpending: null, deltaPct: null },
+      ],
+    });
+    const items = computeDigest({ ...base, spending: p2p(900), priorSpending: [p2p(100), p2p(120)] });
+    expect(items).toEqual([]);
+  });
+});

@@ -16,10 +16,13 @@ import {
   REIMBURSE_WINDOW_DAYS,
 } from "../../lib/ui/reimburseCandidates";
 import { groupByPayee } from "../../lib/sync/grouping";
-import { P2P_PATTERN } from "../../lib/sync/rulePack";
-import { amount, isoDate, money, monthLabel, titleCase } from "../../lib/ui/format";
+import { P2PSuggestion } from "../../components/P2PSuggestion";
+import { isP2P, isUnreviewedP2P, P2P_PREFILTER_WORDS, P2P_UNREVIEWED_ID, P2P_UNREVIEWED_NAME } from "../../lib/p2p";
+import { suggestP2PCategories } from "../../lib/sync/p2pSuggest";
+import { USER_PRIORITY_MAX } from "../../lib/sync/rules";
+import { amount, isoDate, money, monthLabel, shortDate, titleCase } from "../../lib/ui/format";
 import { periodKey } from "../../lib/insights/periods";
-import { parseCategoryParam } from "../../lib/ui/categoryFilter";
+import { nullBucketFilter, parseCategoryParam } from "../../lib/ui/categoryFilter";
 import { parseGroupParam } from "../../lib/ui/groupFilter";
 import { merchantLabel } from "../../lib/ui/merchantLabel";
 import { PageTitle } from "../../components/ui/headings";
@@ -185,7 +188,10 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
   // "Other" slice is a SET of categories, so it arrives here enumerated.
   const selection = parseCategoryParam(params.category);
   if (selection !== null) {
-    if (!selection.uncategorized) {
+    // Both null buckets are `categoryId: null` in SQL; nullBucketFilter below
+    // separates Uncategorized from P2P — Unreviewed.
+    const nullBucket = selection.uncategorized || selection.p2p;
+    if (!nullBucket) {
       where.categoryId = { in: selection.ids };
     } else if (selection.ids.length === 0) {
       where.categoryId = null;
@@ -197,7 +203,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
     // Transfers legitimately carry no category — they'd drown the queue, and
     // the donut this links from excludes them anyway. An explicit
     // flow=TRANSFER filter still shows them.
-    if (selection.uncategorized && (params.flow === undefined || params.flow === "")) {
+    if (nullBucket && (params.flow === undefined || params.flow === "")) {
       where.flow = { not: "TRANSFER" };
     }
   }
@@ -222,6 +228,10 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
   // candidate set is small by construction, so it is fetched WHOLE and paged in
   // JS — paging in SQL and filtering afterwards gives uneven pages.
   const reviewMode = params.review === "1";
+  // Selecting exactly ONE of the two null buckets needs the same in-memory
+  // finish as review mode, and the same whole-set fetch.
+  const nullSplit = nullBucketFilter(selection);
+  const pagedInJs = reviewMode || nullSplit !== null;
   const listWhere: Prisma.TransactionWhereInput = reviewMode
     ? { ...where, categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" } }
     : where;
@@ -251,8 +261,9 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
         reimburses: { select: { normalizedMerchant: true, description: true, date: true } },
       },
       orderBy: { date: "desc" },
-      // Paged in SQL for the ledger; review mode pages in JS after filtering.
-      ...(reviewMode ? {} : { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE }),
+      // Paged in SQL for the ledger; review mode and a single null bucket page
+      // in JS after filtering.
+      ...(pagedInJs ? {} : { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE }),
     }),
     prisma.transaction.count({ where: listWhere }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
@@ -379,7 +390,8 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
   // The Uncategorized branch quietly adds `flow: { not: TRANSFER }`, which is
   // deliberate and defended above — the control saying "All" over it was not.
   const transfersExcluded =
-    selection?.uncategorized === true && (params.flow === undefined || params.flow === "");
+    (selection?.uncategorized === true || selection?.p2p === true) &&
+    (params.flow === undefined || params.flow === "");
   const accountTypeById = new Map(accounts.map((a) => [a.id, a.type]));
   const isNonReimbursable = (accountId: string) =>
     NON_REIMBURSABLE_ACCOUNT_TYPES.has(accountTypeById.get(accountId) ?? "");
@@ -392,25 +404,72 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
     return best === undefined ? null : { label: best.label, reason: best.reason };
   };
 
-  // The only half of "needs review" that SQL cannot express, kept separate so
-  // the pool query — which already constrains category and reimbursement in
-  // SQL — does not have to select columns it has by construction.
-  const isP2P = (t: { normalizedMerchant: string; description: string }) =>
-    P2P_PATTERN.test(t.normalizedMerchant) || P2P_PATTERN.test(t.description);
-  const needsReview = (t: { normalizedMerchant: string; description: string; categoryId: string | null; reimbursesId: string | null }) =>
-    t.categoryId === null &&
-    t.reimbursesId === null && // linked to its expense = resolved
-    isP2P(t);
+  // A P2P payment nobody has confirmed: no category, not a transfer, and not
+  // linked to the expense it repays (a link is a decision). The pool query
+  // already constrains the SQL half, so its count needs only the P2P test.
+  const needsReview = isUnreviewedP2P;
   const reviewCount = reviewPool.filter(isP2P).length;
 
   // In review mode the whole filtered set is in memory, so the page is a slice
   // of it. Otherwise SQL already returned exactly this page.
-  const reviewRows = reviewMode ? rows.filter(needsReview) : null;
+  const reviewRows = reviewMode ? rows.filter(needsReview) : nullSplit !== null ? rows.filter(nullSplit) : null;
   const visible = reviewRows === null ? rows : reviewRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const matchCount = reviewRows === null ? total : reviewRows.length;
   const pageCount = Math.max(1, Math.ceil(matchCount / PAGE_SIZE));
   const firstShown = matchCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const lastShown = (page - 1) * PAGE_SIZE + visible.length;
+
+  // Pre-filled categories for the P2P payments on THIS page awaiting
+  // confirmation. Two round trips, paid only when such a row is on screen:
+  // the P2P rows already categorized (narrowed in SQL by a superset of the
+  // rail words, then decided exactly by isP2P) and the user rules that would
+  // once have categorized them.
+  const awaiting = visible.filter(needsReview);
+  const suggestions = new Map<string, { categoryId: string; categoryName: string; reason: string }>();
+  if (awaiting.length > 0) {
+    const [historyRows, userRules] = await Promise.all([
+      prisma.transaction.findMany({
+        where: {
+          categoryId: { not: null },
+          flow: { not: "TRANSFER" },
+          OR: P2P_PREFILTER_WORDS.flatMap((w) => [
+            { description: { contains: w } },
+            { normalizedMerchant: { contains: w } },
+          ]),
+        },
+        select: { amount: true, date: true, description: true, normalizedMerchant: true, categoryId: true },
+      }),
+      prisma.rule.findMany({
+        where: { enabled: true, priority: { lt: USER_PRIORITY_MAX }, setCategoryId: { not: null }, setFlow: null },
+      }),
+    ]);
+    const found = suggestP2PCategories(
+      awaiting.map((t) => ({
+        id: t.id,
+        amount: Number(t.amount),
+        date: t.date,
+        description: t.description,
+        normalizedMerchant: t.normalizedMerchant,
+        accountName: accountNameById.get(t.accountId) ?? "",
+        categorySource: t.categorySource as "AGGREGATOR" | "RULE" | "MANUAL",
+      })),
+      historyRows
+        .filter((h) => isP2P(h) && h.categoryId !== null)
+        .map((h) => ({ amount: Number(h.amount), date: h.date, description: h.description, categoryId: h.categoryId! })),
+      userRules,
+    );
+    for (const [id, s] of found) {
+      const categoryName = categoryNameById.get(s.categoryId);
+      if (categoryName === undefined) continue; // a rule naming a deleted category suggests nothing
+      const reason =
+        s.reason.kind === "SAME_AMOUNT"
+          ? `same amount as ${shortDate(s.reason.date)}`
+          : s.reason.kind === "RULE"
+            ? "your rule for this payee"
+            : `${s.reason.count} of ${s.reason.of} past payments`;
+      suggestions.set(id, { categoryId: s.categoryId, categoryName, reason });
+    }
+  }
   // `page` is floored at 1 when it is parsed and was never capped, so a
   // bookmarked or hand-edited ?page= past the end printed "9801–9800 of 1043"
   // over an empty table whose empty state blamed the filters — on a filter set
@@ -425,11 +484,12 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
   // Named only when the selection covers more than one category, since a single
   // one is already visible in the select.
   const selectedNames: string[] | null =
-    selection === null || selection.ids.length + (selection.uncategorized ? 1 : 0) < 2
+    selection === null || selection.ids.length + (selection.uncategorized ? 1 : 0) + (selection.p2p ? 1 : 0) < 2
       ? null
       : [
           ...selection.ids.map((id) => categories.find((c) => c.id === id)?.name ?? id),
           ...(selection.uncategorized ? ["Uncategorized"] : []),
+          ...(selection.p2p ? [P2P_UNREVIEWED_NAME] : []),
         ];
 
   // The known trip labels, and the band's facts when a trip filter is active.
@@ -527,6 +587,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
           <select name="category" defaultValue={params.category ?? ""} className="rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink max-md:min-h-[44px]">
             <option value="">All</option>
             <option value="uncategorized">Uncategorized</option>
+            <option value={P2P_UNREVIEWED_ID}>{P2P_UNREVIEWED_NAME}</option>
             {/* A multi-category arrival (the donut's "Other") matches no single
                 option, so the select would read "All" while a filter was
                 applied — and submitting the form would then silently drop it.
@@ -676,8 +737,8 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
         ) : (
             reviewCount > 0 && (
               <Link href={buildHref(params, { review: "1", page: undefined })} className="font-semibold text-neg hover:underline">
-                {reviewCount} P2P payment{reviewCount === 1 ? " needs" : "s need"} review — Zelle/Venmo can&apos;t
-                be auto-categorized safely
+                {reviewCount} P2P payment{reviewCount === 1 ? "" : "s"} to confirm — Zelle/Venmo never
+                categorize without you; tap ✓ to accept a suggestion
               </Link>
             )
           ))}
@@ -910,6 +971,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
                           />
                         );
                       })()}
+
                       {/* Money arriving in a brokerage or an IRA is not a
                           friend settling up, so the control is absent rather
                           than merely unhinted — every strong suggestion on
@@ -931,6 +993,23 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
                       )}
                     </span>
                   )}
+                  {/* Offered under the picker, never applied: confirming is
+                      the tap, and picking anything else declines it. Its own
+                      LINE, so its reason wraps within the column instead of
+                      widening a table that already scrolls on a phone. */}
+                  {(() => {
+                    const s = suggestions.get(t.id);
+                    return s === undefined ? null : (
+                      <div className="mt-1 max-w-[220px] md:max-w-none">
+                        <P2PSuggestion
+                          transactionId={t.id}
+                          categoryId={s.categoryId}
+                          categoryName={s.categoryName}
+                          reason={s.reason}
+                        />
+                      </div>
+                    );
+                  })()}
                 </td>
                 <td className={`hidden py-1.5 pr-3 text-[0.68rem] uppercase tracking-[0.06em] md:table-cell ${FLOW_BADGE[t.flow]}`}>
                   {t.flow.toLowerCase()}

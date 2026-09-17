@@ -686,3 +686,57 @@ describe('detectCategoryTotalAnomalies', () => {
     expect(detectCategoryTotalAnomalies(txns, '2026-07', periods, 'MONTH')).toHaveLength(0);
   });
 });
+
+describe('P2P payments awaiting confirmation', () => {
+  const zelle = { description: 'ZELLE TO JANE DOE ON 07/10', normalizedMerchant: 'zelle to jane doe' };
+
+  it('count toward spending as their own slice, never inside Uncategorized', () => {
+    const txns = [
+      txn({ date: utc(2026, 7, 10), amount: -300, ...zelle }),
+      txn({ date: utc(2026, 7, 11), amount: -50, normalizedMerchant: 'corner cafe', description: 'CORNER CAFE' }),
+      txn({ date: utc(2026, 7, 12), amount: -80, ...groceries }),
+    ];
+    const july = computeSpendingByCategory(txns, ['2026-07'], 'MONTH').get('2026-07')!;
+    expect(july.totalSpending).toBe(430);
+    expect(july.categories.map((c) => [c.categoryId, c.categoryName, c.spending])).toEqual([
+      ['p2p-unreviewed', 'P2P — Unreviewed', 300],
+      ['cat-groceries', 'Groceries', 80],
+      [null, null, 50],
+    ]);
+  });
+
+  it('leave the slice the moment a person confirms one', () => {
+    const confirmed = txn({ date: utc(2026, 7, 10), amount: -300, ...zelle, categoryId: 'cat-rent', categoryName: 'Rent' });
+    const july = computeSpendingByCategory([confirmed], ['2026-07'], 'MONTH').get('2026-07')!;
+    expect(july.categories.map((c) => c.categoryId)).toEqual(['cat-rent']);
+  });
+
+  it('keep money IN out of spending — unconfirmed inflows are flagged, not counted', () => {
+    const incoming = txn({ date: utc(2026, 7, 10), amount: 300, description: 'ZELLE FROM JANE DOE', normalizedMerchant: 'zelle from jane doe' });
+    const july = computeSpendingByCategory([incoming], ['2026-07'], 'MONTH').get('2026-07')!;
+    expect(july.totalSpending).toBe(0);
+    expect(july.categories).toEqual([]);
+  });
+
+  it('net a repayment LINKED to one against the same slice its outflow landed in', () => {
+    const txns = [
+      txn({ id: 'sent', date: utc(2026, 7, 10), amount: -300, ...zelle }),
+      txn({ date: utc(2026, 7, 14), amount: 100, reimbursesId: 'sent', description: 'ZELLE FROM JANE DOE', normalizedMerchant: 'zelle from jane doe' }),
+    ];
+    const july = computeSpendingByCategory(txns, ['2026-07'], 'MONTH').get('2026-07')!;
+    expect(july.categories.map((c) => [c.categoryId, c.spending])).toEqual([['p2p-unreviewed', 200]]);
+    expect(july.totalSpending).toBe(200);
+  });
+
+  it('are never flagged as unusual — their only baseline is the rail, which pools everything', () => {
+    const history = Array.from({ length: 8 }, (_, i) =>
+      txn({ date: utc(2026, 1 + (i % 6), 5), amount: -40, ...zelle }),
+    );
+    const big = txn({ date: utc(2026, 7, 10), amount: -1500, ...zelle });
+    expect(detectTransactionAnomalies([...history, big], '2026-07', 'MONTH')).toEqual([]);
+    // The same payment, once confirmed, is judged against its category again.
+    const confirmedHistory = history.map((h) => ({ ...h, categoryId: 'cat-gifts', categoryName: 'Gifts' }));
+    const confirmedBig = { ...big, categoryId: 'cat-gifts', categoryName: 'Gifts' };
+    expect(detectTransactionAnomalies([...confirmedHistory, confirmedBig], '2026-07', 'MONTH')).toHaveLength(1);
+  });
+});

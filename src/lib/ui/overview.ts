@@ -11,6 +11,7 @@
  * /insights now; nothing was dropped.
  */
 import type { NetWorthGrowthPayload, SpendingByCategoryPayload } from "../../types/contracts";
+import { isP2P } from "../p2p";
 import { prisma } from "../prisma";
 import { DEFAULT_HEALTH_OPTIONS, getProviderHealth } from "../health/health";
 import { pendingPackRules } from "../sync/rulePack";
@@ -107,11 +108,18 @@ export interface OverviewData {
   health: ProviderHealth[];
   lastSyncAt: Date | null;
   /**
-   * Non-transfer transactions with no category and no reimbursement link.
+   * Non-transfer transactions with no category and no reimbursement link,
+   * P2P payments excepted (p2pToConfirmCount).
    * The single loudest signal on launch: spending analytics are incomplete
    * until this is zero.
    */
   uncategorizedCount: number;
+  /**
+   * P2P payments awaiting confirmation, counted apart from uncategorizedCount
+   * (which excludes them): they never categorize on their own, so this is a
+   * queue to work rather than a backlog that rules might clear.
+   */
+  p2pToConfirmCount: number;
   /**
    * Pack rules the shipped code defines that this database does not have. A
    * pack change arrives with `git pull` and reaches the data through nothing,
@@ -131,7 +139,7 @@ export async function getOverviewData(): Promise<OverviewData> {
     insightRows,
     accountRows,
     snapshots,
-    uncategorizedCount,
+    uncategorizedRows,
     lastOk,
     health,
     cashAccountIds,
@@ -140,8 +148,12 @@ export async function getOverviewData(): Promise<OverviewData> {
       prisma.insight.findMany(),
       prisma.account.findMany(),
       prisma.balanceSnapshot.groupBy({ by: ["accountId"], _max: { date: true } }),
-      prisma.transaction.count({
+      // Two narrow columns rather than a COUNT: the P2P split is a regex SQL
+      // cannot express, and the set is small by construction — the same
+      // round trip, not a second one.
+      prisma.transaction.findMany({
         where: { categoryId: null, flow: { not: "TRANSFER" }, reimbursesId: null },
+        select: { normalizedMerchant: true, description: true },
       }),
       prisma.syncLog.findFirst({ where: { ok: true }, orderBy: { finishedAt: "desc" } }),
       // Overview reads only per-account staleness from this — 'accounts'
@@ -150,6 +162,9 @@ export async function getOverviewData(): Promise<OverviewData> {
       readCashAccountIds(prisma),
       pendingPackRules(prisma),
     ]);
+
+  const p2pToConfirmCount = uncategorizedRows.filter(isP2P).length;
+  const uncategorizedCount = uncategorizedRows.length - p2pToConfirmCount;
 
   const monthly = monthlyRows(insightRows);
   // ONE `now` for the whole page: the spending block's month, the runway's
@@ -255,6 +270,7 @@ export async function getOverviewData(): Promise<OverviewData> {
     health,
     lastSyncAt: lastOk?.finishedAt ?? null,
     uncategorizedCount,
+    p2pToConfirmCount,
     pendingPackRules: packDrift,
   };
 }
