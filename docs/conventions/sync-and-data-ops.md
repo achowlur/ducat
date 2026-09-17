@@ -440,7 +440,8 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   paths, not the data.
   TIMING is part of the rule. Mirror AFTER the nightly cron, never before —
   `0 23 * * *` UTC with Vercel Hobby firing 8-43 minutes late, so 23:50 UTC
-  clears it. Proved the hard way on the day this was written: a backup taken
+  clears it. (Superseded 2026-09-16: it did not — see BACKUP SLOT MOVED PAST
+  THE CRON HOUR; the slot is now 00:30 UTC.) Proved the hard way on the day this was written: a backup taken
   at 18:54 EDT diverged from the cloud six minutes later when the 19:00 cron
   ran, and the fingerprint correctly reported eight tables differing. Reading
   that as corruption would have been the wrong conclusion — the giveaway was
@@ -508,7 +509,7 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   `scripts/backup-scheduled.ts` nightly at 23:50 UTC (after the `0 23 * * *`
   sync cron plus Hobby's 8-43 minutes of lateness — the same timing rule the
   mirror procedure above records, and got wrong by hand on the day it was
-  raised).
+  raised). Moved to 00:30 UTC on 2026-09-16, below.
   WHERE THE SIGNAL LIVES was the one design question left open, and the
   answer is the CLOUD, for a reason worth keeping: the `backup.lastRun`
   Setting exists so /providers can say "last local backup: N days ago" and
@@ -589,7 +590,7 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   hand run. The task itself runs S4U ("run whether user is logged on or
   not", no stored password), which is what makes it truly windowless — the
   operator asked for zero popups — plus StartWhenAvailable so a machine
-  asleep at 23:50 UTC runs the backup on wake (late is always safe; only
+  asleep at its slot runs the backup on wake (late is always safe; only
   EARLY captures yesterday).
   A TRAP found during the build, recorded because it will bite again: the
   fingerprint's row serialisation joins fields with `\x01` and rows with
@@ -602,3 +603,29 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   recorded digest (mirror proofs, stored `backup.lastRun` rows) becomes
   incomparable with new output, which is precisely what the pin is there to
   make deliberate.
+
+- BACKUP SLOT MOVED PAST THE CRON HOUR (2026-09-16). The first night the
+  mirror ran for real, local came out one sync BEHIND the cloud. Nothing
+  failed: the backup copied, verified and mirrored exactly as designed, and
+  local matched its backup table for table apart from the `backup.lastRun`
+  row written afterwards. The cloud's newest SyncLog said why — the sync
+  started at 23:52 UTC, two minutes AFTER the 23:50 backup had copied. Every
+  earlier firing that week landed around 23:15.
+  The "8-43 minutes late" window was an OBSERVATION over a handful of firings,
+  and a slot two minutes past the window's edge was a bet on it. Vercel's
+  Hobby cron is documented as firing anywhere within the scheduled hour, and
+  SyncLog cannot tell a late cron from a manual Sync now at :52 — either way
+  the lesson is the same: the slot must sit after the HOUR, not after the
+  observed lateness. It is now 00:30 UTC (20:30 EDT, 19:30 EST — the trigger
+  carries a UTC time, so daylight saving cannot pull it back into the hour).
+  WHY THE AGE ARITHMETIC DID NOT CHANGE: /providers counts missed nights as
+  floor(elapsed / 24h), which only requires every run to stamp minutes after
+  its OWN slot. Moving the slot keeps that true; only comments named 23:50.
+  RECOVERY that night was the job itself, run by hand once the sync had
+  landed: `npm run backup:scheduled` copied the post-sync cloud, verified it,
+  mirrored local, and a fingerprint of both databases afterwards matched
+  whole-database digest for digest.
+  NOT DONE, deliberately: a guard that refuses to call local "in sync" when
+  the cloud syncs after the copy. A manual Sync now can land at any hour, so no
+  slot makes local current at every instant; what the mirror promises is the
+  cloud AS OF its copy, and /providers already names that copy's time.
