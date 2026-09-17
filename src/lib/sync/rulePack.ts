@@ -1,7 +1,8 @@
 import type { PrismaClient } from "../../generated/prisma/client";
 import type { TransactionFlow } from "../../types/contracts";
 import { generateInsights } from "../insights/engine";
-import { applyRules, toRuleTxns } from "./rules";
+import { isUnreviewedP2P } from "../p2p";
+import { applyRules, toRuleTxns, userCategoryRuleFor, type RuleData } from "./rules";
 
 /**
  * Starter categorization pack: brand rules and generic-word heuristics,
@@ -385,6 +386,44 @@ export async function restoreTransactions(
       data: { categoryId: t.categoryId, categorySource: t.categorySource, flow: t.flow },
     });
   }
+}
+
+/**
+ * A category decision made for a P2P PAYEE (grouped review, or the picker's
+ * rule mode on a P2P row) confirms that payee's payments waiting for review
+ * right now. reapplyRules no longer categorizes P2P — a user category rule is
+ * only a suggestion there — so without this the operator's explicit decision
+ * would leave the very rows they were looking at unreviewed.
+ *
+ * Written as MANUAL, because a person decided, and returned as a restore
+ * snapshot so the group undo reverses it. Rows already categorized (by hand or
+ * by an older rule) are not touched, and future payments still arrive as
+ * suggestions. Does not regenerate insights; the caller does, once.
+ */
+export async function confirmP2PMatches(
+  prisma: PrismaClient,
+  rule: Pick<RuleData, "matchField" | "matchOperator" | "matchValue" | "setCategoryId" | "setFlow">,
+): Promise<TxnRestore[]> {
+  if (rule.setCategoryId === null || rule.setFlow !== null) return [];
+  const probe: RuleData = { ...rule, id: "confirm", priority: 1, enabled: true };
+  const rows = await prisma.transaction.findMany({
+    where: { categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" }, categorySource: { not: "MANUAL" } },
+    include: { account: true },
+  });
+  const matched = rows.filter(
+    (t) => isUnreviewedP2P(t) && userCategoryRuleFor([probe], toRuleTxns([t])[0]) !== null,
+  );
+  if (matched.length === 0) return [];
+  await prisma.transaction.updateMany({
+    where: { id: { in: matched.map((t) => t.id) } },
+    data: { categoryId: rule.setCategoryId, categorySource: "MANUAL" },
+  });
+  return matched.map((t) => ({
+    id: t.id,
+    categoryId: t.categoryId,
+    categorySource: t.categorySource,
+    flow: t.flow,
+  }));
 }
 
 /**

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { revalidateInsightPages } from "../revalidate";
 import { prisma } from "../../lib/prisma";
 import { generateInsights } from "../../lib/insights/engine";
-import { reapplyRules, restoreTransactions, type GroupUndo } from "../../lib/sync/rulePack";
+import { confirmP2PMatches, reapplyRules, restoreTransactions, type GroupUndo } from "../../lib/sync/rulePack";
 import { renameGroupRows } from "../../lib/sync/groups";
 import { MAX_GROUP_LABEL, normalizeGroupLabel } from "../../lib/ui/groupFilter";
 import { requireSession } from "../../lib/auth/requireSession";
@@ -82,7 +82,21 @@ async function upsertRule(
     });
   }
 
-  const { changed, restore } = await reapplyRules(prisma);
+  // P2P rows first: reapplyRules only SUGGESTS for them now, so the payee's
+  // waiting payments are confirmed as the decision this is. They are MANUAL
+  // afterwards, which the reapply below then leaves alone.
+  const confirmed = await confirmP2PMatches(prisma, {
+    matchField,
+    matchOperator: "CONTAINS",
+    matchValue,
+    setCategoryId: categoryId,
+    setFlow,
+  });
+  const reapplied = await reapplyRules(prisma);
+  // reapplyRules regenerates insights only when IT changed rows.
+  if (confirmed.length > 0 && reapplied.changed === 0) await generateInsights(prisma);
+  const changed = confirmed.length + reapplied.changed;
+  const restore = [...confirmed, ...reapplied.restore];
   revalidatePath("/transactions");
   revalidateInsightPages();
   return {

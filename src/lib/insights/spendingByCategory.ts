@@ -1,4 +1,5 @@
 import type { CategorySpending, PeriodGranularity, SpendingByCategoryPayload } from '../../types/contracts';
+import { isUnreviewedP2P, P2P_UNREVIEWED_ID, P2P_UNREVIEWED_NAME } from '../p2p';
 import { inPeriod, previousPeriodKey } from './periods';
 import { reimbursementCredits, type ReimbursementCredit } from './reimbursements';
 import { pctDelta, round2 } from './stats';
@@ -34,10 +35,20 @@ function spendingFor(txns: TxnData[], credits: ReimbursementCredit[], key: strin
 }
 
 export function computeSpendingByCategory(
-  txns: TxnData[],
+  allTxns: TxnData[],
   periods: string[],
   granularity: PeriodGranularity,
 ): Map<string, SpendingByCategoryPayload> {
+  // Unconfirmed P2P payments OUT are spending of their own kind, not part of
+  // the Uncategorized pile: relabelled here, before either the totals or the
+  // reimbursement credits read a category, so a repayment linked to one nets
+  // against the same bucket its outflow landed in. Inflows are left alone —
+  // unconfirmed money IN is flagged on /transactions, never counted as spending.
+  const txns = allTxns.map((t) =>
+    t.flow === 'OUTFLOW' && isUnreviewedP2P(t)
+      ? { ...t, categoryId: P2P_UNREVIEWED_ID, categoryName: P2P_UNREVIEWED_NAME }
+      : t,
+  );
   const credits = reimbursementCredits(txns);
   const result = new Map<string, SpendingByCategoryPayload>();
   for (const key of periods) {

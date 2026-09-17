@@ -31,7 +31,9 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
 - Grouped review keys P2P by a payee string derived from the description, so
   two different recipients stay distinct instead of collapsing into the
   meaningless "zelle transfer" rail. Those rules match DESCRIPTION, which the
-  P2P guard permits for user-priority rules.
+  P2P guard permits for user-priority rules. (Amended 2026-09-16: on a P2P row
+  such a rule now SUGGESTS rather than writes — see P2P IS NEVER CATEGORIZED
+  UNSEEN.)
 - `installRulePack` recognizes an already-installed rule by
   `matchField|matchOperator|matchValue`, so EDITING a shipped rule's matchValue
   does not upgrade it — it installs a second rule and leaves the original
@@ -140,3 +142,58 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   investment names, and card PRODUCT names LAST — "gold" and "platinum" are
   fund names too. Without the product list "Chase Sapphire Preferred" carried
   no card word at all and counted as an asset.
+
+- P2P IS NEVER CATEGORIZED UNSEEN (2026-09-16). One person can be paid for
+  rent one month and dinner the next, so a payee rule applied silently gets
+  P2P wrong without anything on screen saying so. The operator decided that
+  every unconfirmed P2P payment waits for a tap, including repeats.
+  THE RULE ENGINE: `applyRules` gives a P2P row only user-band rules that set
+  flow TRANSFER. A transfer is not a spending decision, and holding one for
+  review would count a real transfer as spending until someone tapped it. A
+  user CATEGORY rule is instead looked up by `userCategoryRuleFor` and offered
+  as a suggestion. Rows those rules categorized BEFORE this change were left
+  exactly as they are — `reapplyRules` only ever writes matches, so it cannot
+  un-categorize them, and re-confirming months of settled rows would have been
+  labour that changed nothing.
+  SUGGESTIONS (`sync/p2pSuggest.ts`), most specific first: a past payment to the
+  same payee in the same direction for the same amount (within 5%), naming its
+  date; then the payee's user rule; then the payee's CLEAR favourite — used at
+  least twice and more than any other category. The favourite bar was added
+  after the first draft showed "1 of 3 past payments" on real data: all three
+  past payments differed and a tie picked one, which is a guess shown as
+  evidence. Direction is part of the payee's identity — money a friend sends
+  and money sent to them are rarely one category — and a test pins it with an
+  identical description on both sides, because the first version of that test
+  used "ZELLE FROM" against "ZELLE TO" and so passed without exercising
+  direction at all (caught by a mutation that ignored the sign).
+  They are computed at render for the rows on screen, never stored: two round
+  trips, paid only when an unconfirmed P2P row is visible. The history query
+  narrows in SQL by `P2P_PREFILTER_WORDS`, a SUPERSET of the rail pattern
+  (pinned by a test that generates every spelling from P2P_PATTERN itself),
+  and `isP2P` decides exactly.
+  A PAYEE DECISION — grouped review, or the picker's rule mode on a P2P row —
+  would otherwise do nothing to the rows the operator was looking at, since the
+  rule it writes only suggests. `confirmP2PMatches` writes that payee's
+  WAITING rows as MANUAL (a person decided) and returns them in the undo
+  snapshot; rows already categorized are left alone, and future payments still
+  arrive as suggestions.
+  THE SLICE: `computeSpendingByCategory` relabels unconfirmed P2P OUTFLOWS as
+  `p2p-unreviewed` / "P2P — Unreviewed" BEFORE totals or reimbursement credits
+  read a category, so a repayment linked to one nets against the same bucket.
+  Unconfirmed P2P INFLOWS are flagged on /transactions and Overview only,
+  never counted. The slice is kept out of transaction anomalies (its only
+  baseline is the rail, which pools every kind of payment) and out of the
+  digest's drift (a growing backlog is not a spending trend). The id is also
+  the `?category=` token, and Uncategorized EXCLUDES these rows, so each slice
+  drills into exactly what it counts: verified on a scratch copy, a month's
+  P2P drill-down summed to the slice to the cent and its Uncategorized list
+  held no P2P row.
+  SURFACES: Overview's review panel states "N P2P payments to confirm" apart
+  from the uncategorized count; the ledger offers the suggestion on its own
+  line under the picker. Beside the picker it widened a phone table that
+  already scrolls, pushing the confirm button past the scroller's edge; on
+  its own line the phone table came out narrower than the plain ledger.
+  KNOWN LIMIT: `payeeKey` truncates at the first run of digits, and Venmo puts
+  its reference number between the verb and the name, so every Venmo payee
+  shares the key "venmo payment". Suggestions for Venmo therefore draw on all
+  Venmo history at once — still only a suggestion, but weaker than for Zelle.

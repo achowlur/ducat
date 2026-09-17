@@ -15,7 +15,9 @@ The operator's data first, then what a visitor to the repository sees.
    category at 3% or more, as many as eight legend rows hold, beside the
    balance table. Evidence: docs/conventions/ui-and-pages.md, OVERVIEW NAMES
    EVERY CATEGORY WORTH A SLICE.
-2. **P2P review, both halves** — see the P2P entry below for what was decided.
+2. **P2P review, both halves — BUILT 2026-09-16.** See the P2P entry below for
+   what was decided; evidence in docs/conventions/merchants-and-rules.md, P2P
+   IS NEVER CATEGORIZED UNSEEN.
 3. **Demo data, generated relative to today.** `scripts/seed.ts` pins "today"
    to a fixed date, so a screenshot or a demo built on it shows an empty
    current month on /insights, whose panels are gated to the month being lived
@@ -414,7 +416,10 @@ turned up so it isn't rediscovered:
   "P2P — Unreviewed" bucket so analytics are visibly-incomplete rather than
   silently wrong while the pile shrinks. (Bulk grouping-by-payee and
   reimbursement auto-suggest are both DONE — see Conventions.)
-  DECIDED 2026-09-16, BOTH, scheduled after the Overview donut:
+  DECIDED 2026-09-16, BOTH, scheduled after the Overview donut — BUILT the
+  same day. Two further decisions came with the build: rows the old rules had
+  already categorized stay as they are, and a user rule that marks a P2P
+  payee a TRANSFER still applies on its own.
   - Every UNCONFIRMED P2P payment sits in "P2P — Unreviewed", including the
     ones carrying a suggestion. Outflows count toward spending as that slice
     of their own; inflows stay out of spending and are flagged on

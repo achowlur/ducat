@@ -148,6 +148,11 @@ regeneration.
 
 - Grouped-review keys are ≥3 characters — they become priority-50 CONTAINS
   rules that outrank the pack.
+- A P2P payment is NEVER categorized unseen: user CATEGORY rules only
+  SUGGEST (same payee+amount → payee rule → clear favourite ≥2), only user
+  TRANSFER rules auto-apply, and a payee decision confirms its waiting rows
+  as MANUAL. Unconfirmed P2P OUTFLOWS are the "P2P — Unreviewed" slice,
+  never Uncategorized, and stay out of anomalies and the digest.
 - Anything derived from bank text must stay FINDABLE in it: rules.ts
   collapses whitespace on BOTH sides for CONTAINS/EQUALS; payeeKey TRUNCATES
   at the first noise marker, never deletes mid-string.
@@ -335,8 +340,9 @@ regeneration.
   over the first. Below md a control at the row's right edge opens its panel
   LEFTWARD, or most of it hangs off the horizontal scroller.
 - ?category= is an INCLUSION list, written/read ONLY by
-  ui/categoryFilter.ts; null means the Uncategorized bucket; the multi-id
-  group lives in where.AND; the select needs its synthetic entry.
+  ui/categoryFilter.ts; null means the Uncategorized bucket and
+  `p2p-unreviewed` the DISJOINT P2P one (split in memory by nullBucketFilter);
+  the multi-id group lives in where.AND; the select needs its synthetic entries.
 - ?group= is the trip filter, owned by ui/groupFilter.ts (the payee queue
   is ?payees=1); the group is a scalar equality beside q's OR and the
   category AND; the totals band and the /insights TRIPS rows sum EXACTLY

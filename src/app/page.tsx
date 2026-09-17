@@ -103,6 +103,19 @@ async function renderOverview() {
           },
         ]
       : []),
+    // P2P payments never categorize on their own, so this is a queue to work,
+    // not a backlog a rule will clear — and the one kind of review that no
+    // longer shrinks without a person, which is why it is stated here too.
+    ...(data.p2pToConfirmCount > 0
+      ? [
+          {
+            text: `${data.p2pToConfirmCount} P2P payment${data.p2pToConfirmCount === 1 ? "" : "s"} to confirm`,
+            detail: "Zelle and Venmo wait for you — most arrive with a suggested category",
+            href: "/transactions?review=1",
+            urgent: true,
+          },
+        ]
+      : []),
     ...behind.map((a) => ({
       text: `${a.name} is ${a.balanceLagDays} days behind`,
       detail: a.stale ? "the feed has stopped refreshing this balance" : "balance did not move on the last sync",

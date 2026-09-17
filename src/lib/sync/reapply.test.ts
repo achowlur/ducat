@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "../../generated/prisma/client";
-import { reapplyRules } from "./rulePack";
+import { confirmP2PMatches, reapplyRules, restoreTransactions } from "./rulePack";
 
 const utc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d, 12));
 
@@ -63,7 +63,7 @@ describe("reapplyRules restore snapshot", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("hands back each row as it was, so a bulk decision can be reversed", async () => {
+  it("writes nothing when a P2P payee's rule assigns a CATEGORY — that is only a suggestion now", async () => {
     await prisma.rule.create({
       data: {
         priority: 50, matchField: "DESCRIPTION", matchOperator: "CONTAINS",
@@ -71,30 +71,42 @@ describe("reapplyRules restore snapshot", () => {
       },
     });
     const { changed, restore } = await reapplyRules(prisma);
-
-    // MANUAL is sacred and never enters the snapshot, because it was never touched.
-    expect(changed).toBe(2);
-    expect(restore.map((r) => r.categoryId).sort()).toEqual([groceriesId, null].sort());
-    expect(restore.some((r) => r.categorySource === "MANUAL")).toBe(false);
-
-    const after = await prisma.transaction.findMany({ orderBy: { externalId: "asc" } });
-    expect(after.filter((t) => t.categoryId === diningId)).toHaveLength(3); // two by rule, one already manual
-
-    // Undo: drop the rule and write the snapshot back.
+    expect(changed).toBe(0);
+    expect(restore).toEqual([]);
     await prisma.rule.deleteMany({});
-    for (const t of restore) {
-      await prisma.transaction.update({
-        where: { id: t.id },
-        data: { categoryId: t.categoryId, categorySource: t.categorySource, flow: t.flow },
-      });
-    }
+  });
 
+  it("confirms the payee's WAITING payments when a person makes the decision, and the snapshot reverses it", async () => {
+    const restore = await confirmP2PMatches(prisma, {
+      matchField: "DESCRIPTION", matchOperator: "CONTAINS", matchValue: "zelle to jane doe",
+      setCategoryId: diningId, setFlow: null,
+    });
+
+    // Only the row waiting for review: the one already categorized keeps its
+    // category, and the MANUAL one was never waiting.
+    expect(restore.map((r) => [r.categoryId, r.categorySource])).toEqual([[null, "AGGREGATOR"]]);
+    const after = await prisma.transaction.findMany({ orderBy: { externalId: "asc" } });
+    expect(after.map((t) => [t.externalId, t.categoryId, t.categorySource])).toEqual([
+      ["t-already-groceries", groceriesId, "AGGREGATOR"],
+      ["t-manual", diningId, "MANUAL"],
+      ["t-uncategorized", diningId, "MANUAL"], // a person decided
+    ]);
+
+    await restoreTransactions(prisma, restore);
     const reverted = await prisma.transaction.findMany({ orderBy: { externalId: "asc" } });
     expect(reverted.map((t) => [t.externalId, t.categoryId, t.categorySource])).toEqual([
       ["t-already-groceries", groceriesId, "AGGREGATOR"],
       ["t-manual", diningId, "MANUAL"],
       ["t-uncategorized", null, "AGGREGATOR"],
     ]);
+  });
+
+  it("confirms nothing for a TRANSFER decision, which the rule itself applies", async () => {
+    const restore = await confirmP2PMatches(prisma, {
+      matchField: "DESCRIPTION", matchOperator: "CONTAINS", matchValue: "zelle to jane doe",
+      setCategoryId: null, setFlow: "TRANSFER",
+    });
+    expect(restore).toEqual([]);
   });
 
   it("captures a flow rewrite too, so marking a payee TRANSFER is reversible", async () => {
