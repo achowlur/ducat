@@ -20,16 +20,18 @@ auth gate exists for the optional cloud deployment ([DEPLOY.md](../DEPLOY.md)).
 
 ## Getting data in — pick a path
 
-**Seed, to explore first.** Deterministic fixture data: five accounts, several
-months of transactions, planted subscriptions and anomalies.
+**Seed, to explore first.** Invented demo data dated up to today: two years of
+history across checking, savings, a card, two investment accounts and a loan,
+with savings goals, house readiness, a price-rise subscription, a one-off
+purchase, a tagged trip, and P2P payments waiting for you to confirm. It
+installs the rule pack and builds insights itself, so every screen is ready.
 
 ```bash
 npm run db:seed
-npm run insights:generate       # db:seed wipes insights — regenerate after
 ```
 
-Seeding is destructive (it wipes accounts, transactions and rules), so it
-refuses to run over existing transactions unless you pass `-- --yes`.
+Seeding is destructive (it wipes accounts, transactions, rules and insights), so
+it refuses to run over existing transactions unless you pass `-- --yes`.
 
 **SimpleFIN, for live accounts.** [SimpleFIN](https://bridge.simplefin.org) is
 a read-only bank-feed bridge: you authenticate with your bank inside

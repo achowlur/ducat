@@ -13,12 +13,18 @@ variable is non-empty) while every login fails. Ducat's own hash format uses
 
 ## Every page says "no data" right after seeding
 
-`npm run db:seed` wipes insights along with everything else, and pages render
-from stored insights. Run:
+`npm run db:seed` builds insights itself, so this means it stopped before
+finishing — read its output for the error. Pages render from stored insights,
+so after fixing the cause either re-seed or run:
 
 ```bash
 npm run insights:generate
 ```
+
+A seed run on the first of a month shortly after midnight UTC shows that month
+as "nothing recorded yet": the demo's data ends at its newest nightly sync,
+which is still the previous day. It fills in after 23:16 UTC, or view the
+prior month.
 
 ## Dev server: "Cannot find module './NNN.js'", or buttons stop responding
 
