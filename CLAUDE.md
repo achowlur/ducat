@@ -477,6 +477,12 @@ regeneration.
   on main, Claude Code's sessions included — and a PR merges only on a green
   `verify` check. The local pre-commit gate (`/verify`) is unchanged and
   still runs first.
+- README images come ONLY from `npm run screenshots` (invented demo data, a
+  throwaway database, its own `.next-capture/` build); a PR touching a pictured
+  screen retakes them or states `screenshots: unchanged — <why>`, which CI
+  enforces (scripts/screenshotSync.ts). Run privacyScan over new PR text and
+  commit messages BEFORE pushing — a pushed message cannot be fixed without a
+  force-push.
 
 ## Verified load-bearing (three reviews, 2026-07-26) — do not "clean up"
 

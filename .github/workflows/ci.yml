@@ -45,6 +45,16 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
 
+      - name: Check README screenshots kept up with pictured screens
+        # a PR touching what the README pictures retakes the screenshots
+        # (npm run screenshots) or states `screenshots: unchanged — <why>`
+        run: npx tsx scripts/check-screenshots.ts
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+
       - name: Type check
         run: npx tsc --noEmit
 

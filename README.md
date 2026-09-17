@@ -1,17 +1,72 @@
-# Ducat
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/ducat-banner-dark.svg">
+    <img src="docs/assets/ducat-banner-light.svg" alt="Ducat" width="560">
+  </picture>
+</p>
 
-[![ci](https://github.com/achowlur/ducat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/achowlur/ducat/actions/workflows/ci.yml)
+<p align="center">
+  <strong>Personal finance on your own machine, with an insights engine that refuses to guess.</strong>
+</p>
 
-Ducat is a personal finance tracker with an insights engine: it pulls in bank,
-card and brokerage accounts, categorizes every transaction, and reports cash
-flow, spending, net worth and anomalies. It is **local-first**: the server binds
-to `127.0.0.1` behind a host allowlist, the data is one SQLite file on your
-machine, and nothing leaves it but calls to your own SimpleFIN feed (plus a
-mortgage-rate lookup, only if you set `FRED_API_KEY`). No hosted service, no
-telemetry, no third-party CDN, no AI API, and never a bank credential. An
-optional single-tenant cloud mode runs on your own Vercel and Turso behind a
-login that fails closed ([DEPLOY.md](DEPLOY.md)). First run:
-[docs/getting-started.md](docs/getting-started.md).
+<p align="center">
+  <a href="https://github.com/achowlur/ducat/actions/workflows/ci.yml"><img src="https://github.com/achowlur/ducat/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <img src="https://img.shields.io/badge/TypeScript-strict-3b3227" alt="TypeScript strict">
+  <img src="https://img.shields.io/badge/Next.js-15-3b3227" alt="Next.js 15">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-9c5a12" alt="License: AGPL-3.0"></a>
+</p>
+
+<p align="center">
+  <img src="docs/assets/walkthrough.png" alt="A walkthrough of Ducat: Overview, Trends, Insights, then confirming a suggested category for a P2P payment" width="880">
+</p>
+
+Ducat pulls in your bank, card and brokerage accounts, categorizes every
+transaction, and tells you where the month is heading: cash flow, spending,
+net worth, recurring charges, savings goals, and the few things worth your
+attention. It is **local-first**: the data is one SQLite file on your machine,
+the server binds to `127.0.0.1`, and nothing leaves but calls to your own
+SimpleFIN feed. No hosted service, no telemetry, no AI API, never a bank
+credential. An optional single-tenant cloud mode runs on your own Vercel and
+Turso behind a login that fails closed ([DEPLOY.md](DEPLOY.md)).
+
+Every screenshot and the walkthrough above use invented demo data.
+
+## What you get
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/overview.png" alt="Overview: net worth, accounts, this month's spending by category, and what needs review"></td>
+    <td width="50%"><img src="docs/assets/screenshots/insights.png" alt="Insights: a one-off purchase, month-end projection, commitments, savings goals and house readiness"></td>
+  </tr>
+  <tr>
+    <td><strong>Overview</strong> — net worth, every account's balance and freshness, where this month's money went, and what needs review.</td>
+    <td><strong>Insights</strong> — what's worth your attention, where the month lands, what's already committed, savings goals and a house-readiness estimate.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/screenshots/trends.png" alt="Trends: spending by category against the prior month, cash flow by month, and net worth over two years"></td>
+    <td><img src="docs/assets/screenshots/transactions.png" alt="Transactions: the ledger with categories, rules, trip tags and P2P payments to confirm"></td>
+  </tr>
+  <tr>
+    <td><strong>Trends</strong> — each category against last month, cash flow by month, and net worth split into what you saved and what markets did.</td>
+    <td><strong>Transactions</strong> — a ledger where categorizing one payee can teach a rule, trips group spending across months, and Zelle or Venmo payments wait for your confirmation.</td>
+  </tr>
+</table>
+
+## Built to be trusted
+
+- **It refuses rather than fabricates.** Net worth for a month without a balance
+  snapshot is marked unknown, never reconstructed; a percentage against a base
+  of zero or below is withheld; a one-off purchase is never projected as a
+  trend; a P2P payment is never categorized without you.
+- **Money moving between your own accounts is not spending.** Transfers are
+  paired across accounts and excluded from every analytic, and a category you
+  set by hand is never overwritten by a rule.
+- **Backups are proven, not assumed.** A nightly job copies the cloud database
+  and checks whole-database content fingerprints before trusting the copy, then
+  mirrors it locally only if nothing changed there since.
+- **Nothing personal ships.** CI scans every file, commit message, branch name
+  and pull request description for personal-data shapes, and the README's
+  pictures come only from a command that seeds invented data.
 
 ## Architecture
 
@@ -19,30 +74,27 @@ login that fails closed ([DEPLOY.md](DEPLOY.md)). First run:
   actions — in **TypeScript strict mode**.
 - **Prisma 7** through the **libSQL** driver adapter: one client serves a local
   SQLite file and a Turso database; the `DATABASE_URL` scheme picks the mode.
-- **Vitest**, including integration tests on real migrated SQLite files;
-  **ESLint 9**; Tailwind CSS 4 with shadcn/ui; charts are hand-rolled SVG.
+- **Vitest**: 800+ tests, including integration tests on real migrated SQLite
+  files; **ESLint 9**; Tailwind CSS 4; charts are hand-rolled SVG.
 - **Layers depend downward only**: connectors → normalized schema
   (`src/types/contracts.ts`) → insights engine → UI.
-- **CI** runs typecheck, lint, tests and a personal-data check on commits and PR
-  text; `main` changes only through a pull request with a green `verify` check.
+- **CI** runs typecheck, lint, tests, the personal-data checks and a screenshot
+  sync check; `main` changes only through a pull request with a green `verify`.
 
 ## How data flows
 
 1. **Ingest.** The SimpleFIN connector reads your own feed; the CSV connector
-   imports Chase, Wells Fargo and Fidelity exports. Both emit the same
-   normalized accounts and transactions: signed amounts (positive in, negative
-   out), a cleaned merchant name, and a flow (inflow, outflow or transfer).
+   imports Chase, Wells Fargo and Fidelity exports into the same normalized
+   accounts and signed transactions.
 2. **Sync, in a fixed order** (`src/lib/sync/`): upsert accounts → balance
    snapshots → deduplicated import → category rules → transfers → insights.
-3. **Categorize.** Rules run by priority and the first match wins — your own,
-   then a shipped pack of merchant and statement-descriptor rules. A category you
-   set by hand is never overwritten.
+3. **Categorize.** Your rules, then a shipped pack of merchant and
+   statement-descriptor rules; the first match wins.
 4. **Detect transfers.** Exact opposite amounts in two of your accounts within
-   four days are paired and marked transfers, so moving money between your own
-   accounts never counts as spending or income.
-5. **Insights** (`src/lib/insights/`): cash-flow trend, spending by category,
-   net-worth growth split into contributions and market movement, recurring
-   charges and ranked anomalies, stored per period for the pages to read.
+   four days are paired and excluded from spending and income.
+5. **Insights** (`src/lib/insights/`): cash flow, spending by category, net
+   worth split into contributions and market movement, recurring charges and
+   ranked anomalies, stored per period for the pages to read.
 
 ## Run it locally
 
@@ -58,7 +110,8 @@ npm test                        # the Vitest suite
 
 For real data, run `npm run simplefin:claim -- <setup-token>` then
 `npm run sync:simplefin`, or import CSVs with `npm run import:csv`
-([docs/csv-import.md](docs/csv-import.md)).
+([docs/csv-import.md](docs/csv-import.md)). The full walkthrough is
+[docs/getting-started.md](docs/getting-started.md).
 
 ## Engineering rules
 
@@ -75,6 +128,7 @@ For real data, run `npm run simplefin:claim -- <setup-token>` then
 | `npm run dev` | Dev server, bound to `127.0.0.1` |
 | `npm test` | Vitest suite |
 | `npm run db:seed` | Load invented demo data dated relative to today — two years of history for six accounts, goals, house readiness, a trip and P2P payments to confirm — then install the rule pack and build insights, so every screen has something to show. Destructive: wipes accounts, transactions, rules, insights and the data's Settings; refuses over existing transactions without `-- --yes` — names the database first |
+| `npm run screenshots` | Retake the README's screenshots and walkthrough from invented demo data: seeds a throwaway database, builds the app into `.next-capture/` (never `.next/`, so it is safe beside a running dev server), and drives Playwright's own Chromium. Needs `npx playwright install chromium` once. Never touches `data/ducat.db` |
 | `npm run db:reset` | Wipe every row **including** `Setting`, so the next sync refetches full history rather than a short incremental window — destructive and irreversible; refuses without `-- --yes` |
 | `npm run insights:generate` | Regenerate insights (`-- --granularity=WEEK\|MONTH\|QUARTER\|YEAR`) — names the database first |
 | `npm run simplefin:claim` | Exchange a one-time SimpleFIN setup token (`-- <setup-token>`) for the permanent access URL — prints the `SIMPLEFIN_ACCESS_URL` line to paste into `.env`, and never writes a secret to a file itself |

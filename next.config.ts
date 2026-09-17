@@ -43,6 +43,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // `npm run screenshots` builds into its OWN folder: `next build` into the
+  // default `.next/` corrupts a running dev server's chunks (CLAUDE.md), and
+  // the capture must be safe to run beside one.
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   // Don't advertise the framework/version to any client.
   poweredByHeader: false,
   // Native DB driver (libSQL) and the generated Prisma client must not be
