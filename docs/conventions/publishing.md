@@ -97,3 +97,36 @@ no dollar amount, count, percentage, ratio, digest or hash anywhere below.
   push to main it can only report, because a web merge's commit does not
   exist until the merge. GitHub comments are published too, and nothing
   checks them.
+
+- THE README'S PICTURES (2026-09-16). The README carries a banner, a walkthrough
+  and four screenshots, and every pixel of them is public, so they have exactly
+  one source: `npm run screenshots` (scripts/capture-screenshots.ts). It seeds
+  the INVENTED demo data (scripts/demoData.ts) into a throwaway database in the
+  temp folder, builds a production app into `.next-capture/` — never `.next/`,
+  whose build corrupts a running dev server — and drives Playwright's own
+  Chromium with a fresh profile. It sets every variable that could reach real
+  data or a real service (database, SimpleFIN URL, FRED key, Turso token, auth)
+  explicitly, empty where it must be off, because Next fills anything the
+  environment leaves unset from `.env` and the operator's `.env` holds a live
+  feed URL. A screenshot taken any other way — a browser pointed at the real
+  database, a crop of the deployment — is the leak this exists to prevent.
+  The walkthrough is an animated PNG assembled by scripts/apng.ts from the
+  frames' own compressed data: a README cannot play a video from the
+  repository, and a GIF's palette bands the sepia paper.
+  KEEPING THEM CURRENT is enforced, not remembered. scripts/check-screenshots.ts
+  runs on every pull request: a change to a pictured screen (the four pages,
+  shared components, `lib/ui`, `lib/insights`, the demo data, global CSS) must
+  either retake the screenshots or carry a line
+  `screenshots: unchanged — <reason>` in its description. It cannot tell
+  whether a retaken picture shows the change, only that nobody skipped the
+  question silently. The walkthrough is retaken on substantial change, outside
+  the check, because a styling PR should not owe a recording.
+  THE CHECK THAT CAUGHT ITS OWN AUTHOR, twice in one day. A generator committed
+  only after the local test run escaped privacy.test.ts, which reads TRACKED
+  files — its card mask and reference codes broke the synthetic shapes and
+  only CI saw it; the demo tests now scan every generated string. Then the
+  fix's commit message quoted the bad mask, and a pushed message cannot be
+  corrected without a force-push, which is forbidden: the change was re-landed
+  as a fresh single commit on a new branch and the old pull request closed.
+  Run the scan over commit messages, branch names and PR text locally before
+  pushing.

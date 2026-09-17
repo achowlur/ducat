@@ -23,6 +23,6 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   oxc: { jsx: { runtime: "automatic", importSource: "react" } },
   test: {
-    exclude: ["**/node_modules/**", "**/dist/**", "**/.next/**", "**/.claude/**"],
+    exclude: ["**/node_modules/**", "**/dist/**", "**/.next/**", "**/.next-capture/**", "**/.claude/**"],
   },
 });

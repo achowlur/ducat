@@ -28,7 +28,10 @@ The operator's data first, then what a visitor to the repository sees.
    /insights' digest — once as a one-off, once as its category "trending up …
    $N/yr if it holds", projecting a one-off as if it recurred — and Overview's
    Owed total labels every debt account a "card", loans included.
-4. **The GitHub page, recruiter-first and inviting to new users.** A banner or
+4. **The GitHub page, recruiter-first and inviting to new users — BUILT
+   2026-09-16**, except the demo link, which waits for item 5. Logo chosen:
+   the solid gold coin. Evidence in docs/conventions/publishing.md, THE
+   README'S PICTURES. A banner or
    logo (none exists — `public/` holds only framework starter icons), a tidier
    README layout, a short walkthrough recording near the top, and desktop
    screenshots of Overview, Trends, Insights and Transactions in SEPIA, all from
