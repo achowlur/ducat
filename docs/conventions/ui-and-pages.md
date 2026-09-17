@@ -707,3 +707,39 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   One test in the new block caught a real bug while it was being written: ten
   categories all above 3% drew nine rows, because the all-eligible branch
   capped at eight and then appended Other anyway.
+
+- THE DEMO DATA IS DATED RELATIVE TO TODAY (2026-09-16). `db:seed` pinned
+  "today" to a fixed date, so every screen gated to the month being lived in —
+  goals, readiness, pace, commitments on /insights, Overview's spending block —
+  rendered empty on every day after it was written, which made it useless for
+  screenshots and for a public demo. `scripts/demoData.ts` builds the data from
+  `now`: 24 complete months plus the current month, deterministic for a given
+  moment, all of it invented.
+  ONE RULE FOR EVERY FUTURE FEATURE: if a screen can show something the demo
+  data cannot trigger, the generator owes it the rows that trigger it —
+  otherwise the screenshots and the demo quietly stop showing the feature.
+  WHAT LOOKING AT IT TAUGHT, because each was invisible until the pages were
+  read on the generated data:
+  (a) Fixed days of the month make everyday spending read as SUBSCRIPTIONS —
+  groceries and fuel on the same dates came out "biweekly" in Recurring and
+  in Already committed. Two days of jitter still read as biweekly for fuel;
+  it now lands anywhere in each half of the month.
+  (b) The data must END at the newest sync. Rows dated after the last sync
+  that could have imported them contradicted the "synced" line on the same
+  page. A consequence stated in troubleshooting.md: seeded just after midnight
+  UTC on the 1st, the new month is legitimately empty until that night's sync.
+  (c) Accounts without snapshots print "history estimated" and a
+  reconstructed-balances notice on Overview and /trends; every account gets
+  month-end snapshots, as a live feed writes them.
+  (d) The one-off and a tagged trip sit in the days just before today, because
+  /insights opens on the current month; in the last complete month they were
+  one tap away from the screen a visitor lands on.
+  (e) readiness.house's savingsFloor is MONTHLY. A first draft set it to a
+  fund-sized number and the panel correctly reported no mortgage budget.
+  Pinned by scripts/demoData.test.ts across mid-month, both sides of the 1st's
+  sync, a year boundary and the day after a leap day, plus a run through the
+  real rule pack and insights engine; four deliberate breaks each failed it.
+  APP ISSUES THE DEMO SURFACED, recorded in docs/backlog.md rather than fixed
+  inside a data change: one large purchase reports twice in the digest (as a
+  one-off AND as a category "trending up … /yr if it holds"), and Overview's
+  Owed total calls every debt account a "card", loans included.
