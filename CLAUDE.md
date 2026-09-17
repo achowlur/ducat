@@ -94,9 +94,10 @@ regeneration.
   for a column that exists).
 - `npm run db:seed` DESTROYS every account, transaction, rule and MANUAL
   categorization — it is not an additive command. It now refuses when
-  transactions exist unless given `-- --yes` (same guard as `db:reset`). It also
-  wipes insights, so re-run `npm run insights:generate` afterwards or pages show
-  "no data".
+  transactions exist unless given `-- --yes` (same guard as `db:reset`). It
+  loads INVENTED demo data dated relative to TODAY (scripts/demoData.ts) and
+  rebuilds insights itself; a screen feature the demo cannot show owes the
+  generator the rows that show it (docs/conventions/ui-and-pages.md).
 - Browsing is limited to the IN-APP browser (`preview_start` /
   `mcp__Claude_Browser__*`), pointed at `<your-deployment>.vercel.app` or localhost.
   Never drive the operator's real Chrome or read their existing tabs and

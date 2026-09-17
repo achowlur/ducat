@@ -18,12 +18,17 @@ The operator's data first, then what a visitor to the repository sees.
 2. **P2P review, both halves — BUILT 2026-09-16.** See the P2P entry below for
    what was decided; evidence in docs/conventions/merchants-and-rules.md, P2P
    IS NEVER CATEGORIZED UNSEEN.
-3. **Demo data, generated relative to today.** `scripts/seed.ts` pins "today"
+3. **Demo data, generated relative to today — BUILT 2026-09-16.** `scripts/seed.ts` pins "today"
    to a fixed date, so a screenshot or a demo built on it shows an empty
    current month on /insights, whose panels are gated to the month being lived
    in. One invented generator serves both the screenshots and the demo, and it
    must exercise every feature a picture or a visitor reaches (P2P rows
    included, once item 2 ships).
+   It surfaced two app issues, both worth fixing BEFORE screenshots are taken
+   since both would be pictured: a single large purchase appears twice in
+   /insights' digest — once as a one-off, once as its category "trending up …
+   $N/yr if it holds", projecting a one-off as if it recurred — and Overview's
+   Owed total labels every debt account a "card", loans included.
 4. **The GitHub page, recruiter-first and inviting to new users.** A banner or
    logo (none exists — `public/` holds only framework starter icons), a tidier
    README layout, a short walkthrough recording near the top, and desktop

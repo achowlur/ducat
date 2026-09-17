@@ -51,8 +51,7 @@ Requires Node.js 22 or newer.
 npm ci
 cp .env.example .env            # local mode works with the defaults
 npx prisma migrate deploy       # creates ./data/ducat.db
-npm run db:seed                 # optional: deterministic sample data
-npm run insights:generate       # build insights for the sample data
+npm run db:seed                 # optional: invented demo data, dated up to today
 npm run dev                     # http://127.0.0.1:3000
 npm test                        # the Vitest suite
 ```
@@ -75,7 +74,7 @@ For real data, run `npm run simplefin:claim -- <setup-token>` then
 | --- | --- |
 | `npm run dev` | Dev server, bound to `127.0.0.1` |
 | `npm test` | Vitest suite |
-| `npm run db:seed` | Load deterministic fixture data — destructive: wipes accounts, transactions, rules and insights; refuses over existing transactions without `-- --yes` |
+| `npm run db:seed` | Load invented demo data dated relative to today — two years of history for six accounts, goals, house readiness, a trip and P2P payments to confirm — then install the rule pack and build insights, so every screen has something to show. Destructive: wipes accounts, transactions, rules, insights and the data's Settings; refuses over existing transactions without `-- --yes` — names the database first |
 | `npm run db:reset` | Wipe every row **including** `Setting`, so the next sync refetches full history rather than a short incremental window — destructive and irreversible; refuses without `-- --yes` |
 | `npm run insights:generate` | Regenerate insights (`-- --granularity=WEEK\|MONTH\|QUARTER\|YEAR`) — names the database first |
 | `npm run simplefin:claim` | Exchange a one-time SimpleFIN setup token (`-- <setup-token>`) for the permanent access URL — prints the `SIMPLEFIN_ACCESS_URL` line to paste into `.env`, and never writes a secret to a file itself |

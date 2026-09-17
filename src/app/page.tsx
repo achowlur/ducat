@@ -110,7 +110,7 @@ async function renderOverview() {
       ? [
           {
             text: `${data.p2pToConfirmCount} P2P payment${data.p2pToConfirmCount === 1 ? "" : "s"} to confirm`,
-            detail: "Zelle and Venmo wait for you — most arrive with a suggested category",
+            detail: "Zelle and Venmo wait for you to confirm them",
             href: "/transactions?review=1",
             urgent: true,
           },
