@@ -1,10 +1,10 @@
 /**
  * The nightly scheduled backup: cloud → a dated, content-verified file on
  * this machine, plus the `backup.lastRun` Setting that lets /providers say
- * when that last happened. Fired by the Windows Task Scheduler at 23:50 UTC —
- * AFTER the `0 23 * * *` sync cron plus Vercel Hobby's documented 8-43
- * minutes of lateness, because backing up before the sync permanently
- * captures yesterday. Runs headless and appends everything it prints to
+ * when that last happened. Fired by the Windows Task Scheduler at 00:30 UTC —
+ * AFTER the whole hour of the `0 23 * * *` sync cron, which Vercel Hobby fires
+ * anywhere within that hour, because backing up before the sync captures
+ * yesterday (23:50 UTC lost that race on 2026-09-16). Runs headless and appends everything it prints to
  * data/backups/backup.log, so a run nobody watched is still readable.
  * Manual run:  npm run backup:scheduled  (add -- --dry-run to see what the
  * pruning and Setting steps WOULD do without doing them).

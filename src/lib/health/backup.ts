@@ -87,7 +87,7 @@ export function parseBackupRun(raw: string | null): StoredBackupRun | null {
 /**
  * `ageDays` — floor of elapsed 24-hour periods since the verified run — is
  * exactly the count of MISSED nightly slots, because the run stamps `at`
- * minutes after its own 23:50 UTC slot: one missed night can only ever read
+ * minutes after its own 00:30 UTC slot: one missed night can only ever read
  * age 1 (elapsed stays under 48h until the second slot passes), two read
  * age 2, and so on. So the thresholds count nights: one missed night is OK
  * (a machine off overnight — travel makes that routine), the second silent

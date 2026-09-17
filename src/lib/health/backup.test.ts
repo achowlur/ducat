@@ -13,7 +13,7 @@ const RUN = {
   rows: 1931,
 };
 
-/** The stamp sits minutes after the 23:50 UTC slot, so N whole days after it
+/** The stamp sits minutes after the nightly slot, so N whole days after it
  * is exactly the state after N missed nightly slots. */
 const afterMissedNights = (n: number) => new Date(Date.parse(RUN.at) + n * 86_400_000 + 3_600_000);
 

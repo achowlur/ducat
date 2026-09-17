@@ -421,11 +421,11 @@ recent copy already on your disk.
    <?xml version="1.0" encoding="UTF-16"?>
    <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
      <RegistrationInfo>
-       <Description>Ducat: nightly verified local backup of the cloud database. 23:50 UTC — after the 23:00 sync cron plus Vercel Hobby's 8-43 min lateness; backing up earlier captures yesterday.</Description>
+       <Description>Ducat: nightly verified local backup of the cloud database. 00:30 UTC — after the 23:00 sync cron's whole hour (Vercel Hobby fires anywhere in it); backing up earlier can capture yesterday.</Description>
      </RegistrationInfo>
      <Triggers>
        <CalendarTrigger>
-         <StartBoundary>2026-08-04T23:50:00Z</StartBoundary>
+         <StartBoundary>2026-08-05T00:30:00Z</StartBoundary>
          <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>
          <Enabled>true</Enabled>
        </CalendarTrigger>
@@ -457,7 +457,7 @@ recent copy already on your disk.
    Two choices in there are the point. `LogonType S4U` is "run whether user is
    logged on or not" without a stored password — the task runs in session 0,
    so **no console window ever appears** while you're using the machine.
-   `StartWhenAvailable` means a machine that was asleep at 23:50 UTC runs the
+   `StartWhenAvailable` means a machine that was asleep at 00:30 UTC runs the
    backup on wake: late is always safe — only *early* (before the sync cron)
    captures yesterday.
 
@@ -538,8 +538,15 @@ redo it on the cloud first. After a confirmed run the nightly job carries on
 from the recorded state.
 
 Mirror AFTER the nightly cron, not before: `0 23 * * *` UTC, and Vercel Hobby
-fires 8-43 minutes late, so a backup taken earlier in the day permanently
-captures yesterday. The scheduled task runs at 23:50 UTC for that reason.
+fires it anywhere within that hour, so a backup taken before the hour ends can
+capture yesterday. The scheduled task runs at 00:30 UTC for that reason. An
+existing task registered at 23:50 UTC moves with, from an elevated PowerShell:
+
+```powershell
+$t = Get-ScheduledTask -TaskName "Ducat nightly backup"
+$t.Triggers[0].StartBoundary = "2026-09-17T00:30:00Z"
+Set-ScheduledTask -InputObject $t
+```
 
 A backup is an ordinary Ducat database, so you can open one directly:
 

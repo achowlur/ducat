@@ -203,7 +203,7 @@ regeneration.
   transaction, never a file swap (local keeps its migration history), proved
   before commit. A refusal leaves local untouched and WARNs on /providers;
   only db:mirror --confirm replaces a changed local, keeping the old file.
-- backup:scheduled (the 23:50 UTC Windows task) is the ONLY writer of Setting
+- backup:scheduled (the 00:30 UTC Windows task) is the ONLY writer of Setting
   backup.lastRun: CLOUD first, then — after a successful mirror — to local;
   and only AFTER whole-database fingerprints MATCH;
   a failed run writes no row and deletes nothing, so /providers' backup age
@@ -240,7 +240,7 @@ regeneration.
   operator to read the Vercel dashboard.
 - The cron hour (0 23 * * *) is TUNED to minimise the oldest institution's
   balance age — re-score every candidate hour before moving it. Hobby fires
-  8-43 minutes late, never early.
+  ANYWHERE in the hour, never early, so the backup slot sits AFTER the hour.
 - Provider health derives from LOCAL signals only — no network call on
   launch, ever; staleBalanceDays: 5 is deliberate; a new connector owes a
   trust card in providers.ts.
