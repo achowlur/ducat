@@ -614,9 +614,10 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   The "8-43 minutes late" window was an OBSERVATION over a handful of firings,
   and a slot two minutes past the window's edge was a bet on it. Vercel's
   Hobby cron is documented as firing anywhere within the scheduled hour, and
-  SyncLog cannot tell a late cron from a manual Sync now at :52 — either way
-  the lesson is the same: the slot must sit after the HOUR, not after the
-  observed lateness. It is now 00:30 UTC (20:30 EDT, 19:30 EST — the trigger
+  this was that: SyncLog cannot tell a late cron from a manual Sync now, but
+  the operator confirmed nobody pressed it, so the cron itself fired 52
+  minutes late — outside the recorded 8-43 window. The slot must sit after
+  the HOUR, not after the observed lateness. It is now 00:30 UTC (20:30 EDT, 19:30 EST — the trigger
   carries a UTC time, so daylight saving cannot pull it back into the hour).
   WHY THE AGE ARITHMETIC DID NOT CHANGE: /providers counts missed nights as
   floor(elapsed / 24h), which only requires every run to stamp minutes after
