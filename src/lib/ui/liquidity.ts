@@ -49,6 +49,20 @@ export interface BalanceSummary {
    */
   investmentAccounts: number;
   debtAccounts: number;
+  /** The LOANs among debtAccounts; the rest are cards. */
+  loanAccounts: number;
+}
+
+/**
+ * The note under Owed. It said "2 cards" for a card and an auto loan: every
+ * debt account was a "card". Named apart, and a kind with none is left out.
+ */
+export function debtNote(debtAccounts: number, loanAccounts: number): string {
+  const cards = debtAccounts - loanAccounts;
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  return [cards > 0 ? plural(cards, 'card') : null, loanAccounts > 0 ? plural(loanAccounts, 'loan') : null]
+    .filter((part): part is string => part !== null)
+    .join(' · ');
 }
 
 export async function readCashAccountIds(prisma: PrismaClient): Promise<string[]> {
@@ -76,6 +90,7 @@ export function summariseBalances(
   let cashAccounts = 0;
   let investmentAccounts = 0;
   let debtAccounts = 0;
+  let loanAccounts = 0;
   for (const a of accounts) {
     if (countsAsCash(a, extraIds)) {
       cash += a.balance;
@@ -83,6 +98,7 @@ export function summariseBalances(
     } else if (DEBT_TYPES.has(a.type)) {
       debt += a.balance;
       debtAccounts += 1;
+      if (a.type === 'LOAN') loanAccounts += 1;
     } else {
       investments += a.balance;
       investmentAccounts += 1;
@@ -96,6 +112,7 @@ export function summariseBalances(
     cashAccounts,
     investmentAccounts,
     debtAccounts,
+    loanAccounts,
   };
 }
 

@@ -148,6 +148,19 @@ export function computeDigest(input: {
       }
     }
 
+    // What this period's one-offs contribute to each category. A single big
+    // purchase lifts its category's total too, and measured on the total it
+    // read as a TREND — "Shopping $1,249, ~$13,821/yr if it holds" beside the
+    // one-off that already reported the same purchase at face value. So drift
+    // is measured on what is left once the one-offs are taken out: a category
+    // whose rise the one-off explains is not drifting, and one that rose
+    // beyond it is scored only on the part that could repeat.
+    const oneOffByCategory = new Map<string, number>();
+    for (const a of anomalies) {
+      if (a.kind !== 'TRANSACTION' || a.categoryId === null) continue;
+      oneOffByCategory.set(a.categoryId, (oneOffByCategory.get(a.categoryId) ?? 0) + a.amount);
+    }
+
     for (const c of spending.categories) {
       if (c.spending <= 0) continue;
       // A review backlog is not a spending trend: "P2P — Unreviewed is up"
@@ -156,7 +169,8 @@ export function computeDigest(input: {
       const past = history.get(keyOf(c)) ?? [];
       if (past.length < MIN_CATEGORY_SAMPLES) continue;
       const baseline = median(past);
-      const delta = c.spending - baseline;
+      const oneOffs = c.categoryId === null ? 0 : (oneOffByCategory.get(c.categoryId) ?? 0);
+      const delta = c.spending - oneOffs - baseline;
       // Increases only. A category falling is good news and does not need
       // attention; /trends already shows it either way.
       if (delta <= 0) continue;

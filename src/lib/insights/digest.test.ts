@@ -63,7 +63,9 @@ describe('computeDigest', () => {
         spending([{ name: 'Dining', spending: 480 }]),
       ],
       // A $1707.95 one-off is larger this month than the $570.18 drift…
-      anomalies: [anomaly({ amount: 659 })],
+      // (in ANOTHER category: a one-off inside Dining would explain Dining's
+      // rise, and is then not a drift at all — see the block below)
+      anomalies: [anomaly({ amount: 659, categoryId: 'cat-travel', categoryName: 'Travel' })],
     });
     // …but the drift is $6,842.17/yr if it holds, and the one-off is $1707.95, once.
     expect(items.map((i) => i.kind)).toEqual(['CATEGORY_DRIFT', 'ONE_OFF']);
@@ -315,5 +317,46 @@ describe('computeDigest and P2P awaiting confirmation', () => {
     });
     const items = computeDigest({ ...base, spending: p2p(900), priorSpending: [p2p(100), p2p(120)] });
     expect(items).toEqual([]);
+  });
+});
+
+describe('computeDigest and a one-off inside its own category', () => {
+  const prior = [spending([{ name: 'Shopping', spending: 100 }]), spending([{ name: 'Shopping', spending: 110 }])];
+
+  it('does not also report the purchase as its category trending up', () => {
+    const items = computeDigest({
+      ...base,
+      spending: spending([{ name: 'Shopping', spending: 1330 }]),
+      priorSpending: prior,
+      anomalies: [anomaly({ amount: 1249, categoryId: 'cat-shopping', categoryName: 'Shopping', transactionId: 't-laptop' })],
+    });
+    // Without the one-off, Shopping is $81 — below its $105 median, so no drift.
+    expect(items.map((i) => i.kind)).toEqual(['ONE_OFF']);
+  });
+
+  it('still reports drift beyond the one-off, scored only on the part that could repeat', () => {
+    const items = computeDigest({
+      ...base,
+      spending: spending([{ name: 'Shopping', spending: 1649 }]),
+      priorSpending: prior,
+      anomalies: [anomaly({ amount: 1249, categoryId: 'cat-shopping', categoryName: 'Shopping', transactionId: 't-laptop' })],
+    });
+    const drift = items.find((i) => i.kind === 'CATEGORY_DRIFT');
+    // $1,649 − $1,249 one-off = $400 against a $105 median: $295/mo, $3,540/yr.
+    expect(drift?.stake).toBe(3540);
+    expect(items.map((i) => i.kind)).toEqual(['CATEGORY_DRIFT', 'ONE_OFF']);
+  });
+
+  it('leaves drift in OTHER categories exactly as it was', () => {
+    const items = computeDigest({
+      ...base,
+      spending: spending([{ name: 'Dining', spending: 700 }, { name: 'Shopping', spending: 1330 }]),
+      priorSpending: [
+        spending([{ name: 'Dining', spending: 480 }, { name: 'Shopping', spending: 100 }]),
+        spending([{ name: 'Dining', spending: 480 }, { name: 'Shopping', spending: 110 }]),
+      ],
+      anomalies: [anomaly({ amount: 1249, categoryId: 'cat-shopping', categoryName: 'Shopping', transactionId: 't-laptop' })],
+    });
+    expect(items.find((i) => i.kind === 'CATEGORY_DRIFT')).toMatchObject({ subject: 'Dining', stake: 2640 });
   });
 });

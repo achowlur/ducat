@@ -24,8 +24,7 @@ The operator's data first, then what a visitor to the repository sees.
    in. One invented generator serves both the screenshots and the demo, and it
    must exercise every feature a picture or a visitor reaches (P2P rows
    included, once item 2 ships).
-   It surfaced two app issues, both worth fixing BEFORE screenshots are taken
-   since both would be pictured: a single large purchase appears twice in
+   It surfaced two app issues — BOTH FIXED 2026-09-16, before any screenshot: a single large purchase appears twice in
    /insights' digest — once as a one-off, once as its category "trending up …
    $N/yr if it holds", projecting a one-off as if it recurred — and Overview's
    Owed total labels every debt account a "card", loans included.
