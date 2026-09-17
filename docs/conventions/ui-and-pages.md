@@ -743,3 +743,10 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   inside a data change: one large purchase reports twice in the digest (as a
   one-off AND as a category "trending up … /yr if it holds"), and Overview's
   Owed total calls every debt account a "card", loans included.
+
+- OWED NAMES CARDS AND LOANS APART (2026-09-16). The note under Overview's Owed
+  total read "2 cards" for a credit card and an auto loan, because it counted
+  every debt account and called each a card. It now reads "1 card · 1 loan"
+  (`debtNote` in ui/liquidity.ts, counted in the same branch that sums the
+  debt), leaving out a kind there are none of. Surfaced by the demo data, the
+  first data set to hold a loan beside a card.

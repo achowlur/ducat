@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeRunway, countsAsCash, summariseBalances } from "./liquidity";
+import { debtNote, computeRunway, countsAsCash, summariseBalances } from "./liquidity";
 
 const acct = (id: string, type: string, balance: number) => ({ id, type, balance });
 
@@ -116,5 +116,18 @@ describe("computeRunway", () => {
   it("refuses when there is no cash to divide", () => {
     expect(computeRunway(0, [1000, 1000, 1000])).toBeNull();
     expect(computeRunway(-500, [1000, 1000, 1000])).toBeNull();
+  });
+});
+
+describe("debtNote", () => {
+  it("names cards and loans apart — an auto loan is not a card", () => {
+    const s = summariseBalances([acct("visa", "CREDIT", -640.12), acct("auto", "LOAN", -8300)]);
+    expect(s.loanAccounts).toBe(1);
+    expect(debtNote(s.debtAccounts, s.loanAccounts)).toBe("1 card · 1 loan");
+  });
+
+  it("leaves out a kind there are none of, and pluralises the rest", () => {
+    expect(debtNote(3, 0)).toBe("3 cards");
+    expect(debtNote(2, 2)).toBe("2 loans");
   });
 });

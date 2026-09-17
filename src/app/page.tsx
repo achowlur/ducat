@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { MiniDonut } from "../components/MiniDonut";
 import { sliceSwatch } from "../lib/ui/donutColors";
+import { debtNote } from "../lib/ui/liquidity";
 import { wholePercents } from "../lib/ui/spendingBreakdown";
 import { SyncNowButton } from "../components/SyncNowButton";
 import { amount, dateTime, money, pct } from "../lib/ui/format";
@@ -496,7 +497,7 @@ async function renderOverview() {
             label="Owed"
             value={data.balances.debt}
             negative
-            note={`${data.balances.debtAccounts} card${data.balances.debtAccounts === 1 ? "" : "s"}`}
+            note={debtNote(data.balances.debtAccounts, data.balances.loanAccounts)}
           />
         )}
       </section>

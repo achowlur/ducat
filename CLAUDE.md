@@ -280,7 +280,8 @@ regeneration.
 - A finding the DIGEST leads with is not printed again below it: items carry a
   dedupeKey (anomalyDedupeKey, computed on both sides) and the Anomalies group
   is filtered by the keys the digest KEPT. The promoted row carries the rank,
-  so nothing is lost.
+  so nothing is lost. Category DRIFT is measured NET of that period's one-offs
+  in the category — a one-off is scored once, never annualised as a trend.
 - "Counts as cash" is a Setting (cash.additionalAccountIds via
   accounts:cash), never an account-type change — retyping breaks net worth.
 - npm run goals --add is NOT idempotent (slugs dedupe, content does not):

@@ -217,3 +217,22 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   May and June promote both anomalies and the Anomalies heading disappears
   entirely; July suppresses only the Groceries CATEGORY_TOTAL and keeps the
   two transaction anomalies the four-item cap left out.
+
+- A ONE-OFF IS NOT A TREND (2026-09-16). The demo data put a single $1,249
+  electronics purchase in the current month, and /insights' digest led with it
+  TWICE: as the ONE_OFF it is ("higher than all your Shopping"), and as
+  "Shopping $1,249.00, against $97.24 in comparable months — $13,821.12/yr if it
+  holds". The drift branch measured the category's TOTAL, which the one-off
+  alone had lifted, and then annualised it — projecting a purchase that happened
+  once as if it recurred every month, which is exactly what the digest's header
+  says a one-off must never be. Real data had not shown it only because no
+  single purchase had yet outweighed its category's median by that much.
+  THE RULE: drift is measured on the category's spending MINUS this period's
+  TRANSACTION anomalies in it. A category whose rise the one-off explains
+  reports no drift; one that rose beyond it is scored only on the remainder,
+  the part that could repeat. The one-off still reports at face value.
+  CATEGORY_TOTAL anomalies are not subtracted: they describe the category, not
+  a purchase inside it. Pinned in digest.test.ts: explained rise, drift beyond
+  the one-off, and other categories untouched. One existing test's anomaly had
+  defaulted into the very category it measured; its intent — a recurring drift
+  outranking a bigger one-off — now places that one-off in another category.
