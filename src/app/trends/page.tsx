@@ -5,6 +5,7 @@ import { TrendsDonut } from "../../components/charts/TrendsDonut";
 import { CoverageNotice } from "../../components/CoverageNotice";
 import { amount, money, monthLabel } from "../../lib/ui/format";
 import { getPeriodCoverage } from "../../lib/ui/coverage";
+import { wholePercents } from "../../lib/ui/spendingBreakdown";
 import { getTrendsData } from "../../lib/ui/trends";
 import { PageTitle, SectionTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
@@ -40,21 +41,9 @@ async function renderTrends({
 
   const coverage = await getPeriodCoverage(data.period);
   const estimatedMonths = data.netWorth.filter((m) => m.estimated).length;
-  // Shares are percentages of ONE whole, so they are rounded together: floor
-  // every row, then hand the leftover points to the largest fractional parts.
-  // Rounding each independently let the column sum to 101%.
-  const sharePct = ((): number[] => {
-    const raw = data.categories.map((c) => (c.share === null ? null : c.share * 100));
-    const out = raw.map((v) => (v === null ? 0 : Math.floor(v)));
-    const total = out.reduce((a, b) => a + b, 0);
-    const whole = raw.some((v) => v !== null) ? 100 : 0;
-    const order = raw
-      .map((v, i) => ({ i, frac: v === null ? -1 : v - Math.floor(v) }))
-      .filter((x) => x.frac >= 0)
-      .sort((a, b) => b.frac - a.frac);
-    for (let k = 0; k < whole - total && k < order.length; k += 1) out[order[k].i] += 1;
-    return out;
-  })();
+  // Shares are percentages of ONE whole, so they are rounded together
+  // (wholePercents) — rounding each independently let the column sum to 101%.
+  const sharePct = wholePercents(data.categories.map((c) => c.share));
 
   return (
     <div className="grid gap-9 py-5">

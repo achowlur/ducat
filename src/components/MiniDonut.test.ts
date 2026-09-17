@@ -5,8 +5,8 @@ import { MiniDonut } from "./MiniDonut";
 import type { DonutSliceData } from "../lib/ui/spendingBreakdown";
 
 const SLICES: DonutSliceData[] = [
-  { label: "Dining", categoryIds: ["cat-dining"], value: 412.5, share: 0.569 },
-  { label: "Other", categoryIds: ["cat-a", null], value: 31.2, share: 0.043 },
+  { label: "Dining", categoryIds: ["cat-dining"], value: 412.5, share: 0.569, isOther: false },
+  { label: "Other", categoryIds: ["cat-a", null], value: 31.2, share: 0.043, isOther: true },
 ];
 
 /**

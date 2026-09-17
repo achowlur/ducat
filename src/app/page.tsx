@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { MiniDonut } from "../components/MiniDonut";
+import { sliceSwatch } from "../lib/ui/donutColors";
+import { wholePercents } from "../lib/ui/spendingBreakdown";
 import { SyncNowButton } from "../components/SyncNowButton";
 import { amount, dateTime, money, pct } from "../lib/ui/format";
 import { getOverviewData, STALE_DISPLAY_DAYS } from "../lib/ui/overview";
@@ -23,7 +25,6 @@ const TYPE_LABEL: Record<string, string> = {
   LOAN: "Loan",
 };
 
-const DONUT_COLORS = ["bg-chart1", "bg-chart2", "bg-pie3", "bg-pie4"];
 
 /**
  * One of the three balance groups. These were rows inside the account table
@@ -306,9 +307,12 @@ async function renderOverview() {
             )}
           </div>
           {data.donut !== null ? (
-            /* Stacked below md: sharing a row with the legend squeezed the
-                donut to 76px, with a 5px total in the hole. */
-            <div className="flex flex-col items-start gap-4 md:flex-row md:items-center">
+            /* Stacked until xl: the ring names every category at 3% or more
+                (up to eight legend rows), and ring plus legend need ~450px side
+                by side — the column only has that at xl. Below it the legend
+                takes the column's width under the ring instead of squeezing
+                it (sharing a row below md once shrank the ring to 76px). */
+            <div className="flex flex-col items-start gap-4 xl:flex-row xl:items-center">
               {/* Bigger and centred on a phone, where it is the only graphic
                   in a 327px column — at 170px its ring is barely 108px wide
                   (the viewBox carries ~31px of padding a side) and it read as
@@ -320,27 +324,37 @@ async function renderOverview() {
                 slices={data.donut.slices}
                 centerTop={money(data.donut.total)}
                 centerBottom="this month"
-                className="w-[230px] self-center md:w-[170px]"
+                className="w-[230px] shrink-0 self-center xl:w-[200px]"
                 hrefFor={(s) => transactionsHref(s.categoryIds, data.currentPeriod)}
               />
-              <div className="grid gap-1.5 font-money text-[0.78rem] tabular">
-                {data.donut.slices.map((s, i) => (
-                  <Link
-                    key={s.label}
-                    href={transactionsHref(s.categoryIds, data.currentPeriod)}
-                    className="grid grid-cols-[11px_96px_72px_38px] items-center gap-1.5 rounded-[2px] hover:bg-chip"
-                    title={
-                      s.categoryIds.length > 1
-                        ? `View the ${s.categoryIds.length} categories in Other`
-                        : `View ${s.label} transactions`
-                    }
-                  >
-                    <i className={`h-[11px] w-[11px] rounded-[2px] ${DONUT_COLORS[i % DONUT_COLORS.length]}`} />
-                    <span className="font-ledger">{s.label}</span>
-                    <span className="text-right">{amount(s.value)}</span>
-                    <span className="text-right text-faint">{Math.round(s.share * 100)}%</span>
-                  </Link>
-                ))}
+              {/* Percentages of one whole, rounded together (wholePercents):
+                  eight rows rounded one by one can print a legend summing to
+                  101%. The name column flexes and truncates, so a long
+                  category name costs its own tail, never a figure. */}
+              <div className="grid w-full max-w-[380px] gap-1.5 font-money text-[0.78rem] tabular xl:w-auto xl:min-w-0 xl:flex-1">
+                {(() => {
+                  const pct = wholePercents(data.donut.slices.map((s) => s.share));
+                  return data.donut.slices.map((s, i) => (
+                    <Link
+                      key={s.label}
+                      href={transactionsHref(s.categoryIds, data.currentPeriod)}
+                      className="grid grid-cols-[11px_minmax(0,1fr)_76px_34px] items-center gap-1.5 rounded-[2px] hover:bg-chip"
+                      title={
+                        s.isOther
+                          ? `View the ${s.categoryIds.length} categories in Other`
+                          : `View ${s.label} transactions`
+                      }
+                    >
+                      <i className={`h-[11px] w-[11px] rounded-[2px] ${sliceSwatch(s, i)}`} />
+                      <span className="truncate font-ledger">
+                        {s.label}
+                        {s.isOther && <span className="text-faint"> · {s.categoryIds.length}</span>}
+                      </span>
+                      <span className="text-right">{amount(s.value)}</span>
+                      <span className="text-right text-faint">{pct[i]}%</span>
+                    </Link>
+                  ));
+                })()}
               </div>
             </div>
           ) : data.spendingTotal !== null ? (

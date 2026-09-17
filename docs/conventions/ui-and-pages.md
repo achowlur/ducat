@@ -143,6 +143,9 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   and the quiet one is the point. It also balances the column heights, which is
   the honest fix for the empty right side; enlarging the donut was considered
   and rejected, since a bigger ring is decoration rather than information.
+  (Amended 2026-09-16: the ring DID grow, but because it now names more
+  categories — see OVERVIEW NAMES EVERY CATEGORY WORTH A SLICE. Size alone is
+  still not a reason.)
   Uncategorized rows outrank a stale balance in it: they silently understate
   every spending total, where a stale balance is merely old. The same condition
   deliberately appears at three levels of specificity — provider strip, account
@@ -664,3 +667,43 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   without a login — a `libsql://` URL turns the auth gate on by design
   (`isAuthEnabled()` includes `isCloudMode()`), and forging a session to see it
   is not a thing to build; that last step needs the operator at the keyboard.
+
+- OVERVIEW NAMES EVERY CATEGORY WORTH A SLICE (2026-09-16). The ring drew the
+  top three and folded everything else into Other, so on a typical month Other
+  was one of the biggest slices on the page while saying nothing about what was
+  in it. Overview has no table beside its ring the way /trends does, so the
+  ring is the only place a reader learns where the month went.
+  THE RULE: every category at 3% or more of the drawable total gets its own
+  slice, capped at EIGHT legend rows, the eighth being Other when anything is
+  left over. Two edges are deliberate. An Other that would hold ONE category
+  names it instead — hiding a single name behind a label buys nothing. And when
+  exactly eight categories are everything, the eighth row is a category, not
+  an Other of nothing. Other states how many categories it holds IN TEXT
+  (`Other · 5`), because the title= tooltip does not exist on a phone.
+  /trends KEEPS its top three: the table beside it names every category, so its
+  ring only has to show proportion. The two pages share `spendingBreakdown`
+  and differ only in the `DonutSlicing` they pass, so shares, arcs and printed
+  totals still cannot disagree.
+  COLOUR: seven hues for named slices (four existed; `--pie5..7` added in all
+  three themes) and a NEUTRAL `--pie-other`, so Other never reads as one more
+  category. Arcs and legend swatches come from `ui/donutColors.ts` — a CSS
+  variable for the SVG, a literal Tailwind class for the swatch, because
+  Tailwind only generates classes it can read in source.
+  PERCENTAGES round together (`wholePercents`, the /trends table's
+  largest-remainder rounding, moved beside `spendingBreakdown` and now used by
+  both): with eight rows, rounding each alone prints legends summing past 100%.
+  SPACE: the ring and legend need ~450px side by side, which the right column
+  has only at xl, so they sit side by side at xl and stack below it, the legend
+  taking the column's width (capped at 380px so figures stay near their names)
+  and its name column truncating rather than pushing a figure out. The bigger
+  ring came mostly from CROPPING the viewBox to the ring: the old 220x200 box
+  spent over a third of its width on padding, so a 200px donut drew a 127px
+  ring. MiniDonut draws nothing outside the ring (the hover tooltip belongs to
+  /trends' donut), so the crop costs nothing.
+  VERIFIED in the dev server at 1280px (side by side, eight rows, no name
+  truncated), 1024px (stacked) and 375px (no horizontal scroll, no truncation),
+  with computed arc and swatch colours read back in sepia, light and dark:
+  eight distinct fills in each, every swatch matching its arc, Other neutral.
+  One test in the new block caught a real bug while it was being written: ten
+  categories all above 3% drew nine rows, because the all-eligible branch
+  capped at eight and then appended Other anyway.

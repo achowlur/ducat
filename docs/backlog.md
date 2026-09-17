@@ -7,6 +7,36 @@ full evidence — what each rule cost and why alternatives failed. The one-line
 enforceable rules live in CLAUDE.md and point here. Additions follow the same
 contract: rule line in CLAUDE.md, evidence here, never both in one place.
 
+## Agreed order (2026-09-16)
+
+The operator's data first, then what a visitor to the repository sees.
+
+1. **Overview donut names more categories — BUILT 2026-09-16.** Every
+   category at 3% or more, as many as eight legend rows hold, beside the
+   balance table. Evidence: docs/conventions/ui-and-pages.md, OVERVIEW NAMES
+   EVERY CATEGORY WORTH A SLICE.
+2. **P2P review, both halves** — see the P2P entry below for what was decided.
+3. **Demo data, generated relative to today.** `scripts/seed.ts` pins "today"
+   to a fixed date, so a screenshot or a demo built on it shows an empty
+   current month on /insights, whose panels are gated to the month being lived
+   in. One invented generator serves both the screenshots and the demo, and it
+   must exercise every feature a picture or a visitor reaches (P2P rows
+   included, once item 2 ships).
+4. **The GitHub page, recruiter-first and inviting to new users.** A banner or
+   logo (none exists — `public/` holds only framework starter icons), a tidier
+   README layout, a short walkthrough recording near the top, and desktop
+   screenshots of Overview, Trends, Insights and Transactions in SEPIA, all from
+   the invented data. Screenshots must not fall out of step with the UI: one
+   command recaptures them, and a CI check fails a PR that touches a pictured
+   page without updating them unless its description carries
+   `screenshots: unchanged — <reason>`. The recording is retaken on substantial
+   change only, and is outside that check.
+5. **The public demo instance** (design below), linked as a button at the top
+   of the README. It deploys from `main`, so its screens cannot lag the code;
+   only the generator has to keep up. A README cannot embed it — GitHub strips
+   iframes and scripts, and the app refuses framing — which is why the
+   recording exists.
+
 ## Backlog (agreed 2026-07-27, investigated, not yet built)
 
 **Rebuild /insights as "am I on track?" — DESIGNED 2026-07-27, BUILT 2026-07-28.**
@@ -384,6 +414,19 @@ turned up so it isn't rediscovered:
   "P2P — Unreviewed" bucket so analytics are visibly-incomplete rather than
   silently wrong while the pile shrinks. (Bulk grouping-by-payee and
   reimbursement auto-suggest are both DONE — see Conventions.)
+  DECIDED 2026-09-16, BOTH, scheduled after the Overview donut:
+  - Every UNCONFIRMED P2P payment sits in "P2P — Unreviewed", including the
+    ones carrying a suggestion. Outflows count toward spending as that slice
+    of their own; inflows stay out of spending and are flagged on
+    Transactions only, since counting them would shrink the spending total.
+  - A suggestion is PRE-FILLED and needs a confirmation, never applied
+    silently — including for a payee that already has a user rule, because
+    one person can be paid for different things. The point is that nothing
+    is missed.
+  - Measured before scheduling: the operator's own P2P backlog was already
+    worked down to almost nothing, so the feature's value is chiefly for a
+    new instance's first sync and for the demo — which is why it waits
+    behind the donut rather than leading.
 - **Deeper history.** SimpleFIN caps a request at 90 days (it reports this as a
   feed warning, surfaced on the provider health line). History accumulates
   going forward since syncs never delete; CSV import is the backfill path for
