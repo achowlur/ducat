@@ -137,7 +137,9 @@ regeneration.
 - An account covers a period only if its first transaction is at or before
   the period START.
 - Reimbursement suggestions lead with AMOUNT evidence; date only breaks
-  ties; UNSPLITTABLE categories are denied split evidence.
+  ties; UNSPLITTABLE categories are denied split evidence. An expense up to
+  REPAYMENT_LEAD_DAYS (30) AFTER the repayment is offered at 60% date
+  weight — ONE constant feeds both the ranker and the pool queries.
 - A trip/project group (`Transaction.groupLabel`) is a cross-period VIEW
   over real rows, never a re-bucketing: NO analyzer reads it, tagging
   changes no printed total (pinned byte-identical by groupLabel.test.ts),

@@ -81,11 +81,23 @@ function amountEvidence(
 }
 
 /**
- * Repayment normally follows the expense. A few days of lead is allowed —
- * someone can pay you before the charge posts — but it's weaker evidence.
+ * How long AFTER a repayment the expense it covers may come. Repayment usually
+ * follows the expense, but not always: a friend Zelles their share of concert
+ * tickets or a trip you have not paid for yet, and the charge posts days or
+ * weeks later. This was 3 days (enough only for a charge still posting), which
+ * left such a repayment with no way to be linked at all — the expense never
+ * appeared among its candidates. 30 days covers paying ahead for something
+ * booked that month.
  */
-function dateEvidence(gapDays: number, windowDays: number): number {
-  if (gapDays > windowDays || gapDays < -3) return 0;
+export const REPAYMENT_LEAD_DAYS = 30;
+
+/**
+ * Repayment normally follows the expense, so a charge AFTER the repayment is
+ * weaker evidence: it keeps 60% of the date score, and an equally matching
+ * charge before the repayment still ranks first. Amount leads either way.
+ */
+function dateEvidence(gapDays: number, windowDays: number, leadDays: number): number {
+  if (gapDays > windowDays || gapDays < -leadDays) return 0;
   const decay = 1 / (1 + Math.abs(gapDays) / 14);
   return gapDays < 0 ? decay * 0.6 : decay;
 }
@@ -93,9 +105,9 @@ function dateEvidence(gapDays: number, windowDays: number): number {
 export function suggestReimbursements(
   inflow: SuggestInflow,
   outflows: SuggestOutflow[],
-  options: { limit?: number; windowDays?: number; minScore?: number } = {},
+  options: { limit?: number; windowDays?: number; leadDays?: number; minScore?: number } = {},
 ): ScoredCandidate[] {
-  const { limit = 5, windowDays = 45, minScore = 0.05 } = options;
+  const { limit = 5, windowDays = 45, leadDays = REPAYMENT_LEAD_DAYS, minScore = 0.05 } = options;
   const inflowCents = cents(inflow.amount);
   if (inflowCents === 0) return [];
 
@@ -104,7 +116,7 @@ export function suggestReimbursements(
     const amount = amountEvidence(inflowCents, cents(out.amount), out.splittable ?? true);
     if (amount === null) continue;
     const gap = (inflow.date.getTime() - out.date.getTime()) / DAY_MS;
-    const date = dateEvidence(gap, windowDays);
+    const date = dateEvidence(gap, windowDays, leadDays);
     if (date === 0) continue;
     const score = amount.score * date;
     if (score < minScore) continue;

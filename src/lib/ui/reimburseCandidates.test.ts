@@ -167,7 +167,8 @@ describe('makeCandidateFinder', () => {
       out('d', 45, 2),
       out('e', 60, 1),
       out('f', 45, -25), // June 5 — outside inflow 1's 45-day window, inside inflow 2's
-      out('g', 120, 26), // after inflow 1 but within its 3-day lead
+      out('g', 120, 26), // after inflow 1 but within its lead
+      out('h', 45, 70), // past BOTH inflows' 30-day lead — only the page pool holds it
     ];
     for (const inflow of inflows) {
       const narrowPool = widePool.filter(

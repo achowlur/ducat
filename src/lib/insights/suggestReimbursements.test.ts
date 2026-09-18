@@ -71,12 +71,31 @@ describe('suggestReimbursements', () => {
     expect(suggestReimbursements({ amount: 100, date: day(12) }, [out('small', 40, 10)])).toEqual([]);
   });
 
-  it('ignores outflows outside the window, including ones after the inflow', () => {
+  it('ignores outflows outside the window, before and after', () => {
     const results = suggestReimbursements({ amount: 50, date: day(20) }, [
       out('ancient', 50, -40), // ~60 days earlier
-      out('later', 50, 27), // a week AFTER the inflow
+      out('far-later', 50, 55), // 35 days AFTER the inflow, past the lead
     ]);
     expect(results).toEqual([]);
+  });
+
+  it('offers an expense that comes weeks AFTER the repayment — a friend paying their share ahead', () => {
+    // A Zelle on the 10th for tickets bought on the 24th. With 3 days of lead
+    // this returned nothing, and the repayment could not be linked at all.
+    const results = suggestReimbursements({ amount: 60, date: day(10) }, [out('tickets', 120, 24)]);
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({ id: 'tickets', reason: '1/2 of $120.00', strong: true });
+    // The edge of the lead is in; a day past it is out.
+    expect(suggestReimbursements({ amount: 60, date: day(1) }, [out('t', 60, 31)])).toHaveLength(1);
+    expect(suggestReimbursements({ amount: 60, date: day(1) }, [out('t', 60, 32)])).toEqual([]);
+  });
+
+  it('still ranks an equally matching expense BEFORE the repayment above one after it', () => {
+    const results = suggestReimbursements({ amount: 50, date: day(15) }, [
+      out('after', 50, 22), // a week after
+      out('before', 50, 8), // a week before
+    ]);
+    expect(results.map((r) => r.id)).toEqual(['before', 'after']);
   });
 
   it('allows a few days of lead but scores it below the same match trailing', () => {

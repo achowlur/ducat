@@ -1,4 +1,4 @@
-import { suggestReimbursements } from "../insights/suggestReimbursements";
+import { REPAYMENT_LEAD_DAYS, suggestReimbursements } from "../insights/suggestReimbursements";
 import { merchantLabel } from "./merchantLabel";
 import { isoDate } from "./format";
 
@@ -14,8 +14,11 @@ import { isoDate } from "./format";
 
 /** How far back an outflow can be and still count as being paid back. */
 export const REIMBURSE_WINDOW_DAYS = 45;
-/** Repayment can lead the charge by a few days (paid before it posted). */
-export const REIMBURSE_LEAD_DAYS = 3;
+/**
+ * How long after a repayment its expense may come — the ranker's own window,
+ * re-exported so the pool queries fetch exactly what it can score.
+ */
+export const REIMBURSE_LEAD_DAYS = REPAYMENT_LEAD_DAYS;
 /** Same cap the ledger's pool query has always carried. */
 export const REIMBURSE_POOL_TAKE = 2000;
 
@@ -129,6 +132,7 @@ export function makeCandidateFinder(
     }
     return suggestReimbursements(inflow, rankable, {
       windowDays: REIMBURSE_WINDOW_DAYS,
+      leadDays: REIMBURSE_LEAD_DAYS,
       limit: REIMBURSE_CANDIDATE_LIMIT,
     }).flatMap((s) => {
       const o = byId.get(s.id);
