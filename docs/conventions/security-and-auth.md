@@ -184,3 +184,13 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   A SIDE FIX: middleware's plain-text responses declared no charset, so every
   one of them — the localhost refusal included — rendered its em dash as
   "â€”". They now say `charset=utf-8`, pinned in the demo's middleware test.
+
+- THE TAB ICON PASSES THE GATE (2026-09-18). The gold coin replaced the
+  scaffold's default favicon as `src/app/icon.svg`, which Next serves at
+  `/icon.svg` and links from every page, the login page included. A
+  logged-out browser requests it from the login page, and the middleware
+  would have redirected that request to /login, leaving the lock screen
+  with a broken icon; so the matcher skips `icon.svg` beside `favicon.ico`.
+  It is a static public image carrying no data. Checked with the gate on and
+  logged out: the icon answered 200 while `/`, `/transactions` and
+  `/insights` still redirected to the login.
