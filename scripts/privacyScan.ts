@@ -54,11 +54,15 @@ const ALLOWED_EMAILS = new Set([
 const ALLOWED_EMAIL_DOMAIN_RE = /@example\.com$/i;
 const GITHUB_NO_REPLY_RE = /^\d+\+[A-Za-z0-9-]+@users\.noreply\.github\.com$/i;
 
-// (e) Any *.vercel.app hostname other than the doc placeholder — a real
-// deployment hostname is exactly the kind of thing this guard exists to
-// keep out of a public repo.
+// (e) Any *.vercel.app hostname other than the doc placeholder and the
+// PUBLIC DEMO — a real deployment hostname is exactly the kind of thing this
+// guard exists to keep out of a public repo. The demo is published on
+// purpose: it holds only invented data, prints its own password, and resets
+// nightly (DUCAT_DEMO_PASSWORD, src/lib/demo/mode.ts). It is named exactly,
+// never by pattern, so no other deployment can pass for it.
 const VERCEL_RE = /[A-Za-z0-9.-]+\.vercel\.app/g;
 const PLACEHOLDER_VERCEL_HOST = "your-deployment.vercel.app";
+export const PUBLIC_DEMO_HOST = "ducat-demo.vercel.app";
 
 // (f) The operator's own mail provider, named outright, anywhere.
 const PERSONAL_MAIL_PROVIDER_RE = /gmail\.com/i;
@@ -116,8 +120,8 @@ export function violationsInLine(line: string): string[] {
   }
 
   for (const match of line.matchAll(VERCEL_RE)) {
-    if (match[0] !== PLACEHOLDER_VERCEL_HOST) {
-      found.push(`vercel.app hostname other than the doc placeholder (${match[0]})`);
+    if (match[0] !== PLACEHOLDER_VERCEL_HOST && match[0] !== PUBLIC_DEMO_HOST) {
+      found.push(`vercel.app hostname other than the doc placeholder or the public demo (${match[0]})`);
     }
   }
 

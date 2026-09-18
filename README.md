@@ -10,6 +10,12 @@
 </p>
 
 <p align="center">
+  <a href="https://ducat-demo.vercel.app"><img src="https://img.shields.io/badge/Live%20demo-Try%20it%20%E2%86%92-9c5a12?style=for-the-badge" alt="Try the live demo"></a>
+  <br>
+  <sub>Password <code>ducat-demotest*</code> · every figure is invented · resets every night</sub>
+</p>
+
+<p align="center">
   <a href="https://github.com/achowlur/ducat/actions/workflows/ci.yml"><img src="https://github.com/achowlur/ducat/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <img src="https://img.shields.io/badge/TypeScript-strict-3b3227" alt="TypeScript strict">
   <img src="https://img.shields.io/badge/Next.js-15-3b3227" alt="Next.js 15">
@@ -29,7 +35,8 @@ SimpleFIN feed. No hosted service, no telemetry, no AI API, never a bank
 credential. An optional single-tenant cloud mode runs on your own Vercel and
 Turso behind a login that fails closed ([DEPLOY.md](DEPLOY.md)).
 
-Every screenshot and the walkthrough above use invented demo data.
+Every screenshot, the walkthrough and the [live demo](https://ducat-demo.vercel.app) use invented
+data; the demo resets every night, so change anything you like there.
 
 ## What you get
 

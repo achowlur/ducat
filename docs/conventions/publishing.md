@@ -130,3 +130,15 @@ no dollar amount, count, percentage, ratio, digest or hash anywhere below.
   as a fresh single commit on a new branch and the old pull request closed.
   Run the scan over commit messages, branch names and PR text locally before
   pushing.
+
+- THE ONE PUBLISHED DEPLOYMENT (2026-09-18). "No live deployment URL" exists
+  because an operator's own address is a door to their real financial data.
+  The public demo is the deliberate exception: a separate Vercel project and
+  Turso database holding only invented data, whose login page prints its own
+  password and whose data resets nightly (docs/conventions/security-and-auth.md,
+  THE PUBLIC DEMO). The README links it and prints the password beside the
+  link. privacyScan.ts allows it by its EXACT host, `PUBLIC_DEMO_HOST`, never by
+  pattern — a look-alike, a numbered sibling or a subdomain is still caught
+  (pinned in privacy.test.ts) — so the exception cannot quietly widen to cover
+  the real instance. If the demo ever moves, the constant moves with it in the
+  same change.

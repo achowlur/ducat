@@ -42,7 +42,8 @@ The operator's data first, then what a visitor to the repository sees.
    change only, and is outside that check.
 5. **The public demo instance** (design below), linked as a button at the top
    of the README. It deploys from `main`, so its screens cannot lag the code;
-   only the generator has to keep up. A README cannot embed it — GitHub strips
+   only the generator has to keep up. LIVE 2026-09-18 and linked from the
+   README. A README cannot embed it — GitHub strips
    iframes and scripts, and the app refuses framing — which is why the
    recording exists.
 

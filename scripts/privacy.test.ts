@@ -2,7 +2,7 @@ import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { isNoReplyIdentity, scanText } from "./privacyScan";
+import { isNoReplyIdentity, scanText, violationsInLine } from "./privacyScan";
 
 /**
  * Guards the boundary this repo crosses once: private instance -> public
@@ -75,6 +75,17 @@ describe("public text scanner", () => {
   const fakeDigits = "55" + "55";
   const cardMarker = ["CARD", fakeDigits].join(" ");
   const personalAddress = "someone" + "@" + "gm" + "ail.com";
+
+  it("allows the public demo's address and nothing else on vercel.app", () => {
+    expect(violationsInLine("Try it at https://ducat-demo.vercel.app")).toEqual([]);
+    expect(violationsInLine("https://your-deployment.vercel.app")).toEqual([]);
+    // Only the exact host: a look-alike or another deployment is still caught.
+    // Assembled at runtime, or this file's own scan would flag them.
+    const host = (name: string) => `https://${name}${".vercel"}${".app"}`;
+    expect(violationsInLine(host("someone-else"))).toHaveLength(1);
+    expect(violationsInLine(host("ducat-demo-2"))).toHaveLength(1);
+    expect(violationsInLine(host("preview.ducat-demo"))).toHaveLength(1);
+  });
 
   it("passes an ordinary commit message with its co-author trailer", () => {
     const message = [
