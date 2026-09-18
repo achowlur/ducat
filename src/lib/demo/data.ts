@@ -1,4 +1,4 @@
-import type { PrismaClient } from '../src/generated/prisma/client';
+import type { PrismaClient } from '../../generated/prisma/client';
 
 /**
  * Invented demo data, dated RELATIVE TO `now`, for `npm run db:seed`, the

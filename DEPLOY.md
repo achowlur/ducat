@@ -609,6 +609,26 @@ against nothing is just a slower way to reach the same place.
 
 Worth doing calmly the first time rather than while something is broken.
 
+## Running a public demo (optional)
+
+A demo is a SECOND, separate deployment holding only invented data, for anyone
+to try. Everything above applies, with these differences:
+
+- Its **own** Turso database and its **own** Vercel project. Never point a demo
+  at a database that holds real data.
+- Load the schema with `turso:push`, then the invented data with
+  `npm run db:seed` against that database — read the `Database:` line first.
+- Set `DUCAT_DEMO_PASSWORD` to the password you generated its hash from. Its
+  presence is what makes the instance a demo: the login page prints the
+  password and says the data is invented, and the nightly cron **reseeds** the
+  invented data as of that day instead of syncing, undoing whatever visitors
+  changed.
+- Set `AUTH_PASSWORD_HASH`, `SESSION_SECRET` and `CRON_SECRET` exactly as for a
+  real instance — the login gate is never bypassed, its key is just printed.
+- **Never** set `SIMPLEFIN_ACCESS_URL` or `FRED_API_KEY`. A demo holding a
+  SimpleFIN URL refuses to serve anything, the cron included, until it is
+  removed.
+
 ## Revoke / roll back
 
 - Rotate `SESSION_SECRET` → invalidates all existing sessions immediately.

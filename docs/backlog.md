@@ -203,7 +203,10 @@ turned up so it isn't rediscovered:
   that contains a Fidelity ACH.
 - ~~Another pass on subscription detection~~ — AUDITED, and the answer is
   DON'T. See the recurring-detection convention above.
-- **A public demo instance** — DESIGN AGREED 2026-07-27, DEFERRED on purpose.
+- **A public demo instance** — DESIGN AGREED 2026-07-27, CODE BUILT 2026-09-18
+  (demo mode: DUCAT_DEMO_PASSWORD; see docs/conventions/security-and-auth.md,
+  THE PUBLIC DEMO); the deployment itself is the operator's to create.
+  Originally DEFERRED on purpose.
   Not blocked on anything technical any more; it waits until the app is
   feature-stable, because a demo built against a moving app is a second thing
   to keep in sync and every screen change would have to land twice. Build it

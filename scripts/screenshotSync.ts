@@ -15,7 +15,7 @@ export const PICTURED: RegExp[] = [
   /^src\/components\//,
   /^src\/lib\/ui\//,
   /^src\/lib\/insights\//,
-  /^scripts\/demoData\.ts$/,
+  /^src\/lib\/demo\//,
 ];
 
 export const SCREENSHOTS = /^docs\/assets\/screenshots\/[^/]+\.png$/;

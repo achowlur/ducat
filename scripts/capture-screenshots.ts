@@ -8,12 +8,12 @@ import { PrismaClient } from '../src/generated/prisma/client';
 import { generateInsights } from '../src/lib/insights/engine';
 import { installRulePack } from '../src/lib/sync/rulePack';
 import { assembleApng, type Frame } from './apng';
-import { buildDemoData, writeDemoData } from './demoData';
+import { buildDemoData, writeDemoData } from '../src/lib/demo/data';
 
 /**
  * `npm run screenshots` — retake the README's screenshots and walkthrough.
  *
- * Everything it shows is the INVENTED demo data (scripts/demoData.ts), seeded
+ * Everything it shows is the INVENTED demo data (src/lib/demo/data.ts), seeded
  * into a throwaway database in the temp folder: this command never opens
  * data/ducat.db and never reads .env's DATABASE_URL, so no real figure can
  * reach an image. The app is a PRODUCTION build — no dev indicator in the

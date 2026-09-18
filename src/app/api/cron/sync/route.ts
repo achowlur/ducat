@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { SimplefinConnector } from "../../../../lib/connectors/simplefin";
+import { isDemo } from "../../../../lib/demo/mode";
+import { reseedDemo } from "../../../../lib/demo/reseed";
 import { runSync } from "../../../../lib/sync/sync";
 
 export const runtime = "nodejs";
@@ -36,6 +38,19 @@ export async function GET(request: NextRequest): Promise<Response> {
   const provided = request.headers.get("authorization") ?? "";
   if (!safeEqual(provided, `Bearer ${secret}`)) {
     return new Response("Unauthorized.", { status: 401 });
+  }
+
+  // The public demo has no feed: its nightly job puts the invented data back
+  // as of today instead — undoing whatever visitors changed, and moving the
+  // month being lived in forward so it is never empty.
+  if (isDemo()) {
+    try {
+      const result = await reseedDemo(prisma, new Date());
+      return Response.json({ ok: true, demo: "reseeded", ...result });
+    } catch (e) {
+      const error = e instanceof Error ? e.message : "reseed failed";
+      return Response.json({ ok: false, error }, { status: 500 });
+    }
   }
 
   const accessUrl = process.env.SIMPLEFIN_ACCESS_URL;

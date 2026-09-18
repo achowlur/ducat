@@ -1,15 +1,15 @@
 import 'dotenv/config';
-import { generateInsights } from '../src/lib/insights/engine';
 import { prisma } from '../src/lib/prisma';
-import { installRulePack } from '../src/lib/sync/rulePack';
 import { printDatabase } from './database-label';
-import { buildDemoData, writeDemoData } from './demoData';
+import { reseedDemo } from '../src/lib/demo/reseed';
 
 /**
- * Loads the invented demo data (scripts/demoData.ts), dated relative to
+ * Loads the invented demo data (src/lib/demo/data.ts), dated relative to
  * TODAY, then does what a real instance does after its first sync: installs
  * the rule pack and builds the insights — so every screen has something to
- * show the moment this finishes. Deterministic for a given day.
+ * show the moment this finishes. Deterministic for a given day. The writing is
+ * src/lib/demo/reseed.ts, shared with the public demo's nightly reset; the
+ * refusal below is this command's alone.
  */
 async function main(): Promise<void> {
   printDatabase();
@@ -25,35 +25,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  await prisma.insight.deleteMany();
-  await prisma.balanceSnapshot.deleteMany();
-  await prisma.transaction.updateMany({ data: { transferPairId: null, reimbursesId: null } });
-  await prisma.transaction.deleteMany();
-  await prisma.rule.deleteMany();
-  await prisma.category.deleteMany();
-  await prisma.account.deleteMany();
-  await prisma.syncLog.deleteMany();
-  await prisma.trackedSubscription.deleteMany();
-  // Settings that describe the data being wiped: the demo's own declarations,
-  // cash pointing at accounts that no longer exist, each connector's sync
-  // cursor, and the previous database's backup record — left behind, /providers
-  // would report a backup of data this database no longer holds. Auth state is
-  // not data and stays.
-  await prisma.setting.deleteMany({
-    where: {
-      OR: [
-        { key: { in: ['goals.savings', 'readiness.house', 'cash.additionalAccountIds', 'backup.lastRun'] } },
-        { key: { startsWith: 'lastSync:' } },
-      ],
-    },
-  });
-
-  const plan = buildDemoData(new Date());
-  await writeDemoData(prisma, plan);
-  const newestSync = plan.syncTimes[plan.syncTimes.length - 1];
-  await prisma.setting.create({ data: { key: 'lastSync:SIMPLEFIN', value: newestSync.toISOString() } });
-  const pack = await installRulePack(prisma);
-  await generateInsights(prisma);
+  const result = await reseedDemo(prisma, new Date());
 
   console.log('Seeded demo data:', {
     accounts: await prisma.account.count(),
@@ -61,7 +33,7 @@ async function main(): Promise<void> {
     snapshots: await prisma.balanceSnapshot.count(),
     rules: await prisma.rule.count(),
     insights: await prisma.insight.count(),
-    packRulesInstalled: pack,
+    packRulesInstalled: result.pack,
   });
 }
 
