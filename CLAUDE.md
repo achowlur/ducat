@@ -473,7 +473,8 @@ regeneration.
   Figures present at publication are scaled by a DESTROYED constant; a NEW
   figure is INVENTED, never read from real data. People fictional, card
   digits 1234, codes synthetic, account names generic, account digits 000N,
-  no live deployment URL, no real email. privacy.test.ts (files) and
+  no live deployment URL (the ONE exception is the public demo,
+  ducat-demo.vercel.app, named exactly in privacyScan.ts), no real email. privacy.test.ts (files) and
   check-public-text.ts in CI (commits, branch, PR text) catch SHAPES only;
   amounts, names, merchants and addresses rest on discipline, and nothing
   checks GitHub comments.
