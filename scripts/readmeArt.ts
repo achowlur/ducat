@@ -8,10 +8,9 @@
  *  - frame(): one screenshot in a plain browser window, every one the SAME
  *    size, so the README's gallery lines up (the unframed captures were cut
  *    to four different heights, and the grid looked ragged);
- *  - hero(): the banner — coin, wordmark, one-line pitch and three points on
- *    the left, Overview in front of Insights on the right. Popular
- *    self-hosted projects lead with ONE product image under the logo; this is
- *    that image.
+ *  - hero(): the banner — coin, wordmark, one-line pitch and three ledger
+ *    entries on ruled account-book paper at the left, Overview in front of
+ *    Insights on the right.
  *
  * Colours are the app's sepia tokens. Type is the app's own stack (Bahnschrift
  * and Cascadia Mono on the Windows machine that runs the capture), and the
@@ -67,28 +66,40 @@ export function frame(pngBase64: string, path: string): string {
   return page(`<div id="art" style="padding: 18px 22px 30px">${windowHtml(pngBase64, path)}</div>`, 1320);
 }
 
-/** The README banner. `front` is Overview, `back` is Insights. */
+/**
+ * The README banner. `front` is Overview, `back` is Insights.
+ *
+ * Laid out the way popular projects lead (mark, pitch, product), but dressed
+ * as what Ducat is — a LEDGER: ruled paper, the red double margin rule of an
+ * account book, and the three points written as numbered entries in the
+ * app's own figure type, with dotted leaders like a column of accounts.
+ */
 export function hero(front: string, back: string): string {
-  const point = (text: string) =>
-    `<li style="display:flex;gap:10px;align-items:baseline;margin:0 0 10px"><span style="color:${GOLD};font-weight:700">●</span><span>${text}</span></li>`;
+  const entry = (n: string, text: string, tag: string) => `
+    <div style="display:flex;align-items:baseline;gap:14px;height:34px">
+      <span style="font:15px ${MONO};color:${GOLD};width:26px">${n}</span>
+      <span style="font-size:17px;white-space:nowrap">${text}</span>
+      <span style="flex:1;border-bottom:2px dotted ${RULE};transform:translateY(-4px)"></span>
+      <span style="font:13px ${MONO};color:${FAINT};letter-spacing:0.06em">${tag}</span>
+    </div>`;
   return page(
     `<div id="art" style="padding: 10px 14px 34px">
-      <div style="position:relative;height:760px;border-radius:22px;overflow:hidden;background:${PAPER};border:1px solid ${RULE};
-                  box-shadow: 0 24px 50px -28px rgba(59,50,39,0.5)">
-        <div style="position:absolute;left:64px;top:92px;width:470px">
+      <div style="position:relative;height:760px;border-radius:22px;overflow:hidden;border:1px solid ${RULE};
+                  background:${PAPER} repeating-linear-gradient(to bottom, transparent 0 33px, #e6dbc2 33px 34px);
+                  background-position: 0 14px; box-shadow: 0 24px 50px -28px rgba(59,50,39,0.5)">
+        <div style="position:absolute;left:38px;top:0;bottom:0;width:6px;border-left:2px solid rgba(176,66,31,0.55);border-right:2px solid rgba(176,66,31,0.55)"></div>
+        <div style="position:absolute;left:78px;top:84px;width:470px">
           <div style="display:flex;align-items:center;gap:18px">${COIN}${WORDMARK}</div>
-          <h1 style="margin:44px 0 0;font-size:46px;line-height:1.08;font-weight:600;letter-spacing:-0.01em">
+          <h1 style="margin:40px 0 0;font-size:46px;line-height:1.08;font-weight:600;letter-spacing:-0.01em">
             Your money,<br>on your machine.</h1>
-          <p style="margin:20px 0 34px;font-size:19px;line-height:1.5;color:${FAINT}">
-            A local-first personal finance tracker with an insights engine that refuses to guess.</p>
-          <ul style="list-style:none;padding:0;margin:0;font-size:17px;line-height:1.4">
-            ${point('Every account, every category, one SQLite file of your own')}
-            ${point('Insights that name what they cannot know')}
-            ${point('Runs on localhost, or on your own Vercel and Turso')}
-          </ul>
+          <p style="margin:18px 0 30px;font-size:19px;line-height:1.5;color:${FAINT}">
+            A personal finance ledger with an insights engine that refuses to guess.</p>
+          ${entry('01', 'Every account, one SQLite file', 'LOCAL')}
+          ${entry('02', 'Insights that say what they cannot know', 'HONEST')}
+          ${entry('03', 'Your machine, or your own cloud', 'YOURS')}
         </div>
         <div style="position:absolute;left:640px;top:58px;width:900px;opacity:0.97">${windowHtml(back, '/insights')}</div>
-        <div style="position:absolute;left:560px;top:196px;width:960px">${windowHtml(front, '/')}</div>
+        <div style="position:absolute;left:580px;top:196px;width:960px">${windowHtml(front, '/')}</div>
       </div>
     </div>`,
     1600,
