@@ -15,6 +15,7 @@ import {
   REIMBURSE_LEAD_DAYS,
   REIMBURSE_POOL_TAKE,
   REIMBURSE_WINDOW_DAYS,
+  searchCandidates,
   type ReimburseCandidate,
 } from "../../lib/ui/reimburseCandidates";
 import type { RecurringCadence } from "../../types/contracts";
@@ -287,11 +288,37 @@ export async function categorizeGroup(
  */
 export async function suggestCandidates(inflowId: string): Promise<ReimburseCandidate[]> {
   await requireSession();
+  const window = await reimburseWindow(inflowId);
+  if (window === null) return [];
+  const { inflow, pool, categoryName } = window;
+  const finder = makeCandidateFinder(pool, categoryName);
+  return finder({
+    amount: Number(inflow.amount),
+    date: inflow.date,
+    accountType: inflow.account.type,
+  });
+}
+
+/**
+ * The picker's search box: every outflow in the same window whose merchant,
+ * description or amount matches, closest in time first — so an expense the
+ * ranked suggestions left out can still be linked (searchCandidates).
+ */
+export async function searchReimbursable(inflowId: string, query: string): Promise<ReimburseCandidate[]> {
+  await requireSession();
+  const window = await reimburseWindow(inflowId);
+  if (window === null) return [];
+  const { inflow, pool, categoryName } = window;
+  return searchCandidates(pool, categoryName, { amount: Number(inflow.amount), date: inflow.date }, query);
+}
+
+/** The inflow and the outflows its picker may offer — shared by suggestion and search. */
+async function reimburseWindow(inflowId: string) {
   const inflow = await prisma.transaction.findUniqueOrThrow({
     where: { id: inflowId },
     select: { flow: true, amount: true, date: true, account: { select: { type: true } } },
   });
-  if (inflow.flow !== "INFLOW") return [];
+  if (inflow.flow !== "INFLOW") return null;
   const DAY_MS = 86_400_000;
   const pool = await prisma.transaction.findMany({
     where: {
@@ -317,15 +344,11 @@ export async function suggestCandidates(inflowId: string): Promise<ReimburseCand
   });
   const categories = await prisma.category.findMany({ select: { id: true, name: true } });
   const nameById = new Map(categories.map((c) => [c.id, c.name]));
-  const finder = makeCandidateFinder(
-    pool.map((o) => ({ ...o, amount: Number(o.amount) })),
-    (id) => (id === null ? null : (nameById.get(id) ?? null)),
-  );
-  return finder({
-    amount: Number(inflow.amount),
-    date: inflow.date,
-    accountType: inflow.account.type,
-  });
+  return {
+    inflow,
+    pool: pool.map((o) => ({ ...o, amount: Number(o.amount) })),
+    categoryName: (id: string | null) => (id === null ? null : (nameById.get(id) ?? null)),
+  };
 }
 
 /**

@@ -92,14 +92,23 @@ function amountEvidence(
 export const REPAYMENT_LEAD_DAYS = 30;
 
 /**
- * Repayment normally follows the expense, so a charge AFTER the repayment is
- * weaker evidence: it keeps 60% of the date score, and an equally matching
- * charge before the repayment still ranks first. Amount leads either way.
+ * A card charge often POSTS a day or three after the moment it was paid for,
+ * so a repayment can land before it for no reason but posting lag. Within this
+ * many days an expense after the repayment is not penalised: the 60% weight
+ * cut a next-day $52.60 dinner below two dozen unrelated weak matches.
+ */
+export const POSTING_LAG_DAYS = 3;
+
+/**
+ * Repayment normally follows the expense, so a charge well AFTER the
+ * repayment is weaker evidence: beyond the posting lag it keeps 60% of the
+ * date score, and an equally matching charge before the repayment still ranks
+ * first. Amount leads either way.
  */
 function dateEvidence(gapDays: number, windowDays: number, leadDays: number): number {
   if (gapDays > windowDays || gapDays < -leadDays) return 0;
   const decay = 1 / (1 + Math.abs(gapDays) / 14);
-  return gapDays < 0 ? decay * 0.6 : decay;
+  return gapDays < -POSTING_LAG_DAYS ? decay * 0.6 : decay;
 }
 
 export function suggestReimbursements(
