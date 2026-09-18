@@ -194,3 +194,22 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   It is a static public image carrying no data. Checked with the gate on and
   logged out: the icon answered 200 while `/`, `/transactions` and
   `/insights` still redirected to the login.
+
+- INSTALL SCRIPTS ARE APPROVED BY NAME (2026-09-18). npm 11 runs a
+  dependency's install scripts only for packages listed in package.json's
+  `allowScripts`, and warns on the rest (a later npm is set to block them).
+  Six approvals existed, each PINNED to a version (`prisma@7.8.0`,
+  `esbuild@0.28.1` …), so every Dependabot bump or `npm update` left the new
+  version unapproved: every install — locally, in CI and on Vercel's build —
+  printed the warning for prisma, @prisma/engines and esbuild after the
+  15.5.25/7.10 refresh. All six are now approved by NAME. The trade is
+  deliberate: a pinned approval re-asks on every upgrade, which on a solo
+  project with automated bumps means either permanent warnings or a build that
+  one day stops installing. What each script does, so the list can be judged:
+  prisma checks the Node version; @prisma/engines fetches the migration
+  engine `prisma migrate` needs; esbuild verifies its native binary (tsx runs
+  every script through it); better-sqlite3 builds the native module the tests
+  use; sharp and unrs-resolver fetch native binaries for Next's image handling
+  and ESLint's resolver. A package NOT on the list still triggers the warning,
+  so a new dependency with an install script is still noticed and still needs
+  a reason in its PR.
