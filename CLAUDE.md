@@ -462,6 +462,10 @@ regeneration.
   without that claim a device cookie IS a session cookie. Rotation
   un-remembers everything; the login PAGE only picks the form, the ACTION
   re-checks the cookie.
+- package.json `allowScripts` approves install scripts by NAME, never
+  pkg@version: pinned approvals went stale on every dependency bump, so npm
+  warned on each install and a future npm would block the scripts. A NEW
+  entry still needs a reason in its PR.
 - `npm test` excludes `.claude/**` (vitest.config.ts): agent worktrees there
   are full repo copies, and without it the suite silently doubles and gates
   on another branch's work.
