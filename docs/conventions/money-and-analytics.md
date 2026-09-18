@@ -196,3 +196,19 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   rows their own view shows, transfers included, because a summary that
   disagrees with the table under it is the two-totals bug — and each says
   so in words while spending analytics keep excluding those rows entirely.
+
+- A REPAYMENT CAN COME FIRST (2026-09-18). A friend Zelled their share of
+  something before the operator paid for it, and the repayment could not be
+  linked: the picker offered only expenses from 45 days before the inflow to
+  3 days after it, and the ranker zeroed any expense more than 3 days after,
+  so the later charge never appeared. The link action itself never checked
+  dates — only the suggestions stood in the way.
+  The lead is now REPAYMENT_LEAD_DAYS = 30, owned by the ranker
+  (insights/suggestReimbursements.ts) and re-exported as REIMBURSE_LEAD_DAYS
+  for the page's pool query and the on-open action, so what is fetched and
+  what can score cannot drift apart — the wide-pool/narrow-pool equivalence
+  test now includes a row past the lead to keep biting. The ordering the
+  3-day version encoded is kept: an expense AFTER the repayment keeps 60% of
+  its date score, so an equally matching expense before it still ranks
+  first, and amount evidence still leads. Mutation-checked: restoring 3 days
+  fails the new tests.
