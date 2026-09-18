@@ -185,6 +185,16 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   one of them — the localhost refusal included — rendered its em dash as
   "â€”". They now say `charset=utf-8`, pinned in the demo's middleware test.
 
+- THE TAB ICON PASSES THE GATE (2026-09-18). The gold coin replaced the
+  scaffold's default favicon as `src/app/icon.svg`, which Next serves at
+  `/icon.svg` and links from every page, the login page included. A
+  logged-out browser requests it from the login page, and the middleware
+  would have redirected that request to /login, leaving the lock screen
+  with a broken icon; so the matcher skips `icon.svg` beside `favicon.ico`.
+  It is a static public image carrying no data. Checked with the gate on and
+  logged out: the icon answered 200 while `/`, `/transactions` and
+  `/insights` still redirected to the login.
+
 - INSTALL SCRIPTS ARE APPROVED BY NAME (2026-09-18). npm 11 runs a
   dependency's install scripts only for packages listed in package.json's
   `allowScripts`, and warns on the rest (a later npm is set to block them).

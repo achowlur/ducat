@@ -110,5 +110,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 // Guard pages, RSC, and Server Actions. Static chunks/images under _next carry
 // no user data, so they're skipped to keep asset serving and HMR light.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // icon.svg is the tab icon (app/icon.svg): a logged-out browser asks for it
+  // from the login page, and the gate would otherwise redirect it to /login.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg).*)"],
 };
