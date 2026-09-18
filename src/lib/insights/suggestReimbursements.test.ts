@@ -98,9 +98,16 @@ describe('suggestReimbursements', () => {
     expect(results.map((r) => r.id)).toEqual(['before', 'after']);
   });
 
-  it('allows a few days of lead but scores it below the same match trailing', () => {
+  it('does not penalise a charge that posts a day or three after the repayment', () => {
+    // Card charges post late; a repayment landing first is normal, not "paid ahead".
     const lead = suggestReimbursements({ amount: 50, date: day(10) }, [out('x', 50, 12)]);
     const trail = suggestReimbursements({ amount: 50, date: day(14) }, [out('x', 50, 12)]);
+    expect(lead[0].score).toBeCloseTo(trail[0].score, 10);
+  });
+
+  it('scores a charge well after the repayment below the same match trailing', () => {
+    const lead = suggestReimbursements({ amount: 50, date: day(10) }, [out('x', 50, 17)]);
+    const trail = suggestReimbursements({ amount: 50, date: day(24) }, [out('x', 50, 17)]);
     expect(lead).toHaveLength(1);
     expect(trail[0].score).toBeGreaterThan(lead[0].score);
   });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { linkReimbursement, suggestCandidates, unlinkReimbursement } from "../app/transactions/actions";
+import { linkReimbursement, searchReimbursable, suggestCandidates, unlinkReimbursement } from "../app/transactions/actions";
 import type { ReimburseCandidate } from "../lib/ui/reimburseCandidates";
 
 /**
@@ -43,7 +43,36 @@ export function ReimburseControl({
   const [candidates, setCandidates] = useState<ReimburseCandidate[] | null>(null);
   // A failed fetch must not read as "still looking" — or as "none found".
   const [failed, setFailed] = useState(false);
+  // The search box: the ranked list is a guess capped at a dozen, and a
+  // repayment that is no clean share of its expense can rank far below it.
+  // Searching reaches every expense in the window. null = not searching.
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<ReimburseCandidate[] | null>(null);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!open) return;
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults(null);
+      return;
+    }
+    // Debounced, and a stale answer is dropped if the query moved on.
+    let current = true;
+    const timer = setTimeout(() => {
+      searchReimbursable(inflowId, q)
+        .then((found) => {
+          if (current) setResults(found);
+        })
+        .catch(() => {
+          if (current) setResults([]);
+        });
+    }, 250);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [open, query, inflowId]);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLSpanElement>(null);
 
@@ -107,6 +136,8 @@ export function ReimburseControl({
             return;
           }
           setOpen(true);
+          setQuery("");
+          setResults(null);
           // Refetched on every open: the pool can change between renders
           // (a link elsewhere, a sync), and stale suggestions are worse
           // than a beat of loading.
@@ -148,22 +179,34 @@ export function ReimburseControl({
           <span className="mb-1 block text-[0.65rem] uppercase tracking-[0.08em] text-faint">
             {/* Names the ordering, so a list that ends is not read as the list
                 of everything in range — it is the closest matches, ranked. */}
-            Pays back which expense? · closest first
+            Pays back which expense? · {results === null ? "closest first" : "search results"}
           </span>
-          {candidates === null && !failed && (
+          {/* 16px on a phone: smaller type makes iOS zoom the page on focus. */}
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search merchant or amount"
+            aria-label="Search expenses to link"
+            className="tap44 mb-1 w-full rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-base text-ink outline-none focus:border-acc md:text-[0.75rem]"
+          />
+          {results !== null && results.length === 0 && (
+            <span className="block py-1 text-[0.75rem] text-faint">No expense in range matches “{query.trim()}”.</span>
+          )}
+          {results === null && candidates === null && !failed && (
             <span className="block py-1 text-[0.75rem] text-faint">Looking for nearby outflows…</span>
           )}
-          {failed && (
+          {results === null && failed && (
             <span className="block py-1 text-[0.75rem] text-faint">Couldn&apos;t load suggestions — close and retry.</span>
           )}
-          {candidates !== null && candidates.length === 0 && (
+          {results === null && candidates !== null && candidates.length === 0 && (
             <span className="block py-1 text-[0.75rem] text-faint">No nearby outflows found.</span>
           )}
           {/* Scrolls rather than growing: the list is longer than it was, and a
               popover that runs off the bottom of a phone is not a longer list,
               it is a shorter one. */}
           <span className="block max-h-[17rem] overflow-y-auto">
-            {(candidates ?? []).map((c) => (
+            {(results ?? candidates ?? []).map((c) => (
               <button
                 key={c.id}
                 disabled={pending}

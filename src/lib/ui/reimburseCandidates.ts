@@ -155,3 +155,60 @@ export function makeCandidateFinder(
     });
   };
 }
+
+/** How many search matches the panel lists; it scrolls, and a search narrows. */
+export const REIMBURSE_SEARCH_LIMIT = 30;
+
+/**
+ * The picker's SEARCH, over the same window as the suggestions but without
+ * their judgement: the ranked list is a guess, capped at
+ * REIMBURSE_CANDIDATE_LIMIT, and a repayment whose amount is no clean share of
+ * its expense can rank far below it: a Zelle covering part of the next day's
+ * dinner (numbers invented: $17.20 of $52.60) sat under two dozen unrelated
+ * weak matches and could not be linked at all. Search is the guarantee that
+ * ANY expense in the window can be found.
+ *
+ * A query matches the displayed merchant, the bank description, or the amount
+ * (typed as "52.60", "52", or "$52"). Matches sort by closeness in time, and
+ * the amount rule is NOT applied — the person searching knows which expense it
+ * was, even one smaller than the repayment. The reason line reports the ranked
+ * view's amount evidence when there is some, so a match still says why it fits.
+ */
+export function searchCandidates(
+  pool: PoolOutflow[],
+  categoryName: (categoryId: string | null) => string | null,
+  inflow: { amount: number; date: Date },
+  query: string,
+): ReimburseCandidate[] {
+  const q = query.trim().toLowerCase().replace(/^\$/, '');
+  if (q.length < 2) return [];
+  const numeric = /^[\d.,]+$/.test(q) ? q.replace(/,/g, '') : null;
+  const scored = new Map(
+    suggestReimbursements(
+      inflow,
+      pool.map((o) => ({ id: o.id, amount: o.amount, date: o.date })),
+      { limit: pool.length, windowDays: REIMBURSE_WINDOW_DAYS, leadDays: REIMBURSE_LEAD_DAYS, minScore: 0 },
+    ).map((s) => [s.id, s]),
+  );
+  const at = inflow.date.getTime();
+  return pool
+    .filter((o) => {
+      const label = merchantLabel(o).label.toLowerCase();
+      if (label.includes(q) || o.description.toLowerCase().includes(q) || o.normalizedMerchant.includes(q)) return true;
+      return numeric !== null && Math.abs(o.amount).toFixed(2).startsWith(numeric);
+    })
+    .sort((a, b) => Math.abs(a.date.getTime() - at) - Math.abs(b.date.getTime() - at) || a.id.localeCompare(b.id))
+    .slice(0, REIMBURSE_SEARCH_LIMIT)
+    .map((o) => {
+      const s = scored.get(o.id);
+      return {
+        id: o.id,
+        label: merchantLabel(o).label,
+        date: isoDate(o.date),
+        amount: Math.abs(o.amount),
+        category: categoryName(o.categoryId),
+        reason: s?.reason ?? 'found by search',
+        strong: s?.strong ?? false,
+      };
+    });
+}

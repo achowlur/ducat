@@ -138,8 +138,11 @@ regeneration.
   the period START.
 - Reimbursement suggestions lead with AMOUNT evidence; date only breaks
   ties; UNSPLITTABLE categories are denied split evidence. An expense up to
-  REPAYMENT_LEAD_DAYS (30) AFTER the repayment is offered at 60% date
-  weight — ONE constant feeds both the ranker and the pool queries.
+  REPAYMENT_LEAD_DAYS (30) AFTER the repayment is offered — unpenalised within
+  POSTING_LAG_DAYS (3), at 60% date weight beyond — ONE constant feeds both
+  the ranker and the pool queries. Suggestions are a GUESS: the picker's
+  SEARCH reaches every expense in the window, so ranking never decides
+  whether a link is possible.
 - A trip/project group (`Transaction.groupLabel`) is a cross-period VIEW
   over real rows, never a re-bucketing: NO analyzer reads it, tagging
   changes no printed total (pinned byte-identical by groupLabel.test.ts),

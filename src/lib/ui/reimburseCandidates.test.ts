@@ -5,6 +5,8 @@ import {
   REIMBURSE_LEAD_DAYS,
   REIMBURSE_WINDOW_DAYS,
   type PoolOutflow,
+  REIMBURSE_SEARCH_LIMIT,
+  searchCandidates,
 } from './reimburseCandidates';
 
 const DAY_MS = 86_400_000;
@@ -182,5 +184,51 @@ describe('makeCandidateFinder', () => {
       expect(fromWide.length).toBeGreaterThan(0);
       expect(fromNarrow).toEqual(fromWide);
     }
+  });
+});
+
+describe('the picker', () => {
+  // Invented figures, same shape as the case that prompted this: a repayment
+  // that is no clean share of its expense, landing the day BEFORE the charge
+  // posts, among plenty of older weak matches.
+  const repayment = { amount: 17.2, date: day(14) };
+  const dinner = out('dinner', 52.6, 15, { categoryId: 'dining', normalizedMerchant: 'harbor grill', description: 'HARBOR GRILL' });
+  const noise = Array.from({ length: 24 }, (_, i) => out(`n${i}`, 60 + i * 7, 13 - (i % 12)));
+
+  it('offers a next-day charge that is only "part of" the amount, among older weak matches', () => {
+    const offered = makeCandidateFinder([...noise, dinner], categoryName)(repayment);
+    expect(offered.map((c) => c.id)).toContain('dinner');
+  });
+
+  it('finds any expense in the window by merchant, description or amount', () => {
+    const pool = [...noise, dinner];
+    for (const q of ['harbor', 'GRILL', '52.60', '52', '$52.6']) {
+      expect(searchCandidates(pool, categoryName, repayment, q).map((c) => c.id), q).toContain('dinner');
+    }
+    expect(searchCandidates(pool, categoryName, repayment, 'harbor')[0]).toMatchObject({
+      id: 'dinner',
+      amount: 52.6,
+      category: 'Dining',
+      label: 'Harbor Grill',
+    });
+  });
+
+  it('ignores the amount rule — even an expense smaller than the repayment can be found', () => {
+    const small = out('small', 9.5, 12, { normalizedMerchant: 'corner cafe', description: 'CORNER CAFE' });
+    expect(makeCandidateFinder([small], categoryName)(repayment)).toEqual([]); // ranking refuses it
+    expect(searchCandidates([small], categoryName, repayment, 'corner').map((c) => c.id)).toEqual(['small']);
+    expect(searchCandidates([small], categoryName, repayment, 'corner')[0].reason).toBe('found by search');
+  });
+
+  it('lists matches closest in time first, capped, and needs two characters', () => {
+    const many = Array.from({ length: 40 }, (_, i) =>
+      out(`m${i}`, 20, 14 - Math.floor(i / 2), { normalizedMerchant: 'metro market', description: 'METRO MARKET' }),
+    );
+    const found = searchCandidates(many, categoryName, repayment, 'metro');
+    expect(found).toHaveLength(REIMBURSE_SEARCH_LIMIT);
+    const gaps = found.map((c) => Math.abs(Date.parse(c.date) - repayment.date.getTime()));
+    expect([...gaps].sort((a, b) => a - b)).toEqual(gaps);
+    expect(searchCandidates(many, categoryName, repayment, 'm')).toEqual([]);
+    expect(searchCandidates(many, categoryName, repayment, '  ')).toEqual([]);
   });
 });

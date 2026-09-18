@@ -212,3 +212,27 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   its date score, so an equally matching expense before it still ranks
   first, and amount evidence still leads. Mutation-checked: restoring 3 days
   fails the new tests.
+
+- THE LEAD WAS NOT THE PROBLEM, THE CAP WAS (2026-09-18, same day). The case
+  that prompted the 30-day lead still would not link after it shipped: the
+  repayment came ONE day before its expense, well inside even the old 3-day
+  lead. Running the real finder over the real window (read-only, positions
+  only) showed the expense WAS a candidate — ranked far below the dozen the
+  picker offers. Two things put it there. Its amount was no clean share of
+  the expense, so it earned only "part of $X", the weakest amount evidence;
+  and being AFTER the repayment it kept 60% of its date score, which is meant
+  for paying ahead but was hitting a charge that merely posted a day late. A
+  pile of older, equally weak "part of" matches outranked it.
+  TWO FIXES, for two different failures. (1) POSTING_LAG_DAYS = 3: within
+  three days after the repayment there is no penalty — card posting lag is
+  not paying ahead. On the real case this moved the expense into the offered
+  list. (2) The picker gained a SEARCH box (searchCandidates, the
+  searchReimbursable action): merchant, description or amount, over the same
+  window, closest in time first, WITHOUT the amount rule. That is the actual
+  guarantee — suggestions are ranked guesses and a cap will always hide
+  something for someone, so no link may depend on the ranking. On the real
+  case, searching the amount or the merchant's first word returned the
+  expense first.
+  A NOTE ON PUBLIC TEXT: the first draft's code comments quoted the real
+  amounts and the real rank; both were replaced with invented figures before
+  anything was committed. Diagnose with real data, describe with invented.
