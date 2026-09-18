@@ -142,3 +142,23 @@ no dollar amount, count, percentage, ratio, digest or hash anywhere below.
   (pinned in privacy.test.ts) — so the exception cannot quietly widen to cover
   the real instance. If the demo ever moves, the constant moves with it in the
   same change.
+
+- ONE HERO, ONE SIZE (2026-09-18). The first README opened with a text-only
+  banner and a grid of four screenshots cut to four different heights (the
+  pages are different lengths), which read as ragged. Popular self-hosted
+  projects — Immich, Actual Budget, Excalidraw, Firefly III — lead with the
+  logo, one line and ONE product image, then a short row of links (demo,
+  docs, install). The README now does the same:
+  - `hero.png`: a sepia card with the coin, the stroke-drawn wordmark, the
+    pitch and three points, beside Overview framed in front of Insights;
+  - every screenshot captured at ONE viewport (1280x1000, tall enough for
+    Trends' cash-flow chart to end at its axis, short enough that Overview is
+    not mostly empty paper) and set in the same plain browser frame;
+  - a link row (Live demo · Get started · Deploy your own · How it works),
+    the demo password under it, badges, and the walkthrough moved into its
+    own section below the gallery.
+  All of it is rendered by `npm run screenshots` from the same captures
+  (scripts/readmeArt.ts holds the HTML), so the banner cannot show a screen
+  the app no longer has, and the screenshot sync check covers it — hero.png
+  lives among the screenshots. The light and dark SVG banners it replaced
+  were deleted; the coin icon stays.
