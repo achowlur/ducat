@@ -18,7 +18,7 @@ describe('demo mode', () => {
   });
 
   it('refuses a demo that holds a SimpleFIN access URL, and nothing else', () => {
-    vi.stubEnv('SIMPLEFIN_ACCESS_URL', 'https://user:pass@bridge.example.com/simplefin');
+    vi.stubEnv('SIMPLEFIN_ACCESS_URL', 'https://user:pass@example.com/simplefin');
     vi.stubEnv('DUCAT_DEMO_PASSWORD', '');
     expect(demoMisconfiguration()).toBeNull(); // a real instance with a feed is the normal case
     vi.stubEnv('DUCAT_DEMO_PASSWORD', 'demo-pass');
@@ -34,7 +34,7 @@ describe('middleware and a misconfigured demo', () => {
     vi.stubEnv('AUTH_PASSWORD_HASH', 'scrypt:placeholder');
     vi.stubEnv('SESSION_SECRET', 'placeholder-session-secret');
     vi.stubEnv('DUCAT_DEMO_PASSWORD', 'demo-pass');
-    vi.stubEnv('SIMPLEFIN_ACCESS_URL', 'https://user:pass@bridge.example.com/simplefin');
+    vi.stubEnv('SIMPLEFIN_ACCESS_URL', 'https://user:pass@example.com/simplefin');
   };
 
   it('serves nothing — pages, the login page and the cron alike', async () => {
