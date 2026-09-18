@@ -1,18 +1,16 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/ducat-banner-dark.svg">
-    <img src="docs/assets/ducat-banner-light.svg" alt="Ducat" width="560">
-  </picture>
+  <a href="https://ducat-demo.vercel.app"><img src="docs/assets/screenshots/hero.png" alt="Ducat — your money, on your machine. The Overview screen in front of Insights." width="100%"></a>
 </p>
 
-<p align="center">
-  <strong>Personal finance on your own machine, with an insights engine that refuses to guess.</strong>
-</p>
+<h3 align="center">
+  <a href="https://ducat-demo.vercel.app">Live demo</a> ·
+  <a href="docs/getting-started.md">Get started</a> ·
+  <a href="DEPLOY.md">Deploy your own</a> ·
+  <a href="#how-data-flows">How it works</a>
+</h3>
 
 <p align="center">
-  <a href="https://ducat-demo.vercel.app"><img src="https://img.shields.io/badge/Live%20demo-Try%20it%20%E2%86%92-9c5a12?style=for-the-badge" alt="Try the live demo"></a>
-  <br>
-  <sub>Password <code>ducat-demotest*</code> · every figure is invented · resets every night</sub>
+  <sub>Demo password <code>ducat-demotest*</code> · every figure in it is invented · it resets every night</sub>
 </p>
 
 <p align="center">
@@ -20,10 +18,6 @@
   <img src="https://img.shields.io/badge/TypeScript-strict-3b3227" alt="TypeScript strict">
   <img src="https://img.shields.io/badge/Next.js-15-3b3227" alt="Next.js 15">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-9c5a12" alt="License: AGPL-3.0"></a>
-</p>
-
-<p align="center">
-  <img src="docs/assets/walkthrough.png" alt="A walkthrough of Ducat: Overview, Trends, Insights, then confirming a suggested category for a P2P payment" width="880">
 </p>
 
 Ducat pulls in your bank, card and brokerage accounts, categorizes every
@@ -58,6 +52,12 @@ data; the demo resets every night, so change anything you like there.
     <td><strong>Transactions</strong> — a ledger where categorizing one payee can teach a rule, trips group spending across months, and Zelle or Venmo payments wait for your confirmation.</td>
   </tr>
 </table>
+
+## See it in action
+
+<p align="center">
+  <img src="docs/assets/walkthrough.png" alt="A walkthrough of Ducat: Overview, Trends, Insights, then confirming a suggested category for a P2P payment" width="880">
+</p>
 
 ## Built to be trusted
 
@@ -135,7 +135,7 @@ For real data, run `npm run simplefin:claim -- <setup-token>` then
 | `npm run dev` | Dev server, bound to `127.0.0.1` |
 | `npm test` | Vitest suite |
 | `npm run db:seed` | Load invented demo data dated relative to today — two years of history for six accounts, goals, house readiness, a trip and P2P payments to confirm — then install the rule pack and build insights, so every screen has something to show. Destructive: wipes accounts, transactions, rules, insights and the data's Settings; refuses over existing transactions without `-- --yes` — names the database first |
-| `npm run screenshots` | Retake the README's screenshots and walkthrough from invented demo data: seeds a throwaway database, builds the app into `.next-capture/` (never `.next/`, so it is safe beside a running dev server), and drives Playwright's own Chromium. Needs `npx playwright install chromium` once. Never touches `data/ducat.db` |
+| `npm run screenshots` | Retake the README's banner, framed screenshots and walkthrough from invented demo data: seeds a throwaway database, builds the app into `.next-capture/` (never `.next/`, so it is safe beside a running dev server), and drives Playwright's own Chromium. Needs `npx playwright install chromium` once. Never touches `data/ducat.db` |
 | `npm run db:reset` | Wipe every row **including** `Setting`, so the next sync refetches full history rather than a short incremental window — destructive and irreversible; refuses without `-- --yes` |
 | `npm run insights:generate` | Regenerate insights (`-- --granularity=WEEK\|MONTH\|QUARTER\|YEAR`) — names the database first |
 | `npm run simplefin:claim` | Exchange a one-time SimpleFIN setup token (`-- <setup-token>`) for the permanent access URL — prints the `SIMPLEFIN_ACCESS_URL` line to paste into `.env`, and never writes a secret to a file itself |

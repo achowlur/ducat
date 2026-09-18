@@ -8,6 +8,7 @@ import { PrismaClient } from '../src/generated/prisma/client';
 import { generateInsights } from '../src/lib/insights/engine';
 import { installRulePack } from '../src/lib/sync/rulePack';
 import { assembleApng, type Frame } from './apng';
+import { frame, hero } from './readmeArt';
 import { buildDemoData, writeDemoData } from '../src/lib/demo/data';
 
 /**
@@ -21,8 +22,10 @@ import { buildDemoData, writeDemoData } from '../src/lib/demo/data';
  * so it is safe beside a running dev server. Playwright drives its own
  * Chromium with a fresh profile.
  *
- * Output: docs/assets/screenshots/{overview,trends,insights,transactions}.png
- * and docs/assets/walkthrough.png (an animated PNG, see scripts/apng.ts).
+ * Output: docs/assets/screenshots/{overview,trends,insights,transactions}.png,
+ * each the same size in the same browser frame, the banner
+ * docs/assets/screenshots/hero.png (scripts/readmeArt.ts), and
+ * docs/assets/walkthrough.png (an animated PNG, see scripts/apng.ts).
  * Sepia is the app's default theme, so no theme is set.
  */
 
@@ -32,12 +35,15 @@ const DIST = '.next-capture';
 const SHOTS = join('docs', 'assets', 'screenshots');
 const WALKTHROUGH = join('docs', 'assets', 'walkthrough.png');
 
-const PAGES: { name: string; path: string; height: number }[] = [
-  { name: 'overview', path: '/', height: 820 },
-  { name: 'trends', path: '/trends', height: 1560 },
-  { name: 'insights', path: '/insights', height: 1500 },
-  { name: 'transactions', path: '/transactions', height: 900 },
+// One size for every screen: four different heights made the README's grid
+// ragged. What sits below the fold is the live demo's to show.
+const PAGES: { name: string; path: string }[] = [
+  { name: 'overview', path: '/' },
+  { name: 'trends', path: '/trends' },
+  { name: 'insights', path: '/insights' },
+  { name: 'transactions', path: '/transactions' },
 ];
+const SHOT = { width: 1280, height: 1000 };
 
 const log = (line: string) => console.log(line);
 
@@ -129,16 +135,24 @@ async function main(): Promise<void> {
     const browser = await chromium.launch();
     try {
       mkdirSync(SHOTS, { recursive: true });
-      const shots = await browser.newContext({ viewport: { width: 1280, height: 820 }, deviceScaleFactor: 1.5, colorScheme: 'light' });
+      const shots = await browser.newContext({ viewport: SHOT, deviceScaleFactor: 1.5, colorScheme: 'light' });
       const page = await shots.newPage();
+      const raw = new Map<string, string>();
       for (const p of PAGES) {
-        await page.setViewportSize({ width: 1280, height: p.height });
         await page.goto(`${BASE}${p.path}`);
         await settle(page);
-        const file = join(SHOTS, `${p.name}.png`);
-        writeFileSync(file, await page.screenshot({ type: 'png' }));
-        log(`  ${file}`);
+        raw.set(p.name, (await page.screenshot({ type: 'png' })).toString('base64'));
       }
+      // Framed, and the banner, rendered from those same captures.
+      const art = await shots.newPage();
+      const render = async (html: string, file: string) => {
+        await art.setContent(html, { waitUntil: 'load' });
+        writeFileSync(file, await art.locator('#art').screenshot({ type: 'png', omitBackground: true }));
+        log(`  ${file}`);
+      };
+      await art.setViewportSize({ width: 1600, height: 900 });
+      for (const p of PAGES) await render(frame(raw.get(p.name)!, p.path), join(SHOTS, `${p.name}.png`));
+      await render(hero(raw.get('overview')!, raw.get('insights')!), join(SHOTS, 'hero.png'));
       await shots.close();
 
       // The walkthrough: each screen held long enough to read, a few scroll
