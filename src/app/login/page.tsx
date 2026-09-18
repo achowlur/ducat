@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { isAuthEnabled, isTotpConfigured } from "../../lib/auth/mode";
+import { demoPassword } from "../../lib/demo/mode";
 import { DEVICE_COOKIE, verifyDeviceToken } from "../../lib/auth/session";
 import { login } from "./actions";
 
@@ -27,13 +28,29 @@ export default async function LoginPage({
   const deviceToken = (await cookies()).get(DEVICE_COOKIE)?.value;
   const remembered = deviceToken !== undefined && (await verifyDeviceToken(deviceToken));
   const totp = isTotpConfigured() && !remembered;
+  // The public demo prints its password: the gate stays configured exactly as
+  // on a real instance (it keeps crawlers out and is never bypassed), and the
+  // only thing different is that the key is on the door.
+  const demo = demoPassword();
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-sm flex-col justify-center">
       <h1 className="text-[0.8rem] font-semibold uppercase tracking-[0.14em]">Ducat</h1>
-      <p className="mt-1 text-[0.8rem] text-faint">
-        This instance is locked. Enter your password{totp ? " and authenticator code" : ""} to continue.
-      </p>
+      {demo !== null ? (
+        <div className="mt-2 border-l-2 border-acc bg-chip px-3 py-2 text-[0.8rem]">
+          <p>
+            This is a public demo. Every account, transaction and figure in it is invented, and it
+            resets to fresh data every night, so change anything you like.
+          </p>
+          <p className="mt-1.5">
+            Password: <span className="font-money font-semibold tracking-[0.04em]">{demo}</span>
+          </p>
+        </div>
+      ) : (
+        <p className="mt-1 text-[0.8rem] text-faint">
+          This instance is locked. Enter your password{totp ? " and authenticator code" : ""} to continue.
+        </p>
+      )}
       <form action={login} className="mt-6 flex flex-col gap-3">
         <label className="flex flex-col gap-1 text-[0.75rem] uppercase tracking-[0.1em] text-faint">
           Password

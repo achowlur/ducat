@@ -14,7 +14,7 @@ describe('screenshotVerdict', () => {
   });
 
   it('counts shared components, UI helpers, analyzers and the demo data as pictured', () => {
-    for (const f of ['src/components/MiniDonut.tsx', 'src/lib/ui/format.ts', 'src/lib/insights/digest.ts', 'scripts/demoData.ts', 'src/app/globals.css']) {
+    for (const f of ['src/components/MiniDonut.tsx', 'src/lib/ui/format.ts', 'src/lib/insights/digest.ts', 'src/lib/demo/data.ts', 'src/app/globals.css']) {
       expect(screenshotVerdict([f], '').ok, f).toBe(false);
     }
     // Pages that are not pictured stay free.

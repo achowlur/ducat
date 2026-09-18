@@ -95,7 +95,7 @@ regeneration.
 - `npm run db:seed` DESTROYS every account, transaction, rule and MANUAL
   categorization — it is not an additive command. It now refuses when
   transactions exist unless given `-- --yes` (same guard as `db:reset`). It
-  loads INVENTED demo data dated relative to TODAY (scripts/demoData.ts) and
+  loads INVENTED demo data dated relative to TODAY (src/lib/demo/data.ts) and
   rebuilds insights itself; a screen feature the demo cannot show owes the
   generator the rows that show it (docs/conventions/ui-and-pages.md).
 - Browsing is limited to the IN-APP browser (`preview_start` /
@@ -452,6 +452,10 @@ regeneration.
   call the HARD RULES ban, and never an IP allowlist (CGNAT rotates and is
   shared; a network is not a device). /providers' perimeter line states which
   factors are configured and must keep matching isTotpConfigured().
+- The PUBLIC DEMO is DUCAT_DEMO_PASSWORD, nothing else: the login gate stays
+  configured and is never bypassed (its password is printed on the login
+  page), the cron RESEEDS instead of syncing, and a demo holding a SimpleFIN
+  URL 503s EVERY request in middleware. It owns its own Turso database.
 - A remembered device (fin_device, 90d) waives the CODE, never the password:
   it grants nothing alone, is EARNED by a code in that same request, and
   every token names its own typ — both cookies share a signing key, so

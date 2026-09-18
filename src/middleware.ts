@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isAuthConfigured, isAuthEnabled, isCloudMode } from "./lib/auth/mode";
+import { demoMisconfiguration } from "./lib/demo/mode";
 import { SESSION_COOKIE, verifySessionToken } from "./lib/auth/session";
 
 /**
@@ -27,7 +28,9 @@ function hostnameOnly(host: string | null): string | null {
 }
 
 function textResponse(message: string, status: number): NextResponse {
-  return new NextResponse(message, { status, headers: { "content-type": "text/plain" } });
+  // charset declared: every one of these messages carries an em dash, and
+  // without it browsers decode UTF-8 as Latin-1 and print "â€”".
+  return new NextResponse(message, { status, headers: { "content-type": "text/plain; charset=utf-8" } });
 }
 
 // Pass the resolved path to the layout (via a request header it can't spoof —
@@ -56,6 +59,14 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     if (host === null || !ALLOWED_HOSTS.has(host)) {
       return textResponse("Forbidden — this app serves localhost only.", 403);
     }
+  }
+
+  // 1b. A public demo holding a real bank feed serves NOTHING — cron included,
+  // so it cannot sync either. Checked on every request rather than once at
+  // boot, so a variable added later is caught on the next request.
+  const demoProblem = demoMisconfiguration();
+  if (demoProblem !== null) {
+    return textResponse(demoProblem, 503);
   }
 
   // 2. Cron endpoints self-authorize with CRON_SECRET.

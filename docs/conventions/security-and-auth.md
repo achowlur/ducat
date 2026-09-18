@@ -155,3 +155,32 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   STATED ON /providers, because the trust page must not overstate the
   perimeter: a remembered device is only as protected as the password, for
   90 days. That sentence is the honest cost of the convenience.
+
+
+- THE PUBLIC DEMO (2026-09-18). A demo anyone can try is built from the
+  ordinary instance plus ONE variable, DUCAT_DEMO_PASSWORD, as the 2026-07-27
+  design agreed (docs/backlog.md): a PUBLISHED password rather than a
+  login-less mode, so no bypass exists that could ever be switched on for a
+  real instance, and middleware.ts, the session code and auth/mode.ts are
+  untouched apart from one refusal.
+  The password is printed on the login page with a statement that every
+  figure is invented and resets nightly; the gate otherwise works exactly as
+  on a real instance, which also keeps crawlers from indexing fabricated
+  financial data.
+  THE REFUSAL: a demo that holds SIMPLEFIN_ACCESS_URL answers every request —
+  pages, login and the cron — with a 503 naming the fix. Its password is
+  public, so a real feed there would put a real person's bank data behind a
+  door with the key on it. It is checked per request in middleware, not once
+  at boot, so a variable added later is caught at once. It proved itself by
+  accident while being built: a Windows .cmd `set "X="` UNSETS a variable,
+  Next then filled the operator's real SimpleFIN URL from .env, and the demo
+  refused to serve even its login page.
+  THE NIGHTLY RESET: the existing cron, in demo mode, calls reseedDemo
+  (src/lib/demo/reseed.ts, shared with db:seed) instead of syncing — every
+  visitor change goes, the data is re-dated to that day so the month being
+  lived in is never empty, and auth state (the TOTP counter) is kept, since
+  wiping it would let a used code work again. Pinned by reseed.test.ts with a
+  simulated day of visitors.
+  A SIDE FIX: middleware's plain-text responses declared no charset, so every
+  one of them — the localhost refusal included — rendered its em dash as
+  "â€”". They now say `charset=utf-8`, pinned in the demo's middleware test.

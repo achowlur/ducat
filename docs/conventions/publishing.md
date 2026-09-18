@@ -101,7 +101,7 @@ no dollar amount, count, percentage, ratio, digest or hash anywhere below.
 - THE README'S PICTURES (2026-09-16). The README carries a banner, a walkthrough
   and four screenshots, and every pixel of them is public, so they have exactly
   one source: `npm run screenshots` (scripts/capture-screenshots.ts). It seeds
-  the INVENTED demo data (scripts/demoData.ts) into a throwaway database in the
+  the INVENTED demo data (src/lib/demo/data.ts) into a throwaway database in the
   temp folder, builds a production app into `.next-capture/` — never `.next/`,
   whose build corrupts a running dev server — and drives Playwright's own
   Chromium with a fresh profile. It sets every variable that could reach real

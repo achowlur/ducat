@@ -3,15 +3,15 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PrismaClient } from '../src/generated/prisma/client';
-import { generateInsights } from '../src/lib/insights/engine';
-import { periodKey } from '../src/lib/insights/periods';
-import { isUnreviewedP2P } from '../src/lib/p2p';
-import { suggestP2PCategories } from '../src/lib/sync/p2pSuggest';
-import { installRulePack, pendingPackRules } from '../src/lib/sync/rulePack';
-import type { AnomalyPayload, NetWorthGrowthPayload, RecurringChargePayload } from '../src/types/contracts';
-import { buildDemoData, DEMO_HISTORY_MONTHS, writeDemoData, type DemoPlan } from './demoData';
-import { scanText } from './privacyScan';
+import { PrismaClient } from '../../generated/prisma/client';
+import { generateInsights } from '../insights/engine';
+import { periodKey } from '../insights/periods';
+import { isUnreviewedP2P } from '../p2p';
+import { suggestP2PCategories } from '../sync/p2pSuggest';
+import { installRulePack, pendingPackRules } from '../sync/rulePack';
+import type { AnomalyPayload, NetWorthGrowthPayload, RecurringChargePayload } from '../../types/contracts';
+import { buildDemoData, DEMO_HISTORY_MONTHS, writeDemoData, type DemoPlan } from './data';
+import { scanText } from '../../../scripts/privacyScan';
 
 /**
  * The demo exists to put something on every screen whatever day it is

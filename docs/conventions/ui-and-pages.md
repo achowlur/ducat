@@ -712,7 +712,8 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   "today" to a fixed date, so every screen gated to the month being lived in —
   goals, readiness, pace, commitments on /insights, Overview's spending block —
   rendered empty on every day after it was written, which made it useless for
-  screenshots and for a public demo. `scripts/demoData.ts` builds the data from
+  screenshots and for a public demo. `scripts/demoData.ts` (moved to src/lib/demo/data.ts on
+  2026-09-18, so the demo's nightly reset can reach it) builds the data from
   `now`: 24 complete months plus the current month, deterministic for a given
   moment, all of it invented.
   ONE RULE FOR EVERY FUTURE FEATURE: if a screen can show something the demo
