@@ -436,7 +436,8 @@ function Picker({
           })}
         </ul>
 
-        <div className="flex flex-wrap gap-2 border-t border-rule px-2 py-1 font-money text-[0.58rem] text-faint">
+        {/* Keys a phone does not have. */}
+        <div className="hidden flex-wrap gap-2 border-t border-rule px-2 py-1 font-money text-[0.58rem] text-faint md:flex">
           <span>↑↓ move</span>
           <span>enter set</span>
           <span>esc cancel</span>

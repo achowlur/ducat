@@ -821,23 +821,33 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
               // tooltip half was always desktop-only. Merchant and account
               // keep the dimming; date, amount and the trigger do not.
               <tr key={t.id} className="border-b border-rule">
-                <td className="py-1.5 pr-3 font-money text-[0.78rem] tabular text-faint">{isoDate(t.date)}</td>
+                {/* Below md the ISO form wrapped at its own hyphen on every row
+                    (2026-⏎09-20); the short form fits on one line at the same width. */}
+                <td className="whitespace-nowrap py-1.5 pr-3 font-money text-[0.78rem] tabular text-faint">
+                  <span className="md:hidden">{shortDate(t.date)}</span>
+                  <span className="hidden md:inline">{isoDate(t.date)}</span>
+                </td>
                 {/* The dimming sits on the LABEL, not the cell: below md the
                     amount lives in this cell's sub-line, and dimming the cell
                     took the number down to 2.71:1 with it — reintroducing the
                     exact defect one element lower. */}
                 <td
-                  className="max-w-[150px] truncate py-1.5 pr-3 text-[0.85rem] md:max-w-[280px]"
+                  className="max-w-[150px] py-1.5 pr-3 text-[0.85rem] md:max-w-[280px]"
                   title={t.description}
                 >
-                  <span className={t.flow === "TRANSFER" ? "opacity-60" : ""}>
-                    {merchantLabel(t).label}
-                  </span>
-                  {review && (
-                    <span className="ml-2 rounded-[2px] bg-neg px-1 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.05em] text-paper">
-                      review
+                  {/* The truncation belongs to the LABEL, not the cell: on the
+                      cell it clipped the REVIEW chip to an empty red block
+                      whenever the merchant filled the width. */}
+                  <span className="flex items-baseline gap-2">
+                    <span className={`min-w-0 truncate ${t.flow === "TRANSFER" ? "opacity-60" : ""}`}>
+                      {merchantLabel(t).label}
                     </span>
-                  )}
+                    {review && (
+                      <span className="shrink-0 rounded-[2px] bg-neg px-1 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.05em] text-paper">
+                        review
+                      </span>
+                    )}
+                  </span>
                   {/* The AMOUNT joins this sub-line below md. Its own column
                       sat 111px past the right edge of a scroller whose
                       scrollbar is hidden and whose page body does not scroll,
@@ -856,8 +866,11 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
                     >
                       · {accountNameById.get(t.accountId) ?? ""}
                     </span>
+                    {/* The figure keeps the desktop column's size; it was the
+                        smallest text in the row, below the account name it
+                        shares a line with. */}
                     <span
-                      className={`shrink-0 font-money tabular ${
+                      className={`shrink-0 font-money text-[0.85rem] tabular ${
                         Number(t.amount) < 0 && t.flow !== "TRANSFER"
                           ? "font-semibold text-neg"
                           : Number(t.amount) > 0 && t.flow === "INFLOW"

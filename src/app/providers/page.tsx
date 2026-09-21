@@ -197,7 +197,10 @@ async function renderProviders({
             </span>
           </div>
 
-          <div className="grid gap-6 pt-3 lg:grid-cols-[1.1fr_0.9fr]">
+          {/* Two auto rows on the left would otherwise split the row-span-2
+              column's surplus height between them, opening a gap above the
+              sync log on the tallest card. */}
+          <div className="grid gap-6 pt-3 lg:grid-cols-[1.1fr_0.9fr] lg:grid-rows-[auto_1fr]">
             <div className="lg:col-start-1 lg:row-start-1">
               <SubsectionTitle>Signals</SubsectionTitle>
               <ul className="grid gap-1 text-[0.85rem]">
@@ -277,13 +280,16 @@ async function renderProviders({
                     <table className="w-full border-collapse">
                       <thead>
                         <tr className="border-b border-ink">
+                          {/* Six columns need ~420px; a phone's scroller has 327.
+                              Imported answers "did last night work"; the other
+                              three counts wait for a wider screen. */}
                           {["When", "Outcome", "Imported", "Skipped", "Rules", "Transfers"].map((h, i) => (
                             <th
                               scope="col"
                               key={h}
                               className={`py-1 text-[0.66rem] font-semibold uppercase tracking-[0.1em] text-faint ${
-                                i < 2 ? "text-left" : "text-right"
-                              }`}
+                                i < 2 ? "pr-3 text-left" : "pl-3 text-right"
+                              } ${i >= 3 ? "hidden md:table-cell" : ""}`}
                             >
                               {h}
                             </th>
@@ -313,13 +319,13 @@ async function renderProviders({
                             <td className="py-1 pr-3 text-right font-money text-[0.78rem] tabular">
                               {log.transactionsImported}
                             </td>
-                            <td className="py-1 pr-3 text-right font-money text-[0.78rem] tabular text-faint">
+                            <td className="hidden py-1 pr-3 text-right font-money text-[0.78rem] tabular text-faint md:table-cell">
                               {log.transactionsSkipped}
                             </td>
-                            <td className="py-1 pr-3 text-right font-money text-[0.78rem] tabular text-faint">
+                            <td className="hidden py-1 pr-3 text-right font-money text-[0.78rem] tabular text-faint md:table-cell">
                               {log.rulesApplied}
                             </td>
-                            <td className="py-1 text-right font-money text-[0.78rem] tabular text-faint">
+                            <td className="hidden py-1 text-right font-money text-[0.78rem] tabular text-faint md:table-cell">
                               {log.transfersLinked}
                             </td>
                           </tr>

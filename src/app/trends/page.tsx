@@ -67,7 +67,7 @@ async function renderTrends({
           below its content, which is how a 520px chart widened the page. */}
       <div className="grid min-w-0 gap-9">
         <section className="min-w-0">
-          <div className="flex items-baseline justify-between">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <SectionTitle>Spending by category</SectionTitle>
             <span className="flex items-center gap-2 font-money text-[0.78rem] text-faint">
               {data.prevPeriod !== null ? (
@@ -136,13 +136,13 @@ async function renderTrends({
                     <th scope="col" className="py-1 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       Category
                     </th>
-                    <th scope="col" className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                    <th scope="col" className="py-1 pl-3 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       Spent
                     </th>
-                    <th scope="col" className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                    <th scope="col" className="py-1 pl-3 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       Prior
                     </th>
-                    <th scope="col" className="py-1 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                    <th scope="col" className="py-1 pl-3 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
                       Share
                     </th>
                   </tr>

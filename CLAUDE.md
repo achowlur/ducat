@@ -478,7 +478,9 @@ regeneration.
 ## Rules — publishing → docs/conventions/publishing.md
 
 - NOTHING PUBLIC carries personal data: tracked files, commit messages and
-  identities, branch names, PR titles and descriptions, GitHub comments.
+  identities, branch names, PR titles and descriptions, GitHub comments,
+  and the repository's About fields (website, description, topics, social
+  preview).
   Figures present at publication are scaled by a DESTROYED constant; a NEW
   figure is INVENTED, never read from real data. People fictional, card
   digits 1234, codes synthetic, account names generic, account digits 000N,
@@ -486,7 +488,7 @@ regeneration.
   ducat-demo.vercel.app, named exactly in privacyScan.ts), no real email. privacy.test.ts (files) and
   check-public-text.ts in CI (commits, branch, PR text) catch SHAPES only;
   amounts, names, merchants and addresses rest on discipline, and nothing
-  checks GitHub comments.
+  checks GitHub comments or the About fields.
 - Every change lands on a BRANCH and through a PULL REQUEST — never a commit
   on main, Claude Code's sessions included — and a PR merges only on a green
   `verify` check. The local pre-commit gate (`/verify`) is unchanged and

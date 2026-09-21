@@ -97,6 +97,17 @@ no dollar amount, count, percentage, ratio, digest or hash anywhere below.
   push to main it can only report, because a web merge's commit does not
   exist until the merge. GitHub comments are published too, and nothing
   checks them.
+  THE ABOUT FIELDS ARE PUBLIC TEXT TOO (2026-09-21). The repository's
+  website link had pointed at the operator's real instance since the
+  import, the first link on the page and the one thing there the rule
+  forbids: it names a live deployment and leads to the login of a database
+  holding real history. It was found by a UI audit reading a screenshot of
+  the GitHub page, not by any check, because website, description, topics
+  and the social-preview image live in repository settings, outside every
+  file and every commit the two scanners read. The link now names the
+  public demo, the one host privacyScan.ts allows. Anything typed into
+  those settings is published the moment it is saved and is checked by
+  nobody; read it as carefully as a commit message.
 
 - THE README'S PICTURES (2026-09-16). The README carries a banner, a walkthrough
   and four screenshots, and every pixel of them is public, so they have exactly
