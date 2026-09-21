@@ -377,9 +377,10 @@ function Popover({
         </ul>
 
         <div className="flex flex-wrap items-baseline gap-2 border-t border-rule px-2 py-1 font-money text-[0.58rem] text-faint">
-          <span>↑↓ move</span>
-          <span>enter set</span>
-          <span>esc cancel</span>
+          {/* Keys a phone does not have; the link beside them stays. */}
+          <span className="hidden md:inline">↑↓ move</span>
+          <span className="hidden md:inline">enter set</span>
+          <span className="hidden md:inline">esc cancel</span>
           {target.groupLabel !== null && (
             <Link href={groupHref(target.groupLabel)} className="ml-auto text-acc hover:underline">
               all “{target.groupLabel}” rows →

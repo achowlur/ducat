@@ -244,8 +244,9 @@ export function GroupedReview({
             <tr className="border-b border-ink">
               {["Count", "Payee", "Flow", "Total", "Categorize all"].map((h, i) => (
                 <th
+                  scope="col"
                   key={h}
-                  className={`py-1 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint ${
+                  className={`py-1 pr-3 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint ${
                     i === 0 || i === 3 ? "text-right" : "text-left"
                   }`}
                 >

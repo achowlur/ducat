@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { AccountTypeSelect } from "../../components/AccountTypeSelect";
 import { Sparkline } from "../../components/Sparkline";
-import { amount, dateTime } from "../../lib/ui/format";
+import { amount, dateTime, shortDate } from "../../lib/ui/format";
 import { getAccountsData } from "../../lib/ui/accounts";
 import { PageTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
@@ -73,9 +73,9 @@ async function renderAccounts() {
               <th
                 scope="col"
                 key={`${c.label}-${i}`}
-                className={`py-1 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint ${c.className}`}
+                className={`py-1 pr-3 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint ${c.className}`}
               >
-                {c.label}
+                {c.label === "" ? <span className="sr-only">Transactions</span> : c.label}
               </th>
             ))}
           </tr>
@@ -100,7 +100,7 @@ async function renderAccounts() {
                         liquidity.ts documents as the obvious wrong fix for
                         exactly this account. Stating the override beside it is
                         what stops the dropdown reading as the answer. */}
-                    <span className="text-[0.72rem] text-faint">
+                    <span className="block text-[0.72rem] text-faint md:inline">
                       {a.institution} · {a.connectorType.toLowerCase()}
                       {a.isCash && a.type !== "DEPOSITORY" ? " · counts as cash" : ""}
                     </span>
@@ -112,7 +112,10 @@ async function renderAccounts() {
                       {a.balanceUnknown ? "unknown" : amount(a.balance)}
                     </span>
                     <span className="block text-[0.68rem] text-faint">
-                      as of {a.balanceDate}
+                      {/* The ISO form wrapped at its own hyphen in this narrow
+                          cell on a phone; the short form fits. */}
+                      as of <span className="md:hidden">{shortDate(new Date(a.balanceDate))}</span>
+                      <span className="hidden md:inline">{a.balanceDate}</span>
                       {/* The printed number measures against the LAST SYNC, as
                           Overview's column does — a row saying "6d behind"
                           when nothing has synced for six days is reporting the
