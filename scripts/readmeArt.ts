@@ -58,7 +58,7 @@ const page = (body: string, width: number) => `<!doctype html><html><head><meta 
 </style></head><body>${body}</body></html>`;
 
 const windowHtml = (png: string, path: string) =>
-  `<div class="window"><div class="bar"><i></i><i></i><i></i><span class="url">localhost:3000${path}</span></div>` +
+  `<div class="window"><div class="bar"><i></i><i></i><i></i><span class="url">127.0.0.1:3000${path}</span></div>` +
   `<img src="data:image/png;base64,${png}"></div>`;
 
 /** One screenshot in a browser window, on a transparent margin. */
