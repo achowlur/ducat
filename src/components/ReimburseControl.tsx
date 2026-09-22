@@ -109,7 +109,7 @@ export function ReimburseControl({
 
   if (linked !== null) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[0.75rem] text-acc" title="This inflow pays back the linked expense — analytics net it there">
+      <span className="inline-flex items-center gap-1.5 text-[0.75rem] text-acc" title="This inflow pays back the linked expense; analytics net it there">
         ↩ reimburses {linked.label} · {linked.date.slice(5)}
         <button
           onClick={() => startTransition(() => unlinkReimbursement(inflowId))}
@@ -160,7 +160,7 @@ export function ReimburseControl({
         }`}
         title={
           strongHint === null
-            ? "This money pays back an expense — link it so spending nets correctly"
+            ? "This money pays back an expense. Link it so spending nets correctly"
             : `Likely pays back ${strongHint.label} (${strongHint.reason})`
         }
       >
@@ -197,7 +197,7 @@ export function ReimburseControl({
             <span className="block py-1 text-[0.75rem] text-faint">Looking for nearby outflows…</span>
           )}
           {results === null && failed && (
-            <span className="block py-1 text-[0.75rem] text-faint">Couldn&apos;t load suggestions — close and retry.</span>
+            <span className="block py-1 text-[0.75rem] text-faint">Couldn&apos;t load suggestions. Close and retry.</span>
           )}
           {results === null && candidates !== null && candidates.length === 0 && (
             <span className="block py-1 text-[0.75rem] text-faint">No nearby outflows found.</span>

@@ -23,6 +23,12 @@ const CHIP_CLASS: Record<InsightRow["tone"], string> = {
   neutral: "bg-chip text-acc",
 };
 
+/** A row with no chip keeps its tone as a small mark, so direction survives. */
+const TONE_MARK: Record<Exclude<InsightRow["tone"], "neutral">, string> = {
+  neg: "bg-neg",
+  pos: "bg-pos",
+};
+
 /**
  * One definition for the chip every forecast on this page wears. Three panels
  * carry it now (pace, commitments, goals), and the moment a forecast reads
@@ -64,7 +70,7 @@ function GoalRow({ g }: { g: GoalAssessment }) {
           {g.goal.targetMonth === undefined ? "" : ` · by ${monthLabel(g.goal.targetMonth)}`}
         </span>
         {g.accountNames.length > 0 && (
-          <span className="ml-auto font-money text-[0.72rem] text-faint">
+          <span className="ml-auto text-[0.72rem] text-faint">
             {g.accountNames.join(" + ")}
           </span>
         )}
@@ -93,20 +99,20 @@ function GoalRow({ g }: { g: GoalAssessment }) {
         ) : g.refusal === "NO_ACCOUNTS" ? (
           g.goal.cash === true ? (
             <>
-              Nothing counts as cash right now — declare cash accounts with{" "}
+              Nothing counts as cash right now. Declare cash accounts with{" "}
               <span className="font-money">npm run accounts:cash</span>.
             </>
           ) : (
             <>
-              None of the accounts this goal nominates exist any more — re-point it with{" "}
+              None of the accounts this goal nominates exist any more. Re-point it with{" "}
               <span className="font-money">npm run goals</span>.
             </>
           )
         ) : g.refusal === "TOO_FEW_MONTHS" ? (
           g.basisMonths === 0 ? (
-            "No complete months of cash-flow history yet — nothing to project a landing date from."
+            "No complete months of cash-flow history yet, so there is nothing to project a landing date from."
           ) : (
-            `Only ${g.basisMonths} complete ${monthsWord(g.basisMonths)} of cash-flow history — too few to project a landing date (${GOAL_RATE_MIN_MONTHS} needed).`
+            `Only ${g.basisMonths} complete ${monthsWord(g.basisMonths)} of cash-flow history, too few to project a landing date (${GOAL_RATE_MIN_MONTHS} needed).`
           )
         ) : g.refusal === "RATE_NOT_POSITIVE" ? (
           <>
@@ -129,8 +135,8 @@ function GoalRow({ g }: { g: GoalAssessment }) {
                   g.deltaMonths === null
                     ? "lands more than 50 years out at this rate."
                     : g.deltaMonths > 0
-                      ? "lands more than 50 years out at this rate — far behind target."
-                      : "lands more than 50 years out at this rate — and still not past the declared month."
+                      ? "lands more than 50 years out at this rate, far behind target."
+                      : "lands more than 50 years out at this rate, and still not past the declared month."
                 ) : (
                   <>
                     lands <span className="font-semibold">~{monthLabel(g.landsMonth ?? "")}</span>
@@ -138,7 +144,7 @@ function GoalRow({ g }: { g: GoalAssessment }) {
                       "."
                     ) : (
                       <>
-                        {" — "}
+                        {", "}
                         {g.deltaMonths === 0
                           ? "on target."
                           : g.deltaMonths < 0
@@ -158,7 +164,7 @@ function GoalRow({ g }: { g: GoalAssessment }) {
               <p className="pt-0.5">
                 Cash itself grew{" "}
                 <span className="font-money tabular">~{money(g.observedFundGrowth)}</span>/mo over the
-                same window — the landing assumes the full rate reaches it.
+                same window; the landing assumes the full rate reaches it.
               </p>
             )}
           </>
@@ -167,7 +173,7 @@ function GoalRow({ g }: { g: GoalAssessment }) {
           <span className="text-neg">
             {" "}
             {g.missingAccounts} nominated {g.missingAccounts === 1 ? "account" : "accounts"} no longer{" "}
-            {g.missingAccounts === 1 ? "exists" : "exist"} — saved is understated.
+            {g.missingAccounts === 1 ? "exists" : "exist"}, so saved is understated.
           </span>
         )}
       </div>
@@ -223,8 +229,8 @@ function ReadinessBlock({
         <p className="leading-relaxed text-faint">
           {r.basisMonths === 0
             ? "No complete months of history yet"
-            : `Only ${r.basisMonths} complete ${monthsWord(r.basisMonths)} of history`}{" "}
-          — too few to average income and non-housing spending ({GOAL_RATE_MIN_MONTHS} needed). What
+            : `Only ${r.basisMonths} complete ${monthsWord(r.basisMonths)} of history`},{" "}
+          too few to average income and non-housing spending ({GOAL_RATE_MIN_MONTHS} needed). What
           stands regardless: {fundCaps}.
         </p>
       ) : r.refusal === "FLOOR_EXCEEDS_RESIDUAL" ? (
@@ -233,7 +239,7 @@ function ReadinessBlock({
           /mo minus non-housing spending <Money n={r.nonHousingMean ?? 0} about />
           /mo, over your last {r.basisMonths} complete {monthsWord(r.basisMonths)}, leaves no mortgage
           budget once the <Money n={c.savingsFloor} />
-          /mo savings floor you declared is kept — it comes to{" "}
+          /mo savings floor you declared is kept: it comes to{" "}
           <span className="font-money tabular text-ink">{money(r.pitiBudget ?? 0)}</span>/mo, so the
           floor is the reason there is no payment ceiling. What stands regardless: {fundCaps}.
         </p>
@@ -255,7 +261,7 @@ function ReadinessBlock({
             </div>
             <div>
               <div className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-faint">
-                Ceiling today — {r.bindingConstraint === "FUND" ? "fund-limited" : "payment-limited"}
+                Ceiling today ({r.bindingConstraint === "FUND" ? "fund-limited" : "payment-limited"})
               </div>
               <div className="font-money tabular text-[1.05rem] font-semibold">
                 ~
@@ -458,7 +464,7 @@ async function renderInsights({
           went on claiming otherwise. */}
       {data.clampedFrom !== null && (
         <p className="pt-3 text-[0.78rem] text-faint">
-          <span className="text-ink">{monthLabel(data.clampedFrom)}</span> has no insights — showing{" "}
+          <span className="text-ink">{monthLabel(data.clampedFrom)}</span> has no insights; showing{" "}
           {data.periodLabel}.
         </p>
       )}
@@ -507,7 +513,7 @@ async function renderInsights({
            would claim the engine looked, and it has not: all clear cannot be
            told from not checked if the difference is never stated. */
         <p className="mt-4 text-[0.85rem] text-faint">
-          Nothing recorded for {data.periodLabel} yet — spending appears with the month&apos;s first
+          Nothing recorded for {data.periodLabel} yet. Spending appears with the month&apos;s first
           sync.
         </p>
       ) : data.coverage?.hasUnknownShortfall === true ? (
@@ -519,7 +525,7 @@ async function renderInsights({
            stated outright. Only the NO_DATA case; a mid-period start is
            complete data and keeps the ordinary line. */
         <p className="mt-4 text-[0.85rem] text-faint">
-          Nothing to report for {data.periodLabel} — the notice above says why this month cannot be
+          Nothing to report for {data.periodLabel}. The notice above says why this month cannot be
           judged.
         </p>
       ) : (
@@ -537,7 +543,7 @@ async function renderInsights({
       {data.pace !== null && (
         <section className="mt-4 border-b border-ink pb-3">
           <p className="text-[0.95rem] leading-relaxed">
-            <span className="font-money tabular text-faint">
+            <span className="tabular text-faint">
               Day {data.pace.dayOfPeriod} of {data.pace.daysInPeriod}.
             </span>{" "}
             <span className="font-money tabular font-semibold">{money(data.pace.spentSoFar)}</span> spent
@@ -553,7 +559,7 @@ async function renderInsights({
               <span className="text-faint">Too early in the month to say where it lands.</span>
             ) : data.pace.refusal === "NO_BASELINE" ? (
               <span className="text-faint">
-                No comparable month to project from yet — {data.pace.basisCount === 0 ? "none" : "too few"} with
+                No comparable month to project from yet: {data.pace.basisCount === 0 ? "none" : "too few"} with
                 complete data.
               </span>
             ) : (
@@ -568,8 +574,8 @@ async function renderInsights({
                       from before an account existed is understated, so the
                       projection leans low and says so. */}
                   {data.pace.basisMissingAccounts > 0 &&
-                    `, before ${data.pace.basisMissingAccounts} of your accounts existed — so this leans low`}
-                  {" — "}
+                    `, before ${data.pace.basisMissingAccounts} of your accounts existed, so this leans low`}
+                  {"; "}
                 </span>
                 <span className={PROJECTED_CHIP}>
                   Projected
@@ -596,7 +602,7 @@ async function renderInsights({
               Projected
             </span>
             <h2 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
-              Already committed — next {data.commitments.windowDays} days
+              Committed in the next {data.commitments.windowDays} days
             </h2>
             <span className="ml-auto font-money text-[0.95rem] font-semibold tabular">
               {money(data.commitments.total)}
@@ -734,8 +740,8 @@ async function renderInsights({
             </div>
           ))}
           <p className="pt-1.5 text-[0.72rem] text-faint">
-            The signed net of each trip&apos;s tagged rows, exactly as its ledger lists them —
-            transfers ride along when tagged, and spending analytics still exclude them.
+            The signed net of each trip&apos;s tagged rows, exactly as its ledger lists them.
+            Transfers ride along when tagged, and spending analytics still exclude them.
           </p>
         </section>
       )}
@@ -759,16 +765,28 @@ async function renderInsights({
           {group.rows.map((row) => (
             <div
               key={row.id}
-              className={`flex items-start gap-2.5 border-b border-rule py-2 text-[0.85rem] last:border-b-0 max-md:py-3 ${
+              className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-rule py-2 text-[0.85rem] last:border-b-0 max-md:py-3 ${
                 row.dismissed ? "opacity-50" : ""
               }`}
             >
-              <span
-                className={`mt-0.5 whitespace-nowrap rounded-[2px] px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] ${CHIP_CLASS[row.tone]}`}
-              >
-                {row.chip}
-              </span>
-              <span className="flex-1">{row.text}</span>
+              {row.chip !== null ? (
+                <span
+                  className={`whitespace-nowrap rounded-[2px] px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] ${CHIP_CLASS[row.tone]}`}
+                >
+                  {row.chip}
+                </span>
+              ) : row.tone !== "neutral" ? (
+                <span aria-hidden="true" className={`inline-block h-[10px] w-[10px] rounded-[2px] ${TONE_MARK[row.tone]}`} />
+              ) : null}
+              <span className="min-w-0 flex-1">{row.text}</span>
+              {/* The facts take their own line below md, as the digest's
+                  consequence does; beside a 44px control the sentence would
+                  otherwise get the shrinkage. */}
+              {row.facts.length > 0 && (
+                <span className="whitespace-nowrap font-money text-[0.78rem] tabular text-faint max-md:order-last max-md:basis-full max-md:whitespace-normal">
+                  {row.facts.join(" · ")}
+                </span>
+              )}
               <DismissButton insightId={row.id} dismissed={row.dismissed} />
             </div>
           ))}

@@ -587,14 +587,14 @@ export function CategoryButton({
         </span>
       </button>
       {categorySource === "MANUAL" && categoryId !== null && (
-        <span className="text-[0.62rem] text-faint" title="Set manually — rules never override this">
+        <span className="text-[0.62rem] text-faint" title="Set manually; rules never override this">
           ✎
         </span>
       )}
       {subscriptionTracked && (
         <span
           className="text-[0.62rem] text-acc"
-          title="Tracked as a subscription — its renewal date and price changes are on Overview"
+          title="Tracked as a subscription; its renewal date and price changes are on Overview"
         >
           ↻
         </span>
@@ -634,7 +634,7 @@ export function CategoryButton({
                 type="button"
                 onClick={() => setMenu("cadence")}
                 className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
-                title="Track this merchant as a subscription — its renewal date and price changes, without waiting for the detector's three charges"
+                title="Track this merchant as a subscription: its renewal date and price changes, without waiting for the detector's three charges"
               >
                 subscription
               </button>
@@ -655,7 +655,7 @@ export function CategoryButton({
                 });
               }}
               className="tap44 rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
-              title="Tag THIS transaction into a trip or project — a view across months, never a category"
+              title="Tag THIS transaction into a trip or project: a view across months, never a category"
             >
               trip
             </button>

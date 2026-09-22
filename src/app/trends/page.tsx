@@ -93,7 +93,7 @@ async function renderTrends({
               removed. */}
           {data.clampedFrom !== null && (
             <p className="mb-2 text-[0.75rem] text-faint">
-              <span className="text-ink">{monthLabel(data.clampedFrom)}</span> has nothing recorded —
+              <span className="text-ink">{monthLabel(data.clampedFrom)}</span> has nothing recorded;
               showing {data.periodLabel}.
             </p>
           )}
@@ -103,13 +103,12 @@ async function renderTrends({
             {/* The stepper sits in this section's header but scopes only this
                 section, while the two charts are all-history. Nothing said so,
                 which invites reading ‹ › as a page-wide control. */}
-            <span className="text-ink">{data.periodLabel} only</span> — the charts alongside and below cover
-            all history. Transfers excluded. Tap or click a slice or row to open those transactions; hover a
-            slice for its exact share.
+            <span className="text-ink">{data.periodLabel} only</span>; the charts alongside and below cover
+            all history. Transfers excluded. Tap or click a slice or row to open those transactions.
             {data.credited > 0 && (
               <>
                 {" "}
-                Shares are of the {money(data.drawable)} in categories with net spending — the total also
+                Shares are of the {money(data.drawable)} in categories with net spending; the total also
                 nets {money(data.credited)} refunded elsewhere.
               </>
             )}
@@ -227,8 +226,8 @@ async function renderTrends({
           Month-end, all accounts
           {data.netWorth.length > 0 && (
             <>
-              {" "}
-              — <span className="text-ink">{data.netWorth[0].label}</span> to{" "}
+,{" "}
+              <span className="text-ink">{data.netWorth[0].label}</span> to{" "}
               <span className="text-ink">{data.netWorth[data.netWorth.length - 1].label}</span>
             </>
           )}
@@ -256,7 +255,7 @@ async function renderTrends({
             <>
               {" "}
               Shorter than cash flow above ({data.netWorth.length} months against {data.cashFlow.length})
-              because a month appears only once every account has a balance snapshot inside it — earlier
+              because a month appears only once every account has a balance snapshot inside it; earlier
               months are refused rather than estimated.
             </>
           )}
@@ -264,7 +263,7 @@ async function renderTrends({
         {data.netWorth.length < 3 && (
           <p className="mb-3 border-l-2 border-chart2 bg-chip/50 px-2.5 py-1.5 text-[0.75rem] text-faint">
             <span className="font-semibold text-acc">History starts here.</span> Net worth is only shown for
-            months with a balance snapshot behind every account. Imported transactions can&apos;t supply one —
+            months with a balance snapshot behind every account. Imported transactions can&apos;t supply one:
             a brokerage&apos;s value moves with the market, which leaves no transaction to reconstruct from, so
             earlier months would be guesses rather than history. Each sync records a snapshot, so this line
             grows from today forward.

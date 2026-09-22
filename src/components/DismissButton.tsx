@@ -20,7 +20,7 @@ export function DismissButton({ insightId, dismissed }: { insightId: string; dis
       title={
         dismissed
           ? "Restore this insight"
-          : "Dismiss — stays dismissed even when insights regenerate after a sync"
+          : "Dismiss; stays dismissed even when insights regenerate after a sync"
       }
     >
       {dismissed ? "restore" : "dismiss"}

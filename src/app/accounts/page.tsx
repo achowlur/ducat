@@ -151,7 +151,7 @@ async function renderAccounts() {
                         className="text-[0.72rem] text-faint"
                         title="Balances for past months are reconstructed from transactions until syncs write snapshots"
                       >
-                        {a.snapshotCount === 1 ? "1 snapshot" : "no snapshots — history estimated"}
+                        {a.snapshotCount === 1 ? "1 snapshot" : "no snapshots; history estimated"}
                       </span>
                     )}
                   </td>

@@ -751,3 +751,26 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   (`debtNote` in ui/liquidity.ts, counted in the same branch that sums the
   debt), leaving out a kind there are none of. Surfaced by the demo data, the
   first data set to hold a loan beside a card.
+
+- THE WORDS WERE THE TELL (2026-09-22). A fifteen-lens audit asked whether the
+  UI reads as machine-made. The palette, the type, the hand-drawn charts and the
+  phone work cleared; what tripped the wire was the copy. 145 em dashes sat in
+  on-screen strings, one on nearly every row of /insights: "Merchant — price ·
+  25 charges · last Sep 4", the same dash-and-dot cadence stitching table rows,
+  headings ("Spending — September") and button labels ("group by payee —
+  categorize in bulk") alike, and readers now recognise that mark before they
+  read the sentence. Every one became the punctuation a person would use in
+  that spot (a comma, a period, a semicolon, parentheses), never a contortion
+  around the gap; the /trends refusal glyph and an empty cell's dash stay,
+  because they are glyphs, not prose. The archive rows were the worst case and
+  got structure instead of punctuation: `InsightRow` now carries `text` (the
+  name or the sentence) and `facts` (the figures, in reading order), and the
+  page sets the facts in the mono column the commitments panel already used,
+  wrapping them under the name below md. In the same pass the chip that only
+  repeated its group heading (seven RECURRING under "Recurring charges",
+  NET WORTH under "Net worth") became null, with the row's tone carried by a
+  10px mark so direction survives, which leaves PRICE UP and the digest's chips
+  as the ones that say something. Pinned failure-state substrings
+  (boundaryCopy.test.ts, DatabaseUnavailable.test.ts) were kept word for word;
+  only the joins around them changed.
+

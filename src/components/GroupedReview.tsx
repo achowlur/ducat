@@ -82,7 +82,7 @@ function GroupRow({
           {group.isP2P && (
             <span
               className="ml-2 rounded-[2px] border border-neg px-1 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.05em] text-neg"
-              title="Peer-to-peer payment. The rule will match this specific counterparty in the description, not the payment rail — other Zelle/Venmo payees stay untouched."
+              title="Peer-to-peer payment. The rule will match this specific counterparty in the description, not the payment rail; other Zelle/Venmo payees stay untouched."
             >
               p2p
             </span>
@@ -131,7 +131,7 @@ function GroupRow({
               ))}
             </optgroup>
             <optgroup label="Not spending">
-              <option value={TRANSFER_TARGET}>Transfer — exclude</option>
+              <option value={TRANSFER_TARGET}>Transfer (exclude)</option>
             </optgroup>
           </select>
           {staged === "" && !pending && (
@@ -140,7 +140,7 @@ function GroupRow({
             <button
               onClick={onSkip}
               className="rounded-[2px] border border-rule px-1.5 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
-              title="Not now — hide this payee for the rest of this session. Nothing is written."
+              title="Not now: hide this payee for the rest of this session. Nothing is written."
             >
               skip
             </button>
@@ -189,7 +189,7 @@ export function GroupedReview({
   if (groups.length === 0 && last === null) {
     return (
       <p className="py-6 text-center text-[0.85rem] text-faint">
-        Nothing left to review — every transaction has a category.
+        Nothing left to review: every transaction has a category.
       </p>
     );
   }
@@ -232,7 +232,7 @@ export function GroupedReview({
       )}
       {groups.length === 0 ? (
         <p className="py-6 text-center text-[0.85rem] text-faint">
-          Nothing left to review — every transaction has a category.
+          Nothing left to review: every transaction has a category.
         </p>
       ) : visible.length === 0 ? (
         <p className="py-6 text-center text-[0.85rem] text-faint">

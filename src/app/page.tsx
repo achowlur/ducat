@@ -129,7 +129,7 @@ async function renderOverview() {
       ? [
           {
             text: `${data.pendingPackRules} categorization rule${data.pendingPackRules === 1 ? "" : "s"} not installed`,
-            detail: "this app version ships rules your database doesn't have — run npm run upgrade",
+            detail: "this app version ships rules your database doesn't have; run npm run upgrade",
           },
         ]
       : []),
@@ -150,7 +150,7 @@ async function renderOverview() {
                 lowercasing it mid-line mangled what /providers renders
                 correctly. "Standing risks" is a static array length dressed as
                 live status — it lives on /providers, where it is explained. */}
-            {simplefin.trustCard.displayName} — {simplefin.reasons[0]} · {simplefin.accountCount}{" "}
+            {simplefin.trustCard.displayName}: {simplefin.reasons[0]} · {simplefin.accountCount}{" "}
             account{simplefin.accountCount === 1 ? "" : "s"}
           </span>
         )}
@@ -304,7 +304,7 @@ async function renderOverview() {
               claim about coverage, not an absence to be hidden, and the prior
               month stays one quiet link away. */}
           <div className="flex items-baseline justify-between gap-3">
-            <SectionTitle>Spending — {currentMonthName}</SectionTitle>
+            <SectionTitle>{currentMonthName} spending</SectionTitle>
             {/* The donut answers "on what?"; Trends answers "compared to
                 when?" — so the ring drills into transactions and the
                 heading goes to the fuller breakdown. Only when the month has
@@ -376,7 +376,7 @@ async function renderOverview() {
                 spending. "No spending" would be false; the net figure is the
                 same totalSpending every screen prints. */
             <p className="text-[0.85rem] text-faint">
-              Reimbursements exceeded spending in {currentMonthName} — net{" "}
+              Reimbursements exceeded spending in {currentMonthName}; net{" "}
               <span className="font-money tabular text-ink">{money(data.spendingTotal)}</span> so far.
             </p>
           ) : (
@@ -385,7 +385,7 @@ async function renderOverview() {
                 reached. All clear cannot be told from not checked. */
             <>
               <p className="text-[0.85rem] text-faint">
-                Nothing recorded for {currentMonthName} yet — spending appears with the month&apos;s
+                Nothing recorded for {currentMonthName} yet. Spending appears with the month&apos;s
                 first sync.
               </p>
               {data.priorSpending !== null && (
@@ -424,7 +424,7 @@ async function renderOverview() {
             <SectionTitle>Needs review</SectionTitle>
             {reviewItems.length === 0 ? (
               <p className="text-[0.85rem] text-faint">
-                Nothing needs review — every transaction is categorized and every balance is current.
+                Nothing needs review: every transaction is categorized and every balance is current.
               </p>
             ) : (
               <ul className="grid gap-2">

@@ -121,10 +121,10 @@ export function RenameGroup({
       </button>
       <span className={`w-full text-[0.72rem] ${failed ? "text-neg" : "text-faint"}`}>
         {failed
-          ? "Couldn't rename — retry."
+          ? "Couldn't rename. Retry."
           : merge
-            ? `“${existing}” already exists — saving MERGES the two into one group.`
-            : `renames every row carrying this tag — ${totalRows} in total, filters or not`}
+            ? `“${existing}” already exists; saving MERGES the two into one group.`
+            : `renames every row carrying this tag, ${totalRows} in total, filters or not`}
       </span>
     </span>
   );

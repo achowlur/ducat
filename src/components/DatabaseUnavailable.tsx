@@ -51,11 +51,11 @@ export function adviceFor(failure: DatabaseFailure, cloud: boolean): Advice {
       heading: "Database unreachable",
       what: "Ducat could not get an answer from its database, so there is nothing to show on this page.",
       reassurance:
-        "This is not your figures being wrong, and it does not mean anything was lost — failing to reach a database says nothing about what is stored in it.",
+        "This is not your figures being wrong, and it does not mean anything was lost; failing to reach a database says nothing about what is stored in it.",
       next: [
         "It may be temporary. Reloading is safe and changes nothing.",
         cloud
-          ? "If it persists, check the database host, its access token, and the plan it runs on — from here an outage, a revoked token and a lapsed plan all look the same."
+          ? "If it persists, check the database host, its access token, and the plan it runs on. From here an outage, a revoked token and a lapsed plan all look the same."
           : "If it persists, check that DATABASE_URL points where you think it does, and that whatever serves it is running.",
       ],
     };
@@ -87,7 +87,7 @@ export function adviceFor(failure: DatabaseFailure, cloud: boolean): Advice {
       reassurance:
         "Ducat has not changed that file. If the path is simply wrong, your real database is untouched wherever it actually lives.",
       next: [
-        "Check DATABASE_URL — a truncated download or a half-finished copy reads exactly like this.",
+        "Check DATABASE_URL: a truncated download or a half-finished copy reads exactly like this.",
       ],
     };
   }
@@ -106,7 +106,7 @@ export function adviceFor(failure: DatabaseFailure, cloud: boolean): Advice {
     what:
       failure.detail === null
         ? "The database answered, but it does not have the tables this app reads."
-        : `The database answered, but it has no ${failure.detail} table — either its schema was never applied, or it was applied before the release that added that table.`,
+        : `The database answered, but it has no ${failure.detail} table; either its schema was never applied, or it was applied before the release that added that table.`,
     reassurance: null,
     next: cloud
       ? [
@@ -115,14 +115,14 @@ export function adviceFor(failure: DatabaseFailure, cloud: boolean): Advice {
             holds data and is merely behind, it is <Cmd>npm run schema:push</Cmd>, then the same
             command with <Cmd>-- --apply</Cmd>. DEPLOY.md covers both.
           </>,
-          "If this instance was meant to read a different database, check DATABASE_URL — a database that exists but has never had the schema applied looks exactly like this, while a name that does not exist is refused outright and reports itself as unreachable.",
+          "If this instance was meant to read a different database, check DATABASE_URL: a database that exists but has never had the schema applied looks exactly like this, while a name that does not exist is refused outright and reports itself as unreachable.",
         ]
       : [
           <>
             Bring the schema up to date with <Cmd>npx prisma migrate deploy</Cmd>. On a fresh
             checkout, <Cmd>npm run db:seed</Cmd> then adds fixture data.
           </>,
-          "If you expected your own data here, check DATABASE_URL — a missing file is created empty rather than refused, so a typo looks exactly like this.",
+          "If you expected your own data here, check DATABASE_URL: a missing file is created empty rather than refused, so a typo looks exactly like this.",
         ],
   };
 }

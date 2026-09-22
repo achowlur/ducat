@@ -20,13 +20,13 @@ const CRON_SCHEDULE = vercelConfig.crons[0].schedule;
 function cloudResidualRisks(totp: boolean): string[] {
   return [
     "Turso encrypts at rest, but it can read your data while serving queries. Encryption at rest is not encryption from the operator of the database.",
-    "This is not end-to-end encryption. Client-side keys, with the analyzers running in your browser, are deliberately deferred — so “we can't read it even if breached” is not a claim this deployment can make.",
+    "This is not end-to-end encryption. Client-side keys, with the analyzers running in your browser, are deliberately deferred, so so “we can't read it even if breached” is not a claim this deployment can make.",
     // The perimeter line tells the truth about which factors are actually
     // configured — a trust page that says "no second factor" over an instance
     // that has one is wrong in the reassuring direction's mirror image, and
     // just as corrosive.
     totp
-      ? "The perimeter is the password gate plus a one-use authenticator code. The second factor protects LOGIN only: a stolen session cookie (valid up to 30 days) bypasses it. On a device you chose to remember, the password alone unlocks it for 90 days — that cookie grants nothing by itself, but it does mean a remembered device is only as protected as your password. Rotating either secret un-remembers every device; losing the authenticator means removing AUTH_TOTP_SECRET from this instance's environment, as there is no in-app reset, deliberately."
+      ? "The perimeter is the password gate plus a one-use authenticator code. The second factor protects LOGIN only: a stolen session cookie (valid up to 30 days) bypasses it. On a device you chose to remember, the password alone unlocks it for 90 days; that cookie grants nothing by itself, but it does mean a remembered device is only as protected as your password. Rotating either secret un-remembers every device; losing the authenticator means removing AUTH_TOTP_SECRET from this instance's environment, as there is no in-app reset, deliberately."
       : "The password gate is the whole perimeter. Anyone who has it has the data. A second factor is available but not enabled on this instance: npm run auth:set-totp.",
     "If that trade-off is not acceptable, local mode is unchanged and takes the data back onto your own machine.",
   ];
@@ -64,7 +64,7 @@ async function renderProviders({
           {cloud ? (
             <>
               Running in <strong>cloud mode</strong>, against your own Turso database on your own Vercel
-              project. Your transaction data rests there rather than on this device — single-tenant
+              project. Your transaction data rests there rather than on this device, on single-tenant
               infrastructure you control and pay for, not a shared service, so no third party custodies it.
               A password gate is what stands between it and the internet, and it is required: deployed
               without one, the app refuses to serve.
@@ -72,7 +72,7 @@ async function renderProviders({
           ) : (
             <>
               Running in <strong>local mode</strong>, against a file database on this machine, bound to
-              127.0.0.1. Transaction data never leaves this device — the only outbound connections the
+              127.0.0.1. Transaction data never leaves this device. The only outbound connections the
               app makes are the ones on this page: the SimpleFIN feed, plus the FRED rate index only if
               you opt in with an API key. Nothing outbound carries transaction data.
             </>
@@ -115,7 +115,7 @@ async function renderProviders({
                 return days <= 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
               })()}
             </strong>{" "}
-            ({dateTime(new Date(backup.run.at))}) — {backup.run.rows} rows verified by content digest{" "}
+            ({dateTime(new Date(backup.run.at))}), {backup.run.rows} rows verified by content digest{" "}
             <span className="font-money">{backup.run.wholeDigest}</span>, written to{" "}
             <span className="font-money">data/backups/{backup.run.file}</span> on the machine that runs the
             nightly schedule.{" "}
@@ -144,7 +144,7 @@ async function renderProviders({
             <ul className="grid gap-2">
               {cloudResidualRisks(isTotpConfigured()).map((risk, i) => (
                 <li key={risk} className="flex gap-2 text-[0.8rem] leading-relaxed">
-                  <span className="font-money text-faint">{i + 1}.</span>
+                  <span className="text-faint">{i + 1}.</span>
                   <span>{risk}</span>
                 </li>
               ))}
@@ -222,14 +222,14 @@ async function renderProviders({
               )}
               {health.connectorType === "SIMPLEFIN" && (
                 <p className="mt-3 text-[0.75rem] text-faint">
-                  Access URL: {configured ? "configured" : "not configured"} — read from{" "}
+                  Access URL: {configured ? "configured" : "not configured"}, read from{" "}
                   {cloud ? "the platform's environment variables" : ".env on this machine"}, and never
                   displayed.
                 </p>
               )}
               {health.connectorType === "FRED" && (
                 <p className="mt-3 text-[0.75rem] text-faint">
-                  API key: {configured ? "configured" : "not configured"} — read from{" "}
+                  API key: {configured ? "configured" : "not configured"}, read from{" "}
                   {cloud ? "the platform's environment variables" : ".env on this machine"}, and never
                   displayed. Absent, the fetch does not run at all.
                 </p>
@@ -245,7 +245,7 @@ async function renderProviders({
               <ul className="mb-4 grid gap-2">
                 {health.trustCard.residualRisks.map((risk, i) => (
                   <li key={risk} className="flex gap-2 text-[0.8rem] leading-relaxed">
-                    <span className="font-money text-faint">{i + 1}.</span>
+                    <span className="text-faint">{i + 1}.</span>
                     <span>{risk}</span>
                   </li>
                 ))}
@@ -307,7 +307,7 @@ async function renderProviders({
                                 <span className="font-semibold text-pos">ok</span>
                               ) : (
                                 <span className="font-semibold text-neg" title={log.errorText ?? undefined}>
-                                  failed{log.errorText !== null && ` — ${log.errorText}`}
+                                  failed{log.errorText !== null && `: ${log.errorText}`}
                                 </span>
                               )}
                               {log.feedErrors.length > 0 && (

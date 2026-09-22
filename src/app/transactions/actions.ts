@@ -160,7 +160,7 @@ export async function setTransactionGroup(
     // normalizeGroupLabel nulls both the empty and the overlong; tell them apart.
     throw new Error(
       label.trim() === ""
-        ? "A trip needs a name — or untag the row instead."
+        ? "A trip needs a name, or untag the row instead."
         : `Trip names cap at ${MAX_GROUP_LABEL} characters.`,
     );
   }
@@ -230,12 +230,12 @@ export async function createRuleFromMerchant(
 ): Promise<{ recategorized: number }> {
   await requireSession();
   const matchValue = merchant.trim().toLowerCase();
-  if (matchValue === "") throw new Error("Merchant is empty — categorize this transaction manually instead.");
+  if (matchValue === "") throw new Error("Merchant is empty; categorize this transaction manually instead.");
   // Same floor as the grouped review: a CONTAINS rule at user priority outranks
   // the whole pack, so a one- or two-character value is a wrecking ball.
   if (matchValue.length < 3) {
     throw new Error(
-      `"${matchValue}" is too short to make a rule from — it would match unrelated transactions.`,
+      `"${matchValue}" is too short to make a rule from; it would match unrelated transactions.`,
     );
   }
   if (matchField !== "MERCHANT" && matchField !== "DESCRIPTION") {
@@ -260,14 +260,14 @@ export async function categorizeGroup(
 ): Promise<{ recategorized: number; undo: GroupUndo }> {
   await requireSession();
   const value = matchValue.trim().toLowerCase();
-  if (value === "") throw new Error("Payee is empty — categorize these transactions individually instead.");
+  if (value === "") throw new Error("Payee is empty; categorize these transactions individually instead.");
   // A CONTAINS rule at user priority outranks the whole pack and is exempt from
   // the P2P guard, so a one- or two-character key is a wrecking ball: a Fidelity
   // dividend on Realty Income normalizes its merchant to the ticker "o", and
   // MERCHANT CONTAINS "o" then recategorizes costco, doordash, every Zelle…
   if (value.length < 3) {
     throw new Error(
-      `"${value}" is too short to make a rule from — it would match unrelated merchants. Categorize these individually instead.`,
+      `"${value}" is too short to make a rule from; it would match unrelated merchants. Categorize these individually instead.`,
     );
   }
   if (target === "") throw new Error("Pick a category first.");
