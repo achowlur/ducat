@@ -43,6 +43,6 @@ describe("MiniDonut server markup", () => {
       }),
     );
     expect(html).not.toContain("<title></title>");
-    expect(html).toContain("<title>Dining: 56.9% — view transactions</title>");
+    expect(html).toContain("<title>Dining: 56.9% (view transactions)</title>");
   });
 });

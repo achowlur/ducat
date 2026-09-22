@@ -701,9 +701,9 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
           <Link
             href={buildHref(params, { payees: "1", category: "uncategorized", review: undefined, page: undefined })}
             className="tap44 rounded-[2px] border border-acc px-2 py-1 font-semibold uppercase tracking-[0.06em] text-acc hover:bg-chip"
-            title="Group the uncategorized backlog by payee — one decision categorizes every occurrence and future ones too"
+            title="Group the uncategorized backlog by payee: one decision categorizes every occurrence and future ones too"
           >
-            group by payee — categorize in bulk
+            group by payee to categorize in bulk
           </Link>
           )
         )}
@@ -737,7 +737,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
         ) : (
             reviewCount > 0 && (
               <Link href={buildHref(params, { review: "1", page: undefined })} className="font-semibold text-neg hover:underline">
-                {reviewCount} P2P payment{reviewCount === 1 ? "" : "s"} to confirm — Zelle/Venmo never
+                {reviewCount} P2P payment{reviewCount === 1 ? "" : "s"} to confirm. Zelle/Venmo never
                 categorize without you; tap ✓ to accept a suggestion
               </Link>
             )
@@ -774,7 +774,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
               <span className="w-full text-[0.72rem] text-faint">
                 the signed sum of the rows this view shows
                 {tripTransfers > 0 &&
-                  ` — including ${tripTransfers} transfer${tripTransfers === 1 ? "" : "s"}, which spending analytics still exclude`}
+                  `, including ${tripTransfers} transfer${tripTransfers === 1 ? "" : "s"}, which spending analytics still exclude`}
               </span>
             </>
           )}
@@ -899,7 +899,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
                         groupLabel={null}
                         rowLabel={merchantLabel(t).label || "this transfer"}
                         className="text-[0.75rem] text-faint hover:text-ink"
-                        title="Transfers are excluded from spending analytics and carry no category — but one can be tagged into a trip/project"
+                        title="Transfers are excluded from spending analytics and carry no category, but one can be tagged into a trip/project"
                       >
                         transfer
                       </GroupTrigger>
@@ -910,7 +910,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
                           groupLabel={t.groupLabel}
                           rowLabel={merchantLabel(t).label || "this transfer"}
                           className="text-[0.75rem] text-faint hover:text-ink"
-                          title="Transfers are excluded from spending analytics and carry no category — but one can be tagged into a trip/project"
+                          title="Transfers are excluded from spending analytics and carry no category, but one can be tagged into a trip/project"
                         >
                           transfer
                         </GroupTrigger>
@@ -1042,7 +1042,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
               <td colSpan={6} className="py-6 text-center text-[0.85rem] text-faint">
                 {pastEnd ? (
                   <>
-                    Page {page} is past the end — these filters match {matchCount} rows across{" "}
+                    Page {page} is past the end; these filters match {matchCount} rows across{" "}
                     {pageCount} page{pageCount === 1 ? "" : "s"}.{" "}
                     <Link
                       href={buildHref(params, { page: pageCount === 1 ? undefined : String(pageCount) })}

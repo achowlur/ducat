@@ -37,7 +37,7 @@ export function AccountTypeSelect({
       disabled={pending}
       onChange={(e) => startTransition(() => setAccountType(accountId, e.target.value))}
       className="rounded-[2px] border border-transparent bg-paper py-0.5 pl-1 pr-4 text-[0.78rem] hover:border-rule"
-      title="Account type — corrections survive future syncs and recompute all insights. Whether a balance counts as spendable cash is a separate setting (npm run accounts:cash), not a type."
+      title="Account type. Corrections survive future syncs and recompute all insights. Whether a balance counts as spendable cash is a separate setting (npm run accounts:cash), not a type."
     >
       {TYPES.map((t) => (
         <option key={t.value} value={t.value}>

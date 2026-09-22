@@ -37,7 +37,7 @@ export function boundaryCopy({ expired, gated }: { expired: boolean; gated: bool
   if (expired) {
     return {
       heading: "Session expired",
-      body: "Your session is no longer valid. Sign in again to continue — nothing was lost, because the check runs before the action does anything.",
+      body: "Your session is no longer valid. Sign in again to continue; nothing was lost, because the check runs before the action does anything.",
       signIn: true,
       retry: false,
     };
@@ -46,7 +46,7 @@ export function boundaryCopy({ expired, gated }: { expired: boolean; gated: bool
   return {
     heading: "Something went wrong",
     body: gated
-      ? "That action didn't complete. Reload to see the current state — and if it keeps failing, a lapsed sign-in looks exactly like this."
+      ? "That action didn't complete. Reload to see the current state. If it keeps failing, a lapsed sign-in looks exactly like this."
       : "That action didn't complete. Reload to see the current state.",
     signIn: gated,
     retry: true,

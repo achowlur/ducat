@@ -41,10 +41,17 @@ export interface InsightRow {
   id: string;
   type: InsightType;
   dismissed: boolean;
-  chip: string;
+  /**
+   * Null when the group heading already says it: seven RECURRING chips under
+   * "Recurring charges" told the reader nothing, and diluted the chips that
+   * carry a fact (PRICE UP). The tone still colours the row's marker.
+   */
+  chip: string | null;
   tone: "neg" | "pos" | "neutral";
-  /** One-line human rendering of the payload. */
+  /** What the row is about, as a sentence or a name. */
   text: string;
+  /** The figures beside it, in reading order; the page sets them in a column. */
+  facts: string[];
 }
 
 export interface InsightsPageData {
@@ -152,7 +159,7 @@ function renderDigest(item: DigestItem): DigestRow {
       return {
         chip: "New",
         tone: "neutral",
-        text: `${titleCase(item.subject)} ${money(item.amount)} — newly recognised as recurring`,
+        text: `${titleCase(item.subject)} ${money(item.amount)}, newly recognised as recurring`,
         consequence: `${perYear} committed`,
         stake: item.stake,
       };
@@ -169,7 +176,7 @@ function renderDigest(item: DigestItem): DigestRow {
         text:
           item.rank === undefined
             ? `${titleCase(item.subject)} ${money(item.amount)}, against ${money(item.baseline ?? 0)} typical`
-            : `${titleCase(item.subject)} ${money(item.amount)} — ${higherThan(item.rank.percentileOfHistory, item.rank.of)} (median ${money(item.baseline ?? 0)})`,
+            : `${titleCase(item.subject)} ${money(item.amount)}, ${higherThan(item.rank.percentileOfHistory, item.rank.of)} (median ${money(item.baseline ?? 0)})`,
         // Deliberately NOT annualised: it happened once, so once is the cost.
         consequence: "one-off, not recurring",
         stake: item.stake,
@@ -179,45 +186,59 @@ function renderDigest(item: DigestItem): DigestRow {
 
 function renderAnomaly(p: AnomalyPayload): InsightRow["text"] {
   return p.kind === "TRANSACTION"
-    ? `${titleCase(p.description ?? "Transaction")} — ${money(p.amount)}, ${higherThan(p.percentileOfHistory, `your ${p.categoryName ?? "spending here"}`)} (median ${money(p.typicalAmount)})`
-    : `${p.categoryName ?? "Category"} total ${money(p.amount)} — ${higherThan(p.percentileOfHistory, "prior months")} (median ${money(p.typicalAmount)})`;
+    ? `${titleCase(p.description ?? "Transaction")} ${money(p.amount)}, ${higherThan(p.percentileOfHistory, `your ${p.categoryName ?? "spending here"}`)} (median ${money(p.typicalAmount)})`
+    : `${p.categoryName ?? "Category"} total ${money(p.amount)}, ${higherThan(p.percentileOfHistory, "prior months")} (median ${money(p.typicalAmount)})`;
 }
 
-function renderRecurring(p: RecurringChargePayload, tracked: boolean): InsightRow["text"] {
+// The archive rows below were one punctuated sentence each: "Merchant — price
+// · 25 charges · last Sep 4", the same dash-and-dot cadence on every line of
+// the page. Each is now a name and a column of facts, the layout the
+// commitments panel already used.
+type RowBody = Pick<InsightRow, "text" | "facts">;
+
+function renderRecurring(p: RecurringChargePayload, tracked: boolean): RowBody {
   const price = p.priceIncreased
     ? `raised to ${money(p.lastAmount)} (was ${money(p.previousAverageAmount ?? p.averageAmount)})`
     : `${money(p.averageAmount)} ${p.cadence.toLowerCase()}`;
   // shortDate, not the raw ISO string: this line sits among "Jul 9 – Jul 20",
   // "in 3d · Aug 6" and "~September 2028", so a bare 2026-07-06 was the only
   // machine-shaped date on the page.
-  return `${titleCase(p.merchant)} — ${price} · ${p.occurrences} charges · last ${shortDate(new Date(`${p.lastDate}T12:00:00Z`))}${
-    tracked ? " · registered" : ""
-  }`;
+  return {
+    text: titleCase(p.merchant),
+    facts: [
+      price,
+      `${p.occurrences} charges`,
+      `last ${shortDate(new Date(`${p.lastDate}T12:00:00Z`))}`,
+      ...(tracked ? ["registered"] : []),
+    ],
+  };
 }
 
-function renderNetWorth(p: NetWorthGrowthPayload): InsightRow["text"] {
+function renderNetWorth(p: NetWorthGrowthPayload): RowBody {
   const growth = p.growthRate === null ? "no prior month in scope" : `${pct(p.growthRate)} vs prior month`;
-  const markets =
-    p.marketGains !== null && p.marketGains !== 0 ? ` · markets ${money(p.marketGains)}` : "";
-  return `Net worth ${money(p.netWorth)} — ${growth}${markets}`;
+  const markets = p.marketGains !== null && p.marketGains !== 0 ? [`markets ${money(p.marketGains)}`] : [];
+  return { text: `Net worth ${money(p.netWorth)}`, facts: [growth, ...markets] };
 }
 
-function renderSpending(p: SpendingByCategoryPayload): InsightRow["text"] {
+function renderSpending(p: SpendingByCategoryPayload): RowBody {
   const top = p.categories.slice(0, 3).map((c) => `${c.categoryName ?? "Uncategorized"} ${money(c.spending)}`);
-  const prior = p.previousTotalSpending === null ? "" : ` (prior ${money(p.previousTotalSpending)})`;
   // The empty-series guard belongs on the SERIES, not on the payload holding
   // it: a month can own a spending row whose category list is empty, and the
   // page gate that admits the row says nothing about what is inside it. June
   // 2024 rendered the literal "Total $0.00 — top: ", a sentence stopping
   // mid-clause, because the join produced an empty string.
-  const leaders = top.length === 0 ? "" : ` — top: ${top.join(", ")}`;
-  return `Total ${money(p.totalSpending)}${prior}${leaders}`;
+  const leaders = top.length === 0 ? "" : `. Top: ${top.join(", ")}`;
+  return {
+    text: `Total ${money(p.totalSpending)}${leaders}`,
+    facts: p.previousTotalSpending === null ? [] : [`prior ${money(p.previousTotalSpending)}`],
+  };
 }
 
-function renderCashFlow(p: CashFlowTrendPayload): InsightRow["text"] {
-  return `Income ${money(p.income)} · spending ${money(p.spending)} · net ${money(p.net)}${
-    p.spendingDeltaPct !== null ? ` — spending ${pct(p.spendingDeltaPct)} vs prior month` : ""
-  }`;
+function renderCashFlow(p: CashFlowTrendPayload): RowBody {
+  return {
+    text: `Income ${money(p.income)}, spending ${money(p.spending)}, net ${money(p.net)}`,
+    facts: p.spendingDeltaPct === null ? [] : [`spending ${pct(p.spendingDeltaPct)} vs prior month`],
+  };
 }
 
 /** Named because the annualised total is hung off this group by title. */
@@ -244,7 +265,7 @@ function toRow(
   switch (type) {
     case "ANOMALY": {
       const p = row.payload as AnomalyPayload;
-      return { id: row.id, type, dismissed: row.dismissed, chip: "Anomaly", tone: "neg", text: renderAnomaly(p) };
+      return { id: row.id, type, dismissed: row.dismissed, chip: null, tone: "neg", text: renderAnomaly(p), facts: [] };
     }
     case "RECURRING_CHARGE": {
       const p = row.payload as RecurringChargePayload;
@@ -252,23 +273,23 @@ function toRow(
         id: row.id,
         type,
         dismissed: row.dismissed,
-        chip: p.priceIncreased ? "Price up" : "Recurring",
+        chip: p.priceIncreased ? "Price up" : null,
         tone: p.priceIncreased ? "neg" : "neutral",
-        text: renderRecurring(p, isRegistered(p.merchant)),
+        ...renderRecurring(p, isRegistered(p.merchant)),
       };
     }
     case "NET_WORTH_GROWTH": {
       const p = row.payload as NetWorthGrowthPayload;
       const tone = p.growthRate !== null && p.growthRate > 0 ? "pos" : p.growthRate !== null && p.growthRate < 0 ? "neg" : "neutral";
-      return { id: row.id, type, dismissed: row.dismissed, chip: "Net worth", tone, text: renderNetWorth(p) };
+      return { id: row.id, type, dismissed: row.dismissed, chip: null, tone, ...renderNetWorth(p) };
     }
     case "CASH_FLOW_TREND": {
       const p = row.payload as CashFlowTrendPayload;
-      return { id: row.id, type, dismissed: row.dismissed, chip: "Cash flow", tone: "neutral", text: renderCashFlow(p) };
+      return { id: row.id, type, dismissed: row.dismissed, chip: null, tone: "neutral", ...renderCashFlow(p) };
     }
     case "SPENDING_BY_CATEGORY": {
       const p = row.payload as SpendingByCategoryPayload;
-      return { id: row.id, type, dismissed: row.dismissed, chip: "Spending", tone: "neutral", text: renderSpending(p) };
+      return { id: row.id, type, dismissed: row.dismissed, chip: null, tone: "neutral", ...renderSpending(p) };
     }
   }
 }

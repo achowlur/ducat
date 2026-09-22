@@ -142,8 +142,8 @@ export function deriveBackupStatus(run: StoredBackupRun | null, now: Date): Back
     ageStatus === 'OK'
       ? null
       : ageStatus === 'WARN'
-        ? 'More than one night has passed without a verified backup — the nightly task is not completing; check data/backups/backup.log on the machine that runs it.'
-        : 'Over a week without a verified backup — the schedule is broken; check data/backups/backup.log on the machine that runs it.';
+        ? 'More than one night has passed without a verified backup: the nightly task is not completing; check data/backups/backup.log on the machine that runs it.'
+        : 'Over a week without a verified backup: the schedule is broken; check data/backups/backup.log on the machine that runs it.';
 
   const mirror = run.localMirror;
   const mirrorMissed = mirror !== undefined && mirror.status !== 'mirrored';

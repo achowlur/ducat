@@ -85,7 +85,7 @@ export function MiniDonut({
           // pre-paint data-theme with it, so Overview alone rendered sepia for
           // anyone who had chosen light or dark. Pinned by MiniDonut.test.ts.
           const tip = `${p.slice.label}: ${(p.slice.share * 100).toFixed(1)}%${
-            hrefFor === undefined ? "" : " — view transactions"
+            hrefFor === undefined ? "" : " (view transactions)"
           }`;
           const arc = (
             <path key={p.slice.label} d={p.d} fill={p.color} className={hrefFor === undefined ? "" : "cursor-pointer"}>

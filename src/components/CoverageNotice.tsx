@@ -33,8 +33,8 @@ export function CoverageNotice({ coverage }: { coverage: PeriodCoverage | null }
       <p>
       <span className={`font-semibold ${hasUnknownShortfall ? "text-acc" : ""}`}>
         {hasUnknownShortfall ? "Partial coverage" : "Not directly comparable"}
-      </span>{" "}
-      — {covered} of {total} accounts have history reaching across this period.
+      </span>:{" "}
+      {covered} of {total} accounts have history reaching across this period.
       {absent.length > 0 && (
         <>
           {" "}
@@ -46,7 +46,7 @@ export function CoverageNotice({ coverage }: { coverage: PeriodCoverage | null }
         <>
           {" "}
           {list(partial.map((g) => g.name))} started part-way through, contributing{" "}
-          <span className="font-money tabular">{money(contributedByPartial)}</span> — counted in full here,
+          <span className="font-money tabular">{money(contributedByPartial)}</span>, counted in full here,
           but earlier months have none of it.
         </>
       )}

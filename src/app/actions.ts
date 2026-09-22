@@ -36,7 +36,7 @@ export async function syncNow(): Promise<SyncNowResult> {
     const n = result.transactionsImported;
     return {
       ok: true,
-      message: n === 0 ? "Up to date — no new transactions." : `Synced ${n} new transaction${n === 1 ? "" : "s"}.`,
+      message: n === 0 ? "Up to date, no new transactions." : `Synced ${n} new transaction${n === 1 ? "" : "s"}.`,
     };
   } catch (e) {
     // runSync/connector errors are already credential-safe (Session 6 redaction).

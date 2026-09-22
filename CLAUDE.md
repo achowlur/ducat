@@ -410,6 +410,10 @@ regeneration.
   never in a title= — hover does not exist on the device this is read on.
   Percentages of one whole round by largest remainder, or a column of them
   sums to 101%.
+- On-screen copy carries NO em dash (the /trends refusal glyph and an empty
+  cell's dash are glyphs, not prose); an /insights archive row is a NAME plus
+  a column of FACTS (`InsightRow.facts`), never a punctuated sentence, and a
+  chip that only repeats its group heading is null, the tone carried by a mark.
 
 ## Rules — performance → docs/conventions/performance.md
 
