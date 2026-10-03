@@ -238,15 +238,21 @@ function Popover({
 
   // A fixed popover cannot follow the page: close on scroll/resize instead of
   // drifting from the row. The mobile sheet is viewport-pinned and needs
-  // neither.
+  // neither. Its OWN list is excluded, as the category picker's is and for
+  // the reason recorded there: the capture listener hears that scroll too,
+  // and a list of trips long enough to scroll closed the popover under it.
   useEffect(() => {
     if (!desktop) return;
-    const dismiss = () => onClose(false);
-    window.addEventListener("scroll", dismiss, true);
-    window.addEventListener("resize", dismiss);
+    const onScroll = (e: Event) => {
+      if (e.target instanceof Node && rootRef.current?.contains(e.target) === true) return;
+      onClose(false);
+    };
+    const onResize = () => onClose(false);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
     return () => {
-      window.removeEventListener("scroll", dismiss, true);
-      window.removeEventListener("resize", dismiss);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
     };
   }, [desktop, onClose]);
 
@@ -333,7 +339,14 @@ function Popover({
           />
         </div>
 
-        <ul ref={listRef} id={listId} role="listbox" aria-label="Trip" className="flex-1 overflow-y-auto py-1">
+        {/* overscroll-contain, as the category list has it and for its reason. */}
+        <ul
+          ref={listRef}
+          id={listId}
+          role="listbox"
+          aria-label="Trip"
+          className="flex-1 overflow-y-auto overscroll-contain py-1"
+        >
           {rows.length === 0 && (
             <li role="presentation" className="px-2 py-2 text-[0.78rem] text-faint">
               Type a name to start a trip.

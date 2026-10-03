@@ -13,11 +13,13 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
+  createCategory,
   createRuleFromMerchant,
   registerSubscription,
   setTransactionCategory,
   unregisterSubscription,
 } from "../app/transactions/actions";
+import { categoryNameProblem, existingCategoryName, normalizeCategoryName } from "../lib/categories";
 import { useGroupPicker } from "./GroupPicker";
 import type { RecurringCadence } from "../types/contracts";
 
@@ -75,6 +77,23 @@ function usePicker(): PickerContext {
   return ctx;
 }
 
+/**
+ * What the list can be asked for: a category that exists (null clears the
+ * row's), or one to be made first. The rule pack's list used to be every
+ * category an instance could have; a name typed here that matches none of
+ * them is now offered as a new one (lib/categories.ts).
+ */
+type Choice =
+  | { kind: "existing"; id: string | null }
+  | { kind: "create"; name: string; isIncome: boolean };
+
+interface Row {
+  /** Unique within the list. */
+  key: string;
+  name: string;
+  choice: Choice;
+}
+
 const POPOVER_WIDTH = 232;
 /** Room we'd LIKE below the trigger before considering a flip upwards. */
 const POPOVER_PREFERRED_HEIGHT = 320;
@@ -93,17 +112,19 @@ const DESKTOP = "(min-width: 768px)";
  * searching is more useful than native type-ahead ("housing" finds
  * "Rent & Housing"), but typing "g" still has to land on Gas rather than on
  * Dining, which merely contains a g.
+ *
+ * It never starts on a row that CREATES. When a query matches no category the
+ * list holds only those, and nothing is active (-1), so Enter writes nothing:
+ * "gorceries" and Enter must not leave a category called that behind. Making
+ * one takes an arrow key or a click, which is to say a second, deliberate act.
  */
-function preferredIndex(
-  rows: { id: string | null; name: string }[],
-  query: string,
-  currentId: string | null,
-): number {
+function preferredIndex(rows: Row[], query: string, currentId: string | null): number {
+  const existing = (r: Row) => r.choice.kind === "existing";
   if (query !== "") {
-    const prefix = rows.findIndex((r) => r.name.toLowerCase().startsWith(query));
-    return prefix === -1 ? 0 : prefix;
+    const prefix = rows.findIndex((r) => existing(r) && r.name.toLowerCase().startsWith(query));
+    return prefix === -1 ? rows.findIndex(existing) : prefix;
   }
-  const current = rows.findIndex((r) => r.id === currentId);
+  const current = rows.findIndex((r) => r.choice.kind === "existing" && r.choice.id === currentId);
   return current === -1 ? 0 : current;
 }
 
@@ -139,7 +160,7 @@ export function CategoryPickerProvider({
   );
 
   const commit = useCallback(
-    (categoryId: string | null) => {
+    (choice: Choice) => {
       if (target === null) return;
       const { transactionId, ruleValue, ruleField, ruleMode, anchor } = target;
       setTarget(null);
@@ -147,6 +168,11 @@ export function CategoryPickerProvider({
       setPendingId(transactionId);
       startTransition(async () => {
         try {
+          // A new category is made first and then assigned by the SAME write
+          // an existing one gets, so it reaches the row or the rule by the
+          // one path that guards MANUAL rows and regenerates insights.
+          const categoryId =
+            choice.kind === "create" ? (await createCategory(choice.name, choice.isIncome)).id : choice.id;
           // Rule mode never offers "none" — a rule has to assign something —
           // so this branch cannot be reached with a null category.
           if (ruleMode && categoryId !== null)
@@ -182,7 +208,7 @@ function Picker({
 }: {
   target: Target;
   categories: CategoryOption[];
-  onPick: (categoryId: string | null) => void;
+  onPick: (choice: Choice) => void;
   onClose: (restoreFocus: boolean) => void;
 }) {
   const [query, setQuery] = useState(target.seed);
@@ -201,21 +227,47 @@ function Picker({
   // cannot drift out from under it.
   const [rect] = useState(() => target.anchor.getBoundingClientRect());
 
-  const q = query.trim().toLowerCase();
+  // What was typed, as the name it would become. The same two functions
+  // decide in the action, which does not take this list's word for it.
+  const typed = normalizeCategoryName(query);
+  // The search reads the SAME form. Read raw, "pet  care" with two spaces
+  // found nothing to match and was also refused as a name that exists, so the
+  // list said "No category matches" about a category it would not let you add.
+  const q = (typed ?? "").toLowerCase();
+  const names = useMemo(() => categories.map((c) => c.name), [categories]);
+  const problem = typed === null ? null : categoryNameProblem(typed, names);
+  // "Already exists" is not said out loud: the category it names is in the
+  // list below, matched, which says it better.
+  const refusal =
+    typed !== null && problem !== null && existingCategoryName(typed, names) === null ? problem : null;
   const groups = useMemo(() => {
     const hit = (c: CategoryOption) => q === "" || c.name.toLowerCase().includes(q);
-    const out: { label: string | null; rows: { id: string | null; name: string }[] }[] = [];
+    const row = (c: CategoryOption): Row => ({ key: c.id, name: c.name, choice: { kind: "existing", id: c.id } });
+    const out: { label: string | null; rows: Row[] }[] = [];
     // Clearing a category is not a category, so it sits above the groups —
     // and rule mode omits it entirely.
     if (!target.ruleMode && (q === "" || "none".includes(q))) {
-      out.push({ label: null, rows: [{ id: null, name: "— none —" }] });
+      out.push({ label: null, rows: [{ key: "none", name: "— none —", choice: { kind: "existing", id: null } }] });
     }
-    const spending = categories.filter((c) => !c.isIncome && hit(c));
-    const income = categories.filter((c) => c.isIncome && hit(c));
+    const spending = categories.filter((c) => !c.isIncome && hit(c)).map(row);
+    const income = categories.filter((c) => c.isIncome && hit(c)).map(row);
     if (spending.length > 0) out.push({ label: "Spending", rows: spending });
     if (income.length > 0) out.push({ label: "Income", rows: income });
+    // Last, so a category that exists always outranks one that does not yet.
+    // Two rows because the choice cannot be inferred and matters: an inflow
+    // in an income category is earnings, and in a spending one it is netted
+    // against that category's spending as a refund would be.
+    if (typed !== null && problem === null) {
+      out.push({
+        label: "New category",
+        rows: [
+          { key: "create:spending", name: typed, choice: { kind: "create", name: typed, isIncome: false } },
+          { key: "create:income", name: typed, choice: { kind: "create", name: typed, isIncome: true } },
+        ],
+      });
+    }
     return out;
-  }, [categories, q, target.ruleMode]);
+  }, [categories, q, target.ruleMode, typed, problem]);
 
   // Flattened in display order — what the arrow keys actually walk.
   const flat = useMemo(() => groups.flatMap((g) => g.rows), [groups]);
@@ -265,14 +317,27 @@ function Picker({
   // A fixed popover cannot follow the page, so it closes instead of drifting
   // away from the row it belongs to — which is what a native select does too.
   // The sheet is pinned to the bottom of the viewport and needs none of this.
+  //
+  // Its OWN list is excluded. A scroll event does not bubble, so hearing the
+  // page's takes a capture listener on window, and a capture listener on
+  // window hears every scroll in the document, this popover's list included.
+  // The list is taller than the room it gets on a laptop, so it closed the
+  // picker three ways: one wheel notch over it, the arrow key that first
+  // walked past the fold, and OPENING on any row whose current category sat
+  // below the fold, because scrolling that category into view is the first
+  // thing the list does.
   useEffect(() => {
     if (!desktop) return;
-    const dismiss = () => onClose(false);
-    window.addEventListener("scroll", dismiss, true);
-    window.addEventListener("resize", dismiss);
+    const onScroll = (e: Event) => {
+      if (e.target instanceof Node && rootRef.current?.contains(e.target) === true) return;
+      onClose(false);
+    };
+    const onResize = () => onClose(false);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
     return () => {
-      window.removeEventListener("scroll", dismiss, true);
-      window.removeEventListener("resize", dismiss);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
     };
   }, [desktop, onClose]);
 
@@ -282,7 +347,7 @@ function Picker({
       onClose(true);
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (flat[active] !== undefined) onPick(flat[active].id);
+      if (flat[active] !== undefined) onPick(flat[active].choice);
     } else if (e.key === "Tab") {
       // Not trapped: close, hand focus back to the trigger, and let the browser
       // move on from there exactly as it would have from the select.
@@ -292,7 +357,8 @@ function Picker({
       if (flat.length > 0) setActive((i) => (i + 1) % flat.length);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      if (flat.length > 0) setActive((i) => (i - 1 + flat.length) % flat.length);
+      // From the no-active start (-1), up lands on the LAST row.
+      if (flat.length > 0) setActive((i) => (i < 0 ? flat.length - 1 : (i - 1 + flat.length) % flat.length));
     } else if (e.key === "Home") {
       e.preventDefault();
       setActive(0);
@@ -366,26 +432,43 @@ function Picker({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search categories"
+            placeholder="Search, or name a new one"
             className="w-full rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.85rem] text-ink outline-none focus:border-acc md:text-[0.8rem]"
           />
         </div>
 
-        <ul ref={listRef} id={listId} role="listbox" aria-label="Category" className="flex-1 overflow-y-auto py-1">
-          {flat.length === 0 && (
+        {/* overscroll-contain: at either end of the list the wheel would
+            otherwise carry on into the page, and a page scroll closes this
+            popover. Reaching the last category must not dismiss the list. */}
+        <ul
+          ref={listRef}
+          id={listId}
+          role="listbox"
+          aria-label="Category"
+          className="flex-1 overflow-y-auto overscroll-contain py-1"
+        >
+          {flat.length === 0 && refusal === null && (
             <li role="presentation" className="px-2 py-2 text-[0.78rem] text-faint">
               No category matches “{query.trim()}”.
+            </li>
+          )}
+          {/* Why the name typed is not offered as a new category. Said in the
+              list, where the offer would have been. */}
+          {refusal !== null && (
+            <li role="presentation" className="px-2 py-2 text-[0.78rem] text-faint">
+              {refusal}
             </li>
           )}
           {groups.map((group) => {
             const rows = group.rows.map((row) => {
               index += 1;
               const i = index;
-              const selected = row.id === target.categoryId;
-              const hit = q === "" ? -1 : row.name.toLowerCase().indexOf(q);
+              const creates = row.choice.kind === "create";
+              const selected = row.choice.kind === "existing" && row.choice.id === target.categoryId;
+              const hit = creates || q === "" ? -1 : row.name.toLowerCase().indexOf(q);
               return (
                 <li
-                  key={row.id ?? "none"}
+                  key={row.key}
                   id={optionId(i)}
                   ref={i === active ? activeRef : undefined}
                   role="option"
@@ -397,15 +480,17 @@ function Picker({
                   // which silently handed the keyboard whichever option
                   // happened to be under the mouse.
                   onMouseMove={() => setActive(i)}
-                  onClick={() => onPick(row.id)}
+                  onClick={() => onPick(row.choice)}
                   // py-3 on the sheet clears the 44px thumb target; the desktop
                   // popover is a mouse target and stays dense.
                   className={`flex cursor-pointer items-center justify-between gap-2 px-2 py-3 text-[0.9rem] md:py-1 md:text-[0.82rem] ${
                     i === active ? "bg-chip shadow-[inset_2px_0_0_var(--acc)]" : ""
-                  }`}
+                  } ${creates ? "text-acc" : ""}`}
                 >
-                  <span>
-                    {hit === -1 ? (
+                  <span className={creates ? "min-w-0 truncate" : undefined}>
+                    {row.choice.kind === "create" ? (
+                      `add “${row.name}”`
+                    ) : hit === -1 ? (
                       row.name
                     ) : (
                       <>
@@ -416,6 +501,11 @@ function Picker({
                     )}
                   </span>
                   {selected && <span className="text-[0.72rem] text-acc">✓</span>}
+                  {row.choice.kind === "create" && (
+                    <span className="shrink-0 font-money text-[0.62rem] uppercase tracking-[0.06em]">
+                      {row.choice.isIncome ? "as income" : "as spending"}
+                    </span>
+                  )}
                 </li>
               );
             });

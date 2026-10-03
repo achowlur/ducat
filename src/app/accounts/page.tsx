@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AccountTypeSelect } from "../../components/AccountTypeSelect";
 import { Sparkline } from "../../components/Sparkline";
 import { amount, dateTime, shortDate } from "../../lib/ui/format";
+import { accountsHref } from "../../lib/ui/accountFilter";
 import { getAccountsData } from "../../lib/ui/accounts";
 import { PageTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
@@ -169,7 +170,7 @@ async function renderAccounts() {
                   </td>
                   <td className="py-2 text-right">
                     <Link
-                      href={`/transactions?account=${a.id}`}
+                      href={accountsHref([a.id])}
                       className="inline-flex min-h-[44px] items-center justify-end whitespace-nowrap text-[0.75rem] text-acc hover:underline md:min-h-0"
                       title={`View ${a.name} transactions`}
                     >

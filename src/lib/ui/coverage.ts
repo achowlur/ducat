@@ -1,19 +1,29 @@
 import { prisma } from "../prisma";
 import { periodCoverage, type AccountCoverage, type PeriodCoverage } from "../insights/coverage";
 import { periodEndExclusive, periodStart } from "../insights/periods";
+import { isClosedBox } from "../sync/closedBox";
 
-/** Each account's earliest transaction — how far back its history actually reaches. */
+/**
+ * Each account's earliest transaction — how far back its history actually reaches.
+ *
+ * Investment accounts are left out. They are a closed box (sync/closedBox.ts):
+ * none of their rows is income or spending, so a brokerage whose history
+ * starts late leaves no total understated, and a notice saying it did would
+ * describe money the totals do not hold.
+ */
 export async function getAccountCoverage(): Promise<AccountCoverage[]> {
   const [accounts, firsts] = await Promise.all([
-    prisma.account.findMany({ select: { id: true, name: true } }),
+    prisma.account.findMany({ select: { id: true, name: true, type: true } }),
     prisma.transaction.groupBy({ by: ["accountId"], _min: { date: true } }),
   ]);
   const firstByAccount = new Map(firsts.map((f) => [f.accountId, f._min.date]));
-  return accounts.map((a) => ({
-    accountId: a.id,
-    name: a.name,
-    firstTransaction: firstByAccount.get(a.id) ?? null,
-  }));
+  return accounts
+    .filter((a) => !isClosedBox(a.type))
+    .map((a) => ({
+      accountId: a.id,
+      name: a.name,
+      firstTransaction: firstByAccount.get(a.id) ?? null,
+    }));
 }
 
 /**

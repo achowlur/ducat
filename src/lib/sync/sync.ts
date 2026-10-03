@@ -2,6 +2,7 @@ import type { Connector, PeriodGranularity } from '../../types/contracts';
 import type { Account, PrismaClient } from '../../generated/prisma/client';
 import { generateInsights, type GenerateResult } from '../insights/engine';
 import { refreshMortgageRate } from '../rates/mortgageRate';
+import { crossesTheBoundary } from './closedBox';
 import { applyRules, toRuleTxns } from './rules';
 import { detectTransferPairs } from './transfers';
 
@@ -234,10 +235,12 @@ async function runPipeline(
     })),
   });
 
-  // Category rules over the freshly imported transactions only.
+  // Category rules over the freshly imported transactions only. Not gated on
+  // there BEING rules: a row inside an investment account is classified by its
+  // account's type (closedBox.ts), which needs none.
   const ruleRows = await prisma.rule.findMany({ where: { enabled: true } });
   let rulesApplied = 0;
-  if (ruleRows.length > 0 && fresh.length > 0) {
+  if (fresh.length > 0) {
     const freshRows = await prisma.transaction.findMany({
       where: {
         externalId: { in: fresh.map((t) => t.externalId) },
@@ -268,16 +271,39 @@ async function runPipeline(
     // the category, which would silently delete a human's decision and drop
     // the expense from every spending total. A $139.95 dinner you categorized and
     // a $139.95 repayment two days later look exactly like a transfer pair.
+    //
+    // A row inside an investment account is a transfer ALREADY, by its
+    // account's type, and must still be offered when it could be one side of
+    // a deposit or a withdrawal. Left out, the bank's side of a brokerage
+    // deposit pairs with nothing and is counted as spending, and which of the
+    // two rows arrived first would decide it. What stays inside the account
+    // (a sale, a dividend, a sweep) is not offered: see crossesTheBoundary.
     where: {
       date: { gte: transferScanStart },
       transferPairId: null,
-      flow: { not: 'TRANSFER' },
       categorySource: { not: 'MANUAL' },
+      OR: [{ flow: { not: 'TRANSFER' } }, { account: { type: 'INVESTMENT' } }],
     },
-    select: { id: true, accountId: true, date: true, amount: true, transferPairId: true },
+    select: {
+      id: true,
+      accountId: true,
+      date: true,
+      amount: true,
+      transferPairId: true,
+      flow: true,
+      description: true,
+    },
   });
   const pairs = detectTransferPairs(
-    candidates.map((t) => ({ ...t, amount: Number(t.amount) })),
+    candidates
+      .filter((t) => t.flow !== 'TRANSFER' || crossesTheBoundary(t.description))
+      .map((t) => ({
+        id: t.id,
+        accountId: t.accountId,
+        date: t.date,
+        amount: Number(t.amount),
+        transferPairId: t.transferPairId,
+      })),
   );
   for (const pair of pairs) {
     await prisma.transaction.update({

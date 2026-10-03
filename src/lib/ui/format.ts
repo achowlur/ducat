@@ -49,9 +49,13 @@ export function isoDate(d: Date): string {
  * needed. Falling back to the resolved zone means local development needs no
  * configuration at all (it picks up the machine's, honouring `TZ` if set), while
  * Vercel runs functions in UTC until told otherwise — see DEPLOY.md.
+ *
+ * `||`, not `??`: `.env.example` ships the variable EMPTY, and `??` kept the
+ * empty string, which every Intl call then refused as a time zone. A fresh
+ * install's first sync took down every page that prints an instant.
  */
 const DISPLAY_TZ =
-  process.env.DUCAT_TIMEZONE ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  process.env.DUCAT_TIMEZONE?.trim() || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 /**
  * An anomaly's magnitude as a RANK: "higher than 96% of your Dining".

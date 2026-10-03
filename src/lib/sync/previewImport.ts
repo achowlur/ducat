@@ -108,9 +108,14 @@ export async function previewImport(
 
   const accountPlans = new Map<string, AccountPlan>();
   const existingIdByExternalId = new Map<string, string>();
+  // The type the rows would be classified under: the STORED one when the
+  // account exists, since a sync never rewrites a type, and the connector's
+  // guess when it would be created.
+  const typeByExternalId = new Map<string, string>();
   for (const a of normalizedAccounts) {
     const existing = await findExistingAccount(prisma, a.externalId, connector.type);
     if (existing !== null) existingIdByExternalId.set(a.externalId, existing.id);
+    typeByExternalId.set(a.externalId, existing === null ? a.type : existing.type);
     // Identity is not rewritten on a foreign account, so its stored name is
     // both what the ledger will show and what an ACCOUNT rule matches on.
     const foreign = existing !== null && existing.connectorType !== connector.type;
@@ -180,10 +185,12 @@ export async function previewImport(
     description: t.description,
     normalizedMerchant: t.normalizedMerchant,
     accountName: (accountPlans.get(t.accountExternalId) as AccountPlan).name,
+    accountType: typeByExternalId.get(t.accountExternalId),
     categorySource: 'AGGREGATOR',
   }));
-  const applications =
-    ruleRows.length > 0 && fresh.length > 0 ? applyRules(ruleRows, ruleTxns) : [];
+  // Not gated on there being rules, as the pipeline no longer is: the closed
+  // box classifies by account type and needs none.
+  const applications = fresh.length > 0 ? applyRules(ruleRows, ruleTxns) : [];
   const appliedByRow = new Map(applications.map((a) => [a.txnId, a]));
 
   // Exactly the queue /transactions?payees=1 builds: no category, not a

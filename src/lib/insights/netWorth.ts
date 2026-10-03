@@ -78,6 +78,15 @@ export function balanceAt(
   return { balance, estimated: anchor.estimated, known: true };
 }
 
+/**
+ * Activity that stays INSIDE a brokerage account. The definition and its
+ * reasoning are on `internalActivity` below, which is this same pattern; it
+ * is exported, unchanged, because transfer pairing asks the same question of
+ * the same rows (sync/closedBox.ts) and a second copy would drift from it.
+ */
+export const INTERNAL_INVESTMENT_ACTIVITY =
+  /\b(you bought|you sold|reinvest\w*|purchase into core|dividend|interest\b|cap(ital)? gain|advisory fee|in lieu of|redemption|exchange (in|out))\b/i;
+
 export function computeNetWorthGrowth(
   accounts: AccountData[],
   snapshots: SnapshotData[],
@@ -131,8 +140,7 @@ export function computeNetWorthGrowth(
    * set while transfer descriptors vary by institution; anything unrecognised
    * counts as a flow, which understates gains rather than inflating them.
    */
-  const internalActivity =
-    /\b(you bought|you sold|reinvest\w*|purchase into core|dividend|interest\b|cap(ital)? gain|advisory fee|in lieu of|redemption|exchange (in|out))\b/i;
+  const internalActivity = INTERNAL_INVESTMENT_ACTIVITY;
   /**
    * Direction taken from the wording when the wording is unambiguous, because
    * sources disagree on the sign. The SAME monthly $3,628.42 transfer, same

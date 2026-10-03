@@ -106,6 +106,14 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   move money between categories, and this codebase's grain is visible over
   silent. Anything that must be run once per database belongs in that panel,
   not only in a README nobody re-reads.
+  A FRESH INSTALL WAS INVISIBLE TO IT until 2026-10-03. Only the demo seed
+  installs the pack, so a first SimpleFIN sync leaves transactions and NO
+  categories, and the count returned 0 for "no categories" on the theory that
+  such a database was not set up at all. It was set up; it had simply never
+  had a pack. Overview and `upgrade -- --check` both said "up to date", and
+  `npm run upgrade` installed nothing, because it installs only what this
+  counts. Now no categories WITH transactions counts the whole pack
+  (pendingPackRules.test.ts); the extra read is paid only in that state.
 - ANALYZER MATH IS THE THIRD THING `git pull` CARRIES AND THE DATABASE DOES NOT,
   and `npm run upgrade` skipped it from the day it shipped (2026-07-31) until
   2026-08-08. `pendingPackRules === 0` hit an early return printing "Nothing to

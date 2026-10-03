@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Prisma } from "../../generated/prisma/client";
+import { AccountFilter } from "../../components/AccountFilter";
 import { CategoryButton, CategoryPickerProvider } from "../../components/CategoryPicker";
 import { GroupChip, GroupPickerProvider, GroupTrigger } from "../../components/GroupPicker";
 import { RenameGroup } from "../../components/RenameGroup";
@@ -22,8 +23,11 @@ import { suggestP2PCategories } from "../../lib/sync/p2pSuggest";
 import { USER_PRIORITY_MAX } from "../../lib/sync/rules";
 import { amount, isoDate, money, monthLabel, shortDate, titleCase } from "../../lib/ui/format";
 import { periodKey } from "../../lib/insights/periods";
+import { encodeAccountParam, parseAccountParam } from "../../lib/ui/accountFilter";
 import { nullBucketFilter, parseCategoryParam } from "../../lib/ui/categoryFilter";
 import { parseGroupParam } from "../../lib/ui/groupFilter";
+import { ledgerTotals, type LedgerTotals } from "../../lib/ui/ledgerTotals";
+import { repaidByExpense, repaidFromOutside, repaidNote } from "../../lib/ui/repaid";
 import { merchantLabel } from "../../lib/ui/merchantLabel";
 import { PageTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
@@ -40,6 +44,7 @@ const PAGE_SIZE = 100;
 interface Params {
   period?: string;
   category?: string; // category id | "uncategorized"
+  /** One account id or a comma-separated list — owned by ui/accountFilter.ts. */
   account?: string;
   flow?: string;
   q?: string;
@@ -50,6 +55,13 @@ interface Params {
   /** "1" = the group-by-payee bulk review queue (was `group` before trips claimed that name). */
   payees?: string;
 }
+
+/**
+ * As the URL delivers them. A repeated key arrives as an array, and `account`
+ * is the one key here a list is meaningful for; it is made a single canonical
+ * value before anything below reads it.
+ */
+type RawParams = Omit<Params, "account"> & { account?: string | string[] };
 
 function buildHref(params: Params, overrides: Partial<Params>): string {
   const merged = { ...params, ...overrides };
@@ -120,6 +132,91 @@ function Pager({
   );
 }
 
+/**
+ * What the list adds up to, rendered ABOVE the rows for everything the
+ * filters match and BELOW them for the page on screen.
+ *
+ * A band and never a row, the trip band's idiom and Overview's before it: a
+ * total set in the table's own type reads as one more transaction. The
+ * figures sit at the right edge, under the column they sum.
+ *
+ * Transfers get figures of their own, out and in, on a second line: as a
+ * sentence in small type they were the one amount on the band a reader could
+ * not compare against the rest. They are still not IN the net, and the line
+ * says so beside them, because it is the one part of the view the net leaves
+ * out. Two figures and never one: across a whole ledger every transfer out is
+ * a transfer in, so their sum is zero however much money moved.
+ *
+ * A view holding no transfer says that in words and prints no figures. Any
+ * category filter is such a view, since a transfer carries no category, and
+ * two zeros on every one of them would be the band's loudest line.
+ *
+ * REPAID appears only when there is some: linked repayments of the bills in
+ * view that the view does not list (ui/repaid.ts). Its count is said in words
+ * on the second line, since it is the one figure made of rows not on screen.
+ */
+function TotalsBand({ label, totals, foot }: { label: string; totals: LedgerTotals; foot?: boolean }) {
+  const t = totals.transfers;
+  const figure = "whitespace-nowrap font-money tabular";
+  // The gap after each caption is a real SPACE and not a margin, so the band
+  // reads "out $9.99" to a screen reader and to a paste, not "out$9.99".
+  const caption = "text-[0.68rem] uppercase tracking-[0.1em] text-faint";
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className={`flex flex-wrap items-baseline gap-x-5 gap-y-1 bg-chip px-3 py-2 text-[0.85rem] ${
+        foot === true ? "border-t-2 border-ink" : "mb-1 border-b-2 border-ink"
+      }`}
+    >
+      <span className="text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">{label}</span>{" "}
+      <span className="ml-auto flex flex-wrap items-baseline justify-end gap-x-5 gap-y-1">
+        <span className={figure}>
+          <span className={caption}>out</span> {money(totals.out)}
+        </span>{" "}
+        {/* Beside OUT because it is a part of it coming back: the linked
+            repayments of these bills that the view itself does not list. */}
+        {totals.repaid.count > 0 && (
+          <>
+            <span className={figure}>
+              <span className={caption}>repaid</span> {money(totals.repaid.amount)}
+            </span>{" "}
+          </>
+        )}
+        <span className={figure}>
+          <span className={caption}>in</span> {money(totals.in)}
+        </span>{" "}
+        <span
+          className={`${figure} font-semibold ${totals.net < 0 ? "text-neg" : totals.net > 0 ? "text-pos" : ""}`}
+        >
+          <span className={caption}>net</span> {money(totals.net)}
+        </span>
+      </span>{" "}
+      <span className="flex w-full flex-wrap items-baseline gap-x-5 gap-y-1">
+        <span className="text-[0.72rem] text-faint">
+          {totals.repaid.count > 0 &&
+            `repaid: ${totals.repaid.count.toLocaleString("en-US")} linked repayment${
+              totals.repaid.count === 1 ? "" : "s"
+            } outside this view · `}
+          {t.count === 0
+            ? "no transfers in this view"
+            : `${t.count.toLocaleString("en-US")} transfer${t.count === 1 ? "" : "s"}, not in the net`}
+        </span>{" "}
+        {t.count > 0 && (
+          <span className="ml-auto flex flex-wrap items-baseline justify-end gap-x-5 gap-y-1">
+            <span className={figure}>
+              <span className={caption}>transfers out</span> {money(t.out)}
+            </span>{" "}
+            <span className={figure}>
+              <span className={caption}>transfers in</span> {money(t.in)}
+            </span>
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
 const FLOW_BADGE: Record<string, string> = {
   INFLOW: "text-pos",
   OUTFLOW: "text-faint",
@@ -160,7 +257,7 @@ const COLUMNS = [
   { label: "Amount", className: "hidden text-right md:table-cell" },
 ];
 
-export default async function TransactionsPage(props: { searchParams: Promise<Params> }) {
+export default async function TransactionsPage(props: { searchParams: Promise<RawParams> }) {
   return withDatabaseNotice(() => renderTransactions(props));
 }
 
@@ -171,8 +268,17 @@ export default async function TransactionsPage(props: { searchParams: Promise<Pa
  * derivation interleaved between them. One wrapper covers all three without
  * touching the Promise.all that performance.md pins as this page's data budget.
  */
-async function renderTransactions({ searchParams }: { searchParams: Promise<Params> }) {
-  const params = await searchParams;
+async function renderTransactions({ searchParams }: { searchParams: Promise<RawParams> }) {
+  const raw = await searchParams;
+  // The account filter: any number of accounts, read only through
+  // ui/accountFilter.ts. `params` carries it re-encoded, so every link built
+  // from `params` below (pager, month step, clear links) keeps the whole list
+  // whatever shape it arrived in.
+  const accountIds = parseAccountParam(raw.account);
+  const params: Params = {
+    ...raw,
+    account: accountIds === null ? undefined : encodeAccountParam(accountIds),
+  };
 
   const page = Math.max(1, Math.floor(Number(params.page ?? "1")) || 1);
 
@@ -207,7 +313,9 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
       where.flow = { not: "TRANSFER" };
     }
   }
-  if (params.account !== undefined && params.account !== "") where.accountId = params.account;
+  // A plain column test, so it composes with `q`'s top-level OR and the
+  // category group in AND without touching either.
+  if (accountIds !== null) where.accountId = { in: accountIds };
   if (params.flow !== undefined && ["INFLOW", "OUTFLOW", "TRANSFER"].includes(params.flow)) {
     where.flow = params.flow as "INFLOW" | "OUTFLOW" | "TRANSFER";
   }
@@ -236,7 +344,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
     ? { ...where, categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" } }
     : where;
 
-  const [rows, total, categories, accounts, dateRange, reviewPool, trackedSubs, groupLabelRows, tripTotals, tripTransfers, tripGroupTotal] = await Promise.all([
+  const [rows, matching, categories, accounts, dateRange, reviewPool, trackedSubs, groupLabelRows, tripTotals, tripTransfers, tripGroupTotal, linkedRepayments] = await Promise.all([
     prisma.transaction.findMany({
       where: listWhere,
       // A relation `include` is a ROUND TRIP, and this query had three of them
@@ -265,7 +373,16 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
       // in JS after filtering.
       ...(pagedInJs ? {} : { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE }),
     }),
-    prisma.transaction.count({ where: listWhere }),
+    // Every matching row's flow and amount, for the total above the list.
+    // This was a COUNT, and the count is now this set's length, so the total
+    // costs no round trip of its own. Narrow columns: a sum grouped by flow
+    // would be smaller on the wire, but it cannot tell a transfer out from a
+    // transfer in, and asking twice is the cost that matters here. The id says
+    // which linked repayments the list already shows (ui/repaid.ts).
+    // Null when the list pages in JS, where `rows` is already the whole set.
+    pagedInJs
+      ? null
+      : prisma.transaction.findMany({ where: listWhere, select: { id: true, flow: true, amount: true } }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
     prisma.account.findMany({ orderBy: { name: "asc" } }),
     prisma.transaction.aggregate({ _min: { date: true }, _max: { date: true } }),
@@ -306,7 +423,18 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
     // control rewrites the whole group and its scope line must say how much
     // that is, not how much the current filters happen to show.
     tripLabel === null ? 0 : prisma.transaction.count({ where: { groupLabel: tripLabel } }),
+    // Every linked repayment, whatever the filters: a bill's repayment is
+    // usually NOT in its view (it carries another category, or lands in
+    // another month), and both the line under the bill and the totals need
+    // it. Linked rows only, one per settled share, so the set is small by
+    // construction, and it runs inside this group rather than after it.
+    prisma.transaction.findMany({
+      where: { reimbursesId: { not: null } },
+      select: { id: true, reimbursesId: true, flow: true, amount: true },
+    }),
   ]);
+
+  const total = matching === null ? rows.length : matching.length;
 
   // The account column, without joining Account onto every row: `accounts` is
   // the whole table and `accountId` is a required FK, so this cannot miss.
@@ -419,6 +547,23 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
   const firstShown = matchCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const lastShown = (page - 1) * PAGE_SIZE + visible.length;
 
+  // Both totals are sums of the FILTERED list: the one above the rows takes
+  // every row the filters match, across all pages, and the one below takes the
+  // rows on this page. Where the list is finished in memory (review mode, a
+  // single null bucket) the whole set is the filtered `reviewRows`, so the
+  // total counts exactly the rows that can be paged to.
+  // The one figure from outside the list is REPAID: linked repayments of its
+  // bills that it does not show, which the analyzers net and so must this.
+  const linked = linkedRepayments.flatMap((r) =>
+    r.reimbursesId === null ? [] : [{ id: r.id, reimbursesId: r.reimbursesId, flow: r.flow, amount: Number(r.amount) }],
+  );
+  const repaidOf = repaidByExpense(linked);
+  const listed = reviewRows ?? matching ?? rows;
+  const listedIds = new Set(listed.map((t) => t.id));
+  const summable = (t: { flow: string; amount: unknown }) => ({ flow: t.flow, amount: Number(t.amount) });
+  const overallTotals = ledgerTotals(listed.map(summable), repaidFromOutside(listed, linked, listedIds));
+  const pageTotals = ledgerTotals(visible.map(summable), repaidFromOutside(visible, linked, listedIds));
+
   // Pre-filled categories for the P2P payments on THIS page awaiting
   // confirmation. Two round trips, paid only when such a row is on screen:
   // the P2P rows already categorized (narrowed in SQL by a superset of the
@@ -491,6 +636,14 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
           ...(selection.uncategorized ? ["Uncategorized"] : []),
           ...(selection.p2p ? [P2P_UNREVIEWED_NAME] : []),
         ];
+
+  // Named only when more than one account is selected, since a single one is
+  // already spelled out in the control. An id naming no account is left out:
+  // it matches no row, so it has no name to print.
+  const selectedAccountNames: string[] | null =
+    accountIds === null || accountIds.length < 2
+      ? null
+      : accountIds.flatMap((id) => accountNameById.get(id) ?? []);
 
   // The known trip labels, and the band's facts when a trip filter is active.
   const tripLabels = groupLabelRows.map((r) => r.groupLabel).filter((l): l is string => l !== null);
@@ -602,17 +755,14 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
             ))}
           </select>
         </label>
-        <label className="grid gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
-          Account
-          <select name="account" defaultValue={params.account ?? ""} className="max-w-[160px] rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink max-md:min-h-[44px]">
-            <option value="">All</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {/* Keyed by the applied filter: "clear accounts" below is a soft
+            navigation, which re-renders this with new props and would leave
+            its staged ticks showing a filter that is no longer in force. */}
+        <AccountFilter
+          key={params.account ?? ""}
+          accounts={accounts.map((a) => ({ id: a.id, name: a.name, institution: a.institution }))}
+          selected={accountIds ?? []}
+        />
         <label className="grid gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
           Flow
           {/* The synthetic entry the category select already needed, for the
@@ -670,6 +820,19 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
               className="font-semibold text-acc hover:underline"
             >
               clear categories
+            </Link>
+          </span>
+        )}
+        {/* Which accounts, spelled out, for the reason the categories are: the
+            control can only say "3 accounts". */}
+        {selectedAccountNames !== null && selectedAccountNames.length > 0 && (
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="text-ink">{selectedAccountNames.join(", ")}</span>
+            <Link
+              href={buildHref(params, { account: undefined, page: undefined })}
+              className="font-semibold text-acc hover:underline"
+            >
+              clear accounts
             </Link>
           </span>
         )}
@@ -781,6 +944,13 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
         </div>
       )}
 
+      {/* Below the trip band when there is one, and not instead of it: that
+          band's net is the signed sum of every tagged row, transfers
+          included, and this one states its transfers apart. */}
+      {!groupMode && matchCount > 0 && (
+        <TotalsBand label={`All ${matchCount.toLocaleString("en-US")} matching`} totals={overallTotals} />
+      )}
+
       {groupMode ? (
         <GroupedReview groups={groups} categories={categoryOptions} />
       ) : (
@@ -881,6 +1051,18 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
                       {amount(Number(t.amount))}
                     </span>
                   </span>
+                  {/* What came back on a bill and what that leaves it costing,
+                      at every width. The link lives on the repayment, so this
+                      row was the one place in the ledger that never said it:
+                      a category view listed the whole charge while /trends,
+                      one click back, had already netted it. */}
+                  {t.flow === "OUTFLOW" &&
+                    (() => {
+                      const r = repaidOf.get(t.id);
+                      return r === undefined ? null : (
+                        <span className="block text-[0.68rem] text-faint">{repaidNote(Number(t.amount), r)}</span>
+                      );
+                    })()}
                 </td>
                 <td
                   className={`hidden py-1.5 pr-3 text-[0.75rem] text-faint md:table-cell ${
@@ -1060,6 +1242,15 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<Para
         </tbody>
       </table>
       </div>
+      {/* On a single page too, where it repeats the band above, so the page
+          reads the same at one page as at ten. */}
+      {visible.length > 0 && (
+        <TotalsBand
+          foot
+          label={`This page, ${firstShown.toLocaleString("en-US")}–${lastShown.toLocaleString("en-US")}`}
+          totals={pageTotals}
+        />
+      )}
       {/* Where you actually are when you finish reading a page. */}
       {!groupMode && pageCount > 1 && (
         <div className="flex items-center border-t border-rule py-3 text-[0.78rem] text-faint">

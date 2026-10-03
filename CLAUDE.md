@@ -149,6 +149,13 @@ regeneration.
   and every row-rewriting path — dedup import, reapplyRules, its undo,
   transfer-pair detection — leaves the tag standing, the MANUAL
   protection arriving from the opposite direction.
+- An INVESTMENT account is a CLOSED BOX (sync/closedBox.ts): every
+  non-MANUAL row in one is a TRANSFER by the ACCOUNT'S TYPE, before any rule
+  is asked, user rules included. Dividends, sales and fees inside one are
+  never income or spending; what it earned is the market-movement figure.
+  Pairing is still OFFERED an enclosed row that could cross the boundary;
+  enclosed rows are counted apart and never in a rule's undo snapshot;
+  retyping OUT of INVESTMENT releases them (releaseClosedBox).
 
 ## Rules — merchants & rules → docs/conventions/merchants-and-rules.md
 
@@ -187,6 +194,11 @@ regeneration.
   repair:merchants must also rewrite MERCHANT rule values.
 - inferAccountType order is load-bearing: deposit words → LOAN before
   CREDIT → card words → investment names → card PRODUCT names LAST.
+- Categories are made ONLY through lib/categories.ts: whitespace-collapsed,
+  40 characters at most, unique in ANY casing (a collision ADOPTS the
+  existing row), never a name the app prints for a non-category; NO
+  PACK_CATEGORIES name is reserved, or the pack could not install. A new
+  category is ASSIGNED by the same write an existing one gets.
 
 ## Rules — sync & data ops → docs/conventions/sync-and-data-ops.md
 
@@ -232,10 +244,12 @@ regeneration.
   digest orphans every recorded digest, so it is done deliberately or never.
 - Pack drift is counted by pendingPackRules and surfaced on Overview's
   review panel (npm run upgrade); rule changes are never auto-applied.
+  Transactions with NO categories count the whole pack as pending.
 - npm run upgrade regenerates insights on EVERY real run (MONTH only — what
   screens read) and installs the pack only when rules are pending: it always
   writes rows, Overview's silence speaks for RULES alone, and it runs against
-  the CLOUD — a local run would make tonight's mirror refuse.
+  the CLOUD — a local run would make tonight's mirror refuse. It also
+  REAPPLIES every rule and the closed box, pack or no pack.
 - A commit adding a `package.json` script owes README's command table a row in
   the SAME commit — commandTable.test.ts fails otherwise, and its INTERNAL
   list, each entry carrying its reason, is the only exemption.
@@ -321,6 +335,14 @@ regeneration.
   the reason, always.
 - /transactions PAGINATES — capping without paging is a data-visibility
   bug this repo shipped twice; every filter-changing link resets page.
+- /transactions prints TWO TOTALS of its filtered list (ui/ledgerTotals.ts),
+  every page above and this page below: OUT, IN, NET, transfers as two
+  figures never in the net, and REPAID, the linked repayments of listed
+  bills that the list does not show (ui/repaid.ts), netted so a category
+  view's net IS /trends' figure (repaid.test.ts pins it).
+- A bill with linked repayments says so ON ITS ROW, at every width: what
+  came back and the share left. The link lives on the repayment, so the
+  bill was the one row that never said it was split.
 - /insights admits the month being LIVED IN before it has rows — and ONLY
   that month — and since 2026-08-02 DEFAULTS to it: every current-gated
   panel (goals, readiness, pace, commitments) lives there, so opening on
@@ -346,6 +368,12 @@ regeneration.
   makes "only one open at a time" free, and without it a second panel stacks
   over the first. Below md a control at the row's right edge opens its panel
   LEFTWARD, or most of it hangs off the horizontal scroller.
+- A popover that closes on PAGE scroll excludes its OWN list from that
+  capture listener and carries `overscroll-contain`. Test pickers at 720px
+  of height, on a row whose category sits LOW in the list.
+- The category picker OFFERS a typed name matching no category as a new
+  one, twice (spending, income), LAST, and never active: bare Enter
+  creates nothing.
 - ?category= is an INCLUSION list, written/read ONLY by
   ui/categoryFilter.ts; null means the Uncategorized bucket and
   `p2p-unreviewed` the DISJOINT P2P one (split in memory by nullBucketFilter);
@@ -360,6 +388,9 @@ regeneration.
   the WHOLE group, never the filtered view, and renaming onto an existing
   label MERGES — warned before saving, because a merge does not undo by
   renaming back; casing adoption is enforced server-side.
+- ?account= is an INCLUSION list, written/read ONLY by ui/accountFilter.ts;
+  one id is a list of one, a repeated key is read whole and re-encoded as
+  ONE value, and the checkbox control stages its ticks until submit.
 - An SVG `<title>` takes ONE string child: two JSX children serialize as
   `<title></title>` server-side, and the mismatch re-renders from `<html>`
   down, stripping the pre-paint data-theme — Overview alone rendered sepia
@@ -400,7 +431,8 @@ regeneration.
   a screen exists for never lives in a column that can be scrolled off — the
   ledger's amount moves into the merchant sub-line below md.
 - DATES pin to UTC; INSTANTS render local wall-clock plus zone name via
-  dateTime(); the zone comes from DUCAT_TIMEZONE, never TZ. Never print a raw
+  dateTime(); the zone comes from DUCAT_TIMEZONE (EMPTY falls back to the
+  machine's), never TZ. Never print a raw
   ISO string in prose — shortDate/monthLabel exist.
 - Headings come from components/ui/headings.tsx and NOWHERE else: one h1 per
   tab (visually hidden — the nav carries the visible name), SectionTitle is

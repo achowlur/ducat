@@ -358,6 +358,11 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   boundary. The zone comes from `DUCAT_TIMEZONE` and NOT `TZ`: Vercel refuses
   `TZ` as a reserved variable name, so the standard mechanism is unavailable
   exactly where it is needed. Unset locally, the machine's zone is used.
+  EMPTY IS UNSET (2026-10-03). `.env.example` ships `DUCAT_TIMEZONE=""`, and
+  the zone was read with `??`, which keeps an empty string; Intl refuses ""
+  as a zone, so the first sync on a fresh install took down every page that
+  prints an instant (Overview, Accounts, Providers). Read with `?.trim() ||`
+  now, and format.test.ts loads the module with the variable empty.
 - /insights admits the month being LIVED IN even before it has insight rows
   (`selectPeriod` in `ui/periodNav.ts`) — and ONLY that month; every other
   rowless period still clamps. The period list derives from stored rows and
@@ -774,3 +779,228 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   (boundaryCopy.test.ts, DatabaseUnavailable.test.ts) were kept word for word;
   only the joins around them changed.
 
+
+- THE LEDGER'S ACCOUNT FILTER TAKES ANY NUMBER OF ACCOUNTS (2026-09-27). It
+  was a single-choice `<select>`, so reading two cards together meant two
+  visits and no way to see them in one date order. It is now a checkbox
+  popover (`components/AccountFilter.tsx`) and `?account=` is a list, owned by
+  `ui/accountFilter.ts` exactly as `?category=` is owned by its module.
+  AN INCLUSION LIST, for `?category=`'s reason: a link naming three accounts
+  goes on meaning those three when a fourth is connected, where an exclusion
+  list would quietly start showing it. A single id is a list of one, so the
+  link `/accounts` has always written reads as it did, and that link now comes
+  from the same module.
+  ONE VALUE, NOT ONE PER BOX. Checkboxes named `account` would have been the
+  no-script answer, and a GET form sends them as a repeated key. Next hands a
+  repeated key to the page as an ARRAY, and `buildHref` rebuilds every link on
+  the page (pager, month step, the clear links) from single string values. So
+  the control sends one hidden field holding the list, and the page
+  re-encodes whatever arrived into one canonical value before anything reads
+  it. The parser still accepts the array: reading only its first element
+  would apply half a filter without saying so, and the browser check asserts
+  that a repeated-key URL matches both accounts and that the pager link under
+  it carries a single value.
+  STAGED, LIKE THE REST OF THE FORM. Ticking a box changes what will be asked
+  for; the form's submit asks (Apply in the panel, or Filter beside it).
+  Applying on every tick would reload the page under an open panel. The
+  collapsed control always states what is staged, so a closed panel never
+  hides a change, and the button that dismisses it says "close", not
+  "cancel", because it discards nothing.
+  KEYED BY THE APPLIED FILTER. "clear accounts" is a soft navigation: the
+  component stays mounted and receives new props, and its ticks are state.
+  Without the key the control went on showing a filter that was no longer in
+  force.
+  THE PANEL IS PLACED BY MEASUREMENT, not by a side. The form wraps, so below
+  md the control can sit anywhere across the row and neither `left-0` nor
+  `right-0` is safe for a 256px panel in a 375px viewport. It is pulled left
+  by exactly what would otherwise overflow, measured once at open, and closes
+  on resize because the measurement is only good for that width. Measured at
+  375px: panel 24 to 280 of 375, page not scrolling sideways.
+  THE SAME THREE DISMISSALS every ledger popover owes: Escape (focus returns
+  to the control), click-outside, and the control itself toggling.
+  AN ID NAMING NO ACCOUNT matches nothing, and the control reads "Unknown
+  account" over it. "All" above an empty ledger is the dishonest-control bug
+  the category and flow selects each needed a synthetic entry to avoid.
+  HEIGHT. A button inherits line-height and a native select does not, so the
+  control stood 3px taller than the selects either side of it and lifted its
+  label out of their line. `leading-[normal]` brings it within a pixel.
+
+- A POPOVER THAT CLOSES ON SCROLL MUST NOT HEAR ITS OWN LIST (2026-09-27).
+  It showed up as three things: a row whose picker would not scroll, a list
+  that misbehaved on picking a category and scrolling, and categories that
+  could not be reached. One defect.
+  THE MECHANISM. The category picker is `position: fixed`, so it cannot
+  follow the page and closes when the page scrolls, as a native select does.
+  A scroll event does not bubble, so the listener sits on `window` in the
+  CAPTURE phase, and a capture listener on window hears every scroll in the
+  document, the picker's own `<ul>` included. Nothing in the source reads as
+  wrong: the comment above it said exactly what it meant to do.
+  WHY IT NEVER SHOWED. It needs the list to scroll, and the list only scrolls
+  when it is taller than the room under (or over) the row. Measured on the
+  demo data at 1280x720 with the row mid-screen: a 523px list in 271px of
+  room. On a tall monitor the list fits, nothing scrolls, and the picker is
+  flawless.
+  THREE FAILURES, measured with a scroll log and a mutation observer on the
+  real page: (1) one wheel notch over the list, scroll at 37ms and picker
+  removed at 43ms; (2) the arrow key that first walks past the fold, the 6th
+  press; (3) OPENING, on any row whose current category sits below the fold,
+  because scrolling that category into view is the first thing the list
+  does. Picker added at 49ms, its own scroll at 52ms, removed at 67ms, so the
+  click appeared to do nothing at all. Of eight sampled rows, the three whose
+  categories sorted lowest (Shopping, Travel, Utilities) could not be opened.
+  The `rule` picker failed identically, being the same component.
+  THE FIX is one test in the listener: a scroll whose target is inside the
+  popover's root is not the page scrolling. Resize keeps its own handler,
+  having no target to test. The list also takes `overscroll-contain`,
+  because with the first fix in, the wheel at the END of the list carried on
+  into the page and closed the picker by the route that is meant to.
+  THE TRIP PICKER had the same listener, copied with the rest of the mould,
+  and the same defect waiting for a list of trips long enough to scroll. It
+  was fixed with eighteen scratch trips in a throwaway database to make it
+  show.
+  WHAT STILL CLOSES IT, asserted alongside: scrolling the page itself,
+  clicking outside, Escape, resize.
+  NOT A DEFECT, though it was checked as one: after a pick, focus returns to
+  the row's trigger, and Space or ArrowDown there opens the picker instead of
+  scrolling the page. A focused native select does the same. The wheel and
+  PageDown scroll the page as usual, and nothing locks the body.
+  HOW TO TEST A PICKER from now on: 720px of height, the row mid-screen, and
+  a row whose category is LOW in the list. The earlier passes each drove the
+  real page, as the rule above requires, and each did it where the list fit.
+
+- THE CATEGORY PICKER OFFERS A NAME IT DOES NOT KNOW AS A NEW CATEGORY
+  (2026-09-27). The search field was only a search, and the rule pack's list
+  was every category an instance could have. The naming rules and the write
+  are in merchants-and-rules.md; this is the control.
+  TWO OFFERS, NOT ONE: "add “Pet care”" as spending, and as income. The
+  choice cannot be inferred and it matters. An inflow in an income category
+  is earnings; in a spending category it is netted against that category's
+  spending, as a refund is. The picker does not know the row's flow, and in
+  rule mode there is no single row.
+  LAST IN THE LIST, under their own heading, so a category that exists always
+  outranks one that does not.
+  BARE ENTER CREATES NOTHING. With a query the keyboard starts on the best
+  EXISTING match, and when only offers are listed nothing is active (-1).
+  "gorceries" and Enter must not leave a category behind, and there is no
+  control yet that removes one. An arrow key or a click is the second,
+  deliberate act. This is the trip picker's untagged-row rule, for a write
+  that is harder to take back. ArrowUp from -1 lands on the LAST row; the
+  modulo that was there landed on the second to last.
+  A REFUSAL IS SAID IN THE LIST, where the offer would have been: "“Other”
+  is taken: it is the chart's name for everything it does not list." A name
+  that already exists is NOT refused out loud, because the category it
+  names is in the list above, matched.
+  THE SEARCH READS THE NORMALIZED NAME. Found by the browser check, not by
+  reading: the filter compared the raw query, the naming collapsed its
+  whitespace, so "pet  care" with two spaces matched nothing AND was refused
+  as existing, and the list said "No category matches" about a category it
+  would not let you add.
+
+- THE LEDGER TOTALS ITS OWN LIST, TWICE (2026-09-29). A total above the list
+  for everything, and one below it for the page, both following whatever
+  filters are selected.
+  WHAT A TOTAL HOLDS. OUT, IN and NET (in minus out), with transfers counted
+  apart. The alternatives weighed were one signed sum of every row, which is
+  what the trip band prints, and spending alone. Transfers stay out of the
+  net for the reason they stay out of every spending figure, and for one
+  that is particular to a FILTERED list: filter to one account and only one
+  side of each transfer is on view, so a net that included them would move
+  with the filter and not with the money. They are still counted, in both
+  directions, so every row on view is inside one of the figures.
+  TRANSFERS ARE FIGURES, AMENDED THE SAME DAY. They shipped as a sentence in
+  small type ("22 transfers ($5,845.80 out, $5,845.80 in) are not in the
+  net"), on the argument that the one part of the view the net leaves out
+  should be said in words. Read on the page, that made transfers the one
+  amount on the band that could not be compared with the rest. Of three
+  readings (figures of their own, counted inside out, in and net, or both
+  with a second net), the band takes figures of their own: TRANSFERS OUT and TRANSFERS IN, in the type and size
+  of the other three, on a second line ending at the same right edge. The
+  words that matter survived as a note beside them, "22 transfers, not in
+  the net". TWO figures and never one: across a whole ledger every transfer
+  out is a transfer in, so a single sum reads $0.00 however much moved.
+  A view holding no transfer says "no transfers in this view" and prints no
+  figures. Every category filter is such a view, since a transfer carries no
+  category, and two zeros on each of them would be the band's loudest line.
+  TWO BANDS, NEVER ROWS, and the figures sit at the right edge under the
+  column they sum. The page band is drawn on a single page too, where it
+  repeats the one above, so the screen reads the same at one page as at
+  ten. With nothing matching neither is
+  drawn, and past the end of the list the overall band stands alone.
+  THE OVERALL TOTAL COSTS NO ROUND TRIP. The page already asked the database
+  for a COUNT of the matching rows. That statement now fetches each matching
+  row's flow and amount, and the count is its length. A sum grouped by flow
+  would be smaller on the wire and was not used: it cannot tell a transfer
+  out from a transfer in, and the second statement that would is the cost
+  that matters on Turso. Where the list is finished in memory (the P2P
+  review queue, a single null bucket) no extra read is made at all, since
+  the rows are already the whole set, and the total is taken AFTER that
+  in-memory filter, so it counts exactly the rows that can be paged to.
+  SUMMED IN CENTS (`ui/ledgerTotals.ts`). The overall total can be every row
+  in the database, and that many two-decimal floats drift: a tenth added
+  three thousand times is 300.0000000000429. A total that disagrees with
+  its own rows by a cent is the one bug a totals line exists to rule out.
+  THE TRIP BAND IS LEFT ALONE, and in a trip view both bands show. Its net is
+  the signed sum of every tagged row, transfers included, and says so; this
+  one states the transfers apart. They reconcile: trip net = net − repaid +
+  transfers in − transfers out (REPAID is the entry below), pinned in
+  ledgerTotals.test.ts and checked on the page.
+  THE TEXT HAS REAL SPACES. The captions were first set off from their
+  figures by a margin, so the band LOOKED right and read "net$4,170.3422
+  transfers" to anything taking its text: a paste, a screen reader, and the
+  check written to verify it, which reported 3,422 transfers on a page of
+  22. Every amount in that run was right; the only thing wrong was the text.
+  VERIFIED on the invented demo data (923 rows, ten pages) in a throwaway
+  database, a production build in `.next-capture/`: for each of thirteen
+  filtered views (none, period, category, one account, two accounts, each
+  flow, search, three filters at once, Uncategorized, the P2P queue, a
+  trip) the page band equalled the sum of the rows drawn under it, the
+  overall band equalled every page's rows added up and was identical on
+  every page, and where the filter could be restated in SQL it equalled the
+  database's own sum. At 375px both bands and every figure stay on screen.
+
+- A REPAID BILL SAYS SO ON ITS OWN ROW, AND THE TOTALS NET IT (2026-10-03).
+  A bill split three ways read as unsplit one click away from the figure
+  that had split it. /trends printed the category net of both linked
+  repayments, exactly as the analyzers credit them (insights/reimbursements.ts:
+  a linked repayment counts against the BILL's category and month, whatever
+  its own). Clicking the row opened the ledger filtered to that category and
+  month, which listed the bill at its full charge and nothing else: the two
+  repayments carried another category or none, so neither was in
+  the view, and the link lives on the REPAYMENT (`reimbursesId`), so the
+  bill's own row never said it had been paid back. No screen read the link
+  from the bill's side at all.
+  THE ROW. Every bill with linked repayments carries a line under its
+  merchant, at every width: "repaid $60.00 · your share $30.00". Repaid past
+  its charge it says by how much ("$4.10 more than the charge"), never a
+  negative share, and repaid exactly it says "in full". Only what the
+  analyzers count is counted: an INFLOW linked to an OUTFLOW, so a link whose
+  repayment has since become a transfer claims nothing here either.
+  THE TOTALS. REPAID is a figure beside OUT, and the one figure made of rows
+  the view does not show: linked repayments of the listed bills that sit
+  OUTSIDE the filtered list. It is netted (NET = IN + REPAID − OUT), because
+  the analyzers net it, and its count is said in words on the second line.
+  "Outside the LIST", never "outside the page": a repayment the list shows is
+  already in its IN, and measuring against the page would count a repayment
+  on page one again under its bill on page two, and the page totals would
+  stop adding up to the overall one.
+  WHAT IT BUYS: a category view's net IS the figure /trends prints for that
+  category and month, pinned in repaid.test.ts against
+  `computeSpendingByCategory` itself, a repayment landing the next month
+  included. A month view nets to the month's spending once its income is
+  taken out. The one gap left, by choice: a repayment filed under category X
+  but linked to a bill in category Y is in X's view as money in, while the
+  analyzers credit Y. Linking is the act that says where it belongs, and a
+  view lists rows by their own category.
+  COST: one statement, inside the page's existing Promise.all: every linked
+  repayment, four narrow columns. The set is small by construction (one row
+  per settled share), and the line under each bill and both totals read the
+  same set. The overall total's query takes the id column too, which is what
+  says whether a repayment is already in the list.
+  VERIFIED on the invented demo data in a throwaway database, whose last
+  complete month holds a $186.40 dinner half repaid by a linked Zelle. /trends
+  printed that month's Dining at $487.38; one click on it, the ledger's bands
+  read OUT $580.58, REPAID $93.20, IN $0.00, NET −$487.38, "1 linked
+  repayment outside this view", and the dinner's row read "repaid $93.20 ·
+  your share $93.20". The whole month's view, where the Zelle is listed,
+  printed no REPAID and counted it in IN. At 375px the line wraps inside the
+  merchant cell, both bands end at 351px and nothing scrolls sideways.

@@ -28,6 +28,14 @@ Idempotent: it creates only what is absent and never edits a rule you changed
 yourself (your own rules outrank the shipped pack anyway). `-- --check`
 reports the gap without writing.
 
+It also reapplies the rules to the rows already stored, every time. Some
+classification is code rather than a rule: rows inside an investment account
+are marked as transfers by their account's type, so that a sale of shares or a
+dividend is not counted as income. A sync does that for the rows it imports;
+this command is what carries it back over the history you already have. It
+prints how many rows it moved, and it never touches a row you categorized by
+hand.
+
 **How you know you need it:** run it after every `git pull`, full stop — a
 release can change what the analyzers compute without shipping a single rule,
 and nothing announces that. Overview's "Needs review" panel counts missing
