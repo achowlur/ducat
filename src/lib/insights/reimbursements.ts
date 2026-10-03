@@ -31,36 +31,47 @@ export interface ReimbursementCredit {
 }
 
 /**
- * Resolves every reimbursement inflow to the (category, date) it credits.
- * Linked inflows whose target is missing or not an outflow fall back to
- * their own category/date so money never silently disappears.
+ * A reimbursement inflow and the row it nets against: the linked original,
+ * or the inflow itself. EVERYTHING a credit is filed under comes from that
+ * one row — its category, its date (so its period), and for /trends its
+ * merchant and account — so no view can file one credit two ways.
  */
-export function reimbursementCredits(txns: TxnData[]): ReimbursementCredit[] {
+export interface ReimbursementSource<T extends TxnData = TxnData> {
+  source: T;
+  /** Positive magnitude to subtract from spending. */
+  amount: number;
+}
+
+/**
+ * Resolves every reimbursement inflow to the row it credits. Linked inflows
+ * whose target is missing or not an outflow fall back to themselves so money
+ * never silently disappears.
+ */
+export function reimbursementSources<T extends TxnData>(txns: T[]): ReimbursementSource<T>[] {
   const byId = new Map(txns.map((t) => [t.id, t]));
-  const credits: ReimbursementCredit[] = [];
+  const sources: ReimbursementSource<T>[] = [];
   for (const t of txns) {
     if (!isReimbursement(t)) continue;
     const target = t.reimbursesId === null ? undefined : byId.get(t.reimbursesId);
-    if (target !== undefined && target.flow === "OUTFLOW") {
-      credits.push({
-        categoryId: target.categoryId,
-        categoryName: target.categoryName,
-        date: target.date,
-        // Deliberately NOT capped at the original's amount: an over-repayment
-        // stays visible as a negative category total rather than being
-        // silently discarded (see the over-reimbursement test). Presentation
-        // handles the consequences — the donut's denominator uses only
-        // positive categories so slices can never exceed 100%.
-        amount: t.amount,
-      });
-    } else {
-      credits.push({
-        categoryId: t.categoryId,
-        categoryName: t.categoryName,
-        date: t.date,
-        amount: t.amount,
-      });
-    }
+    sources.push({
+      source: target !== undefined && target.flow === "OUTFLOW" ? target : t,
+      // Deliberately NOT capped at the original's amount: an over-repayment
+      // stays visible as a negative category total rather than being
+      // silently discarded (see the over-reimbursement test). Presentation
+      // handles the consequences — the donut's denominator uses only
+      // positive categories so slices can never exceed 100%.
+      amount: t.amount,
+    });
   }
-  return credits;
+  return sources;
+}
+
+/** Every reimbursement inflow as the (category, date) it credits. */
+export function reimbursementCredits(txns: TxnData[]): ReimbursementCredit[] {
+  return reimbursementSources(txns).map(({ source, amount }) => ({
+    categoryId: source.categoryId,
+    categoryName: source.categoryName,
+    date: source.date,
+    amount,
+  }));
 }

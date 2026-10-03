@@ -48,16 +48,17 @@ export interface SpendingBreakdown {
 }
 
 /**
- * How a ring chooses its slices. /trends draws the TOP few, because the full
- * table beside it names everything. Overview has no such table, so its ring
- * names every category worth a slice: each at `minShare` or more, as many as
- * `maxRows` legend rows hold, the rest rolled into Other.
+ * How a ring chooses its slices: the TOP few by rank (what /trends drew beside
+ * the table that named everything, until its 2026-10-03 redesign; still the
+ * default, which callers reading only the totals take), or every category
+ * worth a slice, as Overview's ring has no table: each at `minShare` or more,
+ * as many as `maxRows` legend rows hold, the rest rolled into Other.
  */
 export type DonutSlicing =
   | { kind: "top"; count: number }
   | { kind: "share"; minShare: number; maxRows: number };
 
-export const TRENDS_SLICING: DonutSlicing = { kind: "top", count: 3 };
+export const TOP_SLICING: DonutSlicing = { kind: "top", count: 3 };
 export const OVERVIEW_SLICING: DonutSlicing = { kind: "share", minShare: 0.03, maxRows: 8 };
 
 /**
@@ -91,8 +92,8 @@ function namedCount(shares: number[], slicing: DonutSlicing): number {
 }
 
 /**
- * The single place category shares and donut arcs are computed, so /trends
- * and Overview cannot disagree about a month.
+ * The single place category shares and donut arcs are computed, so no two
+ * screens can disagree about a month.
  *
  * Two numbers are in play and both are real. `total` is what the period cost
  * net of reimbursements — what /insights and the cash-flow row report.
@@ -108,7 +109,7 @@ function namedCount(shares: number[], slicing: DonutSlicing): number {
  */
 export function spendingBreakdown(
   payload: SpendingByCategoryPayload,
-  slicing: DonutSlicing = TRENDS_SLICING,
+  slicing: DonutSlicing = TOP_SLICING,
 ): SpendingBreakdown {
   const total = payload.totalSpending;
   const positive = payload.categories.filter((c) => c.spending > 0);

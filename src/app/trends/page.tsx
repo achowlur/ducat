@@ -1,275 +1,223 @@
-import Link from "next/link";
-import { CashFlowChart } from "../../components/charts/CashFlowChart";
+import { cookies } from "next/headers";
 import { NetWorthChart } from "../../components/charts/NetWorthChart";
-import { TrendsDonut } from "../../components/charts/TrendsDonut";
-import { CoverageNotice } from "../../components/CoverageNotice";
-import { amount, money, monthLabel } from "../../lib/ui/format";
-import { getPeriodCoverage } from "../../lib/ui/coverage";
-import { wholePercents } from "../../lib/ui/spendingBreakdown";
-import { getTrendsData } from "../../lib/ui/trends";
-import { PageTitle, SectionTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
+import { ChangeCard, type LateAccount } from "../../components/trends/ChangeCard";
+import { ExploreCard, type ExploreData } from "../../components/trends/ExploreCard";
+import { MonthSoFarCard } from "../../components/trends/MonthSoFarCard";
+import type { SelectOption } from "../../components/trends/ReportSelect";
+import { PageTitle, SectionTitle } from "../../components/ui/headings";
+import { periodKey } from "../../lib/insights/periods";
+import { P2P_UNREVIEWED_ID, P2P_UNREVIEWED_NAME } from "../../lib/p2p";
+import {
+  compare,
+  compareSpans,
+  exploreSpan,
+  firstMonth,
+  groupedSeries,
+  monthSeries,
+  monthSoFar,
+  UNCATEGORIZED_KEY,
+  type Entry,
+  type GroupTarget,
+  type Measure,
+  type Span,
+} from "../../lib/ui/report";
+import { getTrendsSource, type TrendsSource } from "../../lib/ui/trends";
+import { parseTrendsParams, targetParam, type RawSearch } from "../../lib/ui/trendsParams";
 
 export const dynamic = "force-dynamic";
 
-const DONUT_COLORS = ["bg-chart1", "bg-chart2", "bg-pie3", "bg-pie4"];
-
-/** Month step: a 44px touch target below md, the original glyph above it. */
-const ARROW = "inline-block px-1 text-center max-md:min-h-[44px] max-md:min-w-[44px] max-md:-my-3 max-md:py-3";
-
-export default async function TrendsPage(props: {
-  searchParams: Promise<{ period?: string }>;
-}) {
+export default async function TrendsPage(props: { searchParams: Promise<RawSearch> }) {
   return withDatabaseNotice(() => renderTrends(props));
 }
 
-async function renderTrends({
-  searchParams,
-}: {
-  searchParams: Promise<{ period?: string }>;
-}) {
-  const { period } = await searchParams;
-  const data = await getTrendsData(period);
+/**
+ * Accounts whose records begin after the earlier span STARTS and that hold
+ * some of `measure` in the current span: the earlier span is missing part of
+ * them, so a rise is partly records starting. Counted by DAY, because an
+ * account covers a period only if its first transaction is at or before the
+ * period's start, and a card that began on the 14th misses half of a
+ * one-month comparison. An account with nothing in the current span changes
+ * nothing either way and is not named.
+ */
+function lateAccounts(source: TrendsSource, measure: Measure, prior: Span, current: Span): LateAccount[] {
+  const active = new Set(
+    source.entries
+      .filter((e) => e.measure === measure && e.month >= current.from && e.month <= current.to)
+      .map((e) => e.accountId),
+  );
+  const start = `${prior.from}-01`;
+  return source.accounts.flatMap((a) =>
+    a.firstDay !== null && a.firstDay > start && a.firstDay.slice(0, 7) <= current.to && active.has(a.id)
+      ? [{ name: a.name, firstDay: a.firstDay }]
+      : [],
+  );
+}
 
-  if (data === null) {
+/** A filter naming something that exists, with its label; anything else is no filter. */
+function resolveTarget(
+  target: GroupTarget | null,
+  source: TrendsSource,
+  entries: Entry[],
+): { target: GroupTarget; label: string } | null {
+  if (target === null) return null;
+  if (target.by === "category") {
+    if (target.key === UNCATEGORIZED_KEY) return { target, label: "Uncategorized" };
+    if (target.key === P2P_UNREVIEWED_ID) return { target, label: P2P_UNREVIEWED_NAME };
+    const c = source.categories.find((x) => x.id === target.key);
+    return c === undefined ? null : { target, label: c.name };
+  }
+  if (target.by === "account") {
+    const a = source.accounts.find((x) => x.id === target.key);
+    return a === undefined ? null : { target, label: a.name };
+  }
+  const named = entries.find((e) => e.merchant === target.key);
+  return named === undefined ? null : { target, label: named.merchantName };
+}
+
+async function renderTrends({ searchParams }: { searchParams: Promise<RawSearch> }) {
+  const [raw, jar, source] = await Promise.all([searchParams, cookies(), getTrendsSource()]);
+  const params = parseTrendsParams(raw, (name) => jar.get(name)?.value);
+  // ONE `now` for every card, or a render straddling midnight UTC could put
+  // two cards in different months.
+  const now = new Date();
+  const { entries } = source;
+
+  if (entries.length === 0) {
     return (
-      <p className="py-10 text-faint">
-        No insights to chart yet. Run a sync or seed fixture data, then generate insights.
-      </p>
+      <div className="py-5">
+        <PageTitle>Trends</PageTitle>
+        <p className="py-10 text-faint">
+          Nothing to chart yet: no income or spending is on record. Run a sync or import a CSV, and this page fills
+          in.
+        </p>
+      </div>
     );
   }
 
-  const coverage = await getPeriodCoverage(data.period);
-  const estimatedMonths = data.netWorth.filter((m) => m.estimated).length;
-  // Shares are percentages of ONE whole, so they are rounded together
-  // (wholePercents) — rounding each independently let the column sum to 101%.
-  const sharePct = wholePercents(data.categories.map((c) => c.share));
+  const first = firstMonth(entries);
+
+  const spans = compareSpans(params.b.span, now);
+  const comparison = compare(entries, params.b.show, params.b.by, spans, source.accountNames);
+
+  const filter = resolveTarget(params.e.for, source, entries);
+  const span = exploreSpan(params.e.over, now, first);
+  const explore: ExploreData =
+    span === null
+      ? { kind: "empty" }
+      : params.e.by === "month"
+        ? {
+            kind: "months",
+            series: monthSeries(
+              entries,
+              params.e.show === "both" ? ["income", "spending"] : [params.e.show],
+              span,
+              filter?.target ?? null,
+            ),
+          }
+        : {
+            kind: "groups",
+            grouped: groupedSeries(
+              entries,
+              params.e.show === "both" ? "spending" : params.e.show,
+              params.e.by,
+              span,
+              filter?.target ?? null,
+              source.accountNames,
+            ),
+          };
+  // Only categories the measure can hold: an income category asked for its
+  // spending can only draw an empty card. The one already chosen stays listed
+  // whatever it is, or the select would claim a different filter.
+  const chosen = filter === null ? null : targetParam(filter.target);
+  const fits = (c: { isIncome: boolean }) =>
+    params.e.show === "both" || c.isIncome === (params.e.show === "income");
+  const forOptions: SelectOption[] = [
+    { value: "", label: "Everything" },
+    ...source.categories
+      .filter((c) => fits(c) || `category:${c.id}` === chosen)
+      .map((c) => ({ value: `category:${c.id}`, label: c.name, group: "Category" })),
+    { value: `category:${UNCATEGORIZED_KEY}`, label: "Uncategorized", group: "Category" },
+    { value: `category:${P2P_UNREVIEWED_ID}`, label: P2P_UNREVIEWED_NAME, group: "Category" },
+    ...source.accounts.map((a) => ({ value: `account:${a.id}`, label: a.name, group: "Card or account" })),
+    ...(filter !== null && filter.target.by === "merchant"
+      ? [{ value: targetParam(filter.target), label: filter.label, group: "Merchant" }]
+      : []),
+  ];
+
+  const estimatedMonths = source.netWorth.filter((m) => m.estimated).length;
 
   return (
-    <div className="grid gap-9 py-5">
+    <div className="grid gap-10 py-5">
       <PageTitle>Trends</PageTitle>
-      <CoverageNotice coverage={coverage} />
-      {/* Three full-width rows, not two columns plus a full-width row.
-          `lg:grid-cols-2` sized this page in inverse proportion to what each
-          block had to say: at a 1652px viewport the CASH-FLOW chart — 26
-          months and growing — got 534px, or 18.2px per month with its axis
-          type scaled to 10.3px, while the seven-point net-worth line got the
-          full 1104px and 376px of height. A 9.2× inversion, and it got WORSE
-          as the window widened: the same chart has 837px and 28.5px per month
-          at a 900px viewport, because at 900 the two-column rule has not
-          engaged yet. The one element whose width requirement grows with
-          history was the one penalised for a wide screen.
-          Stacking also gives the category table room to be a table: it was
-          280px inside a 534px section, sharing the row with the donut, using
-          barely half of a column that was itself a third of the screen.
+      <MonthSoFarCard data={monthSoFar(entries, now)} initialView={params.a.view} />
+      <ChangeCard
+        comparison={comparison}
+        span={params.b.span}
+        by={params.b.by}
+        show={params.b.show}
+        initialView={params.b.view}
+        firstMonth={first}
+        lateAccounts={lateAccounts(source, params.b.show, spans.prior, spans.current)}
+      />
+      <ExploreCard
+        data={explore}
+        show={params.e.show}
+        by={params.e.by}
+        forValue={filter === null ? "" : targetParam(filter.target)}
+        forLabel={filter?.label ?? null}
+        forOptions={forOptions}
+        over={params.e.over}
+        currentMonth={periodKey(now, "MONTH")}
+        initialView={params.e.view}
+      />
 
-          min-w-0: a grid item defaults to min-width:auto and will not shrink
-          below its content, which is how a 520px chart widened the page. */}
-      <div className="grid min-w-0 gap-9">
-        <section className="min-w-0">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <SectionTitle>Spending by category</SectionTitle>
-            <span className="flex items-center gap-2 font-money text-[0.78rem] text-faint">
-              {data.prevPeriod !== null ? (
-                <Link href={`/trends?period=${data.prevPeriod}`} className={`${ARROW} hover:text-ink`}>
-                  ‹
-                </Link>
-              ) : (
-                <span className={`${ARROW} opacity-30`}>‹</span>
-              )}
-              <span className="text-ink">{data.periodLabel}</span>
-              {data.nextPeriod !== null ? (
-                <Link href={`/trends?period=${data.nextPeriod}`} className={`${ARROW} hover:text-ink`}>
-                  ›
-                </Link>
-              ) : (
-                <span className={`${ARROW} opacity-30`}>›</span>
-              )}
-            </span>
-          </div>
-          {/* A refused ?period= used to leave the URL saying one month and the
-              page showing another, with nothing between them. The clamp is
-              correct — this page plots stored rows — so it is stated, not
-              removed. */}
-          {data.clampedFrom !== null && (
-            <p className="mb-2 text-[0.75rem] text-faint">
-              <span className="text-ink">{monthLabel(data.clampedFrom)}</span> has nothing recorded;
-              showing {data.periodLabel}.
-            </p>
-          )}
-          <p className="mb-3 text-[0.75rem] text-faint">
-            {/* "Hover or tap for detail" promised something a phone cannot do:
-                there is no hover, and a tap on a slice navigates. */}
-            {/* The stepper sits in this section's header but scopes only this
-                section, while the two charts are all-history. Nothing said so,
-                which invites reading ‹ › as a page-wide control. */}
-            <span className="text-ink">{data.periodLabel} only</span>; the charts alongside and below cover
-            all history. Transfers excluded. Tap or click a slice or row to open those transactions.
-            {data.credited > 0 && (
-              <>
-                {" "}
-                Shares are of the {money(data.drawable)} in categories with net spending; the total also
-                nets {money(data.credited)} refunded elsewhere.
-              </>
-            )}
-          </p>
-          {data.donut === null ? (
-            <p className="text-[0.85rem] text-faint">
-              {data.categories.length === 0
-                ? `No spending recorded in ${data.periodLabel}.`
-                : // Spending happened, but reimbursements outran it. Saying
-                  // "no spending" here is simply false — the rows below show
-                  // real expenses.
-                  `Reimbursements exceeded spending in ${data.periodLabel}, so there is no chart to draw. The categories below still show what was spent and credited.`}
-            </p>
-          ) : (
-            <div className="flex flex-wrap items-start gap-6">
-              <TrendsDonut slices={data.donut.slices} total={data.donut.total} period={data.period} />
-              {/* Capped: `flex-1` in a now-full-width row would stretch four
-                  columns across ~850px and read as sparse rather than
-                  generous. 640px is room for the longest category name plus
-                  three figures without the eye having to travel. */}
-              <table className="min-w-[260px] max-w-[640px] flex-1 border-collapse">
-                <thead>
-                  <tr className="border-b border-ink">
-                    <th scope="col" className="py-1 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
-                      Category
-                    </th>
-                    <th scope="col" className="py-1 pl-3 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
-                      Spent
-                    </th>
-                    <th scope="col" className="py-1 pl-3 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
-                      Prior
-                    </th>
-                    <th scope="col" className="py-1 pl-3 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
-                      Share
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.categories.map((c, i) => (
-                    <tr key={`${c.categoryId}-${c.label}`} className="border-b border-rule last:border-b-0">
-                      <td className="py-1.5 text-[0.85rem]">
-                        <Link
-                          href={`/transactions?period=${data.period}&category=${c.categoryId ?? "uncategorized"}`}
-                          className="hover:underline"
-                        >
-                          {/* No swatch for a category that ended in credit: it draws no arc. */}
-                          {c.share === null ? (
-                            <i className="mr-2 inline-block h-[10px] w-[10px] align-[-1px]" />
-                          ) : i < 3 ? (
-                            <i className={`mr-2 inline-block h-[10px] w-[10px] rounded-[2px] align-[-1px] ${DONUT_COLORS[i]}`} />
-                          ) : (
-                            <i className="mr-2 inline-block h-[10px] w-[10px] rounded-[2px] bg-pie4 align-[-1px] opacity-40" />
-                          )}
-                          {c.label}
-                        </Link>
-                      </td>
-                      <td className="py-1.5 text-right font-money text-[0.85rem] tabular">{amount(c.spending)}</td>
-                      {/* The prior period's DOLLARS, not a ratio.
-                          As a ratio this column carried five different value
-                          forms in six rows — a percentage, a `×N.N` multiplier
-                          above +999%, `new`, an em dash, and `+0.00%` — so a
-                          reader scanning it changed units per row, with no key
-                          anywhere on the page. Three of those existed only
-                          because a ratio has cases a quantity does not: the
-                          multiplier for a base near zero, the dash for a base
-                          that was not positive, and a word for a CURRENT period
-                          that ended in credit. Dollars have none of them. The
-                          reader compares two adjacent money columns, which is
-                          the comparison the ratio was standing in for, and
-                          `new` survives as the one genuine non-quantity: no
-                          prior row at all. Set at the same size as Spent
-                          BECAUSE the two are meant to be read against each
-                          other.
-                          This retires the `×N.N` branch, unchanged since the
-                          original /trends commit and undefended since. */}
-                      <td className="py-1.5 text-right font-money text-[0.85rem] tabular text-faint">
-                        {c.previousSpending === null ? "new" : amount(c.previousSpending)}
-                      </td>
-                      {/* Largest remainder, not per-row rounding: six
-                          independently-rounded shares summed to 101% in June
-                          2026 (49+21+11+8+7+4+1), which reads as an arithmetic
-                          error in a column of percentages of one whole. The
-                          dash stays for a category that ended in credit — it
-                          draws no arc and holds no share. */}
-                      <td className="py-1.5 text-right font-money text-[0.78rem] tabular text-faint">
-                        {c.share === null ? "—" : `${sharePct[i]}%`}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        <section className="min-w-0">
-          <SectionTitle>Cash flow by month</SectionTitle>
-          <div className="mb-2 flex gap-5 text-[0.75rem] text-faint">
-            <span>
-              <i className="mr-1.5 inline-block h-[10px] w-[10px] rounded-[2px] bg-chart2 align-[-1px]" />
-              Income
-            </span>
-            <span>
-              <i className="mr-1.5 inline-block h-[10px] w-[10px] rounded-[2px] bg-chart1 align-[-1px]" />
-              Spending
-            </span>
-          </div>
-          <CashFlowChart months={data.cashFlow} />
-        </section>
-      </div>
-
-      <section>
+      <section className="min-w-0">
         <SectionTitle>Net worth</SectionTitle>
         <p className="mb-3 text-[0.75rem] text-faint">
           Month-end, all accounts
-          {data.netWorth.length > 0 && (
+          {source.netWorth.length > 0 && (
             <>
-,{" "}
-              <span className="text-ink">{data.netWorth[0].label}</span> to{" "}
-              <span className="text-ink">{data.netWorth[data.netWorth.length - 1].label}</span>
+              ,{" "}
+              <span className="text-ink">{source.netWorth[0].label}</span> to{" "}
+              <span className="text-ink">{source.netWorth[source.netWorth.length - 1].label}</span>
             </>
           )}
-          . Hover or tap a month for exact figures; months drawn with a dashed line and a hollow point lack
-          a balance snapshot for at least one account.
+          . Hover or tap a month for exact figures; months drawn with a dashed line and a hollow point lack a balance
+          snapshot for at least one account.
           {/* How MANY are estimated is a fact about the whole line, not a
-              per-point footnote — six of seven is a reason to discount the
+              per-point footnote: six of seven is a reason to discount the
               slope, and it was reachable only by hovering each month in turn. */}
           {estimatedMonths > 0 && (
             <>
               {" "}
               <span className="text-ink">
-                {estimatedMonths} of {data.netWorth.length} month
-                {data.netWorth.length === 1 ? "" : "s"} {estimatedMonths === 1 ? "is" : "are"} partly
-                estimated
+                {estimatedMonths} of {source.netWorth.length} month
+                {source.netWorth.length === 1 ? "" : "s"} {estimatedMonths === 1 ? "is" : "are"} partly estimated
               </span>
               .
             </>
           )}
-          {/* Two charts on one page spanning different ranges reads as a bug
-              unless the shorter one says why it is shorter. Net worth REFUSES a
+          {/* The cards above span what the ledger holds; net worth REFUSES a
               month it cannot fully know, so its line is a record of when
               snapshots begin, not of when the money did. */}
-          {data.netWorth.length > 0 && data.netWorth.length < data.cashFlow.length && (
+          {source.netWorth.length > 0 && first !== null && source.netWorth[0].period > first && (
             <>
               {" "}
-              Shorter than cash flow above ({data.netWorth.length} months against {data.cashFlow.length})
-              because a month appears only once every account has a balance snapshot inside it; earlier
-              months are refused rather than estimated.
+              Shorter than the spending history above because a month appears only once every account has a balance
+              snapshot inside it; earlier months are refused rather than estimated.
             </>
           )}
         </p>
-        {data.netWorth.length < 3 && (
+        {source.netWorth.length < 3 && (
           <p className="mb-3 border-l-2 border-chart2 bg-chip/50 px-2.5 py-1.5 text-[0.75rem] text-faint">
-            <span className="font-semibold text-acc">History starts here.</span> Net worth is only shown for
-            months with a balance snapshot behind every account. Imported transactions can&apos;t supply one:
-            a brokerage&apos;s value moves with the market, which leaves no transaction to reconstruct from, so
-            earlier months would be guesses rather than history. Each sync records a snapshot, so this line
-            grows from today forward.
+            <span className="font-semibold text-acc">History starts here.</span> Net worth is only shown for months with
+            a balance snapshot behind every account. Imported transactions can&apos;t supply one: a brokerage&apos;s value
+            moves with the market, which leaves no transaction to reconstruct from, so earlier months would be guesses
+            rather than history. Each sync records a snapshot, so this line grows from today forward.
           </p>
         )}
-        <NetWorthChart months={data.netWorth} />
+        <NetWorthChart months={source.netWorth} />
       </section>
     </div>
   );

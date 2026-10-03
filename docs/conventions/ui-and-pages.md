@@ -1004,3 +1004,107 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   your share $93.20". The whole month's view, where the Zelle is listed,
   printed no REPAID and counted it in IN. At 375px the line wraps inside the
   merchant cell, both bands end at 351px and nothing scrolls sideways.
+
+- TRENDS ANSWERS QUESTIONS (2026-10-03). The page answered one question per
+  block, each fixed: one month by category (with a stepper), all-history cash
+  flow, and net worth. The operator wanted totals by merchant, one period
+  against another, one category over time, spending by card or account,
+  income as well as spending, and to pick the chart a figure is drawn as.
+  THE CARDS, in the operator's order: THIS MONTH SO FAR (the running total
+  against last month by the same day, inside a "typical" band, the middle
+  half of the recent complete months at that day: 25th to 75th percentile of
+  the last six with records, drawn from three or more), WHAT CHANGED (last
+  month against the one before by default; also this month against the same
+  days of last month, three, twelve, and the year so far; by category,
+  merchant or card/account; spending or income), BUILD YOUR OWN (spending,
+  income or both, by month or by group, for everything or one category or
+  account, over one month or a run of them; bars by default), then NET WORTH
+  untouched. A fourth card, this year against last by month, was built and
+  REMOVED at the operator's request: what changed covers the year so far, and
+  build your own draws two years of months.
+  GONE: the donut (its top three and the table beside it), the cash-flow
+  chart (build your own's "income and spending" by month is the same figures
+  in the chart the reader picks), the month stepper, and the coverage notice,
+  whose job the cards' own notes now do for a span. Overview's "full
+  breakdown →" pointed at the stepper's `?period=`, which nothing reads now;
+  it opens build your own on THAT month by category, anchored to the card, so
+  the categories the ring folds into Other are named one tap away. The empty
+  month's link to the prior month does the same.
+  VIEW AS. The charts a card offers come from its data's SHAPE: one series
+  over months is bars, a line or a table, never a pie (months are not parts
+  of a whole); groups over a span are bars, a pie or a table, or each group
+  across the months as lines or stacked bars; two spans are change bars, side
+  by side, or a table. The choice is remembered per card twice: in the URL,
+  so a link carries it, and in a cookie, so the card opens on it next time.
+  Either is checked against the shape, so a remembered pie is never honoured
+  for months.
+  NOTHING PRINTED TWICE (the product pass). The first draft stated this
+  month's three figures in a sentence and again in the chart's readout one
+  line below, closed the change bars with a total row repeating the headline,
+  kept a legend under each chart repeating the readout's names, and gave a
+  category that had not moved a full row reading "no change". The readout IS
+  the legend now (each figure beside its swatch); only the table, whose
+  columns need closing, keeps a total row; categories that did not move are
+  named once, together, under the rows that did.
+  WHAT IT ADDED. Changes sort by the SIZE of the move, either way: sorted by
+  sign, the drop that explained a month sat last, below the fold on a phone.
+  Each change carries its two amounts under the name, rounded to the dollar
+  ("$85 → $190"), because "+105.00" alone cannot say whether a category
+  doubled or barely moved; the table holds them to the cent. The month card
+  says when its newest record trails today ("recorded through Oct 1"), or
+  "below typical" on the 3rd reads as a verdict on days the bank has not
+  reported, and links to this month against the same days of last month,
+  which names what the pace is made of. Build your own states the monthly
+  average and offers only the categories its measure can hold: an income
+  category asked for its spending can only draw an empty card.
+  COMPLETE MONTHS. Every run-of-months comparison is complete months: one
+  that includes the month being lived in sets three days against thirty-one.
+  The one exception says so in its name, and cuts last month at the same day.
+  A card names the accounts whose records begin inside the earlier span, by
+  their first transaction's DAY: an account covers a period only if it began
+  at or before the period's start, and a card that began on the 14th misses
+  half of a one-month comparison.
+  DUCAT'S VOICE (the web pass). Each card leads as Overview does: ONE figure
+  in the money face at the band figures' 1.25rem, over a faint 0.78rem line of
+  context with a semibold lead, semibold figures and " · ▲/▼ n%" in the tone
+  colours. Column figures drop the "$" (amount()), which only headlines and
+  prose carry; rows are 0.85rem and table heads 0.7rem, as on Overview's
+  account table. "View as" is drawn as the header's theme switch (an ink
+  border when chosen, no fill): the first draft's solid ink fill made it the
+  loudest control in the app. Chart marks copy NetWorthChart (10px money-face
+  labels, a 2px line, a 5,3 dash, filled points, a 3,3 crosshair), and card
+  links speak like "full breakdown →".
+  A QUESTION RE-ASKED DIMS ITS CARD. A select runs in its CARD's transition,
+  so the card being changed dims and its controls wait until the answer
+  lands: the URL only updates when the navigation commits, so a second change
+  made mid-flight was built on the old query and silently undid the first.
+  PHONE. A month of DAYS fits a phone whole (31 points), today read against
+  the rest of it; a history longer than thirteen points scrolls, opened at
+  the readout's point rather than scrollLeft 0. Both widths draw their own
+  geometry, as NetWorthChart does, so type stays near its set size.
+  VERIFIED on a copy of the operator's data with the day's cloud change
+  applied (never on data/ducat.db) and on the invented demo data: every
+  month's totals equal the analyzers' (report.test.ts), a category's figure
+  equals the ledger NET for the same months, a payee's link lists exactly its
+  rows, and at 375px nothing scrolls sideways and every control clears 44px,
+  in sepia, light and dark.
+
+- THE LEDGER TAKES A SPAN AND AN EXACT MERCHANT (2026-10-03), so a /trends
+  figure opens the rows behind it. `?period=` keeps its one-key meaning and
+  also takes whole months `2025-10..2026-09`, inclusive, read only by
+  ui/periodSpan.ts. A span rides the existing parameter rather than a
+  from/to pair so the period select can carry it as one SYNTHETIC entry, the
+  way the category select carries a set: two parameters with no visible
+  control would be dropped by the filter form's next submit. A span is not a
+  month to step from, so it draws no older/newer link.
+  `?merchant=` matches ui/merchantLabel.ts's `merchantKey` EXACTLY, which is
+  what /trends totals a merchant by: the rule value the ledger's label is
+  built from, so a P2P row keys on its payee and never on the rail, and rows
+  sharing a key share the name printed. The key is DERIVED (a payee comes
+  out of the description), so SQL narrows to a superset (merchant CONTAINS
+  the key, or description CONTAINS its first word) and the list finishes in
+  memory on the whole-set path review mode takes. It is a superset because
+  every key is the trimmed merchant or words cut whole from the lowercased
+  description; merchantLabel.test.ts drives two thousand generated rows
+  through it. The trip band sums the FINISHED list under a merchant filter,
+  because the SQL aggregate would sum the superset.

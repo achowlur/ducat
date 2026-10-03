@@ -8,7 +8,7 @@ import { GroupedReview, type PayeeGroupView } from "../../components/GroupedRevi
 import { ReimburseControl } from "../../components/ReimburseControl";
 import { draftSubscription } from "../../lib/health/registerSubscription";
 import { prisma } from "../../lib/prisma";
-import { periodEndExclusive, periodStart } from "../../lib/insights/periods";
+import { parsePeriodParam, spanLabel } from "../../lib/ui/periodSpan";
 import {
   makeCandidateFinder,
   NON_REIMBURSABLE_ACCOUNT_TYPES,
@@ -28,7 +28,7 @@ import { nullBucketFilter, parseCategoryParam } from "../../lib/ui/categoryFilte
 import { parseGroupParam } from "../../lib/ui/groupFilter";
 import { ledgerTotals, type LedgerTotals } from "../../lib/ui/ledgerTotals";
 import { repaidByExpense, repaidFromOutside, repaidNote } from "../../lib/ui/repaid";
-import { merchantLabel } from "../../lib/ui/merchantLabel";
+import { merchantKey, merchantLabel } from "../../lib/ui/merchantLabel";
 import { PageTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
@@ -52,6 +52,11 @@ interface Params {
   page?: string;
   /** Trip/project label filter — owned by ui/groupFilter.ts. */
   group?: string;
+  /**
+   * One merchant EXACTLY, as /trends totals it: ui/merchantLabel.ts's
+   * merchantKey, so a P2P row matches on its payee and never on the rail.
+   */
+  merchant?: string;
   /** "1" = the group-by-payee bulk review queue (was `group` before trips claimed that name). */
   payees?: string;
 }
@@ -283,13 +288,10 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
   const page = Math.max(1, Math.floor(Number(params.page ?? "1")) || 1);
 
   const where: Prisma.TransactionWhereInput = {};
-  if (params.period !== undefined && params.period !== "") {
-    try {
-      where.date = { gte: periodStart(params.period), lt: periodEndExclusive(params.period) };
-    } catch {
-      // Unparseable period param — ignore the filter rather than crash.
-    }
-  }
+  // One period key or a span of months, read only through ui/periodSpan.ts.
+  // Unparseable is ignored rather than crashing the page.
+  const periodFilter = parsePeriodParam(params.period);
+  if (periodFilter !== null) where.date = { gte: periodFilter.start, lt: periodFilter.end };
   // One id, `uncategorized`, or a comma-separated list of either — the donut's
   // "Other" slice is a SET of categories, so it arrives here enumerated.
   const selection = parseCategoryParam(params.category);
@@ -330,6 +332,21 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
   // touching `q`'s top-level OR or the category group living in AND.
   const tripLabel = parseGroupParam(params.group);
   if (tripLabel !== null) where.groupLabel = tripLabel;
+  // The merchant key is DERIVED (a P2P payee comes out of the description), so
+  // SQL narrows to a SUPERSET and the list is finished in memory, on the same
+  // whole-set path review mode takes. Superset because every key is either the
+  // trimmed merchant, or words cut whole from the lowercased description, so
+  // its first word is always a case-insensitive substring of one or the other.
+  const merchant = params.merchant !== undefined && params.merchant.trim() !== "" ? params.merchant.trim() : null;
+  if (merchant !== null) {
+    const firstWord = merchant.split(" ")[0];
+    const superset: Prisma.TransactionWhereInput = {
+      OR: [{ normalizedMerchant: { contains: merchant } }, { description: { contains: firstWord } }],
+    };
+    where.AND = [...(where.AND === undefined ? [] : Array.isArray(where.AND) ? where.AND : [where.AND]), superset];
+  }
+  const isMerchant = (t: { normalizedMerchant: string; description: string }) =>
+    merchant === null || merchantKey(t) === merchant;
 
   // Review mode narrows in SQL as far as Prisma can, then finishes in JS: the
   // P2P test is a regex across two columns, which Prisma cannot express. Its
@@ -339,7 +356,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
   // Selecting exactly ONE of the two null buckets needs the same in-memory
   // finish as review mode, and the same whole-set fetch.
   const nullSplit = nullBucketFilter(selection);
-  const pagedInJs = reviewMode || nullSplit !== null;
+  const pagedInJs = reviewMode || nullSplit !== null || merchant !== null;
   const listWhere: Prisma.TransactionWhereInput = reviewMode
     ? { ...where, categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" } }
     : where;
@@ -536,11 +553,21 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
   // linked to the expense it repays (a link is a decision). The pool query
   // already constrains the SQL half, so its count needs only the P2P test.
   const needsReview = isUnreviewedP2P;
-  const reviewCount = reviewPool.filter(isP2P).length;
+  // The pool is the merchant filter's SQL superset until finished here.
+  const pool = reviewPool.filter(isMerchant);
+  const reviewCount = pool.filter(isP2P).length;
 
   // In review mode the whole filtered set is in memory, so the page is a slice
   // of it. Otherwise SQL already returned exactly this page.
-  const reviewRows = reviewMode ? rows.filter(needsReview) : nullSplit !== null ? rows.filter(nullSplit) : null;
+  const finish = reviewMode ? needsReview : nullSplit;
+  const reviewRows = pagedInJs ? rows.filter((t) => (finish === null || finish(t)) && isMerchant(t)) : null;
+  // The merchant filter's name as the rows it matches print it.
+  const merchantName =
+    merchant === null
+      ? null
+      : reviewRows !== null && reviewRows.length > 0
+        ? merchantLabel(reviewRows[0]).label
+        : titleCase(merchant);
   const visible = reviewRows === null ? rows : reviewRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const matchCount = reviewRows === null ? total : reviewRows.length;
   const pageCount = Math.max(1, Math.ceil(matchCount / PAGE_SIZE));
@@ -647,15 +674,26 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
 
   // The known trip labels, and the band's facts when a trip filter is active.
   const tripLabels = groupLabelRows.map((r) => r.groupLabel).filter((l): l is string => l !== null);
+  // Under a merchant filter the SQL aggregate covers the superset, so the band
+  // sums the finished list instead: it states what its own view shows.
+  const bandRows = merchant !== null && tripTotals !== null ? (reviewRows ?? []) : null;
   const tripBand =
     tripTotals === null
       ? null
-      : {
-          count: tripTotals._count,
-          net: Number(tripTotals._sum.amount ?? 0),
-          first: tripTotals._min.date,
-          last: tripTotals._max.date,
-        };
+      : bandRows !== null
+        ? {
+            count: bandRows.length,
+            net: bandRows.reduce((sum, t) => sum + Math.round(Number(t.amount) * 100), 0) / 100,
+            first: bandRows.length === 0 ? null : bandRows[bandRows.length - 1].date,
+            last: bandRows.length === 0 ? null : bandRows[0].date,
+          }
+        : {
+            count: tripTotals._count,
+            net: Number(tripTotals._sum.amount ?? 0),
+            first: tripTotals._min.date,
+            last: tripTotals._max.date,
+          };
+  const tripTransferCount = bandRows !== null ? bandRows.filter((t) => t.flow === "TRANSFER").length : tripTransfers;
 
   // Grouped review: one decision per payee across the ENTIRE uncategorized
   // backlog (not just the visible page), highest-leverage payee first. A few
@@ -668,7 +706,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
       where: { ...where, categoryId: null, flow: { not: "TRANSFER" }, reimbursesId: null },
       select: { id: true, amount: true, description: true, normalizedMerchant: true, flow: true },
     });
-    groups = groupByPayee(uncategorized.map((t) => ({ ...t, amount: Number(t.amount) }))).map((g) => ({
+    groups = groupByPayee(uncategorized.filter(isMerchant).map((t) => ({ ...t, amount: Number(t.amount) }))).map((g) => ({
       key: g.key,
       label: titleCase(g.key),
       matchField: g.matchField,
@@ -688,6 +726,9 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
   // these links just make "the month before this one" one click.
   const selectedIdx =
     params.period === undefined || params.period === "" ? -1 : monthOptions.indexOf(params.period);
+  // A span is not a month to step from: "older" would jump to one month
+  // before its last visible row and silently drop the rest of the span.
+  const isSpan = periodFilter !== null && periodFilter.span !== null;
   // With no period selected the fallback named the month of the LAST VISIBLE
   // ROW — a month already filling the screen. Page 1 offered "← older (July
   // 2026)" while every row on it said July 2026, and page 11 offered June 2024,
@@ -696,13 +737,14 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
   // running out means there is nothing older, and the link is correctly absent.
   const lastVisibleMonth =
     visible.length === 0 ? null : periodKey(visible[visible.length - 1].date, "MONTH");
-  const olderPeriod =
-    selectedIdx >= 0
+  const olderPeriod = isSpan
+    ? null
+    : selectedIdx >= 0
       ? (monthOptions[selectedIdx + 1] ?? null)
       : total > visible.length && lastVisibleMonth !== null
         ? (monthOptions[monthOptions.indexOf(lastVisibleMonth) + 1] ?? null)
         : null;
-  const newerPeriod = selectedIdx > 0 ? monthOptions[selectedIdx - 1] : null;
+  const newerPeriod = !isSpan && selectedIdx > 0 ? monthOptions[selectedIdx - 1] : null;
 
   return (
     <div className="py-5">
@@ -720,6 +762,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
         {groupMode && <input type="hidden" name="payees" value="1" />}
         {reviewMode && <input type="hidden" name="review" value="1" />}
         {tripLabel !== null && <input type="hidden" name="group" value={tripLabel} />}
+        {merchant !== null && <input type="hidden" name="merchant" value={merchant} />}
         <label className="grid gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
           Period
           <select
@@ -728,6 +771,13 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
             className="rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink max-md:min-h-[44px]"
           >
             <option value="">All</option>
+            {/* A span arriving from /trends matches no month, so it gets the
+                synthetic entry the category select gives a set: without it
+                the select reads "All" while the span applies, and the next
+                submit drops it. */}
+            {periodFilter !== null && periodFilter.span !== null && (
+              <option value={params.period}>{spanLabel(periodFilter.span.from, periodFilter.span.to)}</option>
+            )}
             {monthOptions.map((key) => (
               <option key={key} value={key}>
                 {monthLabel(key)}
@@ -844,6 +894,19 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
             clear trip
           </Link>
         )}
+        {/* The merchant filter has no control of its own, so it is spelled out
+            here, where it can also be dropped. */}
+        {merchant !== null && (
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="text-ink">{merchantName}</span>
+            <Link
+              href={buildHref(params, { merchant: undefined, page: undefined })}
+              className="font-semibold text-acc hover:underline"
+            >
+              clear merchant
+            </Link>
+          </span>
+        )}
         {groupMode ? (
           <Link href={buildHref(params, { payees: undefined, page: undefined })} className="font-semibold text-acc hover:underline">
             ← transaction list
@@ -852,7 +915,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
           // A bordered control, not body text: this was styled identically to
           // "← all transactions" while being the highest-leverage thing on the
           // screen — Overview's red pill sold it better than its own page did.
-          reviewPool.length === 0 ? (
+          pool.length === 0 ? (
             // The mirror of Overview's review panel: THAT one had to learn to
             // state "all clear" instead of implying it by absence, and this one
             // has the opposite failure — the boldest control on the ledger urged
@@ -936,8 +999,8 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
               <span className="ml-auto font-money tabular font-semibold">net {money(tripBand.net)}</span>
               <span className="w-full text-[0.72rem] text-faint">
                 the signed sum of the rows this view shows
-                {tripTransfers > 0 &&
-                  `, including ${tripTransfers} transfer${tripTransfers === 1 ? "" : "s"}, which spending analytics still exclude`}
+                {tripTransferCount > 0 &&
+                  `, including ${tripTransferCount} transfer${tripTransferCount === 1 ? "" : "s"}, which spending analytics still exclude`}
               </span>
             </>
           )}

@@ -69,3 +69,16 @@ export function merchantLabel(t: { normalizedMerchant: string; description: stri
     ruleField: "DESCRIPTION",
   };
 }
+
+/**
+ * What /trends totals a merchant BY, and what the ledger's `?merchant=` matches
+ * exactly: the label's own rule value, so rows sharing a key share the name the
+ * ledger prints and a merchant's total is the total of the rows shown under it.
+ * A P2P row keys on its payee, never the rail, or every Zelle payment would be
+ * one merchant. A row with no merchant at all keys on its description, which
+ * is what its label prints.
+ */
+export function merchantKey(t: { normalizedMerchant: string; description: string }): string {
+  const { ruleValue } = merchantLabel(t);
+  return ruleValue !== "" ? ruleValue : t.description.toLowerCase().replace(/\s+/g, " ").trim();
+}

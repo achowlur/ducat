@@ -73,8 +73,11 @@ category you set by hand is never overridden.
 
 - **Overview** (`/`) — where things stand now: balances, net worth, cash and
   what it covers, and a "needs review" panel that also says when nothing does.
-- **Trends** (`/trends`) — how it has changed: spending by category, cash
-  flow, and net worth over time.
+- **Trends** (`/trends`) — how it has changed: this month against last month
+  and what is typical by the same day, what changed since the month before
+  (by category, merchant or card), a report you build yourself (spending,
+  income or both, over the months you pick, as bars, a line, a pie or a
+  table), and net worth over time. Every figure opens its transactions.
 - **Insights** (`/insights`) — am I on track: where this month is heading,
   what changed and what it costs if it holds, upcoming commitments, savings
   goals. Projections are labelled as projections.

@@ -320,3 +320,30 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   straight back into income until something happened to reapply. It is a
   transfer in the same write now. Outside the box clearing is unchanged.
   Driven on the real page: the Flow column read TRANSFER with no reload.
+
+- /TRENDS READS ENTRIES, NOT A NEW DEFINITION (2026-10-03). Its questions
+  cross the insight grid (twelve months against twelve, one merchant, one
+  card, one day of the month), so it computes from transactions, and the
+  danger is a second definition of spending. ui/report.ts turns each
+  transaction into an ENTRY carrying the analyzers' semantics, and every
+  figure is a sum of entries: an OUTFLOW is spending, a TRANSFER nothing, an
+  INFLOW that reimburses is a NEGATIVE spending entry filed under the row it
+  nets against, any other INFLOW is income, and an unconfirmed P2P outflow
+  files under its own bucket BEFORE credits resolve, exactly as
+  computeSpendingByCategory relabels it. Unconfirmed money IN groups under
+  the same bucket's name only AFTER `isReimbursement` has read its real
+  (absent) category: relabelling it first would have turned income into a
+  credit. Sums run in whole cents; a year of rows drifts in floats.
+  ONE RESOLUTION OF A CREDIT. `reimbursementSources` returns each
+  reimbursement with the row it nets against: the linked bill, or itself when
+  unlinked or when its target is gone. `reimbursementCredits` is now built on
+  it, so the category, the month, and for /trends the merchant and the
+  account of a credit all come from ONE row and cannot be filed two ways. A
+  friend's repayment for a dinner lowers that restaurant, on the card the
+  dinner was paid with, in the dinner's month.
+  PINNED in report.test.ts against `computeSpendingByCategory` and
+  `computeCashFlowTrend` themselves, on thirty months holding every shape the
+  analyzers treat differently: same-month, later-month and over-repaid links,
+  a link to a P2P payment, to a row that is gone and to one that is not an
+  outflow, unconfirmed P2P both ways, and transfers. Every month's total and
+  every category's figure agree to the cent.
