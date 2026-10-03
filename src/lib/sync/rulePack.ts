@@ -2,6 +2,7 @@ import type { PrismaClient } from "../../generated/prisma/client";
 import type { TransactionFlow } from "../../types/contracts";
 import { generateInsights } from "../insights/engine";
 import { isUnreviewedP2P } from "../p2p";
+import { CLOSED_BOX_RULE_ID, flowByAmount } from "./closedBox";
 import { applyRules, toRuleTxns, userCategoryRuleFor, type RuleData } from "./rules";
 
 /**
@@ -255,6 +256,8 @@ export interface InstallResult {
   rulesCreated: number;
   rulesSkipped: number;
   transactionsRecategorized: number;
+  /** Rows inside an investment account the same pass marked as transfers (closedBox.ts). */
+  transactionsEnclosed: number;
 }
 
 /**
@@ -281,9 +284,16 @@ export async function pendingPackRules(prisma: PrismaClient): Promise<number> {
     prisma.rule.findMany({ select: { matchField: true, matchOperator: true, matchValue: true } }),
     prisma.category.count(),
   ]);
-  // A database with no categories has not been set up at all; the pack notice
-  // would be the least of it, and the empty-state copy already covers that.
-  if (categoryCount === 0) return 0;
+  // No categories AND no transactions: nothing is set up yet, and the
+  // empty-state copy covers that. No categories WITH transactions is a feed
+  // that synced before the pack was installed (only the seed path installs
+  // it), which is exactly when every rule is pending; returning zero there
+  // told Overview and `upgrade -- --check` the pack was current on an
+  // instance holding none of it. The extra read happens only in that state.
+  if (categoryCount === 0) {
+    const anyTransaction = await prisma.transaction.findFirst({ select: { id: true } });
+    if (anyTransaction === null) return 0;
+  }
   const known = new Set(existingRules.map((r) => `${r.matchField}|${r.matchOperator}|${r.matchValue}`));
   return PACK_RULES.filter((r) => !known.has(`${r.matchField}|${r.matchOperator}|${r.matchValue}`)).length;
 }
@@ -338,8 +348,8 @@ export async function installRulePack(prisma: PrismaClient): Promise<InstallResu
   const rulesCreated = toCreate.length;
   const rulesSkipped = PACK_RULES.length - rulesCreated;
 
-  const { changed: transactionsRecategorized } = await reapplyRules(prisma);
-  return { categoriesCreated, rulesCreated, rulesSkipped, transactionsRecategorized };
+  const { changed: transactionsRecategorized, enclosed: transactionsEnclosed } = await reapplyRules(prisma);
+  return { categoriesCreated, rulesCreated, rulesSkipped, transactionsRecategorized, transactionsEnclosed };
 }
 
 /** A transaction's categorization exactly as it was before rules re-ran. */
@@ -427,6 +437,38 @@ export async function confirmP2PMatches(
 }
 
 /**
+ * Take an account's rows back OUT of the closed box (closedBox.ts), for an
+ * account that has just stopped being an investment account. Rules only
+ * write, so nothing else would: the rows would stay transfers under a type
+ * that no longer says they are.
+ *
+ * Every unpaired, non-MANUAL transfer in the account returns to the flow its
+ * own amount gives it, uncategorized, and the caller's `reapplyRules` then
+ * decides each one afresh, which restores the transfers a RULE made. A pair
+ * keeps its link: that was decided by two rows, not by the account's type.
+ *
+ * ONE THING IS NOT RESTORED: a row a CSV import flagged TRANSFER by wording,
+ * which no stored rule remembers. The box cannot tell it from its own.
+ * Accepted, because the account it happens to was typed INVESTMENT by
+ * mistake, and a mapping that flags trades was written for one that is.
+ */
+export async function releaseClosedBox(prisma: PrismaClient, accountId: string): Promise<number> {
+  const rows = await prisma.transaction.findMany({
+    where: { accountId, flow: "TRANSFER", transferPairId: null, categorySource: { not: "MANUAL" } },
+    select: { id: true, amount: true },
+  });
+  for (const flow of ["INFLOW", "OUTFLOW"] as const) {
+    const ids = rows.filter((t) => flowByAmount(Number(t.amount)) === flow).map((t) => t.id);
+    if (ids.length === 0) continue;
+    await prisma.transaction.updateMany({
+      where: { id: { in: ids } },
+      data: { flow, categoryId: null, categorySource: "AGGREGATOR" },
+    });
+  }
+  return rows.length;
+}
+
+/**
  * Re-runs all enabled rules over every non-MANUAL transaction (used after
  * installing the pack or creating a rule) and regenerates insights when
  * anything changed. MANUAL stays sacred.
@@ -434,17 +476,24 @@ export async function confirmP2PMatches(
  * Returns the prior state of every row it touched, because deleting a rule
  * does NOT reverse it: a rule only ever writes to rows it matches, so a row
  * whose rule is gone keeps the category it was given. Undo needs the before.
+ *
+ * Rows the CLOSED BOX takes are written here too and counted apart, as
+ * `enclosed`, and are NOT in `restore`. The snapshot is what one rule
+ * decision changed, and undoing "categorize this payee" must not hand a
+ * brokerage's trades back to income because they happened to be classified
+ * in the same pass. For the same reason a database with no rules is no longer
+ * an early return: the box needs none.
  */
 export async function reapplyRules(
   prisma: PrismaClient,
-): Promise<{ changed: number; restore: TxnRestore[] }> {
+): Promise<{ changed: number; restore: TxnRestore[]; enclosed: number }> {
   const ruleRows = await prisma.rule.findMany({ where: { enabled: true } });
-  if (ruleRows.length === 0) return { changed: 0, restore: [] };
   const txnRows = await prisma.transaction.findMany({ include: { account: true } });
   const applications = applyRules(ruleRows, toRuleTxns(txnRows));
 
   const byId = new Map(txnRows.map((t) => [t.id, t]));
   const restore: TxnRestore[] = [];
+  let enclosed = 0;
   // Rows headed for the same category and flow are written together: one
   // statement per distinct target (a dozen or so) instead of one per row.
   const batches = new Map<string, { categoryId: string | null; flow: TransactionFlow | null; ids: string[] }>();
@@ -453,12 +502,19 @@ export async function reapplyRules(
     if (txn === undefined) continue;
     const flowChange = app.flow !== null && app.flow !== txn.flow;
     if (txn.categoryId === app.categoryId && txn.categorySource === "RULE" && !flowChange) continue;
-    restore.push({
-      id: txn.id,
-      categoryId: txn.categoryId,
-      categorySource: txn.categorySource,
-      flow: txn.flow,
-    });
+    if (app.ruleId === CLOSED_BOX_RULE_ID) {
+      // Already a transfer with no category: nothing the box would change, so
+      // a pair keeps the source it had and the count stays what it moved.
+      if (txn.flow === "TRANSFER" && txn.categoryId === null) continue;
+      enclosed += 1;
+    } else {
+      restore.push({
+        id: txn.id,
+        categoryId: txn.categoryId,
+        categorySource: txn.categorySource,
+        flow: txn.flow,
+      });
+    }
     const key = `${app.categoryId ?? ""}|${app.flow ?? ""}`;
     const batch = batches.get(key) ?? { categoryId: app.categoryId, flow: app.flow, ids: [] };
     batch.ids.push(app.txnId);
@@ -474,8 +530,8 @@ export async function reapplyRules(
       },
     });
   }
-  if (restore.length > 0) {
+  if (restore.length > 0 || enclosed > 0) {
     await generateInsights(prisma);
   }
-  return { changed: restore.length, restore };
+  return { changed: restore.length, restore, enclosed };
 }

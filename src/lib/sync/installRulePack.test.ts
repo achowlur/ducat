@@ -150,6 +150,10 @@ describe("installRulePack: retroactive categorization", () => {
         row(checking.id, "t-tax", -2_140, "IRS              USATAXPYMT 041226 000000000000000 JANE H DOE", "irs usataxpymt jane h doe", "OUTFLOW"),
         row(checking.id, "t-rent", -2_350, "KEYSTONE PROPERTY MANAGEMENT ONLINE PMT", "keystone property management online pmt", "OUTFLOW"),
         row(brokerage.id, "t-dividend", 61.18, "DIVIDEND RECEIVED FIDELITY 500 INDEX FUND (FZZAX) (Cash)", "dividend", "INFLOW"),
+        // The same wording, paid into a bank account: a credit union's share dividend.
+        row(checking.id, "t-dividend-bank", 4.12, "CASH DIVIDEND HARBOR CREDIT UNION", "harbor credit union", "INFLOW"),
+        row(brokerage.id, "t-sold", 1_204.5, "YOU SOLD FIDELITY 500 INDEX FUND (FZZAX) (Cash)", "fzzax", "INFLOW"),
+        row(brokerage.id, "t-bought", -1_204.5, "YOU BOUGHT TOTAL MARKET INDEX FUND (FZZBX) (Cash)", "fzzbx", "OUTFLOW"),
         row(checking.id, "t-unknown", -46.2, "BOBS HARDWARE FAIRVIEW IL", "bobs hardware fairview il", "OUTFLOW"),
       ],
     });
@@ -184,11 +188,22 @@ describe("installRulePack: retroactive categorization", () => {
     expect(await categorized("t-card-pay")).toEqual({ category: null, flow: "TRANSFER", source: "RULE" });
   });
 
-  it("files ATM cash, taxes, rent and brokerage income into the shipped categories", async () => {
+  it("files ATM cash, taxes, rent and a dividend paid to a bank account into the shipped categories", async () => {
     expect((await categorized("t-atm")).category).toBe("Cash & ATM");
     expect((await categorized("t-tax")).category).toBe("Taxes");
     expect((await categorized("t-rent")).category).toBe("Rent & Housing");
-    expect((await categorized("t-dividend")).category).toBe("Income");
+    expect((await categorized("t-dividend-bank")).category).toBe("Income");
+  });
+
+  // This asserted the opposite until 2026-09-27: the brokerage's dividend was
+  // filed as Income, by the same pack rule that still files the bank's above.
+  // An investment account is a closed box now (closedBox.ts), so what is paid
+  // INSIDE one is a transfer, whatever its wording would have matched.
+  it("takes what happens inside an investment account out of income and spending", async () => {
+    const transfer = { category: null, flow: "TRANSFER", source: "RULE" };
+    expect(await categorized("t-dividend")).toEqual(transfer);
+    expect(await categorized("t-sold")).toEqual(transfer);
+    expect(await categorized("t-bought")).toEqual(transfer);
   });
 
   it("leaves an unrecognized merchant uncategorized rather than guessing", async () => {

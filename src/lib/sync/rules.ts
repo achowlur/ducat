@@ -1,5 +1,6 @@
 import type { TransactionFlow } from '../../types/contracts';
 import { isP2P } from '../p2p';
+import { CLOSED_BOX_RULE_ID, isClosedBox } from './closedBox';
 
 /**
  * The P2P pattern lives in ../p2p.ts; re-exported because the pack, grouping
@@ -35,12 +36,17 @@ export interface RuleTxn {
   description: string;
   normalizedMerchant: string;
   accountName: string;
+  /**
+   * What KIND of account the row sits in. Absent means "not a closed box",
+   * which is every row in a test that is not about one.
+   */
+  accountType?: string;
   categorySource: 'AGGREGATOR' | 'RULE' | 'MANUAL';
 }
 
 /**
  * A stored transaction row as applyRules wants it: Decimal to number, the
- * account's name flattened. Written once here rather than in each caller —
+ * account's name and type flattened. Written once here rather than in each caller —
  * sync.ts and rulePack.ts had byte-identical copies. Structural parameter
  * types keep this module Prisma-free, which is what makes it testable as a
  * pure function.
@@ -52,7 +58,7 @@ export function toRuleTxns(
     description: string;
     normalizedMerchant: string;
     categorySource: string;
-    account: { name: string };
+    account: { name: string; type?: string };
   }[],
 ): RuleTxn[] {
   return rows.map((t) => ({
@@ -61,6 +67,7 @@ export function toRuleTxns(
     description: t.description,
     normalizedMerchant: t.normalizedMerchant,
     accountName: t.account.name,
+    accountType: t.account.type,
     categorySource: t.categorySource as RuleTxn['categorySource'],
   }));
 }
@@ -208,6 +215,11 @@ function matches(
 /**
  * First matching rule by ascending priority wins. MANUAL categorizations
  * are never overridden — a human already decided.
+ *
+ * A row inside a CLOSED BOX (closedBox.ts) is a transfer before any rule is
+ * asked, the user's own included: the box is a statement about the account,
+ * and a rule that matched a dividend by its wording would put it back in
+ * income. MANUAL still outranks it, as it outranks everything.
  */
 export function applyRules(
   rules: RuleData[],
@@ -218,6 +230,10 @@ export function applyRules(
   const applications: RuleApplication[] = [];
   for (const txn of txns) {
     if (txn.categorySource === 'MANUAL') continue;
+    if (isClosedBox(txn.accountType)) {
+      applications.push({ txnId: txn.id, ruleId: CLOSED_BOX_RULE_ID, categoryId: null, flow: 'TRANSFER' });
+      continue;
+    }
     const applicable = isP2P(txn)
       ? active.filter((r) => r.priority < USER_PRIORITY_MAX && r.setFlow === 'TRANSFER')
       : active;

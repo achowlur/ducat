@@ -43,6 +43,7 @@ there, then:
 npm run simplefin:claim -- <setup-token>   # exchanges it for an access URL
 # paste the printed SIMPLEFIN_ACCESS_URL line into .env, then:
 npm run sync:simplefin
+npm run upgrade                            # installs the categorization rules
 ```
 
 The access URL is a revocable, read-only credential; revoke it at the bridge
@@ -78,8 +79,14 @@ category you set by hand is never overridden.
   what changed and what it costs if it holds, upcoming commitments, savings
   goals. Projections are labelled as projections.
 - **Transactions** (`/transactions`) — the ledger. Every row, paginated,
-  filterable; categorize, group-review, and link reimbursements here.
-- **Accounts** (`/accounts`) — what you have, per account.
+  filterable; categorize, group-review, and link reimbursements here. The
+  Account filter takes several accounts at once. To add a category of your
+  own, type its name into the category picker and choose one of the two "add"
+  rows, as spending or as income. A bill you linked repayments to says what
+  came back and your share under it.
+- **Accounts** (`/accounts`) — what you have, per account. An investment
+  account's own activity (trades, dividends, fees) never counts as income or
+  spending; what it earned shows as market movement on net worth.
 - **Providers** (`/providers`) — can I trust the data: per-connector health,
   what each provider can see, and how to revoke it.
 

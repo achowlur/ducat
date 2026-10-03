@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { prisma } from '../src/lib/prisma';
-import { installRulePack, pendingPackRules } from '../src/lib/sync/rulePack';
+import { installRulePack, pendingPackRules, reapplyRules } from '../src/lib/sync/rulePack';
 import { generateInsights } from '../src/lib/insights/engine';
 import { databaseLabel } from './database-label';
 
@@ -23,6 +23,13 @@ import { databaseLabel } from './database-label';
  * analyzers has no other way to reach a screen, and categories and insight
  * rows cannot end up disagreeing either (the contract `retarget-rule.ts`
  * holds). It therefore WRITES ROWS every real run, current pack or not.
+ *
+ * Classification that is CODE rather than a pack rule reaches stored rows the
+ * same way and for the same reason: the closed box (sync/closedBox.ts) marks
+ * rows inside investment accounts as transfers by their account's type, a
+ * sync applies it only to the rows it imports, and nothing else would ever
+ * carry it back over history. So every real run reapplies, pack or no pack.
+ * It is idempotent, leaves MANUAL rows alone, and reports what it moved.
  *
  * Regeneration is MONTH only — the granularity every screen reads
  * (`ui/insightRows.ts`). WEEK/QUARTER/YEAR rows exist only where somebody ran
@@ -50,7 +57,7 @@ async function main(): Promise<void> {
     // The count above decides the pack install and nothing else, so reporting
     // it alone would understate what a real run does.
     console.log('\n--check: nothing written.');
-    console.log('A real run regenerates the monthly insight rows whatever that count says.');
+    console.log('A real run reapplies every rule and regenerates the monthly insight rows whatever that count says.');
     return;
   }
 
@@ -59,6 +66,14 @@ async function main(): Promise<void> {
     console.log(`  Categories created: ${result.categoriesCreated}`);
     console.log(`  Rules created: ${result.rulesCreated} (${result.rulesSkipped} already present)`);
     console.log(`  Transactions recategorized: ${result.transactionsRecategorized}`);
+    console.log(`  Investment-account rows marked as transfers: ${result.transactionsEnclosed}`);
+  } else {
+    // installRulePack reapplies as its last step; with nothing to install the
+    // reapply still has to happen, or classification shipped as code stays
+    // off every row that was imported before it.
+    const reapplied = await reapplyRules(prisma);
+    console.log(`\nRules reapplied: ${reapplied.changed} transaction${reapplied.changed === 1 ? '' : 's'} recategorized.`);
+    console.log(`Investment-account rows marked as transfers: ${reapplied.enclosed}`);
   }
 
   // Unconditional, and the pack count above must never gate it: installRulePack

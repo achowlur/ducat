@@ -8,6 +8,8 @@ import { confirmP2PMatches, reapplyRules, restoreTransactions, type GroupUndo } 
 import { renameGroupRows } from "../../lib/sync/groups";
 import { MAX_GROUP_LABEL, normalizeGroupLabel } from "../../lib/ui/groupFilter";
 import { requireSession } from "../../lib/auth/requireSession";
+import { createUserCategory } from "../../lib/categories";
+import { whenCleared } from "../../lib/sync/closedBox";
 import { TRANSFER_TARGET } from "../../lib/sync/grouping";
 import { draftSubscription } from "../../lib/health/registerSubscription";
 import {
@@ -33,22 +35,51 @@ const CADENCES = new Set<RecurringCadence>([
  * Manually assign (or clear) a transaction's category. Manual assignments
  * are sacred — rules never override them. Clearing reverts the row to
  * AGGREGATOR so rules may categorize it again on the next pass.
+ *
+ * Inside an investment account, clearing encloses the row at once rather
+ * than on that next pass (see whenCleared): there the row is a transfer by
+ * its account's type, and leaving it uncategorized in the meantime counts it.
  */
 export async function setTransactionCategory(
   transactionId: string,
   categoryId: string | null,
 ): Promise<void> {
   await requireSession();
-  await prisma.transaction.update({
-    where: { id: transactionId },
-    data: {
-      categoryId,
-      categorySource: categoryId === null ? "AGGREGATOR" : "MANUAL",
-    },
-  });
+  if (categoryId === null) {
+    const row = await prisma.transaction.findUniqueOrThrow({
+      where: { id: transactionId },
+      select: { account: { select: { type: true } } },
+    });
+    await prisma.transaction.update({ where: { id: transactionId }, data: whenCleared(row.account.type) });
+  } else {
+    await prisma.transaction.update({
+      where: { id: transactionId },
+      data: { categoryId, categorySource: "MANUAL" },
+    });
+  }
   await generateInsights(prisma);
   revalidatePath("/transactions");
   revalidateInsightPages();
+}
+
+/**
+ * Add a category of the operator's own (lib/categories.ts), returning the one
+ * to assign. That is the EXISTING category when the name is already taken in
+ * any casing, so a stale picker cannot fork "groceries" beside "Groceries".
+ *
+ * Assigns nothing itself: the picker follows it with the same write an
+ * existing category gets, so a new category reaches a row, or a rule, by the
+ * one path that already protects MANUAL rows and regenerates insights.
+ */
+export async function createCategory(
+  name: string,
+  isIncome: boolean,
+): Promise<{ id: string; name: string }> {
+  await requireSession();
+  const made = await createUserCategory(prisma, name, isIncome === true);
+  // The picker's list and the filter's options are this page's props.
+  if (made.created) revalidatePath("/transactions");
+  return { id: made.id, name: made.name };
 }
 
 /**

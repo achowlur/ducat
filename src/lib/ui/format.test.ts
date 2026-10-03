@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { higherThan, titleCase } from "./format";
 
 describe("higherThan", () => {
@@ -59,5 +59,34 @@ describe("titleCase and domain suffixes", () => {
   it("does not lowercase a word that merely begins with a suffix", () => {
     expect(titleCase("coring services")).toBe("Coring Services");
     expect(titleCase("acme.commerce")).toBe("Acme.Commerce");
+  });
+});
+
+describe("the display time zone", () => {
+  // `.env.example` ships `DUCAT_TIMEZONE=""`. Read with `??`, the empty string
+  // survived as the zone and every instant on Overview, Accounts and Providers
+  // threw "Invalid time zone specified" on a fresh install.
+  it.each(["", "   "])("falls back to the machine's zone when the variable is %j", async (value) => {
+    vi.stubEnv("DUCAT_TIMEZONE", value);
+    vi.resetModules();
+    try {
+      const { dateTime } = await import("./format");
+      expect(() => dateTime(new Date(Date.UTC(2026, 6, 26, 21, 50)))).not.toThrow();
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
+  it("uses the zone it is given", async () => {
+    vi.stubEnv("DUCAT_TIMEZONE", "America/New_York");
+    vi.resetModules();
+    try {
+      const { dateTime } = await import("./format");
+      expect(dateTime(new Date(Date.UTC(2026, 6, 26, 21, 50)))).toBe("Jul 26, 5:50 PM EDT");
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
   });
 });

@@ -236,3 +236,87 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   A NOTE ON PUBLIC TEXT: the first draft's code comments quoted the real
   amounts and the real rank; both were replaced with invented figures before
   anything was committed. Diagnose with real data, describe with invented.
+
+- AN INVESTMENT ACCOUNT IS A CLOSED BOX (2026-09-27). Found on a live feed:
+  buying and selling shares showed up uncategorized, and a sale counted as
+  income though it paid for the next purchase.
+  THE CAUSE IS ONE LINE OF ARITHMETIC. Cash flow is "every inflow that is not
+  a transfer is income, every outflow that is not a transfer is spending",
+  and it never asked what KIND of account a row sat in.
+  THE TWO IMPORT ROUTES DISAGREED. The Fidelity CSV mapping has flagged
+  trades, contributions and journals TRANSFER at import since it was written.
+  The feed had two phrases in the pack (`reinvestment`, `purchase into core
+  account`). So the same trade was a transfer from a file and income from the
+  feed, and which one an instance had depended on how its history arrived.
+  WHY NOT MORE WORDING. Adding `you bought` and `you sold` to the pack was the
+  small fix and was declined. It covers one brokerage's vocabulary, and a
+  workplace plan can report a contribution or a loan repayment with the
+  FUND'S NAME for a description and no verb at all, which no pattern can find.
+  SO IT IS BY ACCOUNT TYPE (`sync/closedBox.ts`), decided inside `applyRules`
+  before any rule is asked, and written as TRANSFER: the one flag every
+  analyzer, the review queue and the ledger already honour, which is why the
+  change is a classification and not a filter threaded through each reader.
+  WHAT COUNTS, each decided before anything was built: dividends and interest paid inside the account are NOT income until
+  the money reaches a bank account; a withdrawal to the bank stays a transfer
+  and is NOT income, because deposits are not spending, and counting one
+  direction alone makes money that went in and came back out look earned;
+  payroll deductions into a plan are neither income nor spending, since
+  take-home pay is already smaller by them and counting them again as
+  spending subtracts them twice.
+  THIS REVERSES A SHIPPED DECISION, deliberately. The pack filed brokerage
+  dividends as Income on purpose ("arrive as cash and are income"), and
+  `installRulePack.test.ts` asserted exactly that. The rule is untouched and
+  still files a dividend paid into a BANK account; the test now pins both
+  halves. What an investment account earns is not lost: it is the
+  market-movement figure, computed from balances, never from these rows. A
+  reinvested dividend counted as income was counted twice, once there and
+  once in the gain it bought.
+  USER RULES DO NOT OUTRANK IT, only MANUAL does. The box is a statement about
+  the account; a rule that matched a dividend by wording would put it back in
+  income one merchant at a time, and "is this account counted" would have two
+  answers.
+  PAIRING WAS THE PART THAT NEARLY BROKE. Candidates were "not yet a
+  transfer", and an enclosed row is a transfer the moment it lands. So the
+  bank's side of a brokerage deposit found nothing to pair with and became
+  SPENDING, and only when the brokerage's side had arrived in an earlier
+  sync, so it would have looked intermittent. Enclosed rows are offered again
+  when they could cross the boundary. The test for "could" is the net-worth
+  flows' own `internalActivity` pattern, exported unchanged rather than
+  copied: a sale or a dividend is never offered, because one of exactly $640
+  within four days of an unrelated $640 bill would pair with the bill and
+  hide it. That is fewer candidates than before the box, not more.
+  THE UNDO SNAPSHOT HOLDS ONLY THE RULE'S OWN ROWS. `reapplyRules` writes the
+  enclosed rows in the same pass and returns them as a count (`enclosed`),
+  outside `restore`. Otherwise the first rule created after an upgrade would
+  carry a whole brokerage in its undo, and taking back "categorize this
+  payee" would hand every trade back to income.
+  NO RULES IS NO LONGER AN EARLY RETURN, in `reapplyRules`, the pipeline or
+  the import preview. The box needs none. The preview is pinned against a
+  real `runSync` over a fixture with two investment accounts.
+  RETYPING OUT RELEASES. Rules only write, so an account corrected away from
+  INVESTMENT would have kept its rows as transfers under a type that no
+  longer said so. `releaseClosedBox` returns each unpaired, non-MANUAL
+  transfer to the flow its own amount gives it and `reapplyRules` decides it
+  afresh. A pair keeps its link. NOT restored: a row a CSV import flagged
+  TRANSFER by wording, which no stored rule remembers.
+  REACHING STORED ROWS. A sync encloses what it imports. History is reached
+  by `npm run upgrade`, which now reapplies on every real run.
+  COVERAGE NOTICES LEAVE INVESTMENT ACCOUNTS OUT: an account none of whose
+  rows is spending cannot leave a spending total understated.
+  PINNED through the whole pipeline in `closedBox.test.ts`: a payroll deposit,
+  groceries and a water bill beside two investment accounts holding trades,
+  a dividend, a fee, verbless plan rows and a deposit whose two sides arrive a
+  sync apart. Income and spending come out as the bank rows alone, the
+  deposit pairs, the $640 sale leaves the $640 bill alone, and a retype out
+  and back in reproduces both states. The demo generator holds no trades, so
+  its screens do not move. Before the first CLOUD run, the reapply was
+  simulated read-only on a copy of the last verified backup, and what it
+  would move was read row by row before anything was written.
+  CLEARING A CATEGORY INSIDE THE BOX ENCLOSES THE ROW AT ONCE
+  (`whenCleared`). MANUAL is the only thing that outranks the box, so a row
+  categorized by hand inside an investment account goes on counting, and the
+  way to release it is to clear its category. Clearing used to mean
+  "uncategorized, until the next pass", and inside the box that put the row
+  straight back into income until something happened to reapply. It is a
+  transfer in the same write now. Outside the box clearing is unchanged.
+  Driven on the real page: the Flow column read TRANSFER with no reload.

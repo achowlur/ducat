@@ -22,7 +22,8 @@ async function main(): Promise<void> {
   console.log(`  Categories created: ${result.categoriesCreated}`);
   console.log(`  Rules created: ${result.rulesCreated} (${result.rulesSkipped} already present)`);
   console.log(`  Transactions recategorized: ${result.transactionsRecategorized}`);
-  if (result.transactionsRecategorized > 0) {
+  console.log(`  Investment-account rows marked as transfers: ${result.transactionsEnclosed}`);
+  if (result.transactionsRecategorized > 0 || result.transactionsEnclosed > 0) {
     console.log('  Insights regenerated.');
   }
 }
