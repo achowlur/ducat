@@ -2,7 +2,7 @@
 
 import { money, monthAbbrev, monthLabel, shortMonthLabel } from "../../lib/ui/format";
 import { spanName, type CompareKey, type Comparison, type GroupBy, type Measure, type Span } from "../../lib/ui/report";
-import { B_VIEWS, type BView } from "../../lib/ui/trendsParams";
+import { B_DEFAULTS, B_VIEWS, type BView } from "../../lib/ui/trendsParams";
 import { CardFrame, Fig, Hero, Lead, Note } from "./CardFrame";
 import { ChangeView, signedMoney } from "./ChangeView";
 import { ReportSelect } from "./ReportSelect";
@@ -110,9 +110,9 @@ export function ChangeCard({
       switcher={<ViewSwitch options={[...B_VIEWS]} value={view} onChange={setView} />}
       controls={
         <>
-          <ReportSelect name="b.span" label="Compare" value={span} fallback="1m" options={SPANS} />
-          <ReportSelect name="b.by" label="By" value={by} fallback="category" options={BYS} />
-          <ReportSelect name="b.show" label="Show" value={show} fallback="spending" options={SHOWS} />
+          <ReportSelect name="b.span" label="Compare" value={span} fallback={B_DEFAULTS.span} options={SPANS} />
+          <ReportSelect name="b.by" label="By" value={by} fallback={B_DEFAULTS.by} options={BYS} />
+          <ReportSelect name="b.show" label="Show" value={show} fallback={B_DEFAULTS.show} options={SHOWS} />
         </>
       }
     >

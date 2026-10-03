@@ -308,12 +308,14 @@ async function renderOverview() {
             {/* The donut answers "on what?"; Trends answers "compared to
                 when?" — so the ring drills into transactions and the
                 heading goes to the fuller breakdown: Trends' build-your-own
-                card on THIS month by category, which names every category
-                the ring folds into Other. Only when the month has spending:
-                a breakdown of nothing is a link to an empty card. */}
+                card on THIS month's spending by category, which names every
+                category the ring folds into Other. It names SPENDING outright:
+                the card opens on income when asked nothing. Only when the
+                month has spending: a breakdown of nothing is a link to an
+                empty card. */}
             {data.spendingTotal !== null && (
               <Link
-                href={`/trends?e.by=category&e.over=${data.currentPeriod}#build-your-own`}
+                href={`/trends?e.show=spending&e.by=category&e.over=${data.currentPeriod}#build-your-own`}
                 className="pb-2 text-[0.72rem] uppercase tracking-[0.08em] text-acc hover:underline"
               >
                 full breakdown →
@@ -391,7 +393,7 @@ async function renderOverview() {
               {data.priorSpending !== null && (
                 <p className="mt-1.5 text-[0.85rem]">
                   <Link
-                    href={`/trends?e.by=category&e.over=${data.priorSpending.period}#build-your-own`}
+                    href={`/trends?e.show=spending&e.by=category&e.over=${data.priorSpending.period}#build-your-own`}
                     // "Quiet" is the documented intent and the COLOUR keeps it
                     // — but every affordance it had was a hover state, which
                     // does not exist on a phone, so on the empty month the one

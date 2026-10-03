@@ -413,9 +413,11 @@ regeneration.
   A viewBox scales its TYPE with its container, so width buys legibility and
   then overshoots — every /trends chart is capped at 880px for that reason.
 - /trends stacks its cards FULL WIDTH in the operator's order: This month so
-  far, What changed (last month vs the one before), Build your own (bars),
-  Net worth; `lg:grid-cols-2` sized the page in inverse proportion to what
-  each block had to say. Changes are DOLLARS, never a ratio column.
+  far, What changed (last month vs the one before), Build your own (income by
+  month, this year so far, as bars), Net worth; `lg:grid-cols-2` sized the
+  page in inverse proportion to what each block had to say. Changes are
+  DOLLARS, never a ratio column. Defaults live ONCE (B_DEFAULTS/E_DEFAULTS in
+  ui/trendsParams.ts), and a link meaning spending says `e.show=spending`.
 - A /trends card leads as Overview does: ONE money-face figure over a faint
   context line, then the detail; no figure is printed twice on a card (the
   chart readout IS the legend), and "view as" offers only what the data's

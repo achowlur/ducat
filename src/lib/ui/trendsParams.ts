@@ -53,6 +53,15 @@ export type EGroupView = ValueOf<typeof E_GROUP_VIEWS>;
 export type ExploreBy = "month" | GroupBy;
 export type ExploreShow = Measure | "both";
 
+/**
+ * What a card asks with no parameter, written ONCE: the parser fills these in
+ * and every control drops its parameter at its own, so a control set back to
+ * its default and the page it then asks for always agree. Build your own
+ * opens on income by month, this year so far, at the operator's choice.
+ */
+export const B_DEFAULTS = { span: "1m", by: "category", show: "spending" } as const;
+export const E_DEFAULTS = { show: "income", by: "month", over: "ytd" } as const;
+
 export interface TrendsParams {
   a: { view: AView };
   b: { view: BView; span: CompareKey; by: GroupBy; show: Measure };
@@ -102,17 +111,21 @@ export function targetParam(t: GroupTarget): string {
 }
 
 export function parseTrendsParams(raw: RawSearch, cookie: (name: string) => string | undefined): TrendsParams {
-  const eBy = oneOf<ExploreBy>(first(raw, "e.by"), ["month", ...GROUP_BYS], "month");
+  const eBy = oneOf<ExploreBy>(first(raw, "e.by"), ["month", ...GROUP_BYS], E_DEFAULTS.by);
   // "Income and spending" is two series over months; across groups it would
   // be two different wholes, so it is offered only by month.
-  const eShow = oneOf<ExploreShow>(first(raw, "e.show"), eBy === "month" ? ["spending", "income", "both"] : MEASURES, "spending");
+  const eShow = oneOf<ExploreShow>(
+    first(raw, "e.show"),
+    eBy === "month" ? ["spending", "income", "both"] : MEASURES,
+    E_DEFAULTS.show,
+  );
   return {
     a: { view: viewOf("a", raw, cookie, A_VIEWS) },
     b: {
       view: viewOf("b", raw, cookie, B_VIEWS),
-      span: oneOf(first(raw, "b.span"), COMPARE_KEYS, "1m"),
-      by: oneOf(first(raw, "b.by"), GROUP_BYS, "category"),
-      show: oneOf(first(raw, "b.show"), MEASURES, "spending"),
+      span: oneOf(first(raw, "b.span"), COMPARE_KEYS, B_DEFAULTS.span),
+      by: oneOf(first(raw, "b.by"), GROUP_BYS, B_DEFAULTS.by),
+      show: oneOf(first(raw, "b.show"), MEASURES, B_DEFAULTS.show),
     },
     e: {
       view: viewOf("e", raw, cookie, eBy === "month" ? E_MONTH_VIEWS : E_GROUP_VIEWS),
@@ -121,7 +134,7 @@ export function parseTrendsParams(raw: RawSearch, cookie: (name: string) => stri
       for: parseTarget(first(raw, "e.for")),
       over: MONTH_KEY.test(first(raw, "e.over") ?? "")
         ? (first(raw, "e.over") as string)
-        : oneOf(first(raw, "e.over"), EXPLORE_SPAN_KEYS, "12m"),
+        : oneOf(first(raw, "e.over"), EXPLORE_SPAN_KEYS, E_DEFAULTS.over),
     },
   };
 }
