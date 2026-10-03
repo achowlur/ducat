@@ -1,35 +1,25 @@
-import type {
-  CashFlowTrendPayload,
-  NetWorthGrowthPayload,
-  SpendingByCategoryPayload,
-} from "../../types/contracts";
-import { monthLabel } from "./format";
+import type { NetWorthGrowthPayload } from "../../types/contracts";
+import type { TxnData } from "../insights/types";
 import { prisma } from "../prisma";
+import { isClosedBox } from "../sync/closedBox";
 import { monthlyRows, ofType } from "./insightRows";
-import { spendingBreakdown, type CategoryRow, type DonutSliceData } from "./spendingBreakdown";
-
-export type { CategoryRow, DonutSliceData };
+import { buildEntries, type Entry } from "./report";
 
 export interface MonthPoint {
   period: string; // "2026-07"
   label: string; // "Jul"
 }
 
-export interface TrendsData {
-  /** Selected spending period and the ones available for prev/next nav. */
-  period: string;
-  prevPeriod: string | null;
-  nextPeriod: string | null;
-  periodLabel: string;
-  /** A `?period=` that had no row and was refused; null when honoured or absent. */
-  clampedFrom: string | null;
-  donut: { slices: DonutSliceData[]; total: number } | null;
-  categories: CategoryRow[];
-  /** Sum of the categories with net spending — what every share divides by. */
-  drawable: number;
-  /** Drawn spending a credit elsewhere cancels; 0 unless a category ended the period negative. */
-  credited: number;
-  cashFlow: (MonthPoint & { income: number; spending: number; net: number })[];
+export interface TrendsSource {
+  entries: Entry[];
+  /**
+   * Accounts that can hold income or spending, with the day ("2026-08-14")
+   * their records begin: an INVESTMENT account is a closed box (sync/closedBox.ts) and holds
+   * neither, so it is never a group, a filter or a coverage gap here.
+   */
+  accounts: { id: string; name: string; firstDay: string | null }[];
+  accountNames: Map<string, string>;
+  categories: { id: string; name: string; isIncome: boolean }[];
   netWorth: (MonthPoint & { value: number; estimated: boolean; marketGains: number | null })[];
 }
 
@@ -38,54 +28,71 @@ function shortMonth(period: string): string {
   return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
 }
 
-export async function getTrendsData(requestedPeriod?: string): Promise<TrendsData | null> {
-  // One read for all three series: this page plots spending, cash flow and net
-  // worth, and each used to scan the whole Insight table for itself.
-  const monthly = monthlyRows(await prisma.insight.findMany());
-  const spendingAll = ofType<SpendingByCategoryPayload>(monthly, "SPENDING_BY_CATEGORY");
-  if (spendingAll.length === 0) return null;
+/**
+ * Everything /trends draws, in ONE round of queries: its cards are sums over
+ * the same entries, so each control change costs one fetch, never one per card.
+ * Columns are SELECTED, not included: a relation include is a statement of its
+ * own on Turso, and category names join in memory from a table of a few dozen.
+ */
+export async function getTrendsSource(): Promise<TrendsSource> {
+  const [txnRows, categories, accounts, netWorthRows] = await Promise.all([
+    prisma.transaction.findMany({
+      select: {
+        id: true,
+        accountId: true,
+        date: true,
+        amount: true,
+        description: true,
+        normalizedMerchant: true,
+        flow: true,
+        categoryId: true,
+        reimbursesId: true,
+      },
+    }),
+    prisma.category.findMany({ select: { id: true, name: true, isIncome: true }, orderBy: { name: "asc" } }),
+    prisma.account.findMany({ select: { id: true, name: true, type: true }, orderBy: { name: "asc" } }),
+    prisma.insight.findMany({ where: { type: "NET_WORTH_GROWTH" } }),
+  ]);
 
-  const available = spendingAll.map((s) => s.period);
-  const asked = requestedPeriod === undefined || requestedPeriod === "" ? null : requestedPeriod;
-  const honoured = asked !== null && available.includes(asked);
-  const period = honoured ? asked : available[available.length - 1];
-  // The clamp is right — this page plots stored rows and cannot invent a month
-  // it has none for. What was wrong is that it happened in SILENCE: the URL
-  // still read `?period=2026-08` while the stepper said July and nothing on the
-  // page mentioned the substitution. Overview already refuses to LINK here for
-  // exactly this reason; the page causing it should say so itself.
-  const clampedFrom = asked !== null && !honoured ? asked : null;
-  const idx = available.indexOf(period);
-  const spending = spendingAll[idx].payload;
+  const categoryById = new Map(categories.map((c) => [c.id, c]));
+  const txns: TxnData[] = txnRows.map((t) => {
+    const category = t.categoryId === null ? undefined : categoryById.get(t.categoryId);
+    return {
+      id: t.id,
+      accountId: t.accountId,
+      date: t.date,
+      amount: Number(t.amount),
+      description: t.description,
+      normalizedMerchant: t.normalizedMerchant,
+      flow: t.flow,
+      categoryId: t.categoryId,
+      categoryName: category?.name ?? null,
+      categoryIsIncome: category?.isIncome ?? false,
+      reimbursesId: t.reimbursesId,
+    };
+  });
 
-  const breakdown = spendingBreakdown(spending);
-
-  const cashFlowAll = ofType<CashFlowTrendPayload>(monthly, "CASH_FLOW_TREND");
-  const netWorthAll = ofType<NetWorthGrowthPayload>(monthly, "NET_WORTH_GROWTH");
+  const firstByAccount = new Map<string, string>();
+  for (const t of txnRows) {
+    const day = t.date.toISOString().slice(0, 10);
+    const seen = firstByAccount.get(t.accountId);
+    if (seen === undefined || day < seen) firstByAccount.set(t.accountId, day);
+  }
+  const open = accounts.filter((a) => !isClosedBox(a.type));
 
   return {
-    period,
-    prevPeriod: idx > 0 ? available[idx - 1] : null,
-    nextPeriod: idx < available.length - 1 ? available[idx + 1] : null,
-    periodLabel: monthLabel(period),
-    clampedFrom,
-    donut: breakdown.donut,
-    categories: breakdown.categories,
-    drawable: breakdown.drawable,
-    credited: breakdown.credited,
-    cashFlow: cashFlowAll.map(({ period: p, payload }) => ({
-      period: p,
-      label: shortMonth(p),
-      income: payload.income,
-      spending: payload.spending,
-      net: payload.net,
-    })),
-    netWorth: netWorthAll.map(({ period: p, payload }) => ({
-      period: p,
-      label: shortMonth(p),
-      value: payload.netWorth,
-      estimated: payload.estimatedAccountIds.length > 0,
-      marketGains: payload.marketGains ?? null,
-    })),
+    entries: buildEntries(txns),
+    accounts: open.map((a) => ({ id: a.id, name: a.name, firstDay: firstByAccount.get(a.id) ?? null })),
+    accountNames: new Map(accounts.map((a) => [a.id, a.name])),
+    categories,
+    netWorth: ofType<NetWorthGrowthPayload>(monthlyRows(netWorthRows), "NET_WORTH_GROWTH").map(
+      ({ period, payload }) => ({
+        period,
+        label: shortMonth(period),
+        value: payload.netWorth,
+        estimated: payload.estimatedAccountIds.length > 0,
+        marketGains: payload.marketGains ?? null,
+      }),
+    ),
   };
 }

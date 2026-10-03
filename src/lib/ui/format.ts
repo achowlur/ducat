@@ -28,6 +28,22 @@ export function monthLabel(period: string): string {
   });
 }
 
+/** Period key "2025-10" → "Oct": an axis label, where a year band carries the year. */
+export function monthAbbrev(period: string): string {
+  const [y, m] = period.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+}
+
+/** Period key "2025-10" → "Oct 2025": a month that must carry its year in little room. */
+export function shortMonthLabel(period: string): string {
+  const [y, m] = period.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 /** "2026-07-12" → short human date "Jul 12". */
 export function shortDate(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });

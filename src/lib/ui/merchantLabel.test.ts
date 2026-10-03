@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { merchantLabel } from "./merchantLabel";
+import { merchantKey, merchantLabel } from "./merchantLabel";
 
 const zelle = (description: string) => merchantLabel({ normalizedMerchant: "zelle transfer", description });
 
@@ -70,5 +70,47 @@ describe("merchantLabel", () => {
   it("uses the description when there is no merchant at all", () => {
     const m = merchantLabel({ normalizedMerchant: "", description: "SOME UNMAPPED THING" });
     expect(m.label).toBe("Some Unmapped Thing");
+  });
+});
+
+describe("merchantKey", () => {
+  it("keys a P2P row on its payee, so two people are two merchants", () => {
+    const a = merchantKey({ normalizedMerchant: "zelle transfer", description: "ZELLE TO HOLLIS AMARI ON 07/19 REF # WFCT0000000H" });
+    const b = merchantKey({ normalizedMerchant: "zelle transfer", description: "ZELLE TO  LENA ON 07/18 REF # WFCT0000000J" });
+    expect(a).toBe("zelle to hollis amari");
+    expect(b).toBe("zelle to lena");
+  });
+
+  it("keys an ordinary row on its merchant, and a row with none on its description", () => {
+    expect(merchantKey({ normalizedMerchant: "corner bistro", description: "CORNER BISTRO 0042 SOMEWHERE" })).toBe("corner bistro");
+    expect(merchantKey({ normalizedMerchant: "", description: "SOME   UNMAPPED Thing" })).toBe("some unmapped thing");
+  });
+
+  /**
+   * The ledger narrows `?merchant=` in SQL before finishing in memory, with
+   * `normalizedMerchant CONTAINS key OR description CONTAINS firstWord(key)`
+   * (SQLite LIKE: case-insensitive for ASCII). That is only correct if it is a
+   * SUPERSET: no row whose key matches may fall outside it.
+   */
+  it("always falls inside the ledger's SQL superset", () => {
+    let seed = 11;
+    const rand = () => {
+      seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
+      return seed / 2_147_483_648;
+    };
+    const pick = <T,>(xs: readonly T[]) => xs[Math.floor(rand() * xs.length)];
+    const names = ["O'BRIEN KAI", "LENA", "AMARI  HOLLIS", "J & K CATERING", "DEE-ANN 2", "MO"];
+    const rails = ["ZELLE TO", "ZELLE FROM", "VENMO *", "Venmo Payment", "CASH APP*", "PAYPAL INST XFER"];
+    const tails = [" ON 07/19 REF # WFCT0000000H", " 1234", "", " *PMT", " REF #WFCT0000001A FOR DINNER"];
+    const merchants = ["zelle transfer", "venmo", "", "  ", "corner bistro", "shop.example*qz41", "j & k catering"];
+    for (let i = 0; i < 2000; i += 1) {
+      const row = { normalizedMerchant: pick(merchants), description: `${pick(rails)} ${pick(names)}${pick(tails)}` };
+      const key = merchantKey(row);
+      const first = key.split(" ")[0];
+      const inSql =
+        row.normalizedMerchant.toLowerCase().includes(key.toLowerCase()) ||
+        row.description.toLowerCase().includes(first.toLowerCase());
+      expect(inSql, JSON.stringify({ row, key })).toBe(true);
+    }
   });
 });

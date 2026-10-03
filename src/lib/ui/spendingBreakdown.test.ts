@@ -192,7 +192,7 @@ describe("spendingBreakdown on Overview (every category at 3% or more)", () => {
     expect(labels(eight)).toEqual(eight.map((c) => c.name));
   });
 
-  it("leaves /trends on its top three", () => {
+  it("keeps only the top three when sliced by rank", () => {
     const eight = Array.from({ length: 8 }, (_, i) => ({ name: `Cat${i}`, spending: 20 - i }));
     expect(spendingBreakdown(payload(eight)).donut?.slices.map((s) => s.label)).toEqual([
       "Cat0",

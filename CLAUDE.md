@@ -114,8 +114,12 @@ regeneration.
 - Reimbursements push categories NEGATIVE by design: arcs divide by drawable,
   every PRINTED total is net totalSpending (single source:
   ui/spendingBreakdown.ts), and pctDelta is null when EITHER operand crosses
-  zero (base ≤ 0 OR current < 0) — /trends names the three refusals in three
-  words: new / — / refunded.
+  zero (base ≤ 0 OR current < 0); /trends prints no percentage then, only
+  dollars.
+- /trends computes from TRANSACTIONS through ui/report.ts ENTRIES, never a
+  second definition of spending or income: a credit files under the row it
+  nets against (reimbursementSources), and every month's totals are pinned to
+  the analyzers to the cent (report.test.ts).
 - Net worth history requires SNAPSHOTS: investment accounts are known:false
   without a snapshot INSIDE the period; never reconstruct an investment
   balance from transactions, in either direction. Cash/credit are exempt.
@@ -340,6 +344,10 @@ regeneration.
   figures never in the net, and REPAID, the linked repayments of listed
   bills that the list does not show (ui/repaid.ts), netted so a category
   view's net IS /trends' figure (repaid.test.ts pins it).
+- ?period= is ONE period key or a span of whole months `A..B`, read only by
+  ui/periodSpan.ts; a span gets the select's synthetic entry and no month
+  step. ?merchant= is EXACT by merchantKey: SQL narrows to a SUPERSET (pinned
+  by merchantLabel.test.ts) and the list finishes in memory, like review mode.
 - A bill with linked repayments says so ON ITS ROW, at every width: what
   came back and the share left. The link lives on the repayment, so the
   bill was the one row that never said it was split.
@@ -403,15 +411,22 @@ regeneration.
 - Charts are hand-rolled SVG; no chart library, no webfonts anywhere (CSP).
   niceTicks guarantees last tick ≥ max; value labels are collision-checked.
   A viewBox scales its TYPE with its container, so width buys legibility and
-  then overshoots — the cash-flow strip is capped at 880px for that reason.
-- /trends stacks its three blocks FULL WIDTH; `lg:grid-cols-2` sized the page
-  in inverse proportion to what each block had to say. The category column is
-  the prior period's DOLLARS, never a ratio: one unit down the column, with
-  `new` the only non-quantity.
+  then overshoots — every /trends chart is capped at 880px for that reason.
+- /trends stacks its cards FULL WIDTH in the operator's order: This month so
+  far, What changed (last month vs the one before), Build your own (bars),
+  Net worth; `lg:grid-cols-2` sized the page in inverse proportion to what
+  each block had to say. Changes are DOLLARS, never a ratio column.
+- A /trends card leads as Overview does: ONE money-face figure over a faint
+  context line, then the detail; no figure is printed twice on a card (the
+  chart readout IS the legend), and "view as" offers only what the data's
+  SHAPE allows (a pie never for months), remembered per card in URL + cookie.
+- Comparisons use COMPLETE months, except "this month so far", which cuts
+  last month at the same DAY; a card names accounts whose records begin
+  inside the earlier span, by first-transaction day.
 - Overview's ring names every category at ≥3% (eight legend rows max, the
-  last being Other, drawn NEUTRAL); /trends keeps its top three because its
-  table names the rest. One spendingBreakdown, two DonutSlicings; legend
-  percentages round together via wholePercents.
+  last being Other, drawn NEUTRAL); /trends' pie names seven, folding the
+  rest into a NEUTRAL `Other · N`. Legend percentages round together via
+  wholePercents.
 - Overview is HEADLINE → DETAIL → TOTAL; the grouping figures are a
   full-width band BELOW the table, never rows inside it; freshness is a
   COLUMN.
@@ -442,8 +457,8 @@ regeneration.
   never in a title= — hover does not exist on the device this is read on.
   Percentages of one whole round by largest remainder, or a column of them
   sums to 101%.
-- On-screen copy carries NO em dash (the /trends refusal glyph and an empty
-  cell's dash are glyphs, not prose); an /insights archive row is a NAME plus
+- On-screen copy carries NO em dash (a refusal glyph and an empty cell's
+  dash are glyphs, not prose); an /insights archive row is a NAME plus
   a column of FACTS (`InsightRow.facts`), never a punctuated sentence, and a
   chip that only repeats its group heading is null, the tone carried by a mark.
 

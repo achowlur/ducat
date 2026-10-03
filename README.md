@@ -53,10 +53,13 @@ assumptions.
 
 ### Trends
 
-<img src="docs/assets/screenshots/trends.png" alt="Trends: spending by category against the prior month, cash flow by month, and net worth over two years" width="100%">
+<img src="docs/assets/screenshots/trends.png" alt="Trends: this month's running spending against last month and the typical range, then what changed since the month before" width="100%">
 
-Each category against the prior month, cash flow month by month, and net worth
-split into what you saved and what the markets did.
+This month's spending against last month and what is typical by the same day,
+what changed since the month before and where (category, merchant, card or
+account), a report you build yourself in the chart you choose, and net worth
+split into what you saved and what the markets did. Every figure opens the
+transactions behind it.
 
 ### Transactions
 

@@ -73,8 +73,7 @@ export function MiniDonut({
   return (
     // Cropped to the ring (outer radius 70 plus the 2px stroke): the old 220×200
     // box spent over a third of its width on padding, so a 200px donut drew a
-    // 127px ring. Nothing is drawn outside it — the hover tooltip lives on
-    // /trends' donut, not this one.
+    // 127px ring. Nothing is drawn outside it: this ring has no tooltip.
     <svg viewBox="38 28 144 144" className={className} role="img" aria-label={`Spending by category: ${label}`}>
       <g stroke="var(--paper)" strokeWidth="2">
         {paths.map((p) => {
