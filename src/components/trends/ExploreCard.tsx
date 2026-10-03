@@ -4,6 +4,7 @@ import { sliceFill } from "../../lib/ui/donutColors";
 import { amount, money, monthAbbrev, monthLabel, shortMonthLabel } from "../../lib/ui/format";
 import { MONTH_KEY, spanName, type ExploreSpanKey, type GroupedSeries, type MonthSeries } from "../../lib/ui/report";
 import {
+  E_DEFAULTS,
   E_GROUP_VIEWS,
   E_MONTH_VIEWS,
   type EGroupView,
@@ -85,14 +86,14 @@ export function ExploreCard({
   ];
   const controls = (
     <>
-      <ReportSelect name="e.show" label="Show" value={show} fallback="spending" options={shows} />
-      <ReportSelect name="e.by" label="By" value={by} fallback="month" options={BYS} />
+      <ReportSelect name="e.show" label="Show" value={show} fallback={E_DEFAULTS.show} options={shows} />
+      <ReportSelect name="e.by" label="By" value={by} fallback={E_DEFAULTS.by} options={BYS} />
       <ReportSelect name="e.for" label="For" value={forValue} fallback="" options={forOptions} />
       <ReportSelect
         name="e.over"
         label="Over"
         value={over}
-        fallback="12m"
+        fallback={E_DEFAULTS.over}
         options={
           // A month named outright (Overview's "full breakdown") matches no
           // preset, so it gets a synthetic entry, or the select would show

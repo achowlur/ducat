@@ -1108,3 +1108,17 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   description; merchantLabel.test.ts drives two thousand generated rows
   through it. The trip band sums the FINISHED list under a merchant filter,
   because the SQL aggregate would sum the superset.
+
+- BUILD YOUR OWN OPENS ON INCOME (2026-10-03, the same evening). The operator
+  set its default to income by month, for everything, this year so far,
+  still as bars: What changed already opens on spending, so the page now
+  answers both sides of the ledger before anything is touched. Two things
+  moved with it. The defaults were written TWICE, in the URL parser and in
+  each control's "fallback" (the value at which it drops its parameter); had
+  only the parser changed, choosing "Spending" would have dropped the
+  parameter and drawn income. They are one constant now, B_DEFAULTS and
+  E_DEFAULTS in ui/trendsParams.ts, pinned in trendsParams.test.ts. And
+  Overview's "full breakdown →" and its empty-month link leaned on the old
+  default to mean SPENDING; they name `e.show=spending` outright, or both would
+  have opened a month's income by category under a spending heading.
+
