@@ -549,9 +549,10 @@ regeneration.
 - README images come ONLY from `npm run screenshots` (invented demo data, a
   throwaway database, its own `.next-capture/` build); a PR touching a pictured
   screen retakes them or states `screenshots: unchanged — <why>`, which CI
-  enforces (scripts/screenshotSync.ts). Run privacyScan over new PR text and
-  commit messages BEFORE pushing — a pushed message cannot be fixed without a
-  force-push.
+  enforces (scripts/screenshotSync.ts). The check never sees the WALKTHROUGH,
+  which holds on every Trends card, so a waiver answers for it too. Run
+  privacyScan over new PR text and commit messages BEFORE pushing — a pushed
+  message cannot be fixed without a force-push.
 
 ## Verified load-bearing (three reviews, 2026-07-26) — do not "clean up"
 
