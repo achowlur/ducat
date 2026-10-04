@@ -176,6 +176,8 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   both clocks and names no cause. `/accounts` still has NO last-sync line of
   its own, which is what makes the sync-relative number harder to interpret
   here than on Overview; that gap is open (docs/backlog.md).
+  CLOSED 2026-08-06: /accounts now leads with its own last-sync line
+  (`getAccountsData` returns `lastSyncAt`); the entry is in docs/history.md.
 - The POLISH pass (2026-08-03), the last of the five waves. Grouped by what
   each item actually was, because the list read as 38 unrelated things and was
   not:

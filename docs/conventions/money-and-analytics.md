@@ -51,6 +51,9 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   (no prior row at all), `—` (prior base not positive, nothing to divide by),
   `refunded` (current period ended in credit). The em dash's own overload
   across the two columns is still open — see docs/backlog.md.
+  SETTLED BY REMOVAL 2026-10-03: the Trends rebuild dropped the `vs prev` and
+  `Share` columns, and a change is printed in DOLLARS ("$from → $to"), so the
+  glyph no longer carries any of these meanings there.
 - Net worth history requires SNAPSHOTS, not transactions. `balanceAt`
   (insights/netWorth.ts) returns `known:false` for an INVESTMENT account with no
   snapshot at/before the date, and `computeNetWorthGrowth` emits NOTHING for a

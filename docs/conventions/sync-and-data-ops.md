@@ -173,6 +173,10 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   survive. A dismissed insight the CHANGED analyzer no longer emits has no row
   to carry the flag onto, and its dismissal is gone for good. That is the price
   of the command doing what it always said it did.
+  SINCE 2026-10-03 `upgrade` ALSO REAPPLIES EVERY RULE AND THE CLOSED BOX on
+  every real run, pack or no pack, because that is how stored history reaches
+  a box added after it synced. The evidence lives with the closed box in
+  money-and-analytics.md ("REACHING STORED ROWS").
 - README's command table DRIFTS BY SHIPPING, which is why remembering does not
   fix it. The table is the index of everything an operator runs; it was audited
   and repaired on 2026-08-01 (the user-docs commit) as part of writing the user docs, and by

@@ -145,8 +145,12 @@ For real data, run `npm run simplefin:claim -- <setup-token>` then
 
 ## Engineering rules
 
-[CLAUDE.md](CLAUDE.md) holds the project's enforceable rules, one line each, and
-[docs/conventions/](docs/conventions/) holds the evidence behind every one.
+[CLAUDE.md](CLAUDE.md) holds the rules every change has to keep.
+[.claude/rules/](.claude/rules/) holds the rules for each area of the code, and
+each file loads when a file in its area is opened.
+[.claude/skills/](.claude/skills/) holds procedures, such as the pre-commit gate
+and shipping a pull request.
+[docs/conventions/](docs/conventions/) holds the evidence behind every rule.
 
 ## Commands
 
