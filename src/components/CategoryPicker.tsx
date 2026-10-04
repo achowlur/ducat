@@ -20,6 +20,7 @@ import {
   unregisterSubscription,
 } from "../app/transactions/actions";
 import { categoryNameProblem, existingCategoryName, normalizeCategoryName } from "../lib/categories";
+import { ACTION_DID_NOT_COMPLETE } from "../lib/ui/boundaryCopy";
 import { useGroupPicker } from "./GroupPicker";
 import type { RecurringCadence } from "../types/contracts";
 
@@ -61,12 +62,20 @@ interface Target {
   anchor: HTMLElement;
 }
 
+/** Why a row's last write was refused, until the row is picked again or dismissed. */
+export interface RowRefusalState {
+  transactionId: string;
+  message: string;
+}
+
 interface PickerContext {
   categories: CategoryOption[];
   nameOf: (id: string | null) => string | null;
   openPicker: (target: Target) => void;
   target: Target | null;
   pendingId: string | null;
+  refusal: RowRefusalState | null;
+  dismissRefusal: () => void;
 }
 
 const Ctx = createContext<PickerContext | null>(null);
@@ -137,6 +146,7 @@ export function CategoryPickerProvider({
 }) {
   const [target, setTarget] = useState<Target | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<RowRefusalState | null>(null);
   const [, startTransition] = useTransition();
 
   const byId = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
@@ -145,7 +155,12 @@ export function CategoryPickerProvider({
     [byId],
   );
 
-  const openPicker = useCallback((next: Target) => setTarget(next), []);
+  // Picking again is the answer to a refusal, so it clears it.
+  const openPicker = useCallback((next: Target) => {
+    setRefusal(null);
+    setTarget(next);
+  }, []);
+  const dismissRefusal = useCallback(() => setRefusal(null), []);
 
   // Clicking away should leave focus where it was clicked; dismissing with the
   // keyboard has to put it back on the row, or Escape strands you at the top of
@@ -171,13 +186,23 @@ export function CategoryPickerProvider({
           // A new category is made first and then assigned by the SAME write
           // an existing one gets, so it reaches the row or the rule by the
           // one path that guards MANUAL rows and regenerates insights.
-          const categoryId =
-            choice.kind === "create" ? (await createCategory(choice.name, choice.isIncome)).id : choice.id;
+          let categoryId = choice.kind === "create" ? null : choice.id;
+          if (choice.kind === "create") {
+            const made = await createCategory(choice.name, choice.isIncome);
+            if (!made.ok) {
+              setRefusal({ transactionId, message: made.message });
+              return;
+            }
+            categoryId = made.id;
+          }
           // Rule mode never offers "none" — a rule has to assign something —
-          // so this branch cannot be reached with a null category.
-          if (ruleMode && categoryId !== null)
-            await createRuleFromMerchant(ruleValue, categoryId, ruleField);
-          else await setTransactionCategory(transactionId, categoryId);
+          // so this branch cannot be reached with a null category. A refusal
+          // (a value too short to match safely) is said on the row; anything
+          // unexpected still throws, to the error boundary.
+          if (ruleMode && categoryId !== null) {
+            const applied = await createRuleFromMerchant(ruleValue, categoryId, ruleField);
+            if (!applied.ok) setRefusal({ transactionId, message: applied.message });
+          } else await setTransactionCategory(transactionId, categoryId);
         } finally {
           setPendingId(null);
         }
@@ -187,8 +212,8 @@ export function CategoryPickerProvider({
   );
 
   const value = useMemo<PickerContext>(
-    () => ({ categories, nameOf, openPicker, target, pendingId }),
-    [categories, nameOf, openPicker, target, pendingId],
+    () => ({ categories, nameOf, openPicker, target, pendingId, refusal, dismissRefusal }),
+    [categories, nameOf, openPicker, target, pendingId, refusal, dismissRefusal],
   );
 
   return (
@@ -775,10 +800,12 @@ export function CategoryButton({
                 setSubError(null);
                 startSub(async () => {
                   try {
-                    await registerSubscription(transactionId, c.value);
-                    setMenu("closed");
-                  } catch (e) {
-                    setSubError(e instanceof Error ? e.message : "Could not track this one.");
+                    const tracked = await registerSubscription(transactionId, c.value);
+                    if (tracked.ok) setMenu("closed");
+                    else setSubError(tracked.message);
+                  } catch {
+                    // Never e.message: production replaces it with a placeholder.
+                    setSubError(ACTION_DID_NOT_COMPLETE);
                   }
                 });
               }}
@@ -823,5 +850,42 @@ export function CategoryButton({
         </button>
       )}
     </span>
+  );
+}
+
+/**
+ * Why the row's last write was refused, on its OWN LINE under the row's
+ * controls, the way a P2P suggestion sits: beside the trigger it would widen a
+ * phone table that already scrolls. Refusals come back from the category
+ * picker (a rule value too short to match safely, a name that cannot be a
+ * category) and the trip picker; either provider may be absent.
+ *
+ * Renders nothing, not even a wrapper, until there is something to say: it is
+ * on every row of the ledger, and page cost here is DOM size.
+ */
+export function RowRefusal({ transactionId }: { transactionId: string }) {
+  const picker = useContext(Ctx);
+  const trips = useGroupPicker();
+  const shown =
+    picker?.refusal?.transactionId === transactionId
+      ? { message: picker.refusal.message, dismiss: picker.dismissRefusal }
+      : trips?.refusal?.transactionId === transactionId
+        ? { message: trips.refusal.message, dismiss: trips.dismissRefusal }
+        : null;
+  if (shown === null) return null;
+  return (
+    // Capped at every width: uncapped on desktop, one sentence widened the
+    // whole category column and reflowed the table around it.
+    <div role="alert" className="mt-1 flex max-w-[220px] items-start gap-1">
+      <span className="pt-0.5 text-[0.7rem] text-neg">{shown.message}</span>
+      <button
+        type="button"
+        onClick={shown.dismiss}
+        className="tap44 shrink-0 px-1 text-[0.7rem] text-faint hover:text-ink"
+        aria-label="Dismiss this message"
+      >
+        ×
+      </button>
+    </div>
   );
 }

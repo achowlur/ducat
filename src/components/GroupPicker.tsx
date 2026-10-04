@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { setTransactionGroup } from "../app/transactions/actions";
 import { groupHref, MAX_GROUP_LABEL, normalizeGroupLabel } from "../lib/ui/groupFilter";
+import type { RowRefusalState } from "./CategoryPicker";
 
 /**
  * ONE trip/project picker for the whole ledger, in the CategoryPicker mould:
@@ -46,6 +47,9 @@ interface GroupPickerContext {
   openPicker: (target: Target) => void;
   target: Target | null;
   pendingId: string | null;
+  /** Said on the row by RowRefusal (CategoryPicker.tsx). */
+  refusal: RowRefusalState | null;
+  dismissRefusal: () => void;
 }
 
 const Ctx = createContext<GroupPickerContext | null>(null);
@@ -100,9 +104,14 @@ export function GroupPickerProvider({
 }) {
   const [target, setTarget] = useState<Target | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<RowRefusalState | null>(null);
   const [, startTransition] = useTransition();
 
-  const openPicker = useCallback((next: Target) => setTarget(next), []);
+  const openPicker = useCallback((next: Target) => {
+    setRefusal(null);
+    setTarget(next);
+  }, []);
+  const dismissRefusal = useCallback(() => setRefusal(null), []);
 
   const close = useCallback(
     (restoreFocus: boolean) => {
@@ -121,7 +130,10 @@ export function GroupPickerProvider({
       setPendingId(transactionId);
       startTransition(async () => {
         try {
-          await setTransactionGroup(transactionId, label);
+          // The picker offers only names the action accepts (normalizeGroupLabel
+          // on both sides), so a refusal means the two disagreed; say it anyway.
+          const tagged = await setTransactionGroup(transactionId, label);
+          if (!tagged.ok) setRefusal({ transactionId, message: tagged.message });
         } finally {
           setPendingId(null);
         }
@@ -131,8 +143,8 @@ export function GroupPickerProvider({
   );
 
   const value = useMemo<GroupPickerContext>(
-    () => ({ labels, openPicker, target, pendingId }),
-    [labels, openPicker, target, pendingId],
+    () => ({ labels, openPicker, target, pendingId, refusal, dismissRefusal }),
+    [labels, openPicker, target, pendingId, refusal, dismissRefusal],
   );
 
   return (

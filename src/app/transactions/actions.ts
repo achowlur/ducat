@@ -8,6 +8,7 @@ import { confirmP2PMatches, reapplyRules, restoreTransactions, type GroupUndo } 
 import { renameGroupRows } from "../../lib/sync/groups";
 import { MAX_GROUP_LABEL, normalizeGroupLabel } from "../../lib/ui/groupFilter";
 import { requireSession } from "../../lib/auth/requireSession";
+import { refuse, type ActionResult } from "../../lib/actionResult";
 import { createUserCategory } from "../../lib/categories";
 import { whenCleared } from "../../lib/sync/closedBox";
 import { TRANSFER_TARGET } from "../../lib/sync/grouping";
@@ -21,6 +22,12 @@ import {
   type ReimburseCandidate,
 } from "../../lib/ui/reimburseCandidates";
 import type { RecurringCadence } from "../../types/contracts";
+
+/*
+ * Every REFUSAL below is returned, never thrown (lib/actionResult.ts): a thrown
+ * message is replaced in production, so the reason never reached the control.
+ * What still throws is the unexpected, which is the error boundary's to show.
+ */
 
 /** Guarded because a server action's arguments arrive from the client. */
 const CADENCES = new Set<RecurringCadence>([
@@ -74,12 +81,13 @@ export async function setTransactionCategory(
 export async function createCategory(
   name: string,
   isIncome: boolean,
-): Promise<{ id: string; name: string }> {
+): Promise<ActionResult<{ id: string; name: string }>> {
   await requireSession();
   const made = await createUserCategory(prisma, name, isIncome === true);
+  if (!made.ok) return made;
   // The picker's list and the filter's options are this page's props.
   if (made.created) revalidatePath("/transactions");
-  return { id: made.id, name: made.name };
+  return { ok: true, id: made.id, name: made.name };
 }
 
 /**
@@ -184,12 +192,12 @@ export async function undoCategorizeGroup(undo: GroupUndo): Promise<void> {
 export async function setTransactionGroup(
   transactionId: string,
   label: string | null,
-): Promise<void> {
+): Promise<ActionResult> {
   await requireSession();
   const value = label === null ? null : normalizeGroupLabel(label);
   if (label !== null && value === null) {
     // normalizeGroupLabel nulls both the empty and the overlong; tell them apart.
-    throw new Error(
+    return refuse(
       label.trim() === ""
         ? "A trip needs a name, or untag the row instead."
         : `Trip names cap at ${MAX_GROUP_LABEL} characters.`,
@@ -201,6 +209,7 @@ export async function setTransactionGroup(
   });
   revalidatePath("/transactions");
   revalidatePath("/insights"); // the TRIPS section reads the tags directly
+  return { ok: true };
 }
 
 /**
@@ -219,13 +228,13 @@ export async function setTransactionGroup(
 export async function renameGroup(
   from: string,
   to: string,
-): Promise<{ count: number; label: string }> {
+): Promise<ActionResult<{ count: number; label: string }>> {
   await requireSession();
   const source = normalizeGroupLabel(from);
   const typed = normalizeGroupLabel(to);
-  if (source === null) throw new Error("No trip named to rename.");
+  if (source === null) return refuse("No trip named to rename.");
   if (typed === null) {
-    throw new Error(
+    return refuse(
       to.trim() === ""
         ? "A trip needs a name."
         : `Trip names cap at ${MAX_GROUP_LABEL} characters.`,
@@ -243,7 +252,7 @@ export async function renameGroup(
   const count = await renameGroupRows(prisma, source, target);
   revalidatePath("/transactions");
   revalidatePath("/insights"); // the TRIPS section reads the tags directly
-  return { count, label: target };
+  return { ok: true, count, label: target };
 }
 
 /**
@@ -258,22 +267,22 @@ export async function createRuleFromMerchant(
    * from "zelle transfer" would categorize every P2P payment at once.
    */
   matchField: "MERCHANT" | "DESCRIPTION" = "MERCHANT",
-): Promise<{ recategorized: number }> {
+): Promise<ActionResult<{ recategorized: number }>> {
   await requireSession();
   const matchValue = merchant.trim().toLowerCase();
-  if (matchValue === "") throw new Error("Merchant is empty; categorize this transaction manually instead.");
+  if (matchValue === "") return refuse("Merchant is empty; categorize this transaction manually instead.");
   // Same floor as the grouped review: a CONTAINS rule at user priority outranks
   // the whole pack, so a one- or two-character value is a wrecking ball.
   if (matchValue.length < 3) {
-    throw new Error(
+    return refuse(
       `"${matchValue}" is too short to make a rule from; it would match unrelated transactions.`,
     );
   }
   if (matchField !== "MERCHANT" && matchField !== "DESCRIPTION") {
-    throw new Error("Unknown match field.");
+    return refuse("Unknown match field.");
   }
   const { recategorized } = await upsertRule(matchValue, matchField, categoryId);
-  return { recategorized };
+  return { ok: true, recategorized };
 }
 
 /**
@@ -288,23 +297,25 @@ export async function categorizeGroup(
   matchField: "MERCHANT" | "DESCRIPTION",
   /** A category id, or TRANSFER_TARGET to mark the payee as a transfer. */
   target: string,
-): Promise<{ recategorized: number; undo: GroupUndo }> {
+): Promise<ActionResult<{ recategorized: number; undo: GroupUndo }>> {
   await requireSession();
   const value = matchValue.trim().toLowerCase();
-  if (value === "") throw new Error("Payee is empty; categorize these transactions individually instead.");
+  if (value === "") return refuse("Payee is empty; categorize these transactions individually instead.");
   // A CONTAINS rule at user priority outranks the whole pack and is exempt from
   // the P2P guard, so a one- or two-character key is a wrecking ball: a Fidelity
   // dividend on Realty Income normalizes its merchant to the ticker "o", and
   // MERCHANT CONTAINS "o" then recategorizes costco, doordash, every Zelle…
   if (value.length < 3) {
-    throw new Error(
+    return refuse(
       `"${value}" is too short to make a rule from; it would match unrelated merchants. Categorize these individually instead.`,
     );
   }
-  if (target === "") throw new Error("Pick a category first.");
-  return target === TRANSFER_TARGET
-    ? upsertRule(value, matchField, null, "TRANSFER")
-    : upsertRule(value, matchField, target);
+  if (target === "") return refuse("Pick a category first.");
+  const applied =
+    target === TRANSFER_TARGET
+      ? await upsertRule(value, matchField, null, "TRANSFER")
+      : await upsertRule(value, matchField, target);
+  return { ok: true, ...applied };
 }
 
 /**
@@ -387,14 +398,20 @@ async function reimburseWindow(inflowId: string) {
  * amount from the original's category in the original's period, and the
  * inflow stops counting as income.
  */
-export async function linkReimbursement(inflowId: string, outflowId: string): Promise<void> {
+export async function linkReimbursement(inflowId: string, outflowId: string): Promise<ActionResult> {
   await requireSession();
   const [inflow, outflow] = await Promise.all([
     prisma.transaction.findUniqueOrThrow({ where: { id: inflowId } }),
     prisma.transaction.findUniqueOrThrow({ where: { id: outflowId } }),
   ]);
-  if (inflow.flow !== "INFLOW") throw new Error("Only an inflow can reimburse an expense.");
-  if (outflow.flow !== "OUTFLOW") throw new Error("Reimbursements must point at an outflow.");
+  // Reachable from a stale page: a sync can pair either row into a transfer
+  // after the picker listed it.
+  if (inflow.flow !== "INFLOW") {
+    return refuse("This payment is no longer money in, so it can't pay back an expense. Reload to see it as it is now.");
+  }
+  if (outflow.flow !== "OUTFLOW") {
+    return refuse("That expense is no longer money out. Reload to see it as it is now.");
+  }
   await prisma.transaction.update({
     where: { id: inflowId },
     data: { reimbursesId: outflowId },
@@ -402,6 +419,7 @@ export async function linkReimbursement(inflowId: string, outflowId: string): Pr
   await generateInsights(prisma);
   revalidatePath("/transactions");
   revalidateInsightPages();
+  return { ok: true };
 }
 
 /**
@@ -417,9 +435,9 @@ export async function linkReimbursement(inflowId: string, outflowId: string): Pr
 export async function registerSubscription(
   transactionId: string,
   cadence: RecurringCadence,
-): Promise<void> {
+): Promise<ActionResult> {
   await requireSession();
-  if (!CADENCES.has(cadence)) throw new Error(`Unknown cadence "${cadence}".`);
+  if (!CADENCES.has(cadence)) return refuse(`Unknown cadence "${cadence}".`);
 
   const txn = await prisma.transaction.findUniqueOrThrow({
     where: { id: transactionId },
@@ -433,7 +451,7 @@ export async function registerSubscription(
     cadence,
   });
   if (draft === null) {
-    throw new Error(
+    return refuse(
       "This row can't be tracked: a subscription needs an outflow with a merchant name of at least three characters.",
     );
   }
@@ -454,6 +472,7 @@ export async function registerSubscription(
 
   revalidatePath("/transactions");
   revalidatePath("/");
+  return { ok: true };
 }
 
 /** Stop tracking. Nothing else is touched — the transactions keep their category. */

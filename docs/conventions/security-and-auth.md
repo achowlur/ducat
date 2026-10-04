@@ -64,6 +64,43 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   can reach `requireSession` without a session, so a live "Session expired"
   render cannot be manufactured without a valid-then-invalid cookie. Pinned by
   boundaryCopy.test.ts and by reading Next's own source, not by a live capture.
+- REFUSALS ARE VALUES (built 2026-10-04; found by the 2026-09-21 UI audit and
+  left as backlog until then). The same missing production message had a
+  second victim the boundary fix above did not reach: every ledger action
+  REFUSED by throwing. "ab" is too short to make a rule from; a payee key
+  too short to match safely; a category name that is reserved or too long; a
+  trip name empty or too long; a repayment whose rows changed under a stale
+  page; a row that cannot be tracked as a subscription. Each was an Error
+  carrying exactly the sentence the reader needed, and production delivered
+  none of them. Where a client caught and printed `e.message` (GroupedReview,
+  the subscription menu) the reader got Next's "The specific message is
+  omitted in production builds…" in red beside the control; where nothing
+  caught (the category picker's commit path, the trip picker, the link
+  panel) the transition threw and the whole page fell to the boundary, whose
+  honest generic copy cannot know that the problem was a two-letter merchant.
+  So a refusal is now RETURNED: `{ ok: false, message }` (lib/actionResult.ts),
+  the shape `syncNow` already used, and only the unexpected still throws, to
+  the boundary, which is what it is for. `createUserCategory` returns its
+  refusals too, since the action passes them straight through. Clients show
+  the refusal beside the control that asked: the grouped review and the
+  rename band in their existing message slots, the link panel inside the
+  panel, and the two portal pickers (category and trip) on the ROW, in
+  `RowRefusal`, on its own line under the controls the way a P2P suggestion
+  sits. Picking again clears it, and so does its × (44px below md). Where a
+  client still catches the unexpected, it prints `ACTION_DID_NOT_COMPLETE`,
+  the boundary's own first sentence, never `e.message`, and claims nothing
+  about what was written. RenameGroup's old "Couldn't rename. Retry." went the
+  same way, for the boundary's reason: a lapsed sign-in fails a retry
+  identically.
+  MEASURED on a throwaway demo database (a row given the merchant "ab", and an
+  expense flipped to a transfer behind an open link panel): both refusals
+  rendered in their own words, nothing was written (no rule, no link), and no
+  boundary. ONE LAYOUT DEFECT FOUND AND FIXED on the way: with the message
+  uncapped on desktop (`md:max-w-none`, copied from the P2P suggestion line)
+  one sentence widened the whole category column and reflowed the table, so
+  the line is capped at 220px at every width. At 375px the ledger table
+  measured 467.9px with the message and without it, and the page did not
+  scroll sideways.
 - The dev CSP needs `'unsafe-eval'` and a same-origin HMR websocket for Fast
   Refresh. Don't remove them while "tightening" `next.config.ts` — production
   gets neither.

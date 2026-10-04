@@ -43,6 +43,8 @@ export function ReimburseControl({
   const [candidates, setCandidates] = useState<ReimburseCandidate[] | null>(null);
   // A failed fetch must not read as "still looking" — or as "none found".
   const [failed, setFailed] = useState(false);
+  // A link the action refused (the row changed under a stale page), in its words.
+  const [refusal, setRefusal] = useState<string | null>(null);
   // The search box: the ranked list is a guess capped at a dozen, and a
   // repayment that is no clean share of its expense can rank far below it.
   // Searching reaches every expense in the window. null = not searching.
@@ -143,6 +145,7 @@ export function ReimburseControl({
           // than a beat of loading.
           setCandidates(null);
           setFailed(false);
+          setRefusal(null);
           startTransition(async () => {
             try {
               setCandidates(await suggestCandidates(inflowId));
@@ -190,6 +193,11 @@ export function ReimburseControl({
             aria-label="Search expenses to link"
             className="tap44 mb-1 w-full rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-base text-ink outline-none focus:border-acc md:text-[0.75rem]"
           />
+          {refusal !== null && (
+            <span role="alert" className="block py-1 text-[0.75rem] text-neg">
+              {refusal}
+            </span>
+          )}
           {results !== null && results.length === 0 && (
             <span className="block py-1 text-[0.75rem] text-faint">No expense in range matches “{query.trim()}”.</span>
           )}
@@ -212,8 +220,9 @@ export function ReimburseControl({
                 disabled={pending}
                 onClick={() =>
                   startTransition(async () => {
-                    await linkReimbursement(inflowId, c.id);
-                    setOpen(false);
+                    const linked = await linkReimbursement(inflowId, c.id);
+                    if (linked.ok) setOpen(false);
+                    else setRefusal(linked.message);
                   })
                 }
                 className="block w-full rounded-[2px] px-1.5 py-1 text-left text-[0.75rem] hover:bg-chip"

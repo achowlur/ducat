@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { categorizeGroup, undoCategorizeGroup } from "../app/transactions/actions";
 import type { GroupUndo } from "../lib/sync/rulePack";
 import { TRANSFER_TARGET } from "../lib/sync/grouping";
+import { ACTION_DID_NOT_COMPLETE } from "../lib/ui/boundaryCopy";
 import type { CategoryOption } from "./CategoryPicker";
 
 export interface PayeeGroupView {
@@ -60,6 +61,10 @@ function GroupRow({
     startTransition(async () => {
       try {
         const result = await categorizeGroup(group.key, group.matchField, chosen);
+        if (!result.ok) {
+          setError(result.message);
+          return;
+        }
         setStaged("");
         onApplied({
           undo: result.undo,
@@ -67,8 +72,10 @@ function GroupRow({
           category: labelFor(chosen),
           recategorized: result.recategorized,
         });
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to apply.");
+      } catch {
+        // Never e.message: production replaces it with a placeholder. And
+        // nothing about what was written, which this cannot know.
+        setError(ACTION_DID_NOT_COMPLETE);
       }
     });
   }

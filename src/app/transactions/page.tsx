@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Prisma } from "../../generated/prisma/client";
 import { AccountFilter } from "../../components/AccountFilter";
-import { CategoryButton, CategoryPickerProvider } from "../../components/CategoryPicker";
+import { CategoryButton, CategoryPickerProvider, RowRefusal } from "../../components/CategoryPicker";
 import { GroupChip, GroupPickerProvider, GroupTrigger } from "../../components/GroupPicker";
 import { RenameGroup } from "../../components/RenameGroup";
 import { GroupedReview, type PayeeGroupView } from "../../components/GroupedReview";
@@ -1293,6 +1293,10 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
                       )}
                     </span>
                   )}
+                  {/* Why this row's last write was refused, on its own line
+                      for the same reason as the suggestion below; renders
+                      nothing until there is something to say. */}
+                  <RowRefusal transactionId={t.id} />
                   {/* Offered under the picker, never applied: confirming is
                       the tap, and picking anything else declines it. Its own
                       LINE, so its reason wraps within the column instead of

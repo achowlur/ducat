@@ -12,6 +12,7 @@
  * action deciding whether to WRITE it. The action does not trust the picker.
  */
 import type { PrismaClient } from '../generated/prisma/client';
+import { refuse, type ActionResult } from './actionResult';
 import { P2P_UNREVIEWED_NAME } from './p2p';
 
 /** Long enough for "Home improvement & repairs"; short enough for the ledger's category cell. */
@@ -68,19 +69,22 @@ export function categoryNameProblem(name: string, existing: readonly string[]): 
  * "groceries" beside "Groceries". An adopted category keeps its own `isIncome`.
  *
  * No insight is regenerated: a category with no transaction changes no total.
+ *
+ * A name that cannot be a category is REFUSED, as a value the action hands
+ * straight back to the picker (lib/actionResult.ts), never thrown.
  */
 export async function createUserCategory(
   prisma: PrismaClient,
   rawName: string,
   isIncome: boolean,
-): Promise<{ id: string; name: string; isIncome: boolean; created: boolean }> {
+): Promise<ActionResult<{ id: string; name: string; isIncome: boolean; created: boolean }>> {
   const name = normalizeCategoryName(rawName);
-  if (name === null) throw new Error('A category needs a name.');
+  if (name === null) return refuse('A category needs a name.');
   const all = await prisma.category.findMany({ select: { id: true, name: true, isIncome: true } });
   const taken = all.find((c) => fold(c.name) === fold(name));
-  if (taken !== undefined) return { ...taken, created: false };
+  if (taken !== undefined) return { ok: true, ...taken, created: false };
   const problem = categoryNameProblem(name, []);
-  if (problem !== null) throw new Error(problem);
+  if (problem !== null) return refuse(problem);
   const row = await prisma.category.create({ data: { name, isIncome } });
-  return { id: row.id, name: row.name, isIncome: row.isIncome, created: true };
+  return { ok: true, id: row.id, name: row.name, isIncome: row.isIncome, created: true };
 }

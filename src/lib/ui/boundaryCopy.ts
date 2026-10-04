@@ -33,6 +33,13 @@ export interface BoundaryCopy {
   retry: boolean;
 }
 
+/**
+ * The generic state's first sentence, shared with the ledger controls that
+ * report an UNEXPECTED failure in place (a refusal brings its own words; see
+ * lib/actionResult.ts). Never `e.message` there: production replaces it.
+ */
+export const ACTION_DID_NOT_COMPLETE = "That action didn't complete. Reload to see the current state.";
+
 export function boundaryCopy({ expired, gated }: { expired: boolean; gated: boolean }): BoundaryCopy {
   if (expired) {
     return {
@@ -46,8 +53,8 @@ export function boundaryCopy({ expired, gated }: { expired: boolean; gated: bool
   return {
     heading: "Something went wrong",
     body: gated
-      ? "That action didn't complete. Reload to see the current state. If it keeps failing, a lapsed sign-in looks exactly like this."
-      : "That action didn't complete. Reload to see the current state.",
+      ? `${ACTION_DID_NOT_COMPLETE} If it keeps failing, a lapsed sign-in looks exactly like this.`
+      : ACTION_DID_NOT_COMPLETE,
     signIn: gated,
     retry: true,
   };

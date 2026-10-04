@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '../generated/prisma/client';
+import type { ActionResult } from './actionResult';
 import {
   categoryNameProblem,
   createUserCategory,
@@ -14,6 +15,12 @@ import {
 import { generateInsights } from './insights/engine';
 import { P2P_UNREVIEWED_NAME } from './p2p';
 import { installRulePack, PACK_CATEGORIES, pendingPackRules } from './sync/rulePack';
+
+/** The accepted half of a result; a refusal fails the test with its own words. */
+function accepted<T extends object>(result: ActionResult<T>): T {
+  if (!result.ok) throw new Error(`refused: ${result.message}`);
+  return result;
+}
 
 describe('normalizeCategoryName', () => {
   it('trims and collapses whitespace', () => {
@@ -88,7 +95,7 @@ describe('createUserCategory', () => {
 
   it('adds a spending category beside the pack', async () => {
     const before = await prisma.category.count();
-    const made = await createUserCategory(prisma, '  Pet   care ', false);
+    const made = accepted(await createUserCategory(prisma, '  Pet   care ', false));
 
     expect(made).toMatchObject({ name: 'Pet care', isIncome: false, created: true });
     expect(await prisma.category.count()).toBe(before + 1);
@@ -99,7 +106,7 @@ describe('createUserCategory', () => {
   });
 
   it('adds an income category as income', async () => {
-    const made = await createUserCategory(prisma, 'Rental income', true);
+    const made = accepted(await createUserCategory(prisma, 'Rental income', true));
     expect(made).toMatchObject({ name: 'Rental income', isIncome: true, created: true });
   });
 
@@ -109,22 +116,30 @@ describe('createUserCategory', () => {
 
     const made = await createUserCategory(prisma, 'gROCERIES', true);
 
-    expect(made).toEqual({ id: groceries.id, name: 'Groceries', isIncome: false, created: false });
+    expect(made).toEqual({ ok: true, id: groceries.id, name: 'Groceries', isIncome: false, created: false });
     expect(await prisma.category.count()).toBe(before);
   });
 
   it('adopts its own earlier creation the same way', async () => {
-    const first = await createUserCategory(prisma, 'Hobbies', false);
-    const again = await createUserCategory(prisma, 'hobbies', false);
+    const first = accepted(await createUserCategory(prisma, 'Hobbies', false));
+    const again = accepted(await createUserCategory(prisma, 'hobbies', false));
     expect(again.id).toBe(first.id);
     expect(again.created).toBe(false);
   });
 
+  // Refused as a VALUE: a thrown message is replaced in production, so the
+  // reason would never reach the picker (lib/actionResult.ts).
   it('refuses a reserved, overlong or empty name and writes nothing', async () => {
     const before = await prisma.category.count();
-    await expect(createUserCategory(prisma, 'Other', false)).rejects.toThrow(/is taken/);
-    await expect(createUserCategory(prisma, 'x'.repeat(MAX_CATEGORY_NAME + 1), false)).rejects.toThrow(/cap at/);
-    await expect(createUserCategory(prisma, '   ', false)).rejects.toThrow(/needs a name/);
+    expect(await createUserCategory(prisma, 'Other', false)).toEqual({
+      ok: false,
+      message: expect.stringMatching(/is taken/),
+    });
+    expect(await createUserCategory(prisma, 'x'.repeat(MAX_CATEGORY_NAME + 1), false)).toEqual({
+      ok: false,
+      message: expect.stringMatching(/cap at/),
+    });
+    expect(await createUserCategory(prisma, '   ', false)).toEqual({ ok: false, message: 'A category needs a name.' });
     expect(await prisma.category.count()).toBe(before);
   });
 
