@@ -344,6 +344,12 @@ regeneration.
   figures never in the net, and REPAID, the linked repayments of listed
   bills that the list does not show (ui/repaid.ts), netted so a category
   view's net IS /trends' figure (repaid.test.ts pins it).
+- ?flow= is read only by ui/flowFilter.ts. SPENDING and INCOME are the two
+  FIGURES, decided by isReimbursement itself (never a second definition) and
+  finished in memory; a repayment linked to an outflow is never listed under
+  SPENDING, it arrives as REPAID. EVERY link from a printed spending or income
+  figure names its measure, so the band adds up to the figure to the cent
+  (report.test.ts walks every Trends link).
 - ?period= is ONE period key or a span of whole months `A..B`, read only by
   ui/periodSpan.ts; a span gets the select's synthetic entry and no month
   step. ?merchant= is EXACT by merchantKey: SQL narrows to a SUPERSET (pinned

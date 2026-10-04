@@ -17,6 +17,7 @@
  */
 
 import { isUnreviewedP2P, P2P_UNREVIEWED_ID } from "../p2p";
+import type { FlowParam } from "./flowFilter";
 
 export const UNCATEGORIZED = "uncategorized";
 
@@ -77,12 +78,17 @@ export function parseCategoryParam(value: string | undefined): CategorySelection
   return { ids, uncategorized, p2p };
 }
 
-/** `/transactions` link for a set of categories in a period. */
-export function transactionsHref(categoryIds: (string | null)[], period?: string): string {
+/**
+ * `/transactions` link for a set of categories in a period. A link from a
+ * printed figure names its measure (ui/flowFilter.ts), so the list holds
+ * exactly what the figure counts.
+ */
+export function transactionsHref(categoryIds: (string | null)[], period?: string, flow?: FlowParam): string {
   const params = new URLSearchParams();
   if (period !== undefined && period !== "") params.set("period", period);
   const category = encodeCategoryParam(categoryIds);
   if (category !== "") params.set("category", category);
+  if (flow !== undefined) params.set("flow", flow);
   const qs = params.toString();
   return qs === "" ? "/transactions" : `/transactions?${qs}`;
 }

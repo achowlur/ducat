@@ -14,10 +14,21 @@ import type { TxnData } from "./types";
  * TRANSFERs never participate on either side.
  */
 
-export function isReimbursement(t: TxnData): boolean {
+export function isReimbursement(t: Pick<TxnData, "flow" | "reimbursesId" | "categoryId" | "categoryIsIncome">): boolean {
   if (t.flow !== "INFLOW") return false;
   if (t.reimbursesId !== null) return true;
   return t.categoryId !== null && !t.categoryIsIncome;
+}
+
+/**
+ * Whether a linked reimbursement credits the row it is linked to: only an
+ * OUTFLOW can be credited, and a link to anything else (or to a row that is
+ * gone) falls back to the inflow itself, so money never silently disappears.
+ * reimbursementSources files every credit by it, and the ledger's SPENDING
+ * view (ui/flowFilter.ts) lists exactly the credits that fall back.
+ */
+export function creditsLinkedRow<T extends { flow: string }>(linked: T | null | undefined): linked is T {
+  return linked !== null && linked !== undefined && linked.flow === "OUTFLOW";
 }
 
 export interface ReimbursementCredit {
@@ -54,7 +65,7 @@ export function reimbursementSources<T extends TxnData>(txns: T[]): Reimbursemen
     if (!isReimbursement(t)) continue;
     const target = t.reimbursesId === null ? undefined : byId.get(t.reimbursesId);
     sources.push({
-      source: target !== undefined && target.flow === "OUTFLOW" ? target : t,
+      source: creditsLinkedRow(target) ? target : t,
       // Deliberately NOT capped at the original's amount: an over-repayment
       // stays visible as a negative category total rather than being
       // silently discarded (see the over-reimbursement test). Presentation

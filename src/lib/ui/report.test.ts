@@ -4,12 +4,21 @@ import { computeCashFlowTrend } from "../insights/cashFlow";
 import { computeSpendingByCategory } from "../insights/spendingByCategory";
 import type { TxnData } from "../insights/types";
 import { P2P_UNREVIEWED_ID } from "../p2p";
+import { parseAccountParam } from "./accountFilter";
+import { nullBucketFilter, parseCategoryParam } from "./categoryFilter";
+import { flowFinish, parseFlowParam, sqlFlow } from "./flowFilter";
+import { ledgerTotals } from "./ledgerTotals";
+import { merchantKey } from "./merchantLabel";
+import { parsePeriodParam } from "./periodSpan";
+import { repaidFromOutside } from "./repaid";
 import {
   BAND_MIN_MONTHS,
   buildEntries,
   compare,
+  COMPARE_KEYS,
   compareSpans,
   exploreSpan,
+  firstMonth,
   groupedSeries,
   ledgerHref,
   MERCHANT_ROWS,
@@ -17,6 +26,8 @@ import {
   monthSoFar,
   monthsOf,
   type Entry,
+  type GroupBy,
+  type Measure,
 } from "./report";
 
 const utc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d, 12));
@@ -319,14 +330,105 @@ describe("groupedSeries and monthSeries", () => {
     const g = groupedSeries(entries, "spending", "category", span, null, names);
     const dining = g.groups.find((x) => x.key === "cat-dining")!;
     expect(s.values.spending!.reduce((a, v) => a + cents(v), 0)).toBe(cents(dining.total));
-    expect(s.href.spending).toBe("/transactions?period=2025-01..2025-12&category=cat-dining");
+    expect(s.href.spending).toBe("/transactions?period=2025-01..2025-12&category=cat-dining&flow=SPENDING");
   });
 });
 
 describe("ledgerHref", () => {
-  it("opens one month by its key, money in only for income", () => {
+  it("opens one month by its key, under the figure's own measure", () => {
     expect(ledgerHref([{ by: "merchant", key: "corner bistro" }], { from: "2026-09", to: "2026-09" }, "income")).toBe(
-      "/transactions?period=2026-09&merchant=corner+bistro&flow=INFLOW",
+      "/transactions?period=2026-09&merchant=corner+bistro&flow=INCOME",
     );
+    expect(ledgerHref([null], { from: "2026-01", to: "2026-09" }, "spending")).toBe(
+      "/transactions?period=2026-01..2026-09&flow=SPENDING",
+    );
+  });
+});
+
+describe("every figure opens a ledger that adds up to it", () => {
+  // /transactions, simulated over the same rows: its filters as the page
+  // applies them, SQL's part and the in-memory finish, then its totals band.
+  // A figure's link must list exactly what the figure counts, so for income
+  // the band's IN is the figure, and for spending its net (out, less what came
+  // back, less REPAID) is the figure, to the cent, for every group and span.
+  const txns = fixture();
+  const entries = buildEntries(txns);
+  const byId = new Map(txns.map((t) => [t.id, t]));
+  const incomeIds = new Set(txns.flatMap((t) => (t.categoryIsIncome && t.categoryId !== null ? [t.categoryId] : [])));
+  const linked = txns.flatMap((t) =>
+    t.reimbursesId === null ? [] : [{ id: t.id, reimbursesId: t.reimbursesId, flow: t.flow, amount: t.amount }],
+  );
+  const accountNames = new Map(ACCOUNTS.map((a) => [a, a]));
+  const now = utc(2026, 9, 28);
+
+  function ledgerAt(href: string) {
+    const q = new URLSearchParams(href.split("?")[1]);
+    const get = (key: string) => q.get(key) ?? undefined;
+    const period = parsePeriodParam(get("period"))!;
+    const selection = parseCategoryParam(get("category"));
+    const nullSplit = nullBucketFilter(selection);
+    const accounts = parseAccountParam(get("account"));
+    const merchant = get("merchant");
+    const flow = parseFlowParam(get("flow"));
+    const sql = flow === null ? null : sqlFlow(flow);
+    const keeps = flowFinish(flow, incomeIds);
+    const rows = txns
+      .map((t) => ({ ...t, reimburses: t.reimbursesId === null ? null : (byId.get(t.reimbursesId) ?? null) }))
+      .filter(
+        (t) =>
+          t.date >= period.start &&
+          t.date < period.end &&
+          (selection === null ||
+            (t.categoryId === null ? selection.uncategorized || selection.p2p : selection.ids.includes(t.categoryId))) &&
+          (nullSplit === null || nullSplit(t)) &&
+          (accounts === null || accounts.includes(t.accountId)) &&
+          (merchant === undefined || merchantKey(t) === merchant) &&
+          (sql === null || (typeof sql === "string" ? t.flow === sql : t.flow !== sql.not)) &&
+          (keeps === null || keeps(t)),
+      );
+    return ledgerTotals(rows, repaidFromOutside(rows, linked, new Set(rows.map((t) => t.id))));
+  }
+
+  /** Asserts one figure against its ledger, and returns 1 so a test can count what it checked. */
+  function addsUp(href: string, figure: number, measure: Measure): number {
+    const totals = ledgerAt(href);
+    if (measure === "income") {
+      expect(cents(totals.in), href).toBe(cents(figure));
+      expect(totals.out, href).toBe(0);
+    }
+    // `+ 0` folds the -0 a negated zero net comes out as.
+    expect(cents(measure === "income" ? totals.net : -totals.net) + 0, href).toBe(cents(figure) + 0);
+    return 1;
+  }
+
+  const MEASURES: Measure[] = ["spending", "income"];
+  const GROUPINGS: GroupBy[] = ["category", "merchant", "account"];
+
+  it("for every row of every comparison", () => {
+    let checked = 0;
+    for (const measure of MEASURES)
+      for (const key of COMPARE_KEYS)
+        for (const by of GROUPINGS)
+          for (const r of compare(entries, measure, by, compareSpans(key, now), accountNames).rows)
+            checked += addsUp(r.href, r.current, measure);
+    // Not passing by checking nothing.
+    expect(checked).toBeGreaterThan(100);
+  });
+
+  it("for every month series and every group, with and without a filter", () => {
+    let checked = 0;
+    const first = firstMonth(entries);
+    for (const measure of MEASURES)
+      for (const key of ["lastmonth", "12m", "24m", "ytd", "lastyear", "all", "2025-02"]) {
+        const span = exploreSpan(key, now, first)!;
+        for (const filter of [null, { by: "account" as const, key: "acc-checking" }, { by: "category" as const, key: "cat-dining" }]) {
+          const s = monthSeries(entries, [measure], span, filter);
+          checked += addsUp(s.href[measure]!, s.values[measure]!.reduce((a, v) => a + v, 0), measure);
+          for (const by of GROUPINGS)
+            for (const g of groupedSeries(entries, measure, by, span, filter, accountNames).groups)
+              checked += addsUp(g.href, g.total, measure);
+        }
+      }
+    expect(checked).toBeGreaterThan(300);
   });
 });
