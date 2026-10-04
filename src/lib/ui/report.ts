@@ -3,6 +3,7 @@ import { isReimbursement, reimbursementSources } from "../insights/reimbursement
 import type { TxnData } from "../insights/types";
 import { isUnreviewedP2P, P2P_UNREVIEWED_ID, P2P_UNREVIEWED_NAME } from "../p2p";
 import { UNCATEGORIZED } from "./categoryFilter";
+import type { FlowParam } from "./flowFilter";
 import { merchantKey, merchantLabel } from "./merchantLabel";
 import { spanLabel, spanParam } from "./periodSpan";
 
@@ -188,10 +189,10 @@ export function matches(e: Entry, target: GroupTarget | null): boolean {
 }
 
 /**
- * The ledger view behind a figure: the same months, the same group. Spending
- * opens every flow, because the figure is NET of the refunds and repayments
- * that view shows (its REPAID covers repayments filed elsewhere); income opens
- * money in only.
+ * The ledger view behind a figure: the same months, the same group, and the
+ * same measure, as ui/flowFilter.ts reads it. The list then holds exactly the
+ * rows the figure counts, with the repayments filed elsewhere netted as
+ * REPAID, so the band adds up to the figure to the cent whatever the group.
  */
 export function ledgerHref(targets: (GroupTarget | null)[], span: Span, measure: Measure): string {
   const q = new URLSearchParams();
@@ -202,7 +203,8 @@ export function ledgerHref(targets: (GroupTarget | null)[], span: Span, measure:
     else if (target.by === "account") q.set("account", target.key);
     else q.set("merchant", target.key);
   }
-  if (measure === "income") q.set("flow", "INFLOW");
+  const flow: FlowParam = measure === "income" ? "INCOME" : "SPENDING";
+  q.set("flow", flow);
   return `/transactions?${q.toString()}`;
 }
 

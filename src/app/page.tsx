@@ -341,7 +341,7 @@ async function renderOverview() {
                 centerTop={money(data.donut.total)}
                 centerBottom="this month"
                 className="w-[230px] shrink-0 self-center xl:w-[200px]"
-                hrefFor={(s) => transactionsHref(s.categoryIds, data.currentPeriod)}
+                hrefFor={(s) => transactionsHref(s.categoryIds, data.currentPeriod, "SPENDING")}
               />
               {/* Percentages of one whole, rounded together (wholePercents):
                   eight rows rounded one by one can print a legend summing to
@@ -353,7 +353,7 @@ async function renderOverview() {
                   return data.donut.slices.map((s, i) => (
                     <Link
                       key={s.label}
-                      href={transactionsHref(s.categoryIds, data.currentPeriod)}
+                      href={transactionsHref(s.categoryIds, data.currentPeriod, "SPENDING")}
                       className="grid grid-cols-[11px_minmax(0,1fr)_76px_34px] items-center gap-1.5 rounded-[2px] hover:bg-chip"
                       title={
                         s.isOther

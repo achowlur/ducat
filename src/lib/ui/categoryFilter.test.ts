@@ -53,6 +53,14 @@ describe("category filter wire format", () => {
     expect(transactionsHref([], "2026-07")).toBe("/transactions?period=2026-07");
     expect(transactionsHref([])).toBe("/transactions");
   });
+
+  // Overview's ring is SPENDING: its Uncategorized and P2P slices hold no
+  // income, so the rows they open must not either.
+  it("names the measure of the figure it opens from", () => {
+    expect(transactionsHref([null], "2026-07", "SPENDING")).toBe(
+      `/transactions?period=2026-07&category=${UNCATEGORIZED}&flow=SPENDING`,
+    );
+  });
 });
 
 describe("the two buckets with no category", () => {

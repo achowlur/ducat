@@ -1122,3 +1122,37 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   default to mean SPENDING; they name `e.show=spending` outright, or both would
   have opened a month's income by category under a spending heading.
 
+- A FIGURE'S LINK ADDS UP TO IT (2026-10-03, that night). Opening Build your
+  own on income exposed what the link under it had always done. On the demo,
+  the card's $51,862.42 of income opened a ledger whose IN was $51,955.62:
+  `flow=INFLOW` lists every row of money in, and one of them was a $93.20
+  Zelle LINKED to a dinner, which Trends counts against the dinner. On real
+  data the gap is every linked repayment plus every refund carrying a
+  spending category. Spending links had the twin defect: they opened every
+  flow, so "Everything" summed the payroll into its net, and the P2P bucket's
+  view listed unconfirmed money IN beside the money out. Only a real
+  category's view added up, through REPAID.
+  `?flow=` now also carries the two FIGURES, SPENDING and INCOME, read only by
+  ui/flowFilter.ts, and every link from a printed figure names its measure:
+  Trends' through ledgerHref, Overview's ring through transactionsHref. They
+  are decided by isReimbursement itself, never restated in SQL. Whether money
+  in is a refund turns on its category's isIncome, which the row does not
+  hold, so SQL narrows to a superset (money in, or everything but transfers)
+  and the list finishes in memory, on the merchant filter's path. INCOME keeps
+  money in that does not reimburse. SPENDING keeps money out, plus every
+  credit filed under ITSELF: a refund, or a link to a row that is not an
+  outflow (the fallback reimbursementSources applies, now one exported helper
+  that both read). A repayment linked to an outflow is never listed, because
+  Trends files it by the BILL's month, account and merchant, which its own row
+  need not share; it arrives as REPAID from the bill's side.
+  report.test.ts now walks every link Trends draws over its thirty-month
+  fixture (every comparison row, every series and group, with and without a
+  filter) through a simulation of the ledger's filters and totals band, and
+  four deliberate breaks each failed it: income back on INFLOW, spending back
+  on every flow, linked repayments listed under SPENDING, and fallback credits
+  dropped. Three things moved with it. The trip band sums the finished list
+  under ANY in-memory finish, not only a merchant's, since one null bucket had
+  the same superset problem. The two links the strip gained ("every row",
+  "all money in") carry .tap44. And the Flow select grew 5px to fit the word
+  "Spending", so the pictures of the ledger were retaken.
+

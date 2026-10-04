@@ -25,6 +25,7 @@ import { amount, isoDate, money, monthLabel, shortDate, titleCase } from "../../
 import { periodKey } from "../../lib/insights/periods";
 import { encodeAccountParam, parseAccountParam } from "../../lib/ui/accountFilter";
 import { nullBucketFilter, parseCategoryParam } from "../../lib/ui/categoryFilter";
+import { finishedInMemory, flowFinish, parseFlowParam, sqlFlow } from "../../lib/ui/flowFilter";
 import { parseGroupParam } from "../../lib/ui/groupFilter";
 import { ledgerTotals, type LedgerTotals } from "../../lib/ui/ledgerTotals";
 import { repaidByExpense, repaidFromOutside, repaidNote } from "../../lib/ui/repaid";
@@ -46,6 +47,7 @@ interface Params {
   category?: string; // category id | "uncategorized"
   /** One account id or a comma-separated list — owned by ui/accountFilter.ts. */
   account?: string;
+  /** A row's own flow, or one of the two figures (SPENDING, INCOME): owned by ui/flowFilter.ts. */
   flow?: string;
   q?: string;
   review?: string;
@@ -292,6 +294,9 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
   // Unparseable is ignored rather than crashing the page.
   const periodFilter = parsePeriodParam(params.period);
   if (periodFilter !== null) where.date = { gte: periodFilter.start, lt: periodFilter.end };
+  // A row's own flow, or one of the two figures, read only through
+  // ui/flowFilter.ts. Anything else is no flow filter at all.
+  const flow = parseFlowParam(params.flow);
   // One id, `uncategorized`, or a comma-separated list of either — the donut's
   // "Other" slice is a SET of categories, so it arrives here enumerated.
   const selection = parseCategoryParam(params.category);
@@ -311,16 +316,17 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
     // Transfers legitimately carry no category — they'd drown the queue, and
     // the donut this links from excludes them anyway. An explicit
     // flow=TRANSFER filter still shows them.
-    if (nullBucket && (params.flow === undefined || params.flow === "")) {
+    if (nullBucket && flow === null) {
       where.flow = { not: "TRANSFER" };
     }
   }
   // A plain column test, so it composes with `q`'s top-level OR and the
   // category group in AND without touching either.
   if (accountIds !== null) where.accountId = { in: accountIds };
-  if (params.flow !== undefined && ["INFLOW", "OUTFLOW", "TRANSFER"].includes(params.flow)) {
-    where.flow = params.flow as "INFLOW" | "OUTFLOW" | "TRANSFER";
-  }
+  // A row's own flow is answered here exactly. The two figures narrow to a
+  // superset here and are finished in memory below, by the analyzers' own
+  // reimbursement test.
+  if (flow !== null) where.flow = sqlFlow(flow);
   if (params.q !== undefined && params.q.trim() !== "") {
     where.OR = [
       { description: { contains: params.q.trim() } },
@@ -354,9 +360,10 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
   // JS — paging in SQL and filtering afterwards gives uneven pages.
   const reviewMode = params.review === "1";
   // Selecting exactly ONE of the two null buckets needs the same in-memory
-  // finish as review mode, and the same whole-set fetch.
+  // finish as review mode, and the same whole-set fetch. So do the two
+  // figures, SPENDING and INCOME.
   const nullSplit = nullBucketFilter(selection);
-  const pagedInJs = reviewMode || nullSplit !== null || merchant !== null;
+  const pagedInJs = reviewMode || nullSplit !== null || merchant !== null || finishedInMemory(flow);
   const listWhere: Prisma.TransactionWhereInput = reviewMode
     ? { ...where, categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" } }
     : where;
@@ -370,7 +377,8 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
       // object, and `account` supplies a NAME that `accounts` below already
       // has. Only `reimburses` genuinely needs the database — it points at
       // another transaction, so nothing in memory can answer it — and it is
-      // narrowed to the three fields the chip renders.
+      // narrowed to the three fields the chip renders, plus the flow that says
+      // whether the repayment credits it (ui/flowFilter.ts).
       select: {
         id: true,
         date: true,
@@ -383,11 +391,11 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
         categorySource: true,
         groupLabel: true,
         reimbursesId: true,
-        reimburses: { select: { normalizedMerchant: true, description: true, date: true } },
+        reimburses: { select: { normalizedMerchant: true, description: true, date: true, flow: true } },
       },
       orderBy: { date: "desc" },
-      // Paged in SQL for the ledger; review mode and a single null bucket page
-      // in JS after filtering.
+      // Paged in SQL for the ledger; review mode, a single null bucket, a
+      // merchant and the two figures page in JS after filtering.
       ...(pagedInJs ? {} : { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE }),
     }),
     // Every matching row's flow and amount, for the total above the list.
@@ -534,9 +542,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
   // ranked order, or nothing. This is all an unopened row ships.
   // The Uncategorized branch quietly adds `flow: { not: TRANSFER }`, which is
   // deliberate and defended above — the control saying "All" over it was not.
-  const transfersExcluded =
-    (selection?.uncategorized === true || selection?.p2p === true) &&
-    (params.flow === undefined || params.flow === "");
+  const transfersExcluded = (selection?.uncategorized === true || selection?.p2p === true) && flow === null;
   const accountTypeById = new Map(accounts.map((a) => [a.id, a.type]));
   const isNonReimbursable = (accountId: string) =>
     NON_REIMBURSABLE_ACCOUNT_TYPES.has(accountTypeById.get(accountId) ?? "");
@@ -560,7 +566,13 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
   // In review mode the whole filtered set is in memory, so the page is a slice
   // of it. Otherwise SQL already returned exactly this page.
   const finish = reviewMode ? needsReview : nullSplit;
-  const reviewRows = pagedInJs ? rows.filter((t) => (finish === null || finish(t)) && isMerchant(t)) : null;
+  // The two figures turn on a category's isIncome, known only now. Review mode
+  // keeps ignoring the flow control, as its SQL always has.
+  const incomeCategoryIds = new Set(categories.filter((c) => c.isIncome).map((c) => c.id));
+  const keepsFlow = reviewMode ? null : flowFinish(flow, incomeCategoryIds);
+  const reviewRows = pagedInJs
+    ? rows.filter((t) => (finish === null || finish(t)) && isMerchant(t) && (keepsFlow === null || keepsFlow(t)))
+    : null;
   // The merchant filter's name as the rows it matches print it.
   const merchantName =
     merchant === null
@@ -674,9 +686,10 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
 
   // The known trip labels, and the band's facts when a trip filter is active.
   const tripLabels = groupLabelRows.map((r) => r.groupLabel).filter((l): l is string => l !== null);
-  // Under a merchant filter the SQL aggregate covers the superset, so the band
-  // sums the finished list instead: it states what its own view shows.
-  const bandRows = merchant !== null && tripTotals !== null ? (reviewRows ?? []) : null;
+  // Wherever the list is finished in memory (a merchant, one null bucket, the
+  // two figures) the SQL aggregate covers the superset, so the band sums the
+  // finished list instead: it states what its own view shows.
+  const bandRows = tripTotals !== null && reviewRows !== null ? reviewRows : null;
   const tripBand =
     tripTotals === null
       ? null
@@ -819,11 +832,16 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
               same reason: selecting Uncategorized also applies
               `flow: { not: TRANSFER }`, so this control read "All" while a
               filter was in force. */}
-          <select name="flow" defaultValue={params.flow ?? ""} className="rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink max-md:min-h-[44px]">
+          <select name="flow" defaultValue={flow ?? ""} className="rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink max-md:min-h-[44px]">
             <option value="">{transfersExcluded ? "All except transfers" : "All"}</option>
             <option value="OUTFLOW">Outflow</option>
             <option value="INFLOW">Inflow</option>
             <option value="TRANSFER">Transfer</option>
+            {/* The two figures /trends and Overview print, which their links
+                open (ui/flowFilter.ts): money out net of what came back, and
+                money in that is not a refund or a repayment. */}
+            <option value="SPENDING">Spending</option>
+            <option value="INCOME">Income</option>
           </select>
         </label>
         <label className="grid flex-1 gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
@@ -893,6 +911,30 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
           >
             clear trip
           </Link>
+        )}
+        {/* The two figures leave rows out that a row's own flow would list,
+            so each says which, beside the way back to all of them. */}
+        {flow === "SPENDING" && !groupMode && (
+          <span className="flex flex-wrap items-center gap-2">
+            <span>spending: money out, less its refunds and repayments</span>
+            <Link
+              href={buildHref(params, { flow: undefined, page: undefined })}
+              className="tap44 font-semibold text-acc hover:underline"
+            >
+              every row
+            </Link>
+          </span>
+        )}
+        {flow === "INCOME" && !groupMode && (
+          <span className="flex flex-wrap items-center gap-2">
+            <span>income: refunds and repayments count against spending instead</span>
+            <Link
+              href={buildHref(params, { flow: "INFLOW", page: undefined })}
+              className="tap44 font-semibold text-acc hover:underline"
+            >
+              all money in
+            </Link>
+          </span>
         )}
         {/* The merchant filter has no control of its own, so it is spelled out
             here, where it can also be dropped. */}
