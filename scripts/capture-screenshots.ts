@@ -162,23 +162,34 @@ async function main(): Promise<void> {
       const tab = await film.newPage();
       const frames: Frame[] = [];
       const grab = async (delayMs: number) => frames.push({ png: await tab.screenshot({ type: 'png' }), delayMs });
-      const scrollSteps = async (steps: number, by: number) => {
+      const scrollSteps = async (steps: number, by: number, hold: number) => {
         for (let i = 0; i < steps; i++) {
           await tab.mouse.wheel(0, by);
           await tab.waitForTimeout(250);
-          await grab(i === steps - 1 ? 2200 : 280);
+          await grab(i === steps - 1 ? hold : 280);
         }
       };
-      for (const [path, hold, scroll] of [
-        ['/', 2600, 0],
-        ['/trends', 1600, 3],
-        ['/insights', 2000, 4],
-      ] as const) {
-        await tab.goto(`${BASE}${path}`);
-        await settle(tab);
-        await grab(hold);
-        if (scroll > 0) await scrollSteps(scroll, 320);
-      }
+      // Trends is held on each card in turn, found by its id and placed where
+      // its own scroll margin puts it: a fixed distance drifts with the data,
+      // and left Build your own cut off mid-chart.
+      const scrollToCard = async (id: string, hold: number) => {
+        const distance = await tab
+          .locator(`#${id}`)
+          .evaluate((el) => el.getBoundingClientRect().top - parseFloat(getComputedStyle(el).scrollMarginTop));
+        await scrollSteps(2, distance / 2, hold);
+      };
+      await tab.goto(`${BASE}/`);
+      await settle(tab);
+      await grab(2600);
+      await tab.goto(`${BASE}/trends`);
+      await settle(tab);
+      await grab(2000);
+      await scrollToCard('what-changed', 2200);
+      await scrollToCard('build-your-own', 2400);
+      await tab.goto(`${BASE}/insights`);
+      await settle(tab);
+      await grab(2000);
+      await scrollSteps(4, 320, 2200);
       await tab.goto(`${BASE}/transactions?review=1`);
       await settle(tab);
       await grab(2400);

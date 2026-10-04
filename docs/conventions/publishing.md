@@ -173,3 +173,19 @@ no dollar amount, count, percentage, ratio, digest or hash anywhere below.
   the app no longer has, and the screenshot sync check covers it — hero.png
   lives among the screenshots. The light and dark SVG banners it replaced
   were deleted; the coin icon stays.
+
+- THE WAIVER THAT MISSED THE WALKTHROUGH (2026-10-03). The pull request that
+  opened Trends' Build your own on income waived the retake with "Build your
+  own sits below the fold of the Trends screenshot and the walkthrough". The
+  first half was true. The second was not: the walkthrough scrolled Trends a
+  FIXED 960px, which stopped on Build your own's controls with its chart cut
+  off mid-bar, still showing the old default, and the README carried it until
+  the operator asked for the pictures to match. Nothing could have caught it,
+  because the check reads docs/assets/screenshots/ and the walkthrough lives
+  beside it by design (a styling PR should not owe a recording), so the rule
+  line now says a waiver answers for the walkthrough too. The walkthrough
+  itself now finds each Trends card by its id and stops where the card's own
+  scroll margin puts it, holding on This month so far, What changed and Build
+  your own in turn: a fixed distance drifts as the demo data changes the
+  length of the cards above.
+
