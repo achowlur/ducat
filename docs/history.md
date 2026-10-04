@@ -813,6 +813,19 @@ blocker; all are the kind of thing that is invisible until someone looks.
   FIGURES. Anything about balances, counts or totals is checked on the
   deployment.
 
+### Built since the 2026-10-04 cut
+
+- **Action feedback on the ledger.** A refused action (an empty merchant, a
+  rule value too short, a category name that cannot be made) throws to the
+  error boundary, and production replaces the message with Next's
+  placeholder: `src/app/transactions/actions.ts`, while GroupedReview and
+  CategoryPicker print `e.message`. `syncNow` (`src/app/actions.ts`) already
+  returns `{ ok, message }`; the refusals should too, shown beside the
+  control. Error states are not pictured, so no screenshot retake.
+  BUILT 2026-10-04: refusals are returned as values (lib/actionResult.ts) and
+  shown beside the control that asked. Evidence in
+  docs/conventions/security-and-auth.md, REFUSALS ARE VALUES.
+
 ## CLAUDE.md, split twice
 
 The "This file's contract" section of CLAUDE.md as it stood until 2026-10-04,

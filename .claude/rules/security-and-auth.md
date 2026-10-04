@@ -31,6 +31,10 @@ anything below. The auth gate itself is a HARD RULE (CLAUDE.md).
   `error.message` — production replaces the message, so a message test passes
   in dev and is dead on the deployment; and it claims nothing about what a
   failed action wrote.
+- A server action REFUSES by returning `{ ok: false, message }`
+  (lib/actionResult.ts), never by throwing: production replaces a thrown
+  message, so the reason never reaches the control. Only the unexpected
+  throws, to the boundary.
 - The dev CSP needs 'unsafe-eval' and the HMR websocket; production gets
   neither — don't "tighten" them away.
 - The second factor is TOTP via AUTH_TOTP_SECRET, opt-in and env-only:

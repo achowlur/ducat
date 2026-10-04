@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { renameGroup } from "../app/transactions/actions";
 import { groupHref, normalizeGroupLabel, MAX_GROUP_LABEL } from "../lib/ui/groupFilter";
+import { ACTION_DID_NOT_COMPLETE } from "../lib/ui/boundaryCopy";
 
 /**
  * The totals band's rename control: rewrites the label across the WHOLE
@@ -27,7 +28,7 @@ export function RenameGroup({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(label);
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -46,12 +47,16 @@ export function RenameGroup({
 
   const commit = () => {
     if (pending || target === null || unchanged) return;
-    setFailed(false);
+    setFailure(null);
     startTransition(async () => {
       try {
         // The action returns the label it actually wrote (it re-adopts an
         // existing group's casing server-side — this list can be stale).
         const written = await renameGroup(label, target);
+        if (!written.ok) {
+          setFailure(written.message);
+          return;
+        }
         // The old ?group= URL would show the honest-but-jarring empty band;
         // land on the renamed group instead. groupHref writes ?group= alone,
         // deliberately dropping period/account/flow/q — after a rename the
@@ -59,7 +64,8 @@ export function RenameGroup({
         router.replace(groupHref(written.label));
         setOpen(false);
       } catch {
-        setFailed(true);
+        // Not "retry": a lapsed sign-in fails identically (boundaryCopy.ts).
+        setFailure(ACTION_DID_NOT_COMPLETE);
       }
     });
   };
@@ -70,7 +76,7 @@ export function RenameGroup({
         type="button"
         onClick={() => {
           setValue(label);
-          setFailed(false);
+          setFailure(null);
           setOpen(true);
         }}
         className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
@@ -90,7 +96,7 @@ export function RenameGroup({
         maxLength={MAX_GROUP_LABEL}
         onChange={(e) => {
           setValue(e.target.value);
-          setFailed(false);
+          setFailure(null);
         }}
         onKeyDown={(e) => {
           if (e.key === "Escape") {
@@ -119,9 +125,9 @@ export function RenameGroup({
       >
         cancel
       </button>
-      <span className={`w-full text-[0.72rem] ${failed ? "text-neg" : "text-faint"}`}>
-        {failed
-          ? "Couldn't rename. Retry."
+      <span className={`w-full text-[0.72rem] ${failure !== null ? "text-neg" : "text-faint"}`}>
+        {failure !== null
+          ? failure
           : merge
             ? `“${existing}” already exists; saving MERGES the two into one group.`
             : `renames every row carrying this tag, ${totalRows} in total, filters or not`}

@@ -63,3 +63,8 @@ headings, uncertainty) are in CLAUDE.md; page-wide ones in ui-reports.md.
 - The category picker OFFERS a typed name matching no category as a new
   one, twice (spending, income), LAST, and never active: bare Enter
   creates nothing.
+- A refused write is said BESIDE its control in the action's own words; the
+  portal pickers say it on the ROW (`RowRefusal`), on its own line capped at
+  220px at EVERY width (uncapped, it reflowed the table). A client never
+  prints `e.message`; the unexpected reads `ACTION_DID_NOT_COMPLETE`
+  (evidence: security-and-auth.md, REFUSALS ARE VALUES).

@@ -31,13 +31,6 @@ Each item checked against the code after PR #29.
 
 ### Ready to scope
 
-- **Action feedback on the ledger.** A refused action (an empty merchant, a
-  rule value too short, a category name that cannot be made) throws to the
-  error boundary, and production replaces the message with Next's
-  placeholder: `src/app/transactions/actions.ts`, while GroupedReview and
-  CategoryPicker print `e.message`. `syncNow` (`src/app/actions.ts`) already
-  returns `{ ok, message }`; the refusals should too, shown beside the
-  control. Error states are not pictured, so no screenshot retake.
 - **A warning colour of its own.** Ochre (`--chart2`) means a donut slice, the
   Income series on /trends (since 2026-10-03), and stale or warning (Overview,
   /providers, coverage notices, /trends) all at once. A `--warn` token per
