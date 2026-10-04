@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { amount, money } from "../../lib/ui/format";
 import type { Comparison } from "../../lib/ui/report";
+import { COLUMN_HEADER } from "../ui/headings";
 
-const TH = "py-1 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint";
+const TH = `py-1 ${COLUMN_HEADER}`;
 
 /** "$1,204": a figure that only gives a change its scale, where cents are noise. */
 function wholeMoney(n: number): string {

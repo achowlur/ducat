@@ -6,6 +6,7 @@ import type { GroupUndo } from "../lib/sync/rulePack";
 import { TRANSFER_TARGET } from "../lib/sync/grouping";
 import { ACTION_DID_NOT_COMPLETE } from "../lib/ui/boundaryCopy";
 import type { CategoryOption } from "./CategoryPicker";
+import { COLUMN_HEADER } from "./ui/headings";
 
 export interface PayeeGroupView {
   key: string;
@@ -253,7 +254,7 @@ export function GroupedReview({
                 <th
                   scope="col"
                   key={h}
-                  className={`py-1 pr-3 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint ${
+                  className={`py-1 pr-3 ${COLUMN_HEADER} ${
                     i === 0 || i === 3 ? "text-right" : "text-left"
                   }`}
                 >

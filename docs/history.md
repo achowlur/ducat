@@ -826,6 +826,24 @@ blocker; all are the kind of thing that is invisible until someone looks.
   shown beside the control that asked. Evidence in
   docs/conventions/security-and-auth.md, REFUSALS ARE VALUES.
 
+- **A warning colour of its own.** Ochre (`--chart2`) means a donut slice, the
+  Income series on /trends (since 2026-10-03), and stale or warning (Overview,
+  /providers, coverage notices, /trends) all at once. A `--warn` token per
+  theme takes the third meaning. Retakes screenshots.
+  BUILT 2026-10-04, as a fill rather than a hue: --warn / --on-warn /
+  --warn-ink. Evidence in docs/conventions/ui-and-pages.md, A WARNING HAS ITS
+  OWN COLOUR.
+- **One type style per role.** Section headings, column headers, chips and
+  controls share one faint tracked-caps look. `SectionTitle`
+  (`src/components/ui/headings.tsx`) is 0.72rem and faint, so it does not
+  lead. /insights still renders six inline `<h2>`s instead of `SectionTitle`,
+  has no headline figure, and does not use /trends' rhythm
+  (`grid gap-10 py-5`). The Trends rebuild added more of the same caps
+  (ViewSwitch, ReportSelect), so count them again before starting. Retakes
+  screenshots.
+  BUILT 2026-10-04 for headings, column headers and the /insights scaffold;
+  controls, chips and the /insights headline figure stay on the backlog.
+
 ## CLAUDE.md, split twice
 
 The "This file's contract" section of CLAUDE.md as it stood until 2026-10-04,

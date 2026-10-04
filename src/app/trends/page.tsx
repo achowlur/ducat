@@ -210,7 +210,7 @@ async function renderTrends({ searchParams }: { searchParams: Promise<RawSearch>
           )}
         </p>
         {source.netWorth.length < 3 && (
-          <p className="mb-3 border-l-2 border-chart2 bg-chip/50 px-2.5 py-1.5 text-[0.75rem] text-faint">
+          <p className="mb-3 border-l-2 border-warn bg-chip/50 px-2.5 py-1.5 text-[0.75rem] text-faint">
             <span className="font-semibold text-acc">History starts here.</span> Net worth is only shown for months with
             a balance snapshot behind every account. Imported transactions can&apos;t supply one: a brokerage&apos;s value
             moves with the market, which leaves no transaction to reconstruct from, so earlier months would be guesses

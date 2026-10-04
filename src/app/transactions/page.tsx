@@ -30,7 +30,7 @@ import { parseGroupParam } from "../../lib/ui/groupFilter";
 import { ledgerTotals, type LedgerTotals } from "../../lib/ui/ledgerTotals";
 import { repaidByExpense, repaidFromOutside, repaidNote } from "../../lib/ui/repaid";
 import { merchantKey, merchantLabel } from "../../lib/ui/merchantLabel";
-import { PageTitle } from "../../components/ui/headings";
+import { COLUMN_HEADER, PageTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
@@ -1072,7 +1072,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
               <th
                 scope="col"
                 key={c.label}
-                className={`py-1 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint ${c.className}`}
+                className={`py-1 ${COLUMN_HEADER} ${c.className}`}
               >
                 {c.label}
               </th>

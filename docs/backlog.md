@@ -31,18 +31,12 @@ Each item checked against the code after PR #29.
 
 ### Ready to scope
 
-- **A warning colour of its own.** Ochre (`--chart2`) means a donut slice, the
-  Income series on /trends (since 2026-10-03), and stale or warning (Overview,
-  /providers, coverage notices, /trends) all at once. A `--warn` token per
-  theme takes the third meaning. Retakes screenshots.
-- **One type style per role.** Section headings, column headers, chips and
-  controls share one faint tracked-caps look. `SectionTitle`
-  (`src/components/ui/headings.tsx`) is 0.72rem and faint, so it does not
-  lead. /insights still renders six inline `<h2>`s instead of `SectionTitle`,
-  has no headline figure, and does not use /trends' rhythm
-  (`grid gap-10 py-5`). The Trends rebuild added more of the same caps
-  (ViewSwitch, ReportSelect), so count them again before starting. Retakes
-  screenshots.
+- **Controls and chips, and a headline figure on /insights.** Left open by
+  the 2026-10-04 type pass (ui-and-pages.md, A WARNING HAS ITS OWN COLOUR):
+  buttons such as RULE, LINK, DISMISS and FILTER, and chips, keep the small
+  tracked caps, and /insights opens without one figure in the money face the
+  way Overview and every /trends card do. Both change the ledger's tuned
+  phone widths. Retakes screenshots.
 - **The CSV backfill path** (full entry below): `--skip-insights` for a
   multi-file import; `--until` per account (the connector already takes it per
   account, only `scripts/import-csv.ts` parses one global value); historical

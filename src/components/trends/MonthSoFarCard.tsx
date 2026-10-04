@@ -7,8 +7,9 @@ import { A_VIEWS, type AView } from "../../lib/ui/trendsParams";
 import { ChartReadout, TimeChart, type TimeSeries } from "../charts/report/TimeChart";
 import { CardFrame, CardLink, Note } from "./CardFrame";
 import { useCardView, ViewSwitch } from "./ViewSwitch";
+import { COLUMN_HEADER } from "../ui/headings";
 
-const TH = "py-1 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint";
+const TH = `py-1 ${COLUMN_HEADER}`;
 
 function fullMonth(period: string): string {
   const [y, m] = period.split("-").map(Number);

@@ -3,7 +3,7 @@ import { cronSummary, getBackupSignal, getProvidersData, LOGS_PAGE_SIZE, STATUS_
 import { calendarDaysAgo, dateTime } from "../../lib/ui/format";
 import { isCloudMode, isTotpConfigured } from "../../lib/auth/mode";
 import vercelConfig from "../../../vercel.json";
-import { PageTitle, SectionTitle, SubsectionTitle } from "../../components/ui/headings";
+import { COLUMN_HEADER, PageTitle, SectionTitle, SubsectionTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
@@ -122,7 +122,7 @@ async function renderProviders({
             {backup.localMirrorLine !== null && <>{backup.localMirrorLine} </>}
             {backup.reason !== null && (
               <span
-                className={`font-semibold ${backup.status === "ERROR" ? "text-neg" : "text-chart2"}`}
+                className={`font-semibold ${backup.status === "ERROR" ? "text-neg" : "text-warn-ink"}`}
               >
                 {backup.reason}
               </span>
@@ -287,7 +287,7 @@ async function renderProviders({
                             <th
                               scope="col"
                               key={h}
-                              className={`py-1 text-[0.66rem] font-semibold uppercase tracking-[0.1em] text-faint ${
+                              className={`py-1 ${COLUMN_HEADER} ${
                                 i < 2 ? "pr-3 text-left" : "pl-3 text-right"
                               } ${i >= 3 ? "hidden md:table-cell" : ""}`}
                             >

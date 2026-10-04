@@ -21,7 +21,8 @@ import { FRED_API_KEY_ENV, FRED_SERIES_ID } from "../rates/mortgageRate";
  */
 export const STATUS_DOT: Record<string, string> = {
   OK: 'bg-pos',
-  WARN: 'bg-chart2',
+  // The ring: a bright amber dot alone is ~1.9:1 against a light paper.
+  WARN: 'bg-warn ring-1 ring-warn-ink',
   ERROR: 'bg-neg',
   UNKNOWN: 'bg-faint',
 };
@@ -34,7 +35,7 @@ export const STATUS_DOT: Record<string, string> = {
  */
 export const STATUS_CHIP: Record<string, string> = {
   OK: 'bg-pos text-paper',
-  WARN: 'bg-chart2 text-paper',
+  WARN: 'bg-warn text-on-warn',
   ERROR: 'bg-neg text-paper',
   UNKNOWN: 'bg-chip text-acc',
 };

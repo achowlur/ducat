@@ -7,7 +7,7 @@ import { SyncNowButton } from "../components/SyncNowButton";
 import { amount, dateTime, money, pct } from "../lib/ui/format";
 import { getOverviewData, STALE_DISPLAY_DAYS } from "../lib/ui/overview";
 import { STATUS_DOT } from "../lib/ui/providers";
-import { PageTitle, SectionTitle } from "../components/ui/headings";
+import { COLUMN_HEADER, PageTitle, SectionTitle } from "../components/ui/headings";
 import { transactionsHref } from "../lib/ui/categoryFilter";
 import { withDatabaseNotice } from "../components/DatabaseNotice";
 
@@ -235,13 +235,13 @@ async function renderOverview() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-ink">
-                <th scope="col" className="py-1 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                <th scope="col" className={`py-1 text-left ${COLUMN_HEADER}`}>
                   Account
                 </th>
-                <th scope="col" className="w-px whitespace-nowrap py-1 pl-3 text-left text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                <th scope="col" className={`w-px whitespace-nowrap py-1 pl-3 text-left ${COLUMN_HEADER}`}>
                   As of
                 </th>
-                <th scope="col" className="w-px whitespace-nowrap py-1 pl-3 text-right text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">
+                <th scope="col" className={`w-px whitespace-nowrap py-1 pl-3 text-right ${COLUMN_HEADER}`}>
                   Balance
                 </th>
               </tr>
@@ -279,7 +279,9 @@ async function renderOverview() {
                         {a.balanceLagDays}d behind
                       </span>
                     ) : a.balanceLagDays >= STALE_DISPLAY_DAYS ? (
-                      <span className="font-semibold text-chart2">{a.balanceLagDays}d behind</span>
+                      <span className="rounded-[2px] bg-warn px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.06em] text-on-warn">
+                        {a.balanceLagDays}d behind
+                      </span>
                     ) : (
                       (a.snapshotDate ?? "—")
                     )}

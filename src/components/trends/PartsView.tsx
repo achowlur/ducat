@@ -5,13 +5,14 @@ import { amount, money } from "../../lib/ui/format";
 import { sliceFill, sliceSwatch } from "../../lib/ui/donutColors";
 import { wholePercents } from "../../lib/ui/spendingBreakdown";
 import type { GroupTotal } from "../../lib/ui/report";
+import { COLUMN_HEADER } from "../ui/headings";
 
 /** Rows the bar view names before summing the rest; the table names every one. */
 const BAR_ROWS = 12;
 /** Named slices before Other: Overview's ring allows seven hues and a neutral. */
 const PIE_SLICES = 7;
 
-const TH = "py-1 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint";
+const TH = `py-1 ${COLUMN_HEADER}`;
 
 /**
  * Parts of one whole: groups over a span, as bars, a pie or a table. Every
