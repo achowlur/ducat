@@ -812,3 +812,35 @@ blocker; all are the kind of thing that is invisible until someone looks.
   place to check STRUCTURE and behaviour, and the wrong place to read
   FIGURES. Anything about balances, counts or totals is checked on the
   deployment.
+
+## CLAUDE.md, split twice
+
+The "This file's contract" section of CLAUDE.md as it stood until 2026-10-04,
+moved here VERBATIM when CLAUDE.md was split a second time (585 lines to under
+200), this time into path-scoped rules files (`.claude/rules/`) and procedure
+skills (`.claude/skills/`). The same thing had happened as the first time: rule
+lines had collected their stories. The new contract is CLAUDE.md's "Where
+instructions live", and scripts/instructions.test.ts now holds the size limit.
+
+Everything here auto-loads into every session, so this file holds RULES ONLY:
+each convention is one enforceable line plus a pointer to its evidence file
+under docs/conventions/. The evidence — what each rule cost, what was tried
+and failed — lives in the pointed file and is REQUIRED READING before changing
+anything a rule covers; several record "tried and failed, don't retry". When
+adding a convention: rule line here, story there, never both in one place.
+The split happened 2026-08-01 at 1,308 lines (~33k tokens per session); every
+original word survives verbatim in docs/. Backlog: docs/backlog.md. History:
+docs/history.md. User guides: docs/getting-started.md and siblings.
+
+## Product direction (agreed 2026-07-13)
+
+Moved VERBATIM from CLAUDE.md on 2026-10-04; CLAUDE.md keeps the rule.
+
+Distributed software, NOT a hosted service (the Actual Budget model):
+each user deploys their own instance (their machine or their cloud) and
+brings their own SimpleFIN token (~$15/yr paid by the user to SimpleFIN),
+so the maintainer custodies no one's data and aggregator costs stay $0.
+CSV import is the zero-dependency fallback. Do NOT build an in-house
+aggregator — bank connectivity (not the protocol) is the hard 95% and
+there is no free path. "We can't read your data even if breached" (E2E)
+is the product's trust story when multi-user matters.

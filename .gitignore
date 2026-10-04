@@ -50,7 +50,9 @@ next-env.d.ts
 *.db-journal
 
 # claude code local state
-/.claude/
+/.claude/*
+!/.claude/rules/
+!/.claude/skills/
 
 # scratch diagnostics (either of us)
 /scripts/tmp-*.ts

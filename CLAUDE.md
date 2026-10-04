@@ -4,17 +4,24 @@ A personal finance tracker with an insights engine. Local-first by default (runs
 entirely on localhost; no financial data leaves the machine), with an OPTIONAL
 single-tenant self-hosted cloud deployment (see [DEPLOY.md](DEPLOY.md)).
 
-## This file's contract
+## Where instructions live
 
-Everything here auto-loads into every session, so this file holds RULES ONLY:
-each convention is one enforceable line plus a pointer to its evidence file
-under docs/conventions/. The evidence — what each rule cost, what was tried
-and failed — lives in the pointed file and is REQUIRED READING before changing
-anything a rule covers; several record "tried and failed, don't retry". When
-adding a convention: rule line here, story there, never both in one place.
-The split happened 2026-08-01 at 1,308 lines (~33k tokens per session); every
-original word survives verbatim in docs/. Backlog: docs/backlog.md. History:
-docs/history.md. User guides: docs/getting-started.md and siblings.
+This file loads into every session, so it holds only what applies to almost any
+change. The rest loads when it is needed:
+
+| Tier | Holds | Loads |
+|---|---|---|
+| CLAUDE.md | hard rules, architecture, rules any change can break | every session |
+| `.claude/rules/*.md` | one-line rules for one area of the code | when a file matching its `paths:` is read or edited |
+| `.claude/skills/*/SKILL.md` | procedures: commit, ship a PR, change cloud data | when the task matches, or by `/name` |
+| `docs/conventions/*.md` | the EVIDENCE: what each rule cost, what failed | REQUIRED READING before changing what a rule covers |
+
+A new convention gets ONE rule line in ONE tier (any change → here; one area's
+files → its rules file; a task → its skill) and its story in docs/conventions,
+never both in one place. Several evidence files record "tried and failed, don't
+retry". This file stays under 200 lines and every rules file keeps live `paths:`
+(scripts/instructions.test.ts). Backlog, open items only: docs/backlog.md.
+History: docs/history.md. User guides: docs/getting-started.md and siblings.
 
 ## HARD RULES
 
@@ -37,9 +44,7 @@ Mode-scoped (`DATABASE_URL` scheme selects the mode):
   (amended 2026-08-02; trust card on /providers). CLOUD — data lives with the
   operator's OWN Turso + Vercel (single-tenant, self-hosted); no third party
   custodies it as a shared service. Opt-in trade-off documented in DEPLOY.md
-  AND carried on /providers — the "This instance" block owes the same three
-  parts a connector card does, residual risks included; E2E is deferred.
-  The page states the sync CADENCE, read from vercel.json so it cannot drift.
+  AND carried on /providers (ui-reports.md); E2E is deferred.
 
 ## Architecture
 
@@ -63,7 +68,7 @@ regeneration.
 - Prisma + libSQL adapter — `file:./data/ducat.db` local, `libsql://` Turso in
   cloud mode (one adapter serves both; better-sqlite3 is a devDep for tests only)
 
-## Always-loaded conventions (kept whole — needed every session)
+## Every change
 
 - Sign convention (SimpleFIN-style, documented in `src/types/contracts.ts`):
   transaction amounts are signed (positive = INFLOW, negative = OUTFLOW,
@@ -71,14 +76,15 @@ regeneration.
   is the plain sum of balances. Insight payloads report positive magnitudes,
   except net worth which stays signed.
 - Period keys: `2026-W28` (ISO week) / `2026-07` / `2026-Q3` / `2026`.
-- Insight regeneration replaces existing rows per (type, period) but carries
-  the `dismissed` flag forward for insights with the same identity
-  (see `identityOf` in `src/lib/insights/engine.ts`).
 - `BalanceSnapshot` rows are the source of truth for historical balances;
   the engine falls back to reconstructing from transactions (flagged as
   estimated) for accounts/periods without snapshots. Connectors should write
   a snapshot on every sync.
-- Commands: see README's table and `package.json`. `npm test` is Vitest.
+- MANUAL categorization is sacred: any path that rewrites flow or category
+  must EXCLUDE manually-categorized rows, as transfer-pair detection does.
+- Analyzers legitimately emit NOTHING; every consumer survives an empty
+  series — guard the series itself, never assume a page gate covers it.
+- Commands: README's table and `package.json`; `npm test` is Vitest.
 - VERIFY BEFORE EVERY COMMIT (`/verify`): `npx tsc --noEmit`, `npm run lint`,
   `npm test`, and — for anything that renders — load the affected page in the
   running dev server and read back the actual numbers or measurements. All four
@@ -96,357 +102,31 @@ regeneration.
   categorization — it is not an additive command. It now refuses when
   transactions exist unless given `-- --yes` (same guard as `db:reset`). It
   loads INVENTED demo data dated relative to TODAY (src/lib/demo/data.ts) and
-  rebuilds insights itself; a screen feature the demo cannot show owes the
-  generator the rows that show it (docs/conventions/ui-and-pages.md).
+  rebuilds insights itself.
+- TWO DATABASES: code ships with git push, DATA does not. Every data change
+  runs against the CLOUD only, the only writer; the nightly mirror brings
+  local down, and a local write makes it refuse. Every row-writing script
+  prints its database label FIRST — read it. Load `cloud-data-change` first.
+- Every change lands on a BRANCH and through a PULL REQUEST — never a commit
+  on main, Claude Code's sessions included — and a PR merges only on a green
+  `verify` check. The steps, privacy scan included, are the `ship-pr` skill.
+- NOTHING PUBLIC carries personal data: tracked files (`.claude/rules/` and
+  `.claude/skills/` included), commits, branch names, PR text, comments, the
+  About fields. A new figure is INVENTED, never read from real data
+  (publishing.md in `.claude/rules/`).
+- `npm test` excludes `.claude/**` (vitest.config.ts): agent worktrees there
+  are full repo copies, and without it the suite silently doubles and gates
+  on another branch's work.
 - Browsing is limited to the IN-APP browser (`preview_start` /
   `mcp__Claude_Browser__*`), pointed at `<your-deployment>.vercel.app` or localhost.
   Never drive the operator's real Chrome or read their existing tabs and
   sessions, for this or anything else. When something genuinely needs an
   authenticated session the in-app browser does not have — the Vercel
   dashboard, Turso's console — ASK, and never enter credentials anywhere.
+- On Turso the COUNT of round trips is the cost, never the size of any one.
 
-## Rules — money & analytics → docs/conventions/money-and-analytics.md
+## Every rendered surface (evidence: docs/conventions/ui-and-pages.md)
 
-- MANUAL categorization is sacred: any path that rewrites flow or category
-  must EXCLUDE manually-categorized rows, as transfer-pair detection does.
-- Analyzers legitimately emit NOTHING; every consumer survives an empty
-  series — guard the series itself, never assume a page gate covers it.
-- Reimbursements push categories NEGATIVE by design: arcs divide by drawable,
-  every PRINTED total is net totalSpending (single source:
-  ui/spendingBreakdown.ts), and pctDelta is null when EITHER operand crosses
-  zero (base ≤ 0 OR current < 0); /trends prints no percentage then, only
-  dollars.
-- /trends computes from TRANSACTIONS through ui/report.ts ENTRIES, never a
-  second definition of spending or income: a credit files under the row it
-  nets against (reimbursementSources), and every month's totals are pinned to
-  the analyzers to the cent (report.test.ts).
-- Net worth history requires SNAPSHOTS: investment accounts are known:false
-  without a snapshot INSIDE the period; never reconstruct an investment
-  balance from transactions, in either direction. Cash/credit are exempt.
-- investmentNetFlows counts only money CROSSING the account boundary;
-  direction comes from wording, only the magnitude is trusted.
-- Never trust one connector's sign convention — investment-amount readers
-  must be robust to Fidelity-CSV and SimpleFIN signing the same transfer
-  oppositely.
-- Fidelity's sweep into the core position ("PURCHASE INTO CORE ACCOUNT") is
-  INTERNAL: a pack TRANSFER rule and a netWorth internal verb. Its sign
-  differs between accounts, so it is caught by WORDS; reapplying rules never
-  undoes a transfer pair it already won.
-- Anomaly baselines use ACTIVE periods only; anomalies RANK
-  (maxPerBaseline: 1) with minPercentile 0.85 as an eligibility gate;
-  displayed magnitude is a rank ("higher than N%"), never a ratio.
-  Log-space MAD and merchant-history baselines failed — do not retry.
-- A coverage gap is TWO claims: a mid-period start is complete data,
-  only NO_DATA earns amber, and notices report DOLLARS, not account counts.
-- An account covers a period only if its first transaction is at or before
-  the period START.
-- Reimbursement suggestions lead with AMOUNT evidence; date only breaks
-  ties; UNSPLITTABLE categories are denied split evidence. An expense up to
-  REPAYMENT_LEAD_DAYS (30) AFTER the repayment is offered — unpenalised within
-  POSTING_LAG_DAYS (3), at 60% date weight beyond — ONE constant feeds both
-  the ranker and the pool queries. Suggestions are a GUESS: the picker's
-  SEARCH reaches every expense in the window, so ranking never decides
-  whether a link is possible.
-- A trip/project group (`Transaction.groupLabel`) is a cross-period VIEW
-  over real rows, never a re-bucketing: NO analyzer reads it, tagging
-  changes no printed total (pinned byte-identical by groupLabel.test.ts),
-  and every row-rewriting path — dedup import, reapplyRules, its undo,
-  transfer-pair detection — leaves the tag standing, the MANUAL
-  protection arriving from the opposite direction.
-- An INVESTMENT account is a CLOSED BOX (sync/closedBox.ts): every
-  non-MANUAL row in one is a TRANSFER by the ACCOUNT'S TYPE, before any rule
-  is asked, user rules included. Dividends, sales and fees inside one are
-  never income or spending; what it earned is the market-movement figure.
-  Pairing is still OFFERED an enclosed row that could cross the boundary;
-  enclosed rows are counted apart and never in a rule's undo snapshot;
-  retyping OUT of INVESTMENT releases them (releaseClosedBox).
-
-## Rules — merchants & rules → docs/conventions/merchants-and-rules.md
-
-- Grouped-review keys are ≥3 characters — they become priority-50 CONTAINS
-  rules that outrank the pack.
-- A P2P payment is NEVER categorized unseen: user CATEGORY rules only
-  SUGGEST (same payee+amount → payee rule → clear favourite ≥2), only user
-  TRANSFER rules auto-apply, and a payee decision confirms its waiting rows
-  as MANUAL. Unconfirmed P2P OUTFLOWS are the "P2P — Unreviewed" slice,
-  never Uncategorized, and stay out of anomalies and the digest.
-- Anything derived from bank text must stay FINDABLE in it: rules.ts
-  collapses whitespace on BOTH sides for CONTAINS/EQUALS; payeeKey TRUNCATES
-  at the first noise marker, never deletes mid-string.
-- Rules only WRITE — deleting one undoes nothing; any rule-removal path
-  needs the reapplyRules/TxnRestore snapshot for undo.
-- installRulePack keys on matchField|matchOperator|matchValue: never EDIT a
-  shipped rule's matchValue — add the new value at the next priority.
-- CONTAINS matches at LETTER boundaries: zero leading letters, exactly one
-  trailing letter; digits still decorate. A value that stops mid-word needs
-  its full form listed BESIDE it plus a rulePack.test.ts entry;
-  npm run rules:audit stays at zero.
-- Matcher bugs are found by generated probes and the curated corpus —
-  transaction volume cannot find them.
-- Rule bands: 1-99 user, 200-299 structural, 500-529 brands, 900-999
-  generic, 995 payment rail. Card-payment patterns require a card token AND
-  a payment token; short brands are word-bounded regexes, never CONTAINS.
-- normalizeMerchant truncates at OBSERVED TRANSACTION_TYPE markers only
-  (≥3 chars must precede); adding a marker can WIDEN existing rule
-  matchValues — measure what the shortened values newly match first.
-- ABBREVIATIONS entries must MEASURABLY split a payee. "fid bkg svc llc"
-  now meets the bar; if fixed, the instrument is an expansion, not a marker.
-- repair:merchants' description-fallback requires: has a marker, shorter,
-  AND a prefix of the stored merchant.
-- Processor prefixes strip as a PREFIX only; Toast/Slice/DoorDash also
-  auto-categorize via DESCRIPTION rules; after normalizer changes,
-  repair:merchants must also rewrite MERCHANT rule values.
-- inferAccountType order is load-bearing: deposit words → LOAN before
-  CREDIT → card words → investment names → card PRODUCT names LAST.
-- Categories are made ONLY through lib/categories.ts: whitespace-collapsed,
-  40 characters at most, unique in ANY casing (a collision ADOPTS the
-  existing row), never a name the app prints for a non-category; NO
-  PACK_CATEGORIES name is reserved, or the pack could not install. A new
-  category is ASSIGNED by the same write an existing one gets.
-
-## Rules — sync & data ops → docs/conventions/sync-and-data-ops.md
-
-- CSV running-balance ties break by FILE POSITION, not date alone.
-- SimpleFIN timestamps are deliberately left alone — any "fix" moves
-  correct dates too.
-- CSV backfill: --external-id targets an existing account, --until stops at
-  feed coverage AND is the only thing stopping an uncapped import rewriting a
-  live balance BACKWARD; overlapping rows NEVER dedupe across sources;
-  unroutable rows are skipped and reported.
-- import:csv --dry-run is a READ-ONLY BRANCH of the writer, never a second
-  pipeline: it shares sync.ts's account lookup and dedupe key, is pinned
-  against a real runSync by test, and states what it cannot count (transfer
-  pairs, insights) instead of implying zero.
-- TWO DATABASES: code ships with git push, DATA does not. Every data change
-  runs against the CLOUD only; verify on <your-deployment>.vercel.app; the
-  nightly mirror brings local down. Every row-writing script prints its
-  database label FIRST — read it.
-- LOCAL MIRRORS CLOUD, always. Anything touching Turso DATA lands on the cloud
-  first and reaches local through the nightly mirror (or db:mirror), PROVED
-  equal by fingerprint digests, never assumed. Cloud is the only writer; local
-  is a mirror, not a second history — a local write makes the mirror refuse.
-- The nightly mirror writes local ONLY while local still matches the digests
-  recorded after its last mirror (data/backups/mirror-state.json): ROWS in ONE
-  transaction, never a file swap (local keeps its migration history), proved
-  before commit. A refusal leaves local untouched and WARNs on /providers;
-  only db:mirror --confirm replaces a changed local, keeping the old file.
-- backup:scheduled (the 00:30 UTC Windows task) is the ONLY writer of Setting
-  backup.lastRun: CLOUD first, then — after a successful mirror — to local;
-  and only AFTER whole-database fingerprints MATCH;
-  a failed run writes no row and deletes nothing, so /providers' backup age
-  means nights since the last PROVEN copy. Manual cloud:backup never updates it.
-- The canonical ducat-YYYY-MM-DD-HHMM.db name is EARNED by verification:
-  both backup scripts copy onto .partial and rename only after checks pass;
-  failures quarantine as .unverified. Retention prunes only exact canonical
-  names — a failed or crashed run must never leave a file it would count,
-  or the leftover is one day elected a month's sole keeper.
-- The backup wrapper reads .env.backup EXCLUSIVELY — never .env, never the
-  shell. Retention keeps every file on the 14 newest backup DATES plus the
-  newest per month beyond, and prunes only after the new backup verified.
-- The fingerprint serialisation is PINNED (fingerprintDatabase.test.ts): its
-  \x01/\x02 separators were nearly lost invisibly once; changing the pinned
-  digest orphans every recorded digest, so it is done deliberately or never.
-- Pack drift is counted by pendingPackRules and surfaced on Overview's
-  review panel (npm run upgrade); rule changes are never auto-applied.
-  Transactions with NO categories count the whole pack as pending.
-- npm run upgrade regenerates insights on EVERY real run (MONTH only — what
-  screens read) and installs the pack only when rules are pending: it always
-  writes rows, Overview's silence speaks for RULES alone, and it runs against
-  the CLOUD — a local run would make tonight's mirror refuse. It also
-  REAPPLIES every rule and the closed box, pack or no pack.
-- A commit adding a `package.json` script owes README's command table a row in
-  the SAME commit — commandTable.test.ts fails otherwise, and its INTERNAL
-  list, each entry carrying its reason, is the only exemption.
-- SCHEMA is the third upgrade axis: npm run schema:push diffs and only ever
-  ADDS; one refusal blocks the whole run; an empty database goes to
-  turso:push.
-- Whether ADD COLUMN is legal depends on the table having ROWS — the delta
-  takes row counts before classifying; Prisma's own diff will DROP what
-  schema:push refuses — read its script before running any of it.
-- The two databases differ in WHICH ROWS EXIST: before deleting a surface,
-  check what the CLOUD has that reaches it.
-- Never infer deploy state from the served page or the build id — ask the
-  operator to read the Vercel dashboard.
-- The cron hour (0 23 * * *) is TUNED to minimise the oldest institution's
-  balance age — re-score every candidate hour before moving it. Hobby fires
-  ANYWHERE in the hour, never early, so the backup slot sits AFTER the hour.
-- Provider health derives from LOCAL signals only — no network call on
-  launch, ever; staleBalanceDays: 5 is deliberate; a new connector owes a
-  trust card in providers.ts.
-- A read-only external data fetch is NOT banned. It must: fetch on SYNC,
-  store-then-render, gate on an env var that fails closed, key via env, and
-  carry a trust card — and the data-locality invariant gets amended
-  deliberately, in writing.
-- The FRED rate fetcher is that rule's first instance: rides the sync just
-  BEFORE insight regeneration (and skips when insights skip), fails closed
-  on a missing FRED_API_KEY (zero calls, zero writes), and NEVER fails the
-  sync — failures land in rates.mortgage beside the surviving last
-  observation; health reads only the stored observation's age
-  (RATE_STALE_DAYS: 7); Overview calls getProviderHealth at scope:
-  'accounts' so the card costs it no round trip.
-- INVESTMENT accounts are exempt from transaction-gap detection; balance
-  staleness covers them.
-
-## Rules — goals, subscriptions & insights → docs/conventions/goals-and-insights.md
-
-- Renewal stepping: clamp to the month's last day and step from the ORIGIN —
-  Date.UTC normalises impossible days instead of clamping.
-- Subscription charge matching prefers charges NEAR the expected amount;
-  detected subscriptions LAPSE after two silent cadence cycles.
-- Registered subscriptions fold to charges by their OWN merchantPattern
-  (matchesSubscription) — never brandOf; detected wins ties.
-- Subscription thresholds are TUNED: run subs:audit before touching one and
-  expect the answer no; the audit mirrors the detector's gates — change
-  recurring.ts and the audit together.
-- Recurring is NOT subscribed: NOT_SUBSCRIPTION_CATEGORIES excludes by
-  CATEGORY, not by merchant name.
-- A finding the DIGEST leads with is not printed again below it: items carry a
-  dedupeKey (anomalyDedupeKey, computed on both sides) and the Anomalies group
-  is filtered by the keys the digest KEPT. The promoted row carries the rank,
-  so nothing is lost. Category DRIFT is measured NET of that period's one-offs
-  in the category — a one-off is scored once, never annualised as a trend.
-- "Counts as cash" is a Setting (cash.additionalAccountIds via
-  accounts:cash), never an account-type change — retyping breaks net worth.
-- npm run goals --add is NOT idempotent (slugs dedupe, content does not):
-  read the printed listing before adding.
-- The goals panel is gated to the month being lived in; the period selector
-  clamps to months with rows PLUS that month (selectPeriod in
-  ui/periodNav.ts), so the panel renders from day 1 and its absence means
-  the Setting is missing, not the month.
-- A cash goal prints its RECONCILIATION beside the projected landing —
-  observed cash growth over the same window the rate averages — because the
-  rate assumes every saved dollar stays in cash, and with a single goal
-  nothing else states that assumption. Never remove it to "declutter".
-- House readiness is a READINESS signal, never lender math: the residual
-  form (income − non-housing − declared floor) is canonical, non-housing is
-  built PER MONTH before averaging, the binding ceiling is named
-  FUND-limited (never "deposit-limited"), typed assumptions collapse behind
-  ONE tap-to-open ASSUMED disclosure whose summary keeps the rate's as-of
-  date visible (a hidden rate must never read current forever), and NO
-  default rate lives in code — absent `readiness.house` config, or no
-  declared goal to be the fund, means no panel.
-- The readiness rate resolves TYPED-FIRST: a typed rate always overrides
-  the fetched index; rate-absence is entered only via --fetched-rate; an
-  operative fetched rate names FRED and its series in the ASSUMED summary
-  and dates itself by the OBSERVATION date; no typed rate + no stored
-  observation = no panel, no invented rate.
-
-## Rules — UI & pages → docs/conventions/ui-and-pages.md
-
-- Any axis whose length grows with history thins labels from the END and
-  carries a year band.
-- Two charts with different ranges: the shorter one names its own range and
-  the reason, always.
-- /transactions PAGINATES — capping without paging is a data-visibility
-  bug this repo shipped twice; every filter-changing link resets page.
-- /transactions prints TWO TOTALS of its filtered list (ui/ledgerTotals.ts),
-  every page above and this page below: OUT, IN, NET, transfers as two
-  figures never in the net, and REPAID, the linked repayments of listed
-  bills that the list does not show (ui/repaid.ts), netted so a category
-  view's net IS /trends' figure (repaid.test.ts pins it).
-- ?flow= is read only by ui/flowFilter.ts. SPENDING and INCOME are the two
-  FIGURES, decided by isReimbursement itself (never a second definition) and
-  finished in memory; a repayment linked to an outflow is never listed under
-  SPENDING, it arrives as REPAID. EVERY link from a printed spending or income
-  figure names its measure, so the band adds up to the figure to the cent
-  (report.test.ts walks every Trends link).
-- ?period= is ONE period key or a span of whole months `A..B`, read only by
-  ui/periodSpan.ts; a span gets the select's synthetic entry and no month
-  step. ?merchant= is EXACT by merchantKey: SQL narrows to a SUPERSET (pinned
-  by merchantLabel.test.ts) and the list finishes in memory, like review mode.
-- A bill with linked repayments says so ON ITS ROW, at every width: what
-  came back and the share left. The link lives on the repayment, so the
-  bill was the one row that never said it was split.
-- /insights admits the month being LIVED IN before it has rows — and ONLY
-  that month — and since 2026-08-02 DEFAULTS to it: every current-gated
-  panel (goals, readiness, pace, commitments) lives there, so opening on
-  the latest month with rows hid the page's best content every month-start.
-  Prior months stay one ‹ away. The empty month says "nothing recorded
-  yet", never "nothing needs your attention" — all clear cannot be told
-  from not checked. ONE `now` drives both admission and the current-period
-  gate, or a render straddling UTC midnight splits them.
-- Overview's net-worth HEADLINE is LIVE (the signed sum of account
-  balances) and carries NO month label; the MoM delta and market-movement
-  lines are context from the latest COMPLETE month's NET_WORTH_GROWTH row
-  and carry that month's name, surviving its absence. The spending block
-  shows the month being LIVED IN; empty says "nothing recorded yet" plus a
-  quiet prior-month link, and every printed total is spendingBreakdown's.
-- The ledger's category control is ONE picker in a PORTAL; drive the real
-  page after any change to it — its five bugs were invisible in source, and
-  the fifth was invisible in the DOM too: LOOK at a portal's pixels, an
-  anchor rect is measured ONCE at open (a detached anchor measures zero and
-  floors the popover into the corner). GroupedReview keeps its <select>
-  deliberately.
-- EVERY ledger popover owes ESCAPE, CLICK-OUTSIDE and FOCUS RESTORE, and the
-  reimburse picker was the third built without them: click-outside is what
-  makes "only one open at a time" free, and without it a second panel stacks
-  over the first. Below md a control at the row's right edge opens its panel
-  LEFTWARD, or most of it hangs off the horizontal scroller.
-- A popover that closes on PAGE scroll excludes its OWN list from that
-  capture listener and carries `overscroll-contain`. Test pickers at 720px
-  of height, on a row whose category sits LOW in the list.
-- The category picker OFFERS a typed name matching no category as a new
-  one, twice (spending, income), LAST, and never active: bare Enter
-  creates nothing.
-- ?category= is an INCLUSION list, written/read ONLY by
-  ui/categoryFilter.ts; null means the Uncategorized bucket and
-  `p2p-unreviewed` the DISJOINT P2P one (split in memory by nullBucketFilter);
-  the multi-id group lives in where.AND; the select needs its synthetic entries.
-- ?group= is the trip filter, owned by ui/groupFilter.ts (the payee queue
-  is ?payees=1); the group is a scalar equality beside q's OR and the
-  category AND; the totals band and the /insights TRIPS rows sum EXACTLY
-  what their own filtered view shows — transfers included when tagged,
-  and the wording says so; no group touching a period means the section
-  is ABSENT, never empty; an untagged row's picker starts with NOTHING
-  active, so bare Enter writes nothing; RENAME (the band's control) rewrites
-  the WHOLE group, never the filtered view, and renaming onto an existing
-  label MERGES — warned before saving, because a merge does not undo by
-  renaming back; casing adoption is enforced server-side.
-- ?account= is an INCLUSION list, written/read ONLY by ui/accountFilter.ts;
-  one id is a list of one, a repeated key is read whole and re-encoded as
-  ONE value, and the checkbox control stages its ticks until submit.
-- An SVG `<title>` takes ONE string child: two JSX children serialize as
-  `<title></title>` server-side, and the mismatch re-renders from `<html>`
-  down, stripping the pre-paint data-theme — Overview alone rendered sepia
-  for light/dark readers, in PRODUCTION too. Read the DEV SERVER TERMINAL
-  first (React names the node and the fix there); the browser console
-  truncates the tree diff and blames the theme attribute, which is the
-  consequence. One page's error follows soft navigation to every other, and
-  /login redirects to / when the gate is off — hard-navigate before
-  believing a bug is global.
-- Charts are hand-rolled SVG; no chart library, no webfonts anywhere (CSP).
-  niceTicks guarantees last tick ≥ max; value labels are collision-checked.
-  A viewBox scales its TYPE with its container, so width buys legibility and
-  then overshoots — every /trends chart is capped at 880px for that reason.
-- /trends stacks its cards FULL WIDTH in the operator's order: This month so
-  far, What changed (last month vs the one before), Build your own (income by
-  month, this year so far, as bars), Net worth; `lg:grid-cols-2` sized the
-  page in inverse proportion to what each block had to say. Changes are
-  DOLLARS, never a ratio column. Defaults live ONCE (B_DEFAULTS/E_DEFAULTS in
-  ui/trendsParams.ts), and a link meaning spending says `e.show=spending`.
-- A /trends card leads as Overview does: ONE money-face figure over a faint
-  context line, then the detail; no figure is printed twice on a card (the
-  chart readout IS the legend), and "view as" offers only what the data's
-  SHAPE allows (a pie never for months), remembered per card in URL + cookie.
-- Comparisons use COMPLETE months, except "this month so far", which cuts
-  last month at the same DAY; a card names accounts whose records begin
-  inside the earlier span, by first-transaction day.
-- Overview's ring names every category at ≥3% (eight legend rows max, the
-  last being Other, drawn NEUTRAL); /trends' pie names seven, folding the
-  rest into a NEUTRAL `Other · N`. Legend percentages round together via
-  wholePercents.
-- Overview is HEADLINE → DETAIL → TOTAL; the grouping figures are a
-  full-width band BELOW the table, never rows inside it; freshness is a
-  COLUMN.
-- Overview's review panel renders in BOTH states — "all clear" must be
-  stated, not implied by absence; the three-level staleness escalation is
-  deliberate.
-- A database that cannot be REACHED is named on the page in both modes, never
-  dropped to the generic boundary, naming no culprit and never implying the
-  data is gone — and every test or probe for a failure state asserts on content
-  that is PRESENT, since an absent-string check passes on a page that never
-  rendered.
-- Per-account "Nd behind" measures against the LAST SYNC, never against now.
 - PHONE IS THE PRIMARY READ. Every control clears 44px below md via the
   `.tap44` utility (min-height, never the header's negative-margin pair —
   that overlaps neighbours inside a row); any strip with a hidden scrollbar
@@ -457,108 +137,41 @@ regeneration.
   dateTime(); the zone comes from DUCAT_TIMEZONE (EMPTY falls back to the
   machine's), never TZ. Never print a raw
   ISO string in prose — shortDate/monthLabel exist.
+- On-screen copy carries NO em dash (a refusal glyph and an empty cell's
+  dash are glyphs, not prose).
 - Headings come from components/ui/headings.tsx and NOWHERE else: one h1 per
   tab (visually hidden — the nav carries the visible name), SectionTitle is
-  h2, SubsectionTitle h3. Six tabs previously had four different answers and
-  no h1 at all. Every `th` carries scope.
+  h2, SubsectionTitle h3. Every `th` carries scope.
 - A figure the reader must be able to discount states its uncertainty in TEXT,
   never in a title= — hover does not exist on the device this is read on.
-  Percentages of one whole round by largest remainder, or a column of them
-  sums to 101%.
-- On-screen copy carries NO em dash (a refusal glyph and an empty cell's
-  dash are glyphs, not prose); an /insights archive row is a NAME plus
-  a column of FACTS (`InsightRow.facts`), never a punctuated sentence, and a
-  chip that only repeats its group heading is null, the tone carried by a mark.
+  Percentages of one whole round by largest remainder (wholePercents), or a
+  column of them sums to 101%.
+- Charts are hand-rolled SVG; no chart library, no webfonts anywhere (CSP).
+- An SVG `<title>` takes ONE string child: two JSX children serialize as
+  `<title></title>` server-side, and the mismatch re-renders from `<html>`
+  down, stripping the pre-paint data-theme. Any hydration error: load
+  `debug-hydration` before guessing.
+- Every test or probe for a failure state asserts on content that is PRESENT,
+  since an absent-string check passes on a page that never rendered.
 
-## Rules — performance → docs/conventions/performance.md
+## Routing
 
-- On Turso the COUNT of round trips is the cost, never the size of any one.
-- Promise.all buys ~1.13x, not parallelism — buy speed by REMOVING round
-  trips; a relation include is one statement each, so select columns.
-- Timing claims need counterbalanced ABBA designs running IDENTICAL query
-  lists on both arms.
-- /api/diag/timing: discard cold samples (msSinceFunctionBoot < ~2000),
-  normalize against the trivial queries in the SAME response, and
-  sequential.rows is a connection-setup artifact.
-- MEASURE TIME ON THE CLOUD, structure on localhost — preview_start prod,
-  never npm run dev, for any measurement.
-- Page cost is DOM SIZE (parse + hydration), not bytes on the wire.
-- Reimbursement candidates travel ON OPEN (suggestCandidates), never
-  serialized per ledger row; the collapsed hint and the opened list share
-  ONE projection path (makeCandidateFinder) — its wide-pool/narrow-pool
-  equivalence is pinned by test and holds under REIMBURSE_POOL_TAKE.
-- Analyzer cost is BUCKETING: period bounds memoized, per-period buckets
-  computed once — generateInsights runs synchronously inside server actions.
+| Working on | Rules file in `.claude/rules/` | Evidence in `docs/conventions/` |
+|---|---|---|
+| analyzers, totals, net worth, reimbursements, trips, the closed box | money-and-analytics.md | money-and-analytics.md |
+| merchant normalizer, rule pack, matcher, categories, P2P | merchants-and-rules.md | merchants-and-rules.md |
+| sync, CSV import, backups, mirror, schema, cron, FRED, health | sync-and-data-ops.md | sync-and-data-ops.md |
+| goals, readiness, subscriptions, the digest | goals-and-insights.md | goals-and-insights.md |
+| /transactions, its filters and popovers | ui-ledger.md | ui-and-pages.md |
+| Overview, /trends, /insights, /accounts, /providers, charts | ui-reports.md | ui-and-pages.md |
+| page and query cost | performance.md | performance.md |
+| auth, middleware, CSP, demo mode, install scripts | security-and-auth.md | security-and-auth.md |
+| tests, fixtures, docs, README, demo data | publishing.md | publishing.md |
 
-## Rules — security & auth → docs/conventions/security-and-auth.md
-
-- AUTH_PASSWORD_HASH uses a `:` delimiter, never `$` — Next's env loader
-  silently mangles `$`.
-- Auth fails CLOSED on partial configuration: either variable set counts as
-  intent to lock; middleware 503s on intent-without-completion.
-- Session tokens carry a DIGEST of the password hash, re-checked per
-  request, so a password change evicts sessions.
-- Middleware redirects navigations only — the error boundary exists for
-  Server Action responses; keep it.
-- The error boundary branches on `error.digest` set at the THROW, never on
-  `error.message` — production replaces the message, so a message test passes
-  in dev and is dead on the deployment; and it claims nothing about what a
-  failed action wrote.
-- The dev CSP needs 'unsafe-eval' and the HMR websocket; production gets
-  neither — don't "tighten" them away.
-- The second factor is TOTP via AUTH_TOTP_SECRET, opt-in and env-only:
-  verified at LOGIN in the Node action (never middleware), password checked
-  FIRST, codes ONE-USE via the auth.totpLastCounter Setting floor CLAIMED by
-  compare-and-set (a lost claim is a failed login — plain upsert raced), and
-  the session fingerprint digests BOTH secrets — enabling or rotating either
-  evicts every session. ONE generic login error, never which factor failed.
-- Never propose SMS, email, or push as a factor — each requires a third-party
-  call the HARD RULES ban, and never an IP allowlist (CGNAT rotates and is
-  shared; a network is not a device). /providers' perimeter line states which
-  factors are configured and must keep matching isTotpConfigured().
-- The PUBLIC DEMO is DUCAT_DEMO_PASSWORD, nothing else: the login gate stays
-  configured and is never bypassed (its password is printed on the login
-  page), the cron RESEEDS instead of syncing, and a demo holding a SimpleFIN
-  URL 503s EVERY request in middleware. It owns its own Turso database.
-- A remembered device (fin_device, 90d) waives the CODE, never the password:
-  it grants nothing alone, is EARNED by a code in that same request, and
-  every token names its own typ — both cookies share a signing key, so
-  without that claim a device cookie IS a session cookie. Rotation
-  un-remembers everything; the login PAGE only picks the form, the ACTION
-  re-checks the cookie.
-- package.json `allowScripts` approves install scripts by NAME, never
-  pkg@version: pinned approvals went stale on every dependency bump, so npm
-  warned on each install and a future npm would block the scripts. A NEW
-  entry still needs a reason in its PR.
-- `npm test` excludes `.claude/**` (vitest.config.ts): agent worktrees there
-  are full repo copies, and without it the suite silently doubles and gates
-  on another branch's work.
-
-## Rules — publishing → docs/conventions/publishing.md
-
-- NOTHING PUBLIC carries personal data: tracked files, commit messages and
-  identities, branch names, PR titles and descriptions, GitHub comments,
-  and the repository's About fields (website, description, topics, social
-  preview).
-  Figures present at publication are scaled by a DESTROYED constant; a NEW
-  figure is INVENTED, never read from real data. People fictional, card
-  digits 1234, codes synthetic, account names generic, account digits 000N,
-  no live deployment URL (the ONE exception is the public demo,
-  ducat-demo.vercel.app, named exactly in privacyScan.ts), no real email. privacy.test.ts (files) and
-  check-public-text.ts in CI (commits, branch, PR text) catch SHAPES only;
-  amounts, names, merchants and addresses rest on discipline, and nothing
-  checks GitHub comments or the About fields.
-- Every change lands on a BRANCH and through a PULL REQUEST — never a commit
-  on main, Claude Code's sessions included — and a PR merges only on a green
-  `verify` check. The local pre-commit gate (`/verify`) is unchanged and
-  still runs first.
-- README images come ONLY from `npm run screenshots` (invented demo data, a
-  throwaway database, its own `.next-capture/` build); a PR touching a pictured
-  screen retakes them or states `screenshots: unchanged — <why>`, which CI
-  enforces (scripts/screenshotSync.ts). The check never sees the WALKTHROUGH,
-  which holds on every Trends card, so a waiver answers for it too. Run
-  privacyScan over new PR text and commit messages BEFORE pushing — a pushed
-  message cannot be fixed without a force-push.
+Skills in `.claude/skills/`, each listed with its trigger in every session:
+`verify`, `ship-pr`, `cloud-data-change`, `backup-mirror` (backups, mirror,
+fingerprints), `perf-measure` (any timing claim), `worktree-agents`,
+`debug-hydration`. A skill opens by reading the rules file it depends on.
 
 ## Verified load-bearing (three reviews, 2026-07-26) — do not "clean up"
 
@@ -573,13 +186,9 @@ periods" anomaly baseline; and the
 the reimbursements-exceeded empty state, the grouped-review P2P tooltip, the
 money typography, and Overview's market-movement line.
 
-## Product direction (agreed 2026-07-13)
+## Product direction
 
-Distributed software, NOT a hosted service (the Actual Budget model):
-each user deploys their own instance (their machine or their cloud) and
-brings their own SimpleFIN token (~$15/yr paid by the user to SimpleFIN),
-so the maintainer custodies no one's data and aggregator costs stay $0.
-CSV import is the zero-dependency fallback. Do NOT build an in-house
-aggregator — bank connectivity (not the protocol) is the hard 95% and
-there is no free path. "We can't read your data even if breached" (E2E)
-is the product's trust story when multi-user matters.
+Distributed software, NOT a hosted service: each user deploys their own
+instance and brings their own SimpleFIN token; CSV import is the fallback. Do
+NOT build an in-house aggregator. The agreement, with its reasons, is in
+docs/history.md.
