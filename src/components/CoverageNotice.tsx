@@ -27,7 +27,7 @@ export function CoverageNotice({ coverage }: { coverage: PeriodCoverage | null }
   return (
     <div
       className={`border-l-2 px-2.5 py-1.5 text-[0.75rem] text-faint ${
-        hasUnknownShortfall ? "border-chart2 bg-chip/50" : "border-rule"
+        hasUnknownShortfall ? "border-warn bg-chip/50" : "border-rule"
       }`}
     >
       <p>

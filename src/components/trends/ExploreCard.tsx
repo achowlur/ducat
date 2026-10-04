@@ -17,13 +17,14 @@ import { CardFrame, CardLink, Fig, Hero, Lead } from "./CardFrame";
 import { PartsView } from "./PartsView";
 import { ReportSelect, type SelectOption } from "./ReportSelect";
 import { useCardView, ViewSwitch } from "./ViewSwitch";
+import { COLUMN_HEADER } from "../ui/headings";
 
 export type ExploreData =
   | { kind: "months"; series: MonthSeries }
   | { kind: "groups"; grouped: GroupedSeries }
   | { kind: "empty" };
 
-const TH = "py-1 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint";
+const TH = `py-1 ${COLUMN_HEADER}`;
 const NOUNS: Record<Exclude<ExploreBy, "month">, string> = {
   category: "categories",
   merchant: "merchants",

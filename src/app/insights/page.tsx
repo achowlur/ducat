@@ -5,7 +5,7 @@ import { getInsightsPageData, type InsightRow } from "../../lib/ui/insights";
 import { GOAL_RATE_MIN_MONTHS, type GoalAssessment } from "../../lib/insights/goals";
 import { type ReadinessAssessment } from "../../lib/insights/readiness";
 import { money, monthLabel, shortDate, titleCase } from "../../lib/ui/format";
-import { PageTitle } from "../../components/ui/headings";
+import { PageTitle, SectionTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
@@ -426,7 +426,11 @@ async function renderInsights({
     .filter((g) => g.rows.length > 0);
 
   return (
-    <div className="py-5">
+    // The Trends scaffold: every section a child of one grid, spaced by the
+    // grid rather than by its own mt-4. Sections at 16px apart ran at less than
+    // half the rhythm of the tab beside it, so the page read as one long list.
+    <div className="grid gap-10 py-5">
+      <div>
       <PageTitle>Insights</PageTitle>
       <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-ink pb-3">
         <span className="flex items-center gap-2 font-money text-[0.85rem]">
@@ -472,16 +476,15 @@ async function renderInsights({
       <div className="pt-3">
         <CoverageNotice coverage={data.coverage} />
       </div>
+      </div>
 
       {/* The lead: a few things ranked by what they cost over a year, rather
           than five streams grouped by insight type with equal weight. The
           stake is shown because it IS the running order — a reader who
           disagrees with the ranking can see what it was based on. */}
       {data.digest.length > 0 ? (
-        <section className="mt-4">
-          <h2 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
-            Worth your attention
-          </h2>
+        <section>
+          <SectionTitle>Worth your attention</SectionTitle>
           {data.digest.map((row, i) => (
             <div
               key={`${row.chip}-${i}`}
@@ -512,7 +515,7 @@ async function renderInsights({
            panels below can render on day 1. "Nothing needs your attention"
            would claim the engine looked, and it has not: all clear cannot be
            told from not checked if the difference is never stated. */
-        <p className="mt-4 text-[0.85rem] text-faint">
+        <p className="text-[0.85rem] text-faint">
           Nothing recorded for {data.periodLabel} yet. Spending appears with the month&apos;s first
           sync.
         </p>
@@ -524,7 +527,7 @@ async function renderInsights({
            saying 0 of 21 accounts reach this month, which is the contradiction
            stated outright. Only the NO_DATA case; a mid-period start is
            complete data and keeps the ordinary line. */
-        <p className="mt-4 text-[0.85rem] text-faint">
+        <p className="text-[0.85rem] text-faint">
           Nothing to report for {data.periodLabel}. The notice above says why this month cannot be
           judged.
         </p>
@@ -532,7 +535,7 @@ async function renderInsights({
         /* Saying so is the point, not an empty state to be hidden: most months
            should be quiet, and a digest that always finds four things is one
            nobody will read by March. */
-        <p className="mt-4 text-[0.85rem] text-faint">
+        <p className="text-[0.85rem] text-faint">
           Nothing needs your attention in {data.periodLabel}.
         </p>
       )}
@@ -541,7 +544,7 @@ async function renderInsights({
           early to call" is a more useful thing to read than a missing box, and
           the facts either side of the projection survive it. */}
       {data.pace !== null && (
-        <section className="mt-4 border-b border-ink pb-3">
+        <section className="border-b border-ink pb-3">
           <p className="text-[0.95rem] leading-relaxed">
             <span className="tabular text-faint">
               Day {data.pace.dayOfPeriod} of {data.pace.daysInPeriod}.
@@ -596,14 +599,15 @@ async function renderInsights({
           know — cadence and amount are observed, the charge itself has not
           happened. */}
       {data.commitments !== null && (
-        <section className="mt-4 border-l-2 border-acc bg-chip px-3 py-2.5">
+        <section className="border-l-2 border-acc bg-chip px-3 py-2.5">
+          {/* Title FIRST: at 0.85rem it no longer fits a phone line beside the
+              chip, and chip-first stacked chip, title and total on three
+              lines; this way the chip and the total share the second. */}
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <SectionTitle>Committed in the next {data.commitments.windowDays} days</SectionTitle>
             <span className={PROJECTED_CHIP}>
               Projected
             </span>
-            <h2 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
-              Committed in the next {data.commitments.windowDays} days
-            </h2>
             <span className="ml-auto font-money text-[0.95rem] font-semibold tabular">
               {money(data.commitments.total)}
             </span>
@@ -656,10 +660,8 @@ async function renderInsights({
           projects it. Absent entirely when no goal is declared — opt-in
           config, not a health question every instance has. */}
       {data.goals.length > 0 && (
-        <section className="mt-4">
-          <h2 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
-            Savings goals
-          </h2>
+        <section>
+          <SectionTitle>Savings goals</SectionTitle>
           {data.goals.map((g) => (
             <GoalRow key={g.goal.id} g={g} />
           ))}
@@ -679,10 +681,8 @@ async function renderInsights({
           fund. A readiness signal, not lender math: no approval claims live
           here, deliberately. */}
       {data.readiness !== null && (
-        <section className="mt-4">
-          <h2 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
-            House readiness
-          </h2>
+        <section>
+          <SectionTitle>House readiness</SectionTitle>
           <ReadinessBlock
             r={data.readiness}
             fundName={data.goals.length > 0 ? data.goals[0].goal.name : null}
@@ -697,10 +697,8 @@ async function renderInsights({
           when no group touches the period: a trip is opt-in content like
           goals, and an empty heading would imply the engine went looking. */}
       {data.trips.length > 0 && (
-        <section className="mt-4">
-          <h2 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
-            Trips &amp; projects
-          </h2>
+        <section>
+          <SectionTitle>Trips &amp; projects</SectionTitle>
           {data.trips.map((t) => (
             <div
               key={t.label}
@@ -753,11 +751,9 @@ async function renderInsights({
       )}
 
       {visibleGroups.map((group) => (
-        <section key={group.title} className="pt-5">
-          <div className="mb-2 flex items-baseline justify-between gap-3">
-            <h2 className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-faint">
-              {group.title}
-            </h2>
+        <section key={group.title}>
+          <div className="flex items-baseline justify-between gap-3">
+            <SectionTitle>{group.title}</SectionTitle>
             {group.note !== null && (
               <span className="font-money text-[0.75rem] tabular text-faint">{group.note}</span>
             )}

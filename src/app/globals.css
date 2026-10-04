@@ -136,6 +136,20 @@
    ============================================================ */
 
 /*
+ * The warning colours mean "look at this" (a lagging balance, a late backup, a
+ * WARN provider) and nothing else. Warnings used to borrow --chart2, so one
+ * ochre was a donut slice, the Income series on /trends and a warning on the
+ * same screen, and as text it failed 4.5:1 on light (3.90) and sepia (4.48).
+ *
+ * An amber dark enough to read as TEXT on a light paper is brown, a CIEDE2000
+ * distance of only 5-7 from the chart ochre, so a dark-amber-only first pass
+ * changed almost nothing a reader could see. The warning is carried by SHAPE
+ * instead: --warn is a bright road-sign amber for chip fills, dots and notice
+ * borders (20-26 from --chart2 in every theme), --on-warn is the dark text on
+ * it (7.8:1 sepia, 8.6:1 light, 10.4:1 dark), and --warn-ink is the amber for
+ * the few warnings that stay plain text, and the ring that keeps a pale dot
+ * visible on cream (4.58:1 sepia, 4.53:1 light).
+ *
  * --faint carries more text than any other token — every column header, all
  * account sub-labels, and the ✎ that marks a categorization rules must never
  * override. Both light themes failed WCAG AA on it (3.61:1 sepia, 4.48:1
@@ -161,6 +175,9 @@
   --pie6: #667a1c;
   --pie7: #a8346a;
   --pie-other: #a39683;
+  --warn: #e8a100;
+  --warn-ink: #8f5f00;
+  --on-warn: #231a00;
 }
 
 :root[data-theme="light"] {
@@ -181,6 +198,9 @@
   --pie6: #647a1f;
   --pie7: #a8346a;
   --pie-other: #a3a7ab;
+  --warn: #f2a900;
+  --warn-ink: #9e6900;
+  --on-warn: #231a00;
 }
 
 :root[data-theme="dark"] {
@@ -201,6 +221,9 @@
   --pie6: #9bb04a;
   --pie7: #d0679a;
   --pie-other: #686d74;
+  --warn: #f9c10b;
+  --warn-ink: #ffbb33;
+  --on-warn: #231a00;
 }
 
 @theme inline {
@@ -221,6 +244,9 @@
   --color-pie6: var(--pie6);
   --color-pie7: var(--pie7);
   --color-pie-other: var(--pie-other);
+  --color-warn: var(--warn);
+  --color-warn-ink: var(--warn-ink);
+  --color-on-warn: var(--on-warn);
   --font-ledger: Bahnschrift, "Segoe UI", system-ui, sans-serif;
   --font-money: "Cascadia Mono", Consolas, ui-monospace, monospace;
 }

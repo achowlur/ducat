@@ -1158,3 +1158,43 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   "all money in") carry .tap44. And the Flow select grew 5px to fit the word
   "Spending", so the pictures of the ledger were retaken.
 
+- A WARNING HAS ITS OWN COLOUR, AND A SECTION HEADING LEADS (2026-10-04; two
+  findings of the 2026-09-21 UI audit, built together because both retake the
+  same pictures).
+  THE COLOUR. Every warning (a balance 2-5 days behind, a WARN provider's dot
+  and chip, a late backup, the coverage and /trends notices) borrowed
+  `--chart2`, so one ochre was a donut slice, the Income series on /trends
+  and "look at this" on one screen, and the ring's Shopping slice sat beside a
+  status dot of the identical colour. As text it also failed 4.5:1: 3.90 on
+  light, 4.48 on sepia.
+  The FIRST PASS gave warnings a separate dark amber, chosen as the colour
+  clearing 4.5:1 against each paper (both as text and as paper-coloured text
+  on a chip) farthest by CIEDE2000 from every chart, pie and status colour in
+  its theme. It passed every number and the operator, shown before and after,
+  saw NO DIFFERENCE, and zoomed crops agreed: on a light paper an amber dark
+  enough to read as text IS brown, 5-7 CIEDE2000 from the chart ochre. Colour
+  alone could not separate them where it had to be text.
+  So the warning moved into SHAPE. `--warn` is a bright road-sign amber used
+  as a FILL (chips, dots, notice borders), 26.2 / 19.7 / 22.7 from `--chart2`
+  in sepia / light / dark; `--on-warn` is the dark text on it (7.8:1, 8.6:1,
+  10.4:1); `--warn-ink` is the amber for the few warnings that stay plain text
+  and the ring around a dot (4.58:1 sepia, 4.53:1 light), because the bright
+  fill alone is ~1.9:1 against cream. A 2-5 day lag on Overview is now an
+  amber chip, one step below the red stale chip, so the escalation reads in
+  one column. Charts keep `--chart2` and never use the warning tokens.
+  THE HEADINGS. Section headings, subsection headings and column headers wore
+  one faint tracked-caps style, about 55 of them on /insights, so a column
+  label read as loudly as its section. `SectionTitle` now leads, bold in ink
+  at 0.95rem (0.85rem semibold was the first pass, and the same "no
+  difference" verdict); `SubsectionTitle` keeps the old faint caps at 0.72rem;
+  every `th scope="col"` takes `COLUMN_HEADER` from headings.tsx, faint
+  sentence case with no tracking. /insights had six hand-made h2s (one with
+  its margin doubled by its row's) and ran its sections 16px apart, under half
+  the rhythm of /trends beside it; it now uses `SectionTitle` and the /trends
+  scaffold, `grid gap-10`. At 390px the larger title no longer fit beside its
+  PROJECTED chip, so "Committed in the next 30 days" puts the title first and
+  the chip shares the second line with the total instead of taking a third.
+  NOT DONE, left on the backlog: the controls (RULE, LINK, DISMISS, FILTER)
+  and chips keep their small caps, and /insights still has no headline
+  figure. Both change the ledger's tuned phone widths and belong in their own
+  pass.

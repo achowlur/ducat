@@ -5,7 +5,7 @@ import { Sparkline } from "../../components/Sparkline";
 import { amount, dateTime, shortDate } from "../../lib/ui/format";
 import { accountsHref } from "../../lib/ui/accountFilter";
 import { getAccountsData } from "../../lib/ui/accounts";
-import { PageTitle } from "../../components/ui/headings";
+import { COLUMN_HEADER, PageTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +74,7 @@ async function renderAccounts() {
               <th
                 scope="col"
                 key={`${c.label}-${i}`}
-                className={`py-1 pr-3 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint ${c.className}`}
+                className={`py-1 pr-3 ${COLUMN_HEADER} ${c.className}`}
               >
                 {c.label === "" ? <span className="sr-only">Transactions</span> : c.label}
               </th>
