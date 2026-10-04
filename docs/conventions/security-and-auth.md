@@ -213,3 +213,19 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   and ESLint's resolver. A package NOT on the list still triggers the warning,
   so a new dependency with an install script is still noticed and still needs
   a reason in its PR.
+
+- `npm test` EXCLUDES `.claude/**` (2026-08-05, commit "Remember a device
+  instead of trusting a network"; this passage added 2026-10-04, when the rule
+  was found to have no evidence entry). Agent worktrees live under `.claude/`,
+  each a full copy of the repo, and vitest discovers every `*.test.ts` below
+  the project root. Without the exclusion `npm test` sweeps them too, so the
+  count silently doubles and the verify gate can fail, or pass, on another
+  branch's half-finished work rather than on this tree. Measured the day it
+  was added: 639 tests became 1281 the moment a worktree existed. The pattern
+  is matched against paths RELATIVE to the project root, so a worktree still
+  runs its own tests normally when vitest is invoked from inside it; only a
+  run from the main checkout is pruned. ESLint carries the same exclusion
+  (`eslint.config.mjs`). Committing `.claude/rules/` and `.claude/skills/`
+  (2026-10-04) does not change this: neither holds a test, and
+  `privacy.test.ts` reads `git ls-files`, not vitest's discovery, so it still
+  scans them.

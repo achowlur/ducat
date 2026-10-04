@@ -43,7 +43,7 @@ import { databaseLabel } from './database-label';
 
 const MONEY = (n: number): string => `$${n.toFixed(2)}`;
 
-/** Bank decorations observed in this dataset and recorded in CLAUDE.md. */
+/** Bank decorations observed in this dataset and recorded in docs/conventions/merchants-and-rules.md. */
 function variantsOf(merchant: string): { label: string; text: string }[] {
   return [
     { label: 'store number prefix', text: `895${merchant}` },
