@@ -181,7 +181,7 @@ export function DatabaseUnavailable({
             cache, and the entire point of this control is to ask again. */}
         <a
           href={path}
-          className="tap44 inline-flex items-center rounded border-2 border-ink px-3 py-1.5 text-[0.78rem] uppercase tracking-[0.08em] hover:bg-chip"
+          className="tap44 inline-flex items-center rounded border-2 border-ink px-3 py-1.5 text-[0.85rem] hover:bg-chip"
         >
           Try again
         </a>

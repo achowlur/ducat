@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { useCardTransition } from "./CardFrame";
+import { FIELD_LABEL } from "../ui/headings";
 
 export interface SelectOption {
   value: string;
@@ -54,8 +55,8 @@ export function ReportSelect({
     </option>
   );
   return (
-    <label className="grid gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
-      {label}
+    <label className="grid gap-0.5">
+      <span className={FIELD_LABEL}>{label}</span>
       <select
         name={name}
         value={value}

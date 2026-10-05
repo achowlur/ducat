@@ -55,51 +55,7 @@ export function CardFrame({
   );
 }
 
-/**
- * The card's answer as Ducat states one: a single figure in the money face,
- * the size of Overview's band figures, and a faint line of context under it
- * carrying the label and the figures it is measured against.
- */
-export function Hero({
-  figure,
-  tone,
-  children,
-}: {
-  figure: ReactNode;
-  tone?: "pos" | "neg";
-  children?: ReactNode;
-}) {
-  return (
-    <div className="mb-4">
-      <div
-        className={`font-money text-[1.25rem] leading-tight tabular ${
-          tone === "pos" ? "text-pos" : tone === "neg" ? "text-neg" : ""
-        }`}
-      >
-        {figure}
-      </div>
-      {children !== undefined && <p className="mt-1 max-w-[760px] text-[0.78rem] leading-relaxed text-faint">{children}</p>}
-    </div>
-  );
-}
-
-/** What a context line is ABOUT: "September 2026", "Oct 3". */
-export function Lead({ children }: { children: ReactNode }) {
-  return <span className="font-semibold text-ink">{children}</span>;
-}
-
-/** A figure inside a context line. */
-export function Fig({ children, tone }: { children: ReactNode; tone?: "pos" | "neg" }) {
-  return (
-    <span
-      className={`whitespace-nowrap font-money font-semibold tabular ${
-        tone === "pos" ? "text-pos" : tone === "neg" ? "text-neg" : "text-ink"
-      }`}
-    >
-      {children}
-    </span>
-  );
-}
+export { Fig, Hero, Lead } from "../ui/figure";
 
 /** The small print a figure owes its reader: coverage gaps, what is left out. */
 export function Note({ children }: { children: ReactNode }) {
@@ -111,7 +67,7 @@ export function CardLink({ href, children }: { href: string; children: ReactNode
   return (
     <Link
       href={href}
-      className="tap44 mt-2 inline-block text-[0.72rem] uppercase tracking-[0.08em] text-acc hover:underline"
+      className="tap44 mt-2 inline-block text-[0.8rem] text-acc hover:underline"
     >
       {children} →
     </Link>

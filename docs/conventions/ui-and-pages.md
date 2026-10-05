@@ -1197,4 +1197,54 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   NOT DONE, left on the backlog: the controls (RULE, LINK, DISMISS, FILTER)
   and chips keep their small caps, and /insights still has no headline
   figure. Both change the ledger's tuned phone widths and belong in their own
-  pass.
+  pass. (Built the same day: the next entry.)
+
+- A CONTROL SPEAKS IN SENTENCE CASE, AND /INSIGHTS LEADS WITH ONE FIGURE
+  (2026-10-04, the pass the entry above left open).
+  THE ROLES. After the headings led, three roles still shared the caption's
+  faint tracked caps: every button (Rule, Link, Trip, Dismiss, Skip, Filter,
+  Sync now), every form label (Period, Category, Search, the totals band's
+  Out / In / Net) and every chip. A control a thumb has to find read as a
+  label, and a label as loudly as a REVIEW chip. headings.tsx now holds one
+  look per role beside COLUMN_HEADER: FIELD_LABEL is the column header's
+  quiet sentence case; CONTROL is sentence case at 0.75rem, the 1px border
+  saying "press"; CHIP keeps the small tracked caps (0.62rem, 0.06em), the
+  one role where a glance has to catch a status. Sizes that had drifted to
+  0.6, 0.62 and 0.66rem for the same chip are one. All three set the ledger
+  face: the totals band's labels sit inside money spans, and "Sync now" sits
+  in Overview's monospace sync line, so each inherited the figures' face
+  until the role named its own.
+  Measured before shipping: a sentence-case word at 0.75rem sets NARROWER
+  than the same word in caps at 0.62rem with 0.05em tracking ("Rule" 24.2px
+  against "RULE" 26.3, "Subscription" 67.6 against 73.4; only "Dismiss"
+  grows, 41.1 to 42.9), which pays for CONTROL's px-1.5 over the old px-1,
+  so no ledger column moved at 390px. Two things did. The narrower labels packed the filter row tighter and "Clear" fell to
+  a line of its own, so Filter and Clear now wrap as one unit. And the
+  Rule menu's Category and Subscription buttons, the cadence buttons, Skip,
+  Apply, Undo, Rename, Save, Cancel, Filter, Clear and "Full breakdown" were
+  23 to 29px tall below md beside a 44px Trip; all now carry tap44. On
+  /insights the "declared" chip was already truncating to "DEC…" on a phone,
+  inside the merchant's own `truncate` span; the chips are now shrink-0
+  siblings, so the NAME truncates and the fact survives, as the ledger's
+  REVIEW chip already does.
+  LEFT ALONE, deliberately: the nav, the wordmark, the header's controls and
+  the theme trio (chrome, with recorded geometry), the login screen, the
+  boundary pages' h1s, and /accounts' group rows (they read as the
+  subsection heading they are). Overview's figure labels moved to
+  FIELD_LABEL with the rest: a label over a value is one role wherever the
+  value sits.
+  THE HEADLINE. Overview leads with net worth and every /trends card with
+  its answer; /insights opened on a heading. Its figure is where the month's
+  SPENDING lands, at Overview's 2.1rem: for the month being lived in, the
+  pace projection with its PROJECTED chip, or, while pace refuses (the first
+  quarter of the month, or no comparable baseline), what is spent so far,
+  with the line under it saying which in words; for a closed month, the
+  SPENDING_BY_CATEGORY total, with the month before for scale. It REPLACES
+  the pace paragraph that sat under the digest, and its context line carries
+  every fact that paragraph printed, refusals and the "leans low" baseline
+  note included, so nothing is printed twice. Spent so far was the other
+  candidate for the current month and lost: Overview and /trends' first card
+  already lead with it, and the projection is the one figure only /insights
+  makes. Both branches were rendered against demo data before shipping (the
+  projected one by lowering the pace threshold for one load, then
+  restoring it).

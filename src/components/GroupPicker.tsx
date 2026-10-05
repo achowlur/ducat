@@ -16,6 +16,7 @@ import Link from "next/link";
 import { setTransactionGroup } from "../app/transactions/actions";
 import { groupHref, MAX_GROUP_LABEL, normalizeGroupLabel } from "../lib/ui/groupFilter";
 import type { RowRefusalState } from "./CategoryPicker";
+import { FIELD_LABEL } from "./ui/headings";
 
 /**
  * ONE trip/project picker for the whole ledger, in the CategoryPicker mould:
@@ -330,8 +331,8 @@ function Popover({
         className={`fixed z-50 flex flex-col overflow-hidden bg-paper shadow-md ${shell}`}
       >
         <div className="flex flex-col gap-1 border-b border-rule px-2 py-1.5">
-          <span className="truncate font-money text-[0.6rem] uppercase tracking-[0.08em] text-faint">
-            trip for <span className="text-acc">{target.rowLabel}</span>
+          <span className={`truncate ${FIELD_LABEL}`}>
+            Trip for <span className="text-acc">{target.rowLabel}</span>
           </span>
           <input
             ref={searchRef}

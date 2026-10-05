@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { setInsightDismissed } from "../app/insights/actions";
+import { CONTROL } from "./ui/headings";
 
 export function DismissButton({ insightId, dismissed }: { insightId: string; dismissed: boolean }) {
   const [pending, startTransition] = useTransition();
@@ -12,7 +13,7 @@ export function DismissButton({ insightId, dismissed }: { insightId: string; dis
       // Below md the button fills a 44px touch target without a negative
       // margin: the row it sits in grows to match, so two adjacent dismiss
       // targets never overlap.
-      className={`inline-flex items-center justify-center rounded-[2px] border px-1.5 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] max-md:min-h-[44px] max-md:min-w-[64px] ${
+      className={`${CONTROL} inline-flex items-center justify-center max-md:min-h-[44px] max-md:min-w-[64px] ${
         dismissed
           ? "border-rule text-faint hover:border-pos hover:text-pos"
           : "border-rule text-faint hover:border-neg hover:text-neg"
@@ -23,7 +24,7 @@ export function DismissButton({ insightId, dismissed }: { insightId: string; dis
           : "Dismiss; stays dismissed even when insights regenerate after a sync"
       }
     >
-      {dismissed ? "restore" : "dismiss"}
+      {dismissed ? "Restore" : "Dismiss"}
     </button>
   );
 }

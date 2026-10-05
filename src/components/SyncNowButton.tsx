@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { syncNow, type SyncNowResult } from "../app/actions";
+import { CONTROL } from "./ui/headings";
 
 /**
  * On-demand refresh. Pulls the latest from SimpleFIN whenever you tap it —
@@ -28,10 +29,10 @@ export function SyncNowButton() {
         type="button"
         onClick={handleClick}
         disabled={pending}
-        className="tap44 cursor-pointer rounded-[2px] border border-rule px-1.5 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc disabled:opacity-60"
+        className={`${CONTROL} tap44 cursor-pointer border-rule text-faint hover:border-acc hover:text-acc disabled:opacity-60`}
         title="Pull the latest from SimpleFIN now"
       >
-        {pending ? "syncing…" : "sync now"}
+        {pending ? "Syncing…" : "Sync now"}
       </button>
     </span>
   );

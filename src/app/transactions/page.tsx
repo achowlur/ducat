@@ -30,7 +30,7 @@ import { parseGroupParam } from "../../lib/ui/groupFilter";
 import { ledgerTotals, type LedgerTotals } from "../../lib/ui/ledgerTotals";
 import { repaidByExpense, repaidFromOutside, repaidNote } from "../../lib/ui/repaid";
 import { merchantKey, merchantLabel } from "../../lib/ui/merchantLabel";
-import { COLUMN_HEADER, PageTitle } from "../../components/ui/headings";
+import { CHIP, COLUMN_HEADER, CONTROL, FIELD_LABEL, PageTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
@@ -167,7 +167,7 @@ function TotalsBand({ label, totals, foot }: { label: string; totals: LedgerTota
   const figure = "whitespace-nowrap font-money tabular";
   // The gap after each caption is a real SPACE and not a margin, so the band
   // reads "out $9.99" to a screen reader and to a paste, not "out$9.99".
-  const caption = "text-[0.68rem] uppercase tracking-[0.1em] text-faint";
+  const caption = FIELD_LABEL;
   return (
     <div
       role="group"
@@ -176,27 +176,27 @@ function TotalsBand({ label, totals, foot }: { label: string; totals: LedgerTota
         foot === true ? "border-t-2 border-ink" : "mb-1 border-b-2 border-ink"
       }`}
     >
-      <span className="text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-faint">{label}</span>{" "}
+      <span className={FIELD_LABEL}>{label}</span>{" "}
       <span className="ml-auto flex flex-wrap items-baseline justify-end gap-x-5 gap-y-1">
         <span className={figure}>
-          <span className={caption}>out</span> {money(totals.out)}
+          <span className={caption}>Out</span> {money(totals.out)}
         </span>{" "}
         {/* Beside OUT because it is a part of it coming back: the linked
             repayments of these bills that the view itself does not list. */}
         {totals.repaid.count > 0 && (
           <>
             <span className={figure}>
-              <span className={caption}>repaid</span> {money(totals.repaid.amount)}
+              <span className={caption}>Repaid</span> {money(totals.repaid.amount)}
             </span>{" "}
           </>
         )}
         <span className={figure}>
-          <span className={caption}>in</span> {money(totals.in)}
+          <span className={caption}>In</span> {money(totals.in)}
         </span>{" "}
         <span
           className={`${figure} font-semibold ${totals.net < 0 ? "text-neg" : totals.net > 0 ? "text-pos" : ""}`}
         >
-          <span className={caption}>net</span> {money(totals.net)}
+          <span className={caption}>Net</span> {money(totals.net)}
         </span>
       </span>{" "}
       <span className="flex w-full flex-wrap items-baseline gap-x-5 gap-y-1">
@@ -212,10 +212,10 @@ function TotalsBand({ label, totals, foot }: { label: string; totals: LedgerTota
         {t.count > 0 && (
           <span className="ml-auto flex flex-wrap items-baseline justify-end gap-x-5 gap-y-1">
             <span className={figure}>
-              <span className={caption}>transfers out</span> {money(t.out)}
+              <span className={caption}>Transfers out</span> {money(t.out)}
             </span>{" "}
             <span className={figure}>
-              <span className={caption}>transfers in</span> {money(t.in)}
+              <span className={caption}>Transfers in</span> {money(t.in)}
             </span>
           </span>
         )}
@@ -776,8 +776,8 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
         {reviewMode && <input type="hidden" name="review" value="1" />}
         {tripLabel !== null && <input type="hidden" name="group" value={tripLabel} />}
         {merchant !== null && <input type="hidden" name="merchant" value={merchant} />}
-        <label className="grid gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
-          Period
+        <label className="grid gap-0.5">
+          <span className={FIELD_LABEL}>Period</span>
           <select
             name="period"
             defaultValue={params.period ?? ""}
@@ -798,8 +798,8 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
             ))}
           </select>
         </label>
-        <label className="grid gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
-          Category
+        <label className="grid gap-0.5">
+          <span className={FIELD_LABEL}>Category</span>
           <select name="category" defaultValue={params.category ?? ""} className="rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink max-md:min-h-[44px]">
             <option value="">All</option>
             <option value="uncategorized">Uncategorized</option>
@@ -826,8 +826,8 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
           accounts={accounts.map((a) => ({ id: a.id, name: a.name, institution: a.institution }))}
           selected={accountIds ?? []}
         />
-        <label className="grid gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
-          Flow
+        <label className="grid gap-0.5">
+          <span className={FIELD_LABEL}>Flow</span>
           {/* The synthetic entry the category select already needed, for the
               same reason: selecting Uncategorized also applies
               `flow: { not: TRANSFER }`, so this control read "All" while a
@@ -844,8 +844,8 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
             <option value="INCOME">Income</option>
           </select>
         </label>
-        <label className="grid flex-1 gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
-          Search
+        <label className="grid flex-1 gap-0.5">
+          <span className={FIELD_LABEL}>Search</span>
           <input
             name="q"
             defaultValue={params.q ?? ""}
@@ -853,15 +853,20 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
             className="min-w-40 rounded-[2px] border border-rule bg-paper px-1.5 py-1 text-[0.8rem] text-ink max-md:min-h-[44px]"
           />
         </label>
-        <button className="rounded-[2px] border border-ink px-3 py-1 text-[0.78rem] uppercase tracking-[0.08em] hover:bg-chip">
-          Filter
-        </button>
-        <Link
-          href={groupMode ? "/transactions?payees=1" : "/transactions"}
-          className="pb-1.5 text-[0.75rem] uppercase tracking-[0.08em] text-faint hover:text-ink"
-        >
-          Clear
-        </Link>
+        {/* One unit, so they wrap together: in sentence case the labels got
+            narrower, the fields packed tighter, and Clear fell to a line of
+            its own at 390px. */}
+        <span className="flex items-end gap-3">
+          <button className="tap44 rounded-[2px] border border-ink px-3 py-1 text-[0.8rem] hover:bg-chip">
+            Filter
+          </button>
+          <Link
+            href={groupMode ? "/transactions?payees=1" : "/transactions"}
+            className="tap44 pb-1.5 text-[0.8rem] text-faint hover:text-ink"
+          >
+            Clear
+          </Link>
+        </span>
       </form>
 
       {/* flex-wrap, not nowrap: this strip carries the row count, the payee
@@ -968,10 +973,10 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
           ) : (
           <Link
             href={buildHref(params, { payees: "1", category: "uncategorized", review: undefined, page: undefined })}
-            className="tap44 rounded-[2px] border border-acc px-2 py-1 font-semibold uppercase tracking-[0.06em] text-acc hover:bg-chip"
+            className={`${CONTROL} tap44 border-acc font-semibold text-acc hover:bg-chip`}
             title="Group the uncategorized backlog by payee: one decision categorizes every occurrence and future ones too"
           >
-            group by payee to categorize in bulk
+            Group by payee to categorize in bulk
           </Link>
           )
         )}
@@ -1118,7 +1123,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
                       {merchantLabel(t).label}
                     </span>
                     {review && (
-                      <span className="shrink-0 rounded-[2px] bg-neg px-1 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.05em] text-paper">
+                      <span className={`${CHIP} shrink-0 bg-neg text-paper`}>
                         review
                       </span>
                     )}
@@ -1230,10 +1235,10 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
                         transactionId={t.id}
                         groupLabel={null}
                         rowLabel={merchantLabel(t).label || "this transaction"}
-                        className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+                        className={`${CONTROL} border-rule text-faint hover:border-acc hover:text-acc`}
                         title="Tag this reimbursement into a trip/project"
                       >
-                        trip
+                        Trip
                       </GroupTrigger>
                     ) : (
                       <GroupChip
@@ -1315,8 +1320,8 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
                     );
                   })()}
                 </td>
-                <td className={`hidden py-1.5 pr-3 text-[0.68rem] uppercase tracking-[0.06em] md:table-cell ${FLOW_BADGE[t.flow]}`}>
-                  {t.flow.toLowerCase()}
+                <td className={`hidden py-1.5 pr-3 text-[0.75rem] md:table-cell ${FLOW_BADGE[t.flow]}`}>
+                  {t.flow.charAt(0) + t.flow.slice(1).toLowerCase()}
                 </td>
                 <td
                   className={`hidden py-1.5 text-right font-money text-[0.85rem] tabular md:table-cell ${

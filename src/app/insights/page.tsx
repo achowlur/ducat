@@ -5,7 +5,9 @@ import { getInsightsPageData, type InsightRow } from "../../lib/ui/insights";
 import { GOAL_RATE_MIN_MONTHS, type GoalAssessment } from "../../lib/insights/goals";
 import { type ReadinessAssessment } from "../../lib/insights/readiness";
 import { money, monthLabel, shortDate, titleCase } from "../../lib/ui/format";
-import { PageTitle, SectionTitle } from "../../components/ui/headings";
+import { CHIP, FIELD_LABEL, PageTitle, SectionTitle } from "../../components/ui/headings";
+import { Fig, Lead } from "../../components/ui/figure";
+import type { Pace } from "../../lib/insights/pace";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +40,7 @@ const TONE_MARK: Record<Exclude<InsightRow["tone"], "neutral">, string> = {
 // measured 76.1 × 19.8 inside a flex row and 76.1 × 14.0 inside a bare <p>,
 // i.e. one chip at two heights on one page.
 const PROJECTED_CHIP =
-  "inline-block whitespace-nowrap rounded-[2px] bg-chip px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-acc";
+  `${CHIP} inline-block bg-chip text-acc`;
 
 /**
  * The ASSUMED variant of the same chip family: for numbers the operator TYPED
@@ -48,7 +50,7 @@ const PROJECTED_CHIP =
  * claim than an observed cadence, and it should not wear the stronger chip.
  */
 const ASSUMED_CHIP =
-  "inline-block whitespace-nowrap rounded-[2px] border border-rule px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-faint";
+  `${CHIP} inline-block border border-rule text-faint`;
 
 /**
  * One declared goal against the observed savings rate. Every refusal renders
@@ -89,7 +91,7 @@ function GoalRow({ g }: { g: GoalAssessment }) {
         {g.reached ? (
           <>
             <span
-              className={`whitespace-nowrap rounded-[2px] px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] ${CHIP_CLASS.pos}`}
+              className={`${CHIP} ${CHIP_CLASS.pos}`}
             >
               Reached
             </span>{" "}
@@ -251,7 +253,7 @@ function ReadinessBlock({
               reads. The fund detail rides its cell as a sub-caption. */}
           <div className="flex flex-wrap gap-x-9 gap-y-2.5">
             <div>
-              <div className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-faint">
+              <div className={FIELD_LABEL}>
                 Estimated budget
               </div>
               <div className="font-money tabular text-[1.05rem] font-semibold">
@@ -260,7 +262,7 @@ function ReadinessBlock({
               </div>
             </div>
             <div>
-              <div className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-faint">
+              <div className={FIELD_LABEL}>
                 Ceiling today ({r.bindingConstraint === "FUND" ? "fund-limited" : "payment-limited"})
               </div>
               <div className="font-money tabular text-[1.05rem] font-semibold">
@@ -276,7 +278,7 @@ function ReadinessBlock({
               </div>
             </div>
             <div>
-              <div className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-faint">
+              <div className={FIELD_LABEL}>
                 {r.bindingConstraint === "FUND" ? "Payment could carry" : "Fund caps at"}
               </div>
               <div className="font-money tabular text-[1.05rem]">
@@ -293,7 +295,7 @@ function ReadinessBlock({
             </div>
             {r.balancedPrice !== null && r.cashNeededAtBalance !== null && (
               <div>
-                <div className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-faint">
+                <div className={FIELD_LABEL}>
                   Balanced target
                 </div>
                 <div className="font-money tabular text-[1.05rem]">
@@ -306,7 +308,7 @@ function ReadinessBlock({
             )}
             {targetHousePrice !== null && (
               <div>
-                <div className="text-[0.66rem] font-semibold uppercase tracking-[0.08em] text-faint">
+                <div className={FIELD_LABEL}>
                   Target house
                 </div>
                 <div className="font-money tabular text-[1.05rem]">{money(targetHousePrice)}</div>
@@ -398,6 +400,93 @@ function ReadinessBlock({
   );
 }
 
+/**
+ * The tab's one figure (2026-10-04), the way Overview leads with net worth and
+ * every /trends card with its answer: /insights opened on a heading. The
+ * figure is where the month's SPENDING lands. For the month being lived in it
+ * is the projection, or, while the projection refuses, what is spent so far,
+ * and the line under it says which in words; for a closed month, what it came
+ * to. It replaces the pace paragraph that sat under the digest, and the
+ * context line keeps every fact that paragraph printed, refusals included.
+ */
+function MonthHeadline({
+  pace,
+  spent,
+  periodLabel,
+}: {
+  pace: Pace | null;
+  spent: { total: number; previous: number | null } | null;
+  periodLabel: string;
+}) {
+  const month = periodLabel.split(" ")[0];
+  if (pace !== null) {
+    const projected = pace.projected;
+    const due = pace.committedRemaining > 0 ? pace.committedRemaining : null;
+    return (
+      <section>
+        <SectionTitle>Spending</SectionTitle>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="font-money text-[2.1rem] tabular">
+            {projected !== null ? `~${money(projected)}` : money(pace.spentSoFar)}
+          </span>
+          {projected !== null && <span className={PROJECTED_CHIP}>Projected</span>}
+        </div>
+        <p className="mt-1 max-w-[760px] text-[0.78rem] leading-relaxed text-faint">
+          {projected !== null ? (
+            <>
+              <Lead>{month}</Lead>, if the rest of the month is ordinary. <Fig>{money(pace.spentSoFar)}</Fig>{" "}
+              spent by day {pace.dayOfPeriod} of {pace.daysInPeriod}
+              {due !== null && (
+                <>
+                  , <Fig>{money(due)}</Fig> due before month end
+                </>
+              )}
+              . {pace.basis === "SAME_MONTH" ? `A typical ${month} ran ` : "The last few months ran "}
+              <Fig>{money(pace.typical ?? 0)}</Fig>
+              {pace.basis === "SAME_MONTH" ? ` (${pace.basisCount} prior years)` : ""}
+              {/* Visibly incomplete beats silently wrong: a baseline drawn
+                  from before an account existed is understated, so the
+                  projection leans low and says so. */}
+              {pace.basisMissingAccounts > 0 &&
+                `, before ${pace.basisMissingAccounts} of your accounts existed, so this leans low`}
+              .
+            </>
+          ) : (
+            <>
+              <Lead>Spent in {month} so far</Lead>, day {pace.dayOfPeriod} of {pace.daysInPeriod}
+              {due !== null && (
+                <>
+                  , with <Fig>{money(due)}</Fig> due before month end
+                </>
+              )}
+              .{" "}
+              {pace.refusal === "TOO_EARLY"
+                ? "Too early in the month to say where it lands."
+                : `No comparable month to project from yet: ${pace.basisCount === 0 ? "none" : "too few"} with complete data.`}
+            </>
+          )}
+        </p>
+      </section>
+    );
+  }
+  if (spent === null) return null;
+  return (
+    <section>
+      <SectionTitle>Spending</SectionTitle>
+      <div className="font-money text-[2.1rem] tabular">{money(spent.total)}</div>
+      <p className="mt-1 text-[0.78rem] leading-relaxed text-faint">
+        <Lead>Spent in {periodLabel}</Lead>
+        {spent.previous !== null && (
+          <>
+            , against <Fig>{money(spent.previous)}</Fig> the month before
+          </>
+        )}
+        .
+      </p>
+    </section>
+  );
+}
+
 export default async function InsightsPage(props: {
   searchParams: Promise<{ period?: string; show?: string }>;
 }) {
@@ -478,6 +567,8 @@ async function renderInsights({
       </div>
       </div>
 
+      <MonthHeadline pace={data.pace} spent={data.spent} periodLabel={data.periodLabel} />
+
       {/* The lead: a few things ranked by what they cost over a year, rather
           than five streams grouped by insight type with equal weight. The
           stake is shown because it IS the running order — a reader who
@@ -491,7 +582,7 @@ async function renderInsights({
               className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-b border-rule py-2 text-[0.85rem] last:border-b-0 max-md:py-3"
             >
               <span
-                className={`whitespace-nowrap rounded-[2px] px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] ${CHIP_CLASS[row.tone]}`}
+                className={`${CHIP} ${CHIP_CLASS[row.tone]}`}
               >
                 {row.chip}
               </span>
@@ -540,59 +631,6 @@ async function renderInsights({
         </p>
       )}
 
-      {/* Where the month lands. The refusals render rather than hide: "too
-          early to call" is a more useful thing to read than a missing box, and
-          the facts either side of the projection survive it. */}
-      {data.pace !== null && (
-        <section className="border-b border-ink pb-3">
-          <p className="text-[0.95rem] leading-relaxed">
-            <span className="tabular text-faint">
-              Day {data.pace.dayOfPeriod} of {data.pace.daysInPeriod}.
-            </span>{" "}
-            <span className="font-money tabular font-semibold">{money(data.pace.spentSoFar)}</span> spent
-            {data.pace.committedRemaining > 0 && (
-              <>
-                {", "}
-                <span className="font-money tabular">{money(data.pace.committedRemaining)}</span> due before
-                month end
-              </>
-            )}
-            .{" "}
-            {data.pace.refusal === "TOO_EARLY" ? (
-              <span className="text-faint">Too early in the month to say where it lands.</span>
-            ) : data.pace.refusal === "NO_BASELINE" ? (
-              <span className="text-faint">
-                No comparable month to project from yet: {data.pace.basisCount === 0 ? "none" : "too few"} with
-                complete data.
-              </span>
-            ) : (
-              <>
-                <span className="text-faint">
-                  {data.pace.basis === "SAME_MONTH"
-                    ? `A typical ${data.periodLabel.split(" ")[0]} ran `
-                    : "The last few months ran "}
-                  <span className="font-money tabular">{money(data.pace.typical ?? 0)}</span>
-                  {data.pace.basis === "SAME_MONTH" ? ` (${data.pace.basisCount} prior years)` : ""}
-                  {/* Visibly incomplete beats silently wrong: a baseline drawn
-                      from before an account existed is understated, so the
-                      projection leans low and says so. */}
-                  {data.pace.basisMissingAccounts > 0 &&
-                    `, before ${data.pace.basisMissingAccounts} of your accounts existed, so this leans low`}
-                  {"; "}
-                </span>
-                <span className={PROJECTED_CHIP}>
-                  Projected
-                </span>{" "}
-                <span className="font-money tabular font-semibold">
-                  ~{money(data.pace.projected ?? 0)}
-                </span>{" "}
-                <span className="text-faint">if the rest of the month is ordinary.</span>
-              </>
-            )}
-          </p>
-        </section>
-      )}
-
       {/* The only forward-looking figure in the app, and the only thing on this
           tab that appears nowhere else. Chipped "projected" because a forecast
           that reads like an observation is the app asserting what it does not
@@ -624,10 +662,12 @@ async function renderInsights({
                   key={`${c.merchant}-${c.dueDate.toISOString()}`}
                   className="grid grid-cols-[1fr_auto_auto] items-baseline gap-x-3 text-[0.85rem] max-md:py-1"
                 >
-                  <span className="truncate">
-                    {titleCase(c.merchant)}
+                  {/* The chips are shrink-0 siblings, so on a phone the NAME truncates
+                      and the chip, which carries the fact, survives whole. */}
+                  <span className="flex min-w-0 items-baseline gap-1.5">
+                    <span className="truncate">{titleCase(c.merchant)}</span>
                     {c.priceIncreased && (
-                      <span className="ml-1.5 text-[0.66rem] uppercase tracking-[0.06em] text-neg">
+                      <span className={`${CHIP} shrink-0 border border-neg text-neg`}>
                         price up
                       </span>
                     )}
@@ -635,7 +675,7 @@ async function renderInsights({
                         observed. For one you registered by hand they are what
                         you said they were, so it says which. */}
                     {c.source === "REGISTERED" && (
-                      <span className="ml-1.5 text-[0.66rem] uppercase tracking-[0.06em] text-faint">
+                      <span className={`${CHIP} shrink-0 border border-rule text-faint`}>
                         declared
                       </span>
                     )}
@@ -767,7 +807,7 @@ async function renderInsights({
             >
               {row.chip !== null ? (
                 <span
-                  className={`whitespace-nowrap rounded-[2px] px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] ${CHIP_CLASS[row.tone]}`}
+                  className={`${CHIP} ${CHIP_CLASS[row.tone]}`}
                 >
                   {row.chip}
                 </span>

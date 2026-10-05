@@ -6,7 +6,7 @@ import type { GroupUndo } from "../lib/sync/rulePack";
 import { TRANSFER_TARGET } from "../lib/sync/grouping";
 import { ACTION_DID_NOT_COMPLETE } from "../lib/ui/boundaryCopy";
 import type { CategoryOption } from "./CategoryPicker";
-import { COLUMN_HEADER } from "./ui/headings";
+import { CHIP, COLUMN_HEADER, CONTROL } from "./ui/headings";
 
 export interface PayeeGroupView {
   key: string;
@@ -89,7 +89,7 @@ function GroupRow({
           {group.label}
           {group.isP2P && (
             <span
-              className="ml-2 rounded-[2px] border border-neg px-1 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.05em] text-neg"
+              className={`${CHIP} ml-2 border border-neg text-neg`}
               title="Peer-to-peer payment. The rule will match this specific counterparty in the description, not the payment rail; other Zelle/Venmo payees stay untouched."
             >
               p2p
@@ -110,8 +110,8 @@ function GroupRow({
         </div>
         {error !== null && <div className="text-[0.7rem] text-neg">{error}</div>}
       </td>
-      <td className={`py-2 pr-3 text-[0.68rem] uppercase tracking-[0.06em] ${FLOW_CLASS[group.flow] ?? "text-faint"}`}>
-        {group.flow.toLowerCase()}
+      <td className={`py-2 pr-3 text-[0.75rem] ${FLOW_CLASS[group.flow] ?? "text-faint"}`}>
+        {group.flow.charAt(0) + group.flow.slice(1).toLowerCase()}
       </td>
       <td className="py-2 pr-3 text-right font-money text-[0.85rem] tabular">{group.total}</td>
       <td className="py-2">
@@ -147,10 +147,10 @@ function GroupRow({
             // the queue forever and the queue stops feeling finishable.
             <button
               onClick={onSkip}
-              className="rounded-[2px] border border-rule px-1.5 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+              className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
               title="Not now: hide this payee for the rest of this session. Nothing is written."
             >
-              skip
+              Skip
             </button>
           )}
           {staged !== "" && !pending && (
@@ -158,10 +158,10 @@ function GroupRow({
             // of the write is stated before it happens.
             <button
               onClick={apply}
-              className="rounded-[2px] border border-acc bg-acc px-1.5 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-paper"
+              className={`${CONTROL} tap44 border-acc bg-acc text-paper`}
               title={`Write a rule for "${group.key}" and categorize all ${group.count} as ${labelFor(staged)}`}
             >
-              apply to {group.count} →
+              Apply to {group.count} →
             </button>
           )}
         </span>
@@ -218,10 +218,10 @@ export function GroupedReview({
                 setLast(null);
               })
             }
-            className="rounded-[2px] border border-rule px-1.5 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+            className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
             title="Restore every one of those transactions and remove the rule this created"
           >
-            {undoing ? "undoing…" : "undo"}
+            {undoing ? "Undoing…" : "Undo"}
           </button>
         </div>
       )}

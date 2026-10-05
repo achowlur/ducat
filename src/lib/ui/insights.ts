@@ -124,6 +124,14 @@ export interface InsightsPageData {
    * and on a month nothing has synced yet it has not.
    */
   emptyPeriod: boolean;
+  /**
+   * What the period's spending came to, the headline of a month that is not
+   * being lived in (`pace` answers for the one that is), with the period
+   * before it for scale. The analyzer's own total, the figure the Spending
+   * archive row prints. Null when the period has no spending row: the guard
+   * sits on the figure, not on a page gate.
+   */
+  spent: { total: number; previous: number | null } | null;
 }
 
 export interface DigestRow {
@@ -633,5 +641,9 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     readiness,
     trips,
     emptyPeriod: inPeriod.length === 0,
+    spent:
+      thisPeriod === undefined
+        ? null
+        : { total: thisPeriod.payload.totalSpending, previous: thisPeriod.payload.previousTotalSpending },
   };
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { linkReimbursement, searchReimbursable, suggestCandidates, unlinkReimbursement } from "../app/transactions/actions";
 import type { ReimburseCandidate } from "../lib/ui/reimburseCandidates";
+import { CONTROL, FIELD_LABEL } from "./ui/headings";
 
 /**
  * Ties an inflow to the outflow it pays back. Collapsed: a "link" button, with
@@ -154,7 +155,7 @@ export function ReimburseControl({
             }
           });
         }}
-        className={`tap44 rounded-[2px] border px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] ${
+        className={`${CONTROL} tap44 ${
           open
             ? "border-acc bg-acc text-paper"
             : strongHint === null
@@ -167,7 +168,7 @@ export function ReimburseControl({
             : `Likely pays back ${strongHint.label} (${strongHint.reason})`
         }
       >
-        link{strongHint === null ? "" : " •"}
+        Link{strongHint === null ? "" : " •"}
       </button>
       {open && (
         <span
@@ -179,7 +180,7 @@ export function ReimburseControl({
           // it, which is exactly the window right-anchoring lands the panel in.
           className="absolute right-0 top-full z-10 mt-1 w-64 rounded-[3px] border border-ink bg-paper p-2 shadow-md md:left-0 md:right-auto"
         >
-          <span className="mb-1 block text-[0.65rem] uppercase tracking-[0.08em] text-faint">
+          <span className={`mb-1 block ${FIELD_LABEL}`}>
             {/* Names the ordering, so a list that ends is not read as the list
                 of everything in range — it is the closest matches, ranked. */}
             Pays back which expense? · {results === null ? "closest first" : "search results"}

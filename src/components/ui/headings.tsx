@@ -50,3 +50,31 @@ export function SubsectionTitle({ children }: { children: React.ReactNode }) {
  * mistaken for a heading. Layout (padding, alignment, width) stays per table.
  */
 export const COLUMN_HEADER = "text-[0.7rem] font-semibold text-faint";
+
+/*
+ * The other three roles (2026-10-04, second pass). After the headings led,
+ * every button (RULE, LINK, DISMISS, FILTER) and every form label still wore
+ * the faint tracked caps a caption wears, so a control a thumb must find read
+ * as a label, and a label read as loudly as a chip. Now each role has one look:
+ * a label over a value is the column header's quiet sentence case; a control
+ * is sentence case at 0.75rem, the 1px border saying "press"; and a chip, a
+ * status the eye should catch, keeps the small tracked caps alone. All three
+ * are words, so all three set the ledger face: a control or a label inside a
+ * money span would otherwise inherit the figures' monospace.
+ */
+
+/**
+ * A form field's or a figure's label: a label over a value, so a column
+ * header's type, in the ledger face even where it sits inside a money span.
+ */
+export const FIELD_LABEL = `${COLUMN_HEADER} font-ledger`;
+
+/**
+ * A small control inside a row or panel. Border and text colours per use;
+ * touch-target sizing (`tap44`) too, since not every control sits in a row.
+ */
+export const CONTROL = "rounded-[2px] border px-1.5 py-0.5 font-ledger text-[0.75rem] leading-snug";
+
+/** A status chip. Fill and text colour per use. */
+export const CHIP =
+  "whitespace-nowrap rounded-[2px] px-1.5 py-0.5 font-ledger text-[0.62rem] font-semibold uppercase tracking-[0.06em]";
