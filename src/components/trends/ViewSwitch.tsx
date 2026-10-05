@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FIELD_LABEL } from "../ui/headings";
 
 export interface ViewOption<T extends string> {
   value: T;
@@ -56,7 +57,7 @@ export function ViewSwitch<T extends string>({
   // the app, louder than the figures it only changes the drawing of.
   return (
     <div role="group" aria-label="View as" className="flex flex-wrap items-center gap-1">
-      <span className="mr-1 text-[0.68rem] uppercase tracking-[0.1em] text-faint">View as</span>
+      <span className={`mr-1 ${FIELD_LABEL}`}>View as</span>
       {options.map((o) => {
         const active = o.value === value;
         return (
@@ -65,7 +66,7 @@ export function ViewSwitch<T extends string>({
             type="button"
             aria-pressed={active}
             onClick={() => onChange(o.value)}
-            className={`tap44 rounded-sm border px-2 py-0.5 text-[0.68rem] uppercase tracking-[0.06em] ${
+            className={`tap44 rounded-sm border px-2 py-0.5 text-[0.75rem] ${
               active ? "border-ink text-ink" : "border-rule text-faint hover:text-ink"
             }`}
           >

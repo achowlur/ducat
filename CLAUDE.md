@@ -139,10 +139,11 @@ regeneration.
   ISO string in prose — shortDate/monthLabel exist.
 - On-screen copy carries NO em dash (a refusal glyph and an empty cell's
   dash are glyphs, not prose).
-- Headings come from components/ui/headings.tsx and NOWHERE else: one h1 per
-  tab (visually hidden — the nav carries the visible name), SectionTitle is
-  h2, SubsectionTitle h3, and every column header's type is COLUMN_HEADER.
-  Every `th` carries scope.
+- Type comes from components/ui/headings.tsx and NOWHERE else: one h1 per
+  tab (visually hidden — the nav carries the visible name), SectionTitle h2,
+  SubsectionTitle h3; a column header or field label is COLUMN_HEADER /
+  FIELD_LABEL, a button CONTROL (sentence case), a status CHIP (the only
+  small caps left in a page). Every `th` carries scope.
 - A warning wears the warning tokens (`--warn` fill, `--on-warn` on it,
   `--warn-ink` as text), never a chart colour; charts never wear them.
 - A figure the reader must be able to discount states its uncertainty in TEXT,

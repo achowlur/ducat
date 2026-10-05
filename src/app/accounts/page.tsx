@@ -5,7 +5,7 @@ import { Sparkline } from "../../components/Sparkline";
 import { amount, dateTime, shortDate } from "../../lib/ui/format";
 import { accountsHref } from "../../lib/ui/accountFilter";
 import { getAccountsData } from "../../lib/ui/accounts";
-import { COLUMN_HEADER, PageTitle } from "../../components/ui/headings";
+import { CHIP, COLUMN_HEADER, PageTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
@@ -128,7 +128,7 @@ async function renderAccounts() {
                           sync and used to claim it could. */}
                       {a.staleByAge && (
                         <span
-                          className="ml-1.5 rounded-[2px] bg-neg px-1 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.05em] text-paper"
+                          className={`${CHIP} ml-1.5 bg-neg text-paper`}
                           title={`${a.balanceLagDays}d behind at the last sync; the balance itself is ${a.daysSinceBalance}d old`}
                         >
                           {a.balanceLagDays}d behind

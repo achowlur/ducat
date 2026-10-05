@@ -23,6 +23,7 @@ import { categoryNameProblem, existingCategoryName, normalizeCategoryName } from
 import { ACTION_DID_NOT_COMPLETE } from "../lib/ui/boundaryCopy";
 import { useGroupPicker } from "./GroupPicker";
 import type { RecurringCadence } from "../types/contracts";
+import { CONTROL, FIELD_LABEL } from "./ui/headings";
 
 export interface CategoryOption {
   id: string;
@@ -432,11 +433,11 @@ function Picker({
         className={`fixed z-50 flex flex-col overflow-hidden bg-paper shadow-md ${shell}`}
       >
         <div className="flex flex-col gap-1 border-b border-rule px-2 py-1.5">
-          <span className="truncate font-money text-[0.6rem] uppercase tracking-[0.08em] text-faint">
+          <span className={`truncate ${FIELD_LABEL}`}>
             {/* States the rule it will actually write, field and all: for a
                 P2P row that is the DESCRIPTION and the counterparty, not the
                 merchant and the rail. */}
-            {target.ruleMode ? `rule: ${target.ruleField.toLowerCase()} contains ` : "categorize "}
+            {target.ruleMode ? `Rule: ${target.ruleField.toLowerCase()} contains ` : "Categorize "}
             <span className="text-acc">
               {target.ruleMode
                 ? target.ruleValue
@@ -527,7 +528,7 @@ function Picker({
                   </span>
                   {selected && <span className="text-[0.72rem] text-acc">✓</span>}
                   {row.choice.kind === "create" && (
-                    <span className="shrink-0 font-money text-[0.62rem] uppercase tracking-[0.06em]">
+                    <span className="shrink-0 text-[0.7rem]">
                       {row.choice.isIncome ? "as income" : "as spending"}
                     </span>
                   )}
@@ -540,7 +541,7 @@ function Picker({
                 <ul role="group" aria-label={group.label}>
                   <li
                     role="presentation"
-                    className="px-2 pb-0.5 pt-1.5 font-money text-[0.58rem] uppercase tracking-[0.1em] text-faint"
+                    className={`px-2 pb-0.5 pt-1.5 ${FIELD_LABEL}`}
                   >
                     {group.label}
                   </li>
@@ -722,10 +723,10 @@ export function CategoryButton({
               setMenu("closed");
               show(true, "");
             }}
-            className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+            className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
             title={`Categorize every "${merchant}" transaction, past and future`}
           >
-            category
+            Category
           </button>
           {subscriptionPattern !== null &&
             (subscriptionTracked ? (
@@ -739,19 +740,19 @@ export function CategoryButton({
                     setMenu("closed");
                   });
                 }}
-                className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-neg hover:text-neg"
+                className={`${CONTROL} tap44 border-rule text-faint hover:border-neg hover:text-neg`}
                 title={`Stop tracking "${subscriptionPattern}" as a subscription`}
               >
-                untrack
+                Untrack
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => setMenu("cadence")}
-                className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+                className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
                 title="Track this merchant as a subscription: its renewal date and price changes, without waiting for the detector's three charges"
               >
-                subscription
+                Subscription
               </button>
             ))}
           {groupCtx !== null && (
@@ -769,10 +770,10 @@ export function CategoryButton({
                   anchor: tripRef.current,
                 });
               }}
-              className="tap44 rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+              className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
               title="Tag THIS transaction into a trip or project: a view across months, never a category"
             >
-              trip
+              Trip
             </button>
           )}
           {/* Was 5.0 × 14.9px with no padding — the only way out of a menu
@@ -789,7 +790,7 @@ export function CategoryButton({
       )}
       {menu === "cadence" && (
         <span className="inline-flex items-center gap-1">
-          <span className="font-money text-[0.58rem] uppercase tracking-[0.05em] text-faint">billed every</span>
+          <span className={FIELD_LABEL}>Billed every</span>
           {CADENCES.map((c) => (
             <button
               key={c.value}
@@ -809,7 +810,7 @@ export function CategoryButton({
                   }
                 });
               }}
-              className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+              className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
             >
               {c.label}
             </button>
@@ -839,14 +840,14 @@ export function CategoryButton({
             if (pending) return;
             setMenu("actions");
           }}
-          className={`tap44 rounded-[2px] border px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] ${
+          className={`${CONTROL} tap44 ${
             open && target.ruleMode
               ? "border-acc bg-acc text-paper"
               : "border-rule text-faint hover:border-acc hover:text-acc"
           }`}
           title={`What should happen for every "${merchant}" transaction`}
         >
-          rule
+          Rule
         </button>
       )}
     </span>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { renameGroup } from "../app/transactions/actions";
 import { groupHref, normalizeGroupLabel, MAX_GROUP_LABEL } from "../lib/ui/groupFilter";
 import { ACTION_DID_NOT_COMPLETE } from "../lib/ui/boundaryCopy";
+import { CONTROL } from "./ui/headings";
 
 /**
  * The totals band's rename control: rewrites the label across the WHOLE
@@ -79,10 +80,10 @@ export function RenameGroup({
           setFailure(null);
           setOpen(true);
         }}
-        className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+        className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
         title={`Rename “${label}” across every row that carries it`}
       >
-        rename
+        Rename
       </button>
     );
   }
@@ -114,16 +115,16 @@ export function RenameGroup({
         type="button"
         aria-disabled={pending || target === null || unchanged}
         onClick={commit}
-        className="rounded-[2px] border border-rule px-1 py-0.5 text-[0.62rem] uppercase tracking-[0.05em] text-faint hover:border-acc hover:text-acc"
+        className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
       >
-        save
+        Save
       </button>
       <button
         type="button"
         onClick={() => setOpen(false)}
-        className="text-[0.68rem] text-faint hover:text-ink"
+        className="tap44 text-[0.75rem] text-faint hover:text-ink"
       >
-        cancel
+        Cancel
       </button>
       <span className={`w-full text-[0.72rem] ${failure !== null ? "text-neg" : "text-faint"}`}>
         {failure !== null

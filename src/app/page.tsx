@@ -7,7 +7,7 @@ import { SyncNowButton } from "../components/SyncNowButton";
 import { amount, dateTime, money, pct } from "../lib/ui/format";
 import { getOverviewData, STALE_DISPLAY_DAYS } from "../lib/ui/overview";
 import { STATUS_DOT } from "../lib/ui/providers";
-import { COLUMN_HEADER, PageTitle, SectionTitle } from "../components/ui/headings";
+import { CHIP, COLUMN_HEADER, FIELD_LABEL, PageTitle, SectionTitle } from "../components/ui/headings";
 import { transactionsHref } from "../lib/ui/categoryFilter";
 import { withDatabaseNotice } from "../components/DatabaseNotice";
 
@@ -47,7 +47,7 @@ function BalanceGroup({
 }) {
   return (
     <div>
-      <div className="text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-faint">{label}</div>
+      <div className={FIELD_LABEL}>{label}</div>
       <div
         className={`font-money text-[1.25rem] tabular ${negative === true ? "font-semibold text-neg" : ""}`}
       >
@@ -275,11 +275,11 @@ async function renderOverview() {
                       absence of a warning is itself visible. */}
                   <td className="w-px whitespace-nowrap py-1.5 pl-3 text-[0.72rem] text-faint">
                     {a.stale ? (
-                      <span className="rounded-[2px] bg-neg px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.06em] text-paper">
+                      <span className={`${CHIP} bg-neg text-paper`}>
                         {a.balanceLagDays}d behind
                       </span>
                     ) : a.balanceLagDays >= STALE_DISPLAY_DAYS ? (
-                      <span className="rounded-[2px] bg-warn px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.06em] text-on-warn">
+                      <span className={`${CHIP} bg-warn text-on-warn`}>
                         {a.balanceLagDays}d behind
                       </span>
                     ) : (
@@ -318,9 +318,9 @@ async function renderOverview() {
             {data.spendingTotal !== null && (
               <Link
                 href={`/trends?e.show=spending&e.by=category&e.over=${data.currentPeriod}#build-your-own`}
-                className="pb-2 text-[0.72rem] uppercase tracking-[0.08em] text-acc hover:underline"
+                className="tap44 pb-2 text-[0.8rem] text-acc hover:underline"
               >
-                full breakdown →
+                Full breakdown →
               </Link>
             )}
           </div>
@@ -474,7 +474,7 @@ async function renderOverview() {
               `${data.balances.cashAccounts} account${data.balances.cashAccounts === 1 ? "" : "s"}`
             ) : (
               <span>
-                <span className="mr-1.5 whitespace-nowrap rounded-[2px] bg-chip px-1 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.08em] text-acc">
+                <span className={`${CHIP} mr-1.5 bg-chip text-acc`}>
                   Projected
                 </span>
                 <span className="font-money font-semibold text-ink">{data.runway.months} months</span> at{" "}

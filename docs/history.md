@@ -843,6 +843,15 @@ blocker; all are the kind of thing that is invisible until someone looks.
   screenshots.
   BUILT 2026-10-04 for headings, column headers and the /insights scaffold;
   controls, chips and the /insights headline figure stay on the backlog.
+- **Controls and chips, and a headline figure on /insights.** Left open by
+  the 2026-10-04 type pass (ui-and-pages.md, A WARNING HAS ITS OWN COLOUR):
+  buttons such as RULE, LINK, DISMISS and FILTER, and chips, keep the small
+  tracked caps, and /insights opens without one figure in the money face the
+  way Overview and every /trends card do. Both change the ledger's tuned
+  phone widths. Retakes screenshots.
+  BUILT 2026-10-04: CONTROL, CHIP and FIELD_LABEL in headings.tsx, and
+  /insights leads with the month's spending. Evidence in
+  docs/conventions/ui-and-pages.md, A CONTROL SPEAKS IN SENTENCE CASE.
 
 ## CLAUDE.md, split twice
 

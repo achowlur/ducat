@@ -3,7 +3,7 @@ import { cronSummary, getBackupSignal, getProvidersData, LOGS_PAGE_SIZE, STATUS_
 import { calendarDaysAgo, dateTime } from "../../lib/ui/format";
 import { isCloudMode, isTotpConfigured } from "../../lib/auth/mode";
 import vercelConfig from "../../../vercel.json";
-import { COLUMN_HEADER, PageTitle, SectionTitle, SubsectionTitle } from "../../components/ui/headings";
+import { CHIP, COLUMN_HEADER, PageTitle, SectionTitle, SubsectionTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
@@ -167,7 +167,7 @@ async function renderProviders({
               {health.trustCard.displayName}
             </h2>
             <span
-              className={`rounded-[2px] px-1.5 py-0.5 text-[0.66rem] font-semibold uppercase tracking-[0.08em] ${
+              className={`${CHIP} ${
                 STATUS_CHIP[health.status] ?? STATUS_CHIP.UNKNOWN
               }`}
             >

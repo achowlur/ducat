@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { accountFilterSummary, encodeAccountParam } from "../lib/ui/accountFilter";
+import { FIELD_LABEL } from "./ui/headings";
 
 export interface AccountOption {
   id: string;
@@ -89,8 +90,10 @@ export function AccountFilter({
   const value = encodeAccountParam(checked);
 
   return (
-    <div className="relative grid gap-0.5 text-[0.68rem] uppercase tracking-[0.1em] text-faint">
-      <span id={labelId}>Account</span>
+    <div className="relative grid gap-0.5">
+      <span id={labelId} className={FIELD_LABEL}>
+        Account
+      </span>
       {/* Absent rather than empty when nothing is staged, so "every account"
           is no parameter at all. */}
       {value !== "" && <input type="hidden" name="account" value={value} />}
@@ -173,7 +176,7 @@ export function AccountFilter({
             </button>
             <button
               type="submit"
-              className="rounded-[2px] border border-ink px-3 py-1 text-[0.72rem] uppercase tracking-[0.08em] hover:bg-chip max-md:min-h-[44px]"
+              className="rounded-[2px] border border-ink px-3 py-1 text-[0.8rem] hover:bg-chip max-md:min-h-[44px]"
             >
               Apply
             </button>

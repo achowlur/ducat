@@ -46,7 +46,7 @@ export default function Error({
         {copy.retry && (
           <button
             onClick={reset}
-            className="tap44 rounded border-2 border-ink px-3 py-1.5 text-[0.78rem] uppercase tracking-[0.08em] hover:bg-chip"
+            className="tap44 rounded border-2 border-ink px-3 py-1.5 text-[0.85rem] hover:bg-chip"
           >
             Try again
           </button>
@@ -54,14 +54,14 @@ export default function Error({
         {copy.signIn && (
           <Link
             href="/login"
-            className="tap44 inline-flex items-center rounded border-2 border-ink px-3 py-1.5 text-[0.78rem] uppercase tracking-[0.08em] hover:bg-chip"
+            className="tap44 inline-flex items-center rounded border-2 border-ink px-3 py-1.5 text-[0.85rem] hover:bg-chip"
           >
             Sign in
           </Link>
         )}
         <Link
           href="/"
-          className="tap44 inline-flex items-center rounded border-2 border-rule px-3 py-1.5 text-[0.78rem] uppercase tracking-[0.08em] text-faint hover:border-ink hover:text-ink"
+          className="tap44 inline-flex items-center rounded border-2 border-rule px-3 py-1.5 text-[0.85rem] text-faint hover:border-ink hover:text-ink"
         >
           Back to overview
         </Link>
