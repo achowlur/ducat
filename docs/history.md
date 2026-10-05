@@ -852,6 +852,12 @@ blocker; all are the kind of thing that is invisible until someone looks.
   BUILT 2026-10-04: CONTROL, CHIP and FIELD_LABEL in headings.tsx, and
   /insights leads with the month's spending. Evidence in
   docs/conventions/ui-and-pages.md, A CONTROL SPEAKS IN SENTENCE CASE.
+- **Renaming and deleting categories.** Not built (merchants-and-rules.md, end
+  of the categories entry); a category made by mistake stays in the list
+  until one exists.
+  BUILT 2026-10-04: /categories, for the operator's own categories only.
+  Evidence in docs/conventions/merchants-and-rules.md, RENAMING AND DELETING
+  A CATEGORY.
 
 ## CLAUDE.md, split twice
 

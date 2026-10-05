@@ -239,3 +239,52 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   transaction changes no total.
   NOT BUILT: renaming and deleting. A category made by mistake stays in the
   list until one of those exists, which is why bare Enter cannot make one.
+  (Built 2026-10-04: the next entry. Bare Enter still makes nothing.)
+
+- RENAMING AND DELETING A CATEGORY (2026-10-04). A page, /categories, not a
+  tab: reached from the foot of the ledger's category picker, because the
+  picker is where a category is made and where a mistaken one is noticed.
+  It lists every category with the rows filed under it (a link into the
+  ledger) and the rules that set it.
+  ONLY THE OPERATOR'S OWN. Checked before building, by grepping for every
+  category NAME the code compares against: installRulePack finds its
+  categories by exact name and creates what is missing, so a renamed pack
+  category comes back, empty, beside the renamed one on the next upgrade;
+  readiness reads "Rent & Housing", the subscription detector excludes
+  "Rent & Housing" and "Taxes", the reimbursement ranker's UNSPLITTABLE set
+  is seven pack names, and "Income" is made isIncome by name. Every name the
+  code compares against is a pack name, so the line is the pack list itself
+  (`isPackCategory`). The page says why in one sentence rather than greying
+  out controls with no reason.
+  SERVER-ONLY MODULE. The writes live in `lib/categoryEdits.ts`, not beside
+  creation in `categories.ts`, because the picker imports categories.ts into
+  the browser and these reach the rule pack and the closed box. The naming
+  rules stay in categories.ts, so a rename is held to exactly what a
+  creation is: whitespace collapsed, 40 characters, reserved names refused.
+  A RENAME NEVER MERGES. Renaming onto a name another category carries, in
+  any casing, is refused with the way to do it instead (delete this one and
+  move its rows there). The trip rename does merge, warned, but a category
+  merge moves RULES as well as rows, and the page that says so before it
+  writes is delete's. Changing only the casing of its own name is allowed.
+  Insights regenerate on a rename: their payloads carry category NAMES.
+  A DELETE MOVES EVERYTHING FIRST, in one batch, and asks where to when
+  anything points at the category (no default: either would be a guess, and
+  nothing undoes it). INTO A CATEGORY it is a merge: rows keep their source
+  (a MANUAL row stays the operator's decision under the other name) and the
+  rules retarget, so a row a rule put there is still that rule's. INTO
+  UNCATEGORIZED each row is cleared by the write the picker's "none" makes
+  (whenCleared): AGGREGATOR and back in the review queue, or, in a closed
+  box, a transfer at once. A rule that set only this category is REMOVED and
+  one that also sets a flow keeps the flow. The FOREIGN KEY is why: both
+  references are ON DELETE SET NULL, and a rule left setting no category and
+  no flow still matches FIRST in applyRules and writes "no category" over
+  every row it reaches, shadowing the pack rule beneath it. Pinned by
+  categories.test.ts: after a delete into Uncategorized, the next rule pass
+  gives the cleared Whole Foods row to the pack's Groceries, which the
+  orphaned rule would have blocked.
+  Driven in the browser against invented demo data before shipping: a
+  rename refused onto "GROCERIES" in the action's own words, a rename
+  reaching the ledger (the P2P suggestion's ✓ included), a merge of 9 rows
+  and 1 rule into Shopping (29 to 38 rows, 63 to 64 rules), and a category
+  made in the picker and deleted into Uncategorized, its row read back as
+  AGGREGATOR with no category and no rule left pointing at nothing.

@@ -2,10 +2,11 @@
 paths:
   - "src/lib/connectors/**"
   - "src/lib/sync/**"
-  - "src/lib/{categories,p2p}*.ts"
+  - "src/lib/{categories,categoryEdits,p2p}*.ts"
   - "src/lib/ui/merchantLabel*.ts"
   - "src/app/transactions/**"
-  - "src/components/{CategoryPicker,GroupedReview,P2PSuggestion,AccountTypeSelect}.tsx"
+  - "src/app/categories/**"
+  - "src/components/{CategoryPicker,CategoryManager,GroupedReview,P2PSuggestion,AccountTypeSelect}.tsx"
   - "scripts/{audit-rules,install-rule-pack,repair-merchants,repair-text,retarget-rule,simulate-rule-matching,import-csv}.ts"
 ---
 
@@ -54,3 +55,11 @@ anything below; several entries record "tried and failed, don't retry".
   existing row), never a name the app prints for a non-category; NO
   PACK_CATEGORIES name is reserved, or the pack could not install. A new
   category is ASSIGNED by the same write an existing one gets.
+- Renamed and deleted ONLY through lib/categoryEdits.ts (server-only: the
+  picker imports categories.ts into the browser), and only the operator's
+  own: a PACK_CATEGORIES name is fixed, because the pack and the app find
+  those by name. A rename never merges. A delete MOVES every row and rule
+  first, in one batch: into a category, sources kept and rules retargeted;
+  into Uncategorized, rows cleared as "none" clears them and category-only
+  rules REMOVED (a rule setting nothing still matches first and shadows the
+  pack). Never leave it to the foreign key's SET NULL.
