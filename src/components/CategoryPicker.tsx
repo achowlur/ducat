@@ -11,6 +11,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 import {
   createCategory,
@@ -551,6 +552,14 @@ function Picker({
             );
           })}
         </ul>
+
+        {/* Categories are MADE here, by typing a name that matches none, so
+            the way to rename or delete one starts here too. */}
+        <div className="border-t border-rule px-2 py-1">
+          <Link href="/categories" className="tap44 text-[0.75rem] text-acc hover:underline">
+            Rename or delete categories →
+          </Link>
+        </div>
 
         {/* Keys a phone does not have. */}
         <div className="hidden flex-wrap gap-2 border-t border-rule px-2 py-1 font-money text-[0.58rem] text-faint md:flex">

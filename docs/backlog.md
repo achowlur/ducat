@@ -36,9 +36,6 @@ Each item checked against the code after PR #29.
   account, only `scripts/import-csv.ts` parses one global value); historical
   snapshots from the running-balance column; and a record of which file
   produced which rows.
-- **Renaming and deleting categories.** Not built (merchants-and-rules.md, end
-  of the categories entry); a category made by mistake stays in the list
-  until one exists.
 
 ### Needs a decision before any code
 

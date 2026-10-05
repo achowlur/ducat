@@ -85,8 +85,10 @@ category you set by hand is never overridden.
   filterable; categorize, group-review, and link reimbursements here. The
   Account filter takes several accounts at once. To add a category of your
   own, type its name into the category picker and choose one of the two "add"
-  rows, as spending or as income. A bill you linked repayments to says what
-  came back and your share under it.
+  rows, as spending or as income; to rename or delete one you made, follow
+  the link at the foot of the picker (`/categories`). Deleting asks where its
+  rows and rules go first. The rule pack's categories keep their names. A
+  bill you linked repayments to says what came back and your share under it.
 - **Accounts** (`/accounts`) — what you have, per account. An investment
   account's own activity (trades, dividends, fees) never counts as income or
   spending; what it earned shows as market movement on net worth.
