@@ -94,41 +94,93 @@ function figure(line: TextLine, column: number): number | null {
   return value;
 }
 
-function summary(lines: TextLine[], column: number) {
+const at = (cell: { x: number; xEnd: number }) => `x ${Math.round(cell.x)}-${Math.round(cell.xEnd)}`;
+const money = (n: number) => n.toFixed(2);
+const quoted = (labels: string[]) => labels.map((l) => `"${l}"`).join(', ');
+
+/**
+ * The account summary, from its beginning value to its ending value. Every
+ * line in between that prints a figure this period is placed: Additions or
+ * Subtractions, a line under one of them, or the change in investment value.
+ * A figure with no place refuses the statement, naming the line, and so does
+ * a heading its own lines do not add up to: money the summary moves is never
+ * left out unseen.
+ */
+function summary(lines: TextLine[], column: number, account: string) {
   let opening: number | null = null;
   let closing: number | null = null;
   let market: number | null = null;
+  let begun = false;
   let additions = 0;
   let subtractions = 0;
   const breakdown: Breakdown[] = [];
+  /** The labels read after the beginning value, for a refusal to name. */
+  const labels: string[] = [];
   let under: 1 | -1 | null = null;
   for (const line of lines) {
     const first = line.cells[0];
     if (first === undefined || first.x > LABEL_MAX_X) continue;
     const label = first.text;
-    if (opening === null) {
-      if (/^Beginning Account Value$/i.test(label)) opening = figure(line, column);
+    if (!begun) {
+      if (/^Beginning Account Value$/i.test(label)) {
+        begun = true;
+        opening = figure(line, column);
+      }
       continue;
     }
+    labels.push(label);
+    const value = figure(line, column);
     if (/^Ending Account Value$/i.test(label)) {
-      closing = figure(line, column);
+      closing = value;
       break;
     }
     if (/^Additions$/i.test(label)) {
-      additions = figure(line, column) ?? 0;
+      additions = value ?? 0;
       under = 1;
     } else if (/^Subtractions$/i.test(label)) {
-      subtractions = figure(line, column) ?? 0;
+      subtractions = value ?? 0;
       under = -1;
     } else if (/^Change in Investment Value\b/i.test(label)) {
-      market = figure(line, column);
+      market = value;
       under = null;
-    } else if (under !== null && first.x >= BREAKDOWN_MIN_X) {
-      const value = figure(line, column);
-      if (value !== null) breakdown.push({ name: label, value, sign: under });
+    } else if (value !== null) {
+      if (under === null || first.x < BREAKDOWN_MIN_X) {
+        throw new Error(
+          `account ${account}: the summary line "${label}" (${at(first)}) prints a figure this period but is not a line under Additions or Subtractions`,
+        );
+      }
+      breakdown.push({ name: label, value, sign: under });
     }
   }
-  return { opening, closing, market, additions, subtractions, breakdown };
+
+  const missing = [
+    [opening === null, 'beginning value'],
+    [closing === null, 'ending value'],
+    [market === null, 'change in investment value'],
+  ]
+    .filter(([absent]) => absent)
+    .map(([, what]) => what);
+  if (missing.length > 0) {
+    throw new Error(
+      `account ${account}: the summary has no ${missing.join(' or ')} in the This Period column (ending at x ${Math.round(column)}); it reads: ${labels.length > 0 ? quoted(labels) : begun ? 'nothing after the beginning value' : 'no "Beginning Account Value" line'}`,
+    );
+  }
+
+  // A heading's own lines must add up to it before any section is read.
+  for (const [heading, printed, sign] of [
+    ['Additions', additions, 1],
+    ['Subtractions', subtractions, -1],
+  ] as const) {
+    const read = breakdown.filter((b) => b.sign === sign);
+    const sum = read.reduce((total, b) => total + Math.abs(cents(b.value)), 0);
+    if (sum !== Math.abs(cents(printed))) {
+      const named = read.length > 0 ? read.map((b) => `"${b.name}" ${money(b.value)}`).join(', ') : 'none';
+      throw new Error(
+        `account ${account}: the lines read under ${heading} (${named}) add up to ${money(sum / 100)}, but ${heading} prints ${money(printed)}; it reads: ${quoted(labels)}`,
+      );
+    }
+  }
+  return { opening: opening as number, closing: closing as number, market: market as number, additions, subtractions, breakdown };
 }
 
 /** The rows of one money-flow section ("Deposits" ... "Total Deposits"). */
@@ -180,13 +232,11 @@ export const fidelityReport: StatementLayout = {
     if (periodStart === null || periodEnd === null) throw new Error('no statement period');
 
     const statements: ParsedStatement[] = [];
-    for (const account of byAccount(lines)) {
+    const accounts = byAccount(lines);
+    for (const account of accounts) {
       const column = thisPeriodColumn(account.lines);
       if (column === null) continue; // pages with no account summary of their own
-      const s = summary(account.lines, column);
-      if (s.opening === null || s.closing === null || s.market === null) {
-        throw new Error(`account ${account.number}: the summary lacks its beginning, ending or change in value`);
-      }
+      const s = summary(account.lines, column, account.number);
 
       const rows: StatementRow[] = [];
       const sectionOf = new Map<StatementRow, string>();
@@ -233,6 +283,22 @@ export const fidelityReport: StatementLayout = {
         checks,
       });
     }
+    if (statements.length === 0) throw new Error(noAccountRead(lines, accounts));
     return statements;
   },
 };
+
+/**
+ * Why no account was read, in the report's own terms: whether any page names
+ * an account, and the column headings above the first beginning value.
+ */
+function noAccountRead(lines: TextLine[], accounts: AccountLines[]): string {
+  if (accounts.length === 0) return 'no page names an account ("Account #")';
+  const begins = lines.findIndex((l) => /^Beginning Account Value/i.test(l.cells[0]?.text ?? ''));
+  const above = begins > 0 ? lines[begins - 1] : null;
+  const headings = above === null ? 'none' : above.cells.map((c) => `"${c.text}" ${at(c)}`).join(', ');
+  const periods = lines
+    .flatMap((l) => l.cells.filter((c) => c.text === 'This Period').map((c) => `page ${l.page} ${at(c)}`))
+    .slice(0, 6);
+  return `${accounts.length} account section(s), none with an account summary under a "This Period" column left of x ${SUMMARY_MAX_X}; "This Period" is printed at: ${periods.length > 0 ? periods.join(', ') : 'nowhere'}; the line above the first beginning value reads: ${headings}`;
+}

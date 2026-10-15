@@ -150,6 +150,16 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   skipped, because rows are matched against the database, never against
   another statement in the same run. Periods sharing only a boundary day do
   not count as overlapping.
+  The first real run refused nearly every report with "rows add up to #.##,
+  the statement prints #.##" and nothing else, because the summary reader
+  SKIPPED a line whose figure it could not place, and a masked report cannot
+  show which. So the summary is read strictly: every line between the
+  beginning and ending value that prints a figure this period must sit under
+  Additions or Subtractions, each heading's lines must add up to it, and a
+  refusal quotes every label it read. The same run showed `--share` printing
+  whole account numbers: its mask kept any digit run next to a dash (for ISO
+  dates), and a brokerage account number has one. It now keeps only an ISO
+  date, and text a reason quotes from a statement is masked as a row is.
   SHARING A LAYOUT WITHOUT SHARING A STATEMENT. Parsers were written from
   `npm run pdf:layout` dumps the operator pasted. Masking digits alone was not
   enough: a statement prints the holder's name and address and the people paid

@@ -37,9 +37,9 @@ import { maskFigures, maskLayoutText } from './layoutMask';
  * nothing; run it first, against the database the import will land in.
  *
  * --share prints the report so it can be pasted to someone helping: counts and
- * refusal reasons stay readable with their figures masked, and every listed
- * row goes through the pdf:layout mask (scripts/layoutMask.ts), so no name,
- * merchant or amount survives.
+ * refusal reasons stay readable with their figures masked, text a reason quotes
+ * from a statement and every listed row go through the pdf:layout mask
+ * (scripts/layoutMask.ts), so no name, merchant or amount survives.
  *
  * Each statement's closing balance is written as a snapshot dated to it, and
  * each file is recorded (name, hash, account, period) so a re-run skips it
@@ -137,7 +137,8 @@ async function main(): Promise<void> {
   const dryRun = hasFlag('dry-run');
   if (hasFlag('share')) {
     listed = maskLayoutText;
-    reason = maskFigures;
+    // A reason quotes what it read from the statement; that is masked as a row is.
+    reason = (text) => maskFigures(text).replace(/"([^"]*)"/g, (_, quote: string) => `"${maskLayoutText(quote)}"`);
   }
 
   const files: StatementFile[] = [];

@@ -112,6 +112,37 @@ describe('fidelityReport', () => {
     );
   });
 
+  // A line whose figure cannot be placed must not vanish: Additions would then
+  // look unexplained, and the reason would not say which line was missed.
+  it('refuses a summary whose lines do not add up to their heading, naming what it read', () => {
+    const lines = report().map((l) =>
+      l.page === 4 && l.cells[0].text === 'Deposits' ? { ...l, cells: [{ ...l.cells[0], x: 49 }, ...l.cells.slice(1)] } : l,
+    );
+    expect(() => fidelityReport.parse(lines)).toThrow(
+      'account X00-000001: the summary line "Deposits" (x 49-93) prints a figure this period but is not a line under Additions or Subtractions',
+    );
+    const unplaced = report().map((l) =>
+      l.page === 4 && l.cells[0].text === 'Deposits' ? { ...l, cells: [l.cells[0], { ...l.cells[1], x: 200, xEnd: 230 }] } : l,
+    );
+    expect(() => fidelityReport.parse(unplaced)).toThrow(
+      'account X00-000001: the lines read under Additions ("Exchanges In" 0.00) add up to 0.00, but Additions prints 2500.00; it reads: "Additions", "Deposits", "Exchanges In", "Subtractions", "Transaction Account Fees", "Change in Investment Value *", "Ending Account Value"',
+    );
+  });
+
+  it('refuses a summary missing its change in value, saying what it does read', () => {
+    const lines = report().filter((l) => !(l.page === 17 && l.cells[0].text.startsWith('Change in')));
+    expect(() => fidelityReport.parse(lines)).toThrow(
+      'account 000-000002: the summary has no change in investment value in the This Period column (ending at x 299); it reads: "Ending Account Value"',
+    );
+  });
+
+  it('says why no account could be read', () => {
+    const lines = report().map((l) => ({ ...l, cells: l.cells.map((c) => (c.text === 'This Period' ? { ...c, text: 'December' } : c)) }));
+    expect(() => fidelityReport.parse(lines)).toThrow(
+      '2 account section(s), none with an account summary under a "This Period" column left of x 400; "This Period" is printed at: nowhere; the line above the first beginning value reads: "December" x 255-299, "Year-to-Date" x 335-383',
+    );
+  });
+
   it('recognises its own reports only', () => {
     expect(fidelityReport.detect(report())).toBe(true);
     expect(fidelityReport.detect(report().filter((l) => !/INVESTMENT REPORT/.test(l.text)))).toBe(false);

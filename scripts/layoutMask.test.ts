@@ -32,7 +32,14 @@ describe('maskFigures', () => {
     expect(maskFigures('the 09/03 row: its text ends at x 46, 452; the column ends at x 486')).toBe(
       'the 09/03 row: its text ends at x 46, 452; the column ends at x 486',
     );
-    expect(maskFigures('this 2025-02-16 to 2025-03-15 statement')).toBe('this 2025-02-16 to 2025-03-15 statement');
+    expect(maskFigures('this 2025-02-10 to 2025-03-13 statement')).toBe('this 2025-02-10 to 2025-03-13 statement');
+  });
+
+  // A brokerage numbers its accounts with a dash; a refusal naming one must not carry it.
+  it('hides a dashed account number whole', () => {
+    expect(maskFigures('account X12-345678: the summary has no line')).toBe('account X##-######: the summary has no line');
+    expect(maskFigures('account 123-456789 shows "Deposits"')).toBe('account ###-###### shows "Deposits"');
+    expect(maskFigures('the line at x 262-297')).toBe('the line at x 262-297');
   });
 });
 
