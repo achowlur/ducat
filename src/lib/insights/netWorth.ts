@@ -156,9 +156,19 @@ export const INTERNAL_INVESTMENT_ACTIVITY =
  */
 const INBOUND_WORDING = /\b(received|transferred from|deposit|contribution|rollover in)\b/i;
 const OUTBOUND_WORDING = /\b(withdrawal|transferred to|distribution|rollover out)\b/i;
+/**
+ * A statement's own direction, which outranks the words naming a transfer's
+ * PURPOSE: "PRIOR CONTRIBUTION Transferred To" is money LEAVING one account to
+ * fund another's contribution, and read by "contribution" it counted as
+ * arriving on both sides, a deposit twice its size the market was then charged
+ * for.
+ */
+const STATED_DIRECTION = /\btransferred (to|from)\b/i;
 function crossingAmount(t: TxnData): number {
   if (INTERNAL_INVESTMENT_ACTIVITY.test(t.description)) return 0;
   const magnitude = Math.abs(t.amount);
+  const stated = STATED_DIRECTION.exec(t.description);
+  if (stated !== null) return stated[1].toLowerCase() === "from" ? magnitude : -magnitude;
   return INBOUND_WORDING.test(t.description) ? magnitude : OUTBOUND_WORDING.test(t.description) ? -magnitude : t.amount;
 }
 

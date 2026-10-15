@@ -109,6 +109,20 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   flow and understates gains rather than inflating them. DIRECTION comes from the
   wording, not the sign: the same monthly transfer arrives +1400 from Fidelity's
   CSV and -1400 from SimpleFIN, so only the magnitude is trusted.
+  A STATED DIRECTION OUTRANKS A PURPOSE WORD (2026-10-15). Funding an IRA from
+  a brokerage prints, on the brokerage's statement, "X00-000000-0PRIOR
+  CONTRIBUTION Transferred To". Inbound wording was tested first, so
+  "contribution" read it as money ARRIVING, and the IRA's own "Prior
+  Contribution" line arrived too: one move between two of the operator's
+  accounts counted as a deposit twice its size, and the month's market
+  movement was charged the difference (a few thousand dollars of real loss
+  printed as several times that). "Transferred to/from" is the statement's own
+  account of which way the money went; "contribution", "distribution" and
+  "deposit" name what it was FOR, which can sit on either side. The stated
+  phrase now decides first, and the purpose words only when no direction is
+  stated. Found by importing the statements that carried the move, before any
+  of it reached the cloud; it was the only investment row of hundreds whose
+  reading changed.
 - Sources disagree, so never trust one connector's convention alone. Fidelity's
   CSV and SimpleFIN sign the identical transfer oppositely; SimpleFIN reports
   trades as plain OUTFLOWs while the CSV mapping flags them TRANSFER. Anything

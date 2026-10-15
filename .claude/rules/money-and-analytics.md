@@ -37,7 +37,8 @@ anything below; several entries record "tried and failed, don't retry".
   unknown. A month LEAVES OUT and names an unknown account, never drops whole;
   growth and market gains compare only months over the same accounts.
 - investmentNetFlows counts only money CROSSING the account boundary;
-  direction comes from wording, only the magnitude is trusted.
+  direction comes from wording, a stated "transferred to/from" first, and
+  only the magnitude is trusted.
 - Never trust one connector's sign convention — investment-amount readers
   must be robust to Fidelity-CSV and SimpleFIN signing the same transfer
   oppositely.
