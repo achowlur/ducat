@@ -47,20 +47,17 @@ export function ViewSwitch<T extends string>({
   options,
   value,
   onChange,
-  label = "View as",
 }: {
   options: ViewOption<T>[];
   value: T;
   onChange: (v: T) => void;
-  /** What the choice is of: the chart, or (net worth) how far back it reaches. */
-  label?: string;
 }) {
   // Drawn as the header's theme switch is: the chosen one carries an ink
   // border, the rest a rule. A solid fill made this the heaviest control in
   // the app, louder than the figures it only changes the drawing of.
   return (
-    <div role="group" aria-label={label} className="flex flex-wrap items-center gap-1">
-      <span className={`mr-1 ${FIELD_LABEL}`}>{label}</span>
+    <div role="group" aria-label="View as" className="flex flex-wrap items-center gap-1">
+      <span className={`mr-1 ${FIELD_LABEL}`}>View as</span>
       {options.map((o) => {
         const active = o.value === value;
         return (

@@ -1,19 +1,13 @@
 "use client";
 
+import { useState } from "react";
+import { fullWindow, isFull, shownMonths, type ChartWindow } from "../../lib/ui/chartZoom";
 import { money, monthAbbrev, pct, shortMonthLabel } from "../../lib/ui/format";
-import {
-  growthBetween,
-  growthByYear,
-  pointsIn,
-  rangesFor,
-  type NetWorthRange,
-  type YearGrowth,
-} from "../../lib/ui/netWorthGrowth";
+import { growthBetween, growthByYear, type YearGrowth } from "../../lib/ui/netWorthGrowth";
 import { wholePercents } from "../../lib/ui/spendingBreakdown";
 import { NetWorthChart } from "../charts/NetWorthChart";
 import { COLUMN_HEADER, SubsectionTitle } from "../ui/headings";
 import { CardFrame, Fig, Hero, Lead, Note } from "./CardFrame";
-import { useCardView, ViewSwitch } from "./ViewSwitch";
 
 export interface NetWorthMonth {
   period: string;
@@ -41,31 +35,27 @@ function yearLabel(y: YearGrowth): string {
 }
 
 /**
- * Net worth over a range the reader picks, and what moved it: the markets, or
- * money kept. Every month is already on the page, so the range is a VIEW, kept
- * like every card's chart choice (URL and cookie) and asking the server
- * nothing; the line rescales to the months it shows.
+ * Net worth, zoomed wherever the reader pinches or scrolls, and what moved it
+ * over the months on show: the markets, or money kept. The window lives here,
+ * not in the chart, because the figures above the line follow it. Every month
+ * is already on the page, so zooming asks the server nothing.
  */
 export function NetWorthCard({
   months,
-  initialRange,
   spendingFrom,
 }: {
   months: NetWorthMonth[];
-  initialRange: NetWorthRange;
   /** The first month of the spending history, for the note when this line is shorter. */
   spendingFrom: string | null;
 }) {
-  const [chosen, choose] = useCardView<NetWorthRange>("n", initialRange);
-  const available = rangesFor(months.length);
-  // A remembered range the history is too short for draws everything.
-  const range = available.some((r) => r.value === chosen) ? chosen : "all";
-  const shown = pointsIn(months, range);
-
-  const switcher =
-    available.length > 1 ? (
-      <ViewSwitch label="Show" options={available.map((r) => ({ value: r.value, label: r.label }))} value={range} onChange={choose} />
-    ) : null;
+  const [shownWindow, setWindow] = useState<ChartWindow>(() => fullWindow(months.length));
+  // A new history (a statement import, a sync) resets the zoom rather than
+  // holding a window measured against the old one.
+  const [anchorCount, setAnchorCount] = useState(months.length);
+  if (anchorCount !== months.length) {
+    setAnchorCount(months.length);
+    setWindow(fullWindow(months.length));
+  }
 
   const historyStartsHere = (
     <p className="mb-3 border-l-2 border-warn bg-chip/50 px-2.5 py-1.5 text-[0.75rem] text-faint">
@@ -81,12 +71,15 @@ export function NetWorthCard({
     return (
       <CardFrame id="net-worth" title="Net worth" switcher={null}>
         {historyStartsHere}
-        <NetWorthChart months={[]} />
+        <NetWorthChart months={[]} window={shownWindow} onWindow={setWindow} />
       </CardFrame>
     );
   }
 
-  const growth = shown.length > 1 ? growthBetween(shown, 0, shown.length - 1) : null;
+  const zoomed = !isFull(shownWindow, months.length);
+  const { first, last } = shownMonths(shownWindow);
+  const shown = months.slice(first, last + 1);
+  const growth = last > first ? growthBetween(months, first, last) : null;
   const years = growthByYear(months);
   const estimatedMonths = shown.filter((m) => m.estimated).length;
   // Each account a shown month leaves out, with the LAST month it is missing from.
@@ -101,17 +94,28 @@ export function NetWorthCard({
       ? wholePercents([growth.saved / growth.change, growth.markets / growth.change])
       : [null, null];
 
+  const reset = zoomed ? (
+    <button
+      type="button"
+      onClick={() => setWindow(fullWindow(months.length))}
+      className="tap44 rounded-sm border border-rule px-2 py-0.5 text-[0.75rem] text-faint hover:text-ink"
+    >
+      Show all months
+    </button>
+  ) : null;
+
   return (
-    <CardFrame id="net-worth" title="Net worth" switcher={switcher}>
+    <CardFrame id="net-worth" title="Net worth" switcher={reset}>
       {growth !== null && (
         <Hero figure={signedMoney(growth.change)} tone={toneOf(growth.change)}>
           <Lead>
             {shortMonthLabel(growth.from)} to {shortMonthLabel(growth.to)}
           </Lead>
-          {/* All measures from wherever the records happen to begin, often a
-              near-empty first account, so its ratio describes the records,
-              not the growth. A chosen range starts at a real month-end. */}
-          {growth.pct !== null && range !== "all" && (
+          {/* From the first month on record the base is wherever the records
+              happen to begin, often a near-empty first account, so its ratio
+              describes the records, not the growth. Zoomed past it, the base
+              is a real month-end. */}
+          {growth.pct !== null && first > 0 && (
             <>
               {" "}
               · <Fig tone={toneOf(growth.pct)}>{`${growth.pct >= 0 ? "▲" : "▼"} ${pct(Math.abs(growth.pct)).slice(1)}`}</Fig>
@@ -131,9 +135,11 @@ export function NetWorthCard({
         Month-end, {leftOut.length === 0 ? "all accounts" : "every account with a value that month"},{" "}
         <span className="text-ink">{shortMonthLabel(shown[0].period)}</span> to{" "}
         <span className="text-ink">{shortMonthLabel(shown[shown.length - 1].period)}</span>. Hover or tap a month for
-        exact figures. A dashed line and a hollow point mark a month to discount: partly estimated (an investment
-        account&apos;s value carried from an earlier month, its market movement since unseen, or a balance worked out
-        from transactions), or leaving an account out.
+        exact figures. Pinch to zoom in anywhere and slide two fingers to move along; on a computer, Ctrl and scroll
+        (or pinch the trackpad) and drag. The figures above follow the months on show. A dashed line and a hollow
+        point mark a month to discount: partly estimated (an investment account&apos;s value carried from an earlier
+        month, its market movement since unseen, or a balance worked out from transactions), or leaving an account
+        out.
         {/* How MANY are estimated is a fact about the whole line, not a
             per-point footnote: six of seven is a reason to discount the
             slope, and it was reachable only by hovering each month in turn. */}
@@ -160,13 +166,12 @@ export function NetWorthCard({
             .
           </>
         )}
-        {range === "all" && spendingFrom !== null && months[0].period > spendingFrom && (
+        {!zoomed && spendingFrom !== null && months[0].period > spendingFrom && (
           <> Shorter than the spending history above: a month appears once some account has a value in it.</>
         )}
       </p>
       {months.length < 3 && historyStartsHere}
-      {/* Keyed by range: a hovered index from a longer range must not survive into a shorter one. */}
-      <NetWorthChart key={range} months={shown} />
+      <NetWorthChart months={months} window={shownWindow} onWindow={setWindow} />
 
       {years.length > 0 && (
         <div className="mt-6">
