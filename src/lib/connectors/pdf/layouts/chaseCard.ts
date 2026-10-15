@@ -152,18 +152,20 @@ export const chaseCard: StatementLayout = {
       checks.push({ label: `${name} in the account summary`, printedCents: cents(printed), rows: (r) => sectionOf.get(r) === key });
     }
 
-    return {
-      layout: 'chase-card',
-      institution: 'Chase',
-      accountType: 'CREDIT',
-      accountLast4: last4,
-      periodStart,
-      periodEnd,
-      // A balance owed prints positive; the app stores it negative.
-      openingBalance: -previous,
-      closingBalance: -latest,
-      rows,
-      checks,
-    };
+    return [
+      {
+        layout: 'chase-card',
+        institution: 'Chase',
+        accountType: 'CREDIT',
+        accountLast4: last4,
+        periodStart,
+        periodEnd,
+        // A balance owed prints positive; the app stores it negative.
+        openingBalance: -previous,
+        closingBalance: -latest,
+        rows,
+        checks,
+      },
+    ];
   },
 };

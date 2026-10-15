@@ -43,7 +43,9 @@ Each item checked against the code after PR #29.
   as a repayment or seen paired as a transfer carries decisions the delete
   would take with it, so it must report those and leave them to a person.
   And more layouts as they are needed, each written from a
-  `npm run pdf:layout` dump as the two shipped layouts were.
+  `npm run pdf:layout` dump as the shipped ones were. For Fidelity, the
+  sections it refuses by name (exchanges, transfers between accounts) once a
+  statement shows one.
 
 ### Needs a decision before any code
 

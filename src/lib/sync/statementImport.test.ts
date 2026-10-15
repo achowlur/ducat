@@ -126,7 +126,7 @@ describe('planStatementImport', () => {
   it('files the statement under the account its last four digits name', async () => {
     const { plan } = await verdictOf([file('a.pdf', 'aa')]);
     expect(plan.statements.map((p) => p.account.id)).toEqual([accountId]);
-    expect(plan.statements[0].batchId).toBe(batchIdFor('aa'.padEnd(64, '0')));
+    expect(plan.statements[0].batchId).toBe(batchIdFor('aa'.padEnd(64, '0'), '0001'));
   });
 
   it('lists stored rows inside the period that no statement row explains', async () => {
@@ -150,6 +150,90 @@ describe('planStatementImport', () => {
     expect(plan.statements.map((p) => p.file.fileName)).toEqual(['a.pdf']);
     expect(plan.skipped.map((s) => s.fileName)).toEqual(['a copy.pdf', 'redownload.pdf']);
   });
+
+  it('skips a statement overlapping another, but not one sharing only its boundary day', async () => {
+    const quarter = statement({ periodStart: utc(1, 1), periodEnd: utc(3, 13), rows: [] });
+    const next = statement({ periodStart: utc(3, 13), periodEnd: utc(4, 12), rows: [] });
+    const { plan } = await verdictOf([file('a.pdf', 'aa'), file('quarter.pdf', 'ee', quarter), file('next.pdf', 'ff', next)]);
+    expect(plan.statements.map((p) => p.file.fileName)).toEqual(['a.pdf', 'next.pdf']);
+    expect(plan.skipped.map((s) => s.reason)).toEqual([
+      'this 2025-01-01 to 2025-03-13 statement overlaps the 2025-02-10 to 2025-03-13 one already in this run, as a.pdf',
+    ]);
+  });
+
+  // One --external-id cannot route two accounts; forcing both into it would mix them.
+  it('refuses --external-id for a file holding several accounts', async () => {
+    const report = [file('report.pdf', 'dd'), file('report.pdf', 'dd', statement({ accountLast4: '0002' }))];
+    const plan = await planStatementImport(prisma, report, { windowDays: 4, externalId: 'ext-card' });
+    expect(plan.statements).toEqual([]);
+    expect(plan.skipped.map((s) => s.reason)).toEqual([
+      'it holds 2 accounts and --external-id names one, so the account ending in 0001 is left out (run it without --external-id)',
+      'it holds 2 accounts and --external-id names one, so the account ending in 0002 is left out (run it without --external-id)',
+    ]);
+  });
+});
+
+describe('an investment statement', () => {
+  let brokerageId: string;
+  const plan = async () => {
+    const report = statement({
+      institution: 'Example Brokerage',
+      accountType: 'INVESTMENT',
+      accountLast4: '0003',
+      openingBalance: 5123.89,
+      closingBalance: 5123.89,
+      rows: [{ date: utc(2, 24), description: 'EFT FUNDS RECEIVED', amount: 397.52 }],
+    });
+    return verdictOf([file('brokerage.pdf', 'b1', report)]);
+  };
+
+  beforeAll(async () => {
+    const brokerage = await prisma.account.create({
+      data: {
+        externalId: 'ext-brokerage',
+        connectorType: 'SIMPLEFIN',
+        institution: 'Example Brokerage',
+        name: 'Brokerage (0003)',
+        type: 'INVESTMENT',
+        currency: 'USD',
+        balance: 5123.89,
+        balanceDate: utc(3, 20),
+        isStale: false,
+      },
+    });
+    const row = (externalId: string, date: Date, amount: number, description: string) => ({
+      accountId: brokerage.id,
+      externalId,
+      date,
+      amount,
+      description,
+      normalizedMerchant: description.toLowerCase(),
+      flow: 'TRANSFER' as const,
+      categorySource: 'AGGREGATOR' as const,
+      source: 'SIMPLEFIN' as const,
+    });
+    await prisma.transaction.createMany({
+      data: [
+        row('feed-dividend', utc(2, 20), 12.47, 'DIVIDEND RECEIVED EXAMPLE INDEX FUND'),
+        row('feed-buy', utc(2, 21), -318.06, 'YOU BOUGHT EXAMPLE INDEX FUND'),
+        row('feed-out', utc(3, 1), -246.91, 'TRANSFERRED TO EXAMPLE BANK'),
+        // The feed signs a brokerage deposit negative; the statement prints it positive.
+        row('feed-in', utc(2, 25), -397.52, 'EFT FUNDS RECEIVED'),
+      ],
+    });
+    brokerageId = brokerage.id;
+  });
+
+  it('matches a stored row of the same amount whichever sign its source gave it', async () => {
+    const { kinds } = await plan();
+    expect(kinds).toEqual(['EFT FUNDS RECEIVED MATCHED']);
+  });
+
+  // It lists only money crossing the account, so trades and dividends are never on it.
+  it('lists no trade or dividend among the stored rows it does not explain', async () => {
+    const { plan: planned } = await plan();
+    expect(planned.storedOnly.get(brokerageId)?.map((r) => r.description)).toEqual(['TRANSFERRED TO EXAMPLE BANK']);
+  });
 });
 
 describe('the dry run and the write agree', () => {
@@ -168,7 +252,7 @@ describe('the dry run and the write agree', () => {
   it('marks every added row with its source and statement, and records the statement', async () => {
     const rows = await prisma.transaction.findMany({ where: { source: 'PDF' }, orderBy: { date: 'asc' } });
     expect(rows.map((r) => r.description)).toEqual(['CORNER CAFE', 'EXAMPLE GROCER', 'EXAMPLE BOOKSHOP']);
-    const batchId = batchIdFor('aa'.padEnd(64, '0'));
+    const batchId = batchIdFor('aa'.padEnd(64, '0'), '0001');
     expect(new Set(rows.map((r) => r.importBatchId))).toEqual(new Set([batchId]));
     const batch = await prisma.importBatch.findUniqueOrThrow({ where: { id: batchId } });
     expect([batch.fileName, batch.rowsAdded, batch.accountId]).toEqual(['a.pdf', 3, accountId]);
@@ -193,6 +277,53 @@ describe('the dry run and the write agree', () => {
 
 // A card lists a late-posted charge under the merchant's date, months before
 // the statement it appears on; the feed stored it when it POSTED.
+describe('an account the statements cover and Ducat never had', () => {
+  // A closed brokerage account: emptied by a transfer out in its last statement.
+  const closing = statement({
+    accountType: 'INVESTMENT',
+    accountLast4: '0007',
+    periodStart: utc(1, 1),
+    periodEnd: utc(1, 31),
+    openingBalance: 634.18,
+    closingBalance: 0,
+    rows: [{ date: utc(1, 10), description: 'TRANSFERRED TO EXAMPLE BANK', amount: -634.18 }],
+  });
+  const create = { last4: '0007', name: 'Closed brokerage' };
+
+  it('is skipped, saying how to add it, unless asked for', async () => {
+    const { plan } = await verdictOf([file('closed.pdf', 'c7', closing)]);
+    expect(plan.statements).toEqual([]);
+    expect(plan.skipped[0].reason).toMatch(/--create-account=0007 to add it/);
+  });
+
+  it('is planned under its own name and digits, its balance its last close', async () => {
+    const plan = await planStatementImport(prisma, [file('closed.pdf', 'c7', closing)], { windowDays: 4, createAccount: create });
+    expect(plan.newAccounts.map((n) => [n.account.name, n.account.institution, n.account.type, n.balance, n.balanceDate])).toEqual([
+      ['Closed brokerage (0007)', 'Example Bank', 'INVESTMENT', 0, utc(1, 31)],
+    ]);
+    expect(plan.statements.map((p) => p.rows.map((r) => r.verdict.kind))).toEqual([['NEW']]);
+  });
+
+  it('is never created when an account carries those digits', async () => {
+    await expect(planStatementImport(prisma, [file('a.pdf', 'aa')], { windowDays: 4, createAccount: { last4: '0001' } })).rejects.toThrow(
+      'No statement in this run is for a missing account ending in 0001',
+    );
+  });
+
+  it('is created by the write, then matched like any account on a re-run', async () => {
+    const plan = await planStatementImport(prisma, [file('closed.pdf', 'c7', closing)], { windowDays: 4, createAccount: create });
+    await writeStatementImport(prisma, plan);
+    const made = await prisma.account.findFirstOrThrow({ where: { name: 'Closed brokerage (0007)' } });
+    expect([made.connectorType, made.isStale, Number(made.balance), made.balanceDate]).toEqual(['PDF', false, 0, utc(1, 31)]);
+    expect(await prisma.transaction.count({ where: { accountId: made.id } })).toBe(1);
+    expect(await prisma.balanceSnapshot.count({ where: { accountId: made.id } })).toBe(1);
+    expect(await prisma.importBatch.count({ where: { accountId: made.id } })).toBe(1);
+
+    const again = await planStatementImport(prisma, [file('closed.pdf', 'c7', closing)], { windowDays: 4 });
+    expect(again.skipped.map((k) => k.reason)).toEqual([expect.stringMatching(/^already imported on /)]);
+  });
+});
+
 describe('a late-posted row', () => {
   let cardId: string;
 

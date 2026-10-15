@@ -25,6 +25,8 @@ import type { AccountData, SnapshotData, TxnData } from './types';
  * on a six-figure portfolio. Callers pass the period start, which makes the
  * contract "an investment balance is known for a period only if a snapshot
  * falls inside that period" — i.e. import one month-end per month you want.
+ * Save one case: a last snapshot of ZERO with no transaction since stays zero,
+ * since an empty (closed) account has no market exposure to move it.
  */
 export function balanceAt(
   account: AccountData,
@@ -45,6 +47,16 @@ export function balanceAt(
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 
   if (own.length === 0 && marketValued) {
+    // The exception: an account last valued at ZERO with no transaction since
+    // (a closed account) has nothing for the market to move, so carrying that
+    // zero forward is no fiction. Any money in since makes it unknown again.
+    const last = snapshots
+      .filter((s) => s.accountId === account.id && s.date.getTime() <= at.getTime())
+      .reduce<SnapshotData | null>((latest, s) => (latest === null || s.date.getTime() > latest.date.getTime() ? s : latest), null);
+    const untouched =
+      last !== null &&
+      !txns.some((t) => t.accountId === account.id && t.date.getTime() > last.date.getTime() && t.date.getTime() <= at.getTime());
+    if (last !== null && last.balance === 0 && untouched) return { balance: 0, estimated: false, known: true };
     return { balance: 0, estimated: true, known: false };
   }
 

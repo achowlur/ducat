@@ -11,6 +11,7 @@ give you, the statements are the record.
 | --- | --- |
 | `chase-card` | Chase credit card |
 | `wells-fargo-deposit` | Wells Fargo checking and savings |
+| `fidelity-report` | Fidelity Investment Report, every account in it (see [Investment accounts](#investment-accounts)) |
 
 Any other PDF is refused with a reason; nothing is guessed at. To add a layout,
 see [Adding a layout](#adding-a-layout).
@@ -28,7 +29,8 @@ Each statement lands in the account it belongs to, found by the last four
 digits the statement prints. The account must already exist (a live feed or an
 earlier import made it); a statement for an account the import cannot name is
 skipped and reported. `--external-id=<id>` files every statement in the run
-under that one account instead.
+under that one account instead; a file holding several accounts is skipped
+under it, since one id cannot say where each goes.
 
 ## What makes a statement acceptable
 
@@ -37,7 +39,8 @@ A statement is imported **whole or not at all**. It is refused when:
 - it is a scan with no text layer (there is no OCR);
 - its layout is not one listed above;
 - its rows do not add up: the opening balance plus every row must equal the
-  closing balance to the cent, and every subtotal the statement prints must
+  closing balance to the cent (for an investment account, plus the market
+  change the statement prints), and every subtotal the statement prints must
   match the rows it covers. This is what catches a dropped row, a missed page
   or a misread sign without anyone checking by hand.
 
@@ -75,7 +78,40 @@ bank's own record of its period, so they are worth a look.
 
 The same file is never imported twice (it is recognised by its contents, not
 its name), and neither is the same statement downloaded again as a different
-file.
+file. A statement whose dates overlap another one for the same account, such
+as a quarterly report beside the monthly ones, is skipped with the reason,
+since the two would list the same rows.
+
+## Investment accounts
+
+A Fidelity Investment Report holds every account in one file. Each account is
+read as its own statement, and if any of them does not add up, none is
+imported. For each account the import keeps:
+
+- **its value**: the ending account value becomes a balance snapshot, which is
+  what net worth reads for an investment account;
+- **money in and out**: the rows behind every line under Additions and
+  Subtractions in its account summary (deposits, withdrawals, exchanges), each
+  read from the section of the same name, or for an exchange from the
+  "Transferred From/To" rows of the account's activity; and securities moved
+  between accounts in kind, one row per security at the value of the
+  transaction the report prints for it.
+
+Trades, dividends, reinvestments and the sweep into the core position stay
+inside the account, so they are not read at all; what the account earned is
+the statement's own "Change in Investment Value". Fees and transaction costs
+the account pays count with that change, as Ducat already counts an advisory
+fee inside an investment account, and are not rows. The check is the
+beginning value plus every row plus the printed change and costs, which must
+equal the ending value to the cent.
+
+In an investment account a row already stored matches on its amount whichever
+sign it was stored with: the live feed records a brokerage deposit as negative
+where the statement and Fidelity's own export print it positive. The year-end report is refused: it summarises the whole
+year at once, and the monthly reports carry its months. If an account moved
+money through a summary line that no
+section lists, or the summary holds a line the import cannot place, the file is
+refused with that line's name.
 
 ## Sharing the report
 
@@ -86,10 +122,26 @@ way `npm run pdf:layout` masks a statement. Read it before you paste it.
 
 ## Balances
 
-A statement import never changes an account's current balance. Each
+A statement import never changes an existing account's current balance. Each
 statement's closing balance is written as a balance snapshot dated to the
 statement's closing day, which gives net worth real month-end figures for the
 imported months.
+
+## An account Ducat never had
+
+Statements can cover an account no feed ever reached, typically one closed
+before the feed was connected. Its statements are skipped with the reason
+"no single ... account ending in 1234", and the account can be added from them:
+
+```bash
+npm run import:pdf -- <folder> --dry-run --create-account=1234 --account-name="Managed account (closed)"
+```
+
+The account is created with that name and its last four digits (so later runs
+match it like any other), and its balance is its last statement's closing
+value. An investment account closed at zero stays zero in net worth for every
+month after it closed, since there is nothing left for the market to move. An
+account that already exists is matched, never created again.
 
 ## What is recorded, and undoing an import
 
@@ -116,7 +168,9 @@ DATABASE_URL="libsql://…turso.io" TURSO_AUTH_TOKEN="…" npm run import:pdf --
 npm run pdf:layout -- <statement.pdf>
 ```
 
-prints a statement the way the import reads it: one line per row of the page,
+prints a statement the way the import reads it (`--pages=4-6` for some pages,
+or `--pages-with="Exchanges In"` for the pages holding a phrase, found in the
+real text even when the mask hides it): one line per row of the page,
 each piece of text with the x positions it starts and ends at. It is masked by
 default: every digit prints as `#`, and every word that is not statement
 vocabulary (your name and address, people paid by Zelle, every merchant)

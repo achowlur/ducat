@@ -944,7 +944,9 @@ blocker; all are the kind of thing that is invisible until someone looks.
   BUILT 2026-10-15: `npm run import:pdf`, reading Chase card and Wells Fargo
   checking statements, with `npm run pdf:layout` to describe a new layout.
   Evidence in docs/conventions/sync-and-data-ops.md, PDF STATEMENT IMPORT. An
-  undo command and more layouts went back on the backlog.
+  undo command and more layouts went back on the backlog. Then Fidelity's
+  Investment Report: one file for every account, read as one statement each,
+  its value checked against the printed change in investment value.
 
 ## CLAUDE.md, split twice
 

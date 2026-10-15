@@ -36,6 +36,10 @@ const VOCABULARY = new Set(
   authorized online mobile recurring thank thanks web autopay auto pay
   ach atm pos zelle ppd ccd id ref reference ret return returned reversal refund
   service overdraft item items deposited direct
+  investment value change market exchange exchanges cost costs core fund funds
+  securities bought sold income dividend dividends reinvestment contribution
+  contributions distribution distributions taxes withheld advisory managed
+  program report transferred out
   `
     .split(/\s+/)
     .filter(Boolean),
@@ -56,9 +60,15 @@ export function maskLayoutText(text: string): string {
  * diagnosed by where text sat on the page and which statement it was.
  */
 export function maskFigures(text: string): string {
-  return text
-    .replace(/-?\$?(\d{1,3}(,\d{3})+|\d+)\.\d{2}\b/g, '#.##')
-    .replace(/(?<![\d-])\d{4,}(?![\d-])/g, (run) => '#'.repeat(run.length));
+  return (
+    text
+      .replace(/-?\$?(\d{1,3}(,\d{3})+|\d+)\.\d{2}\b/g, '#.##')
+      // Every run of four or more digits, a dashed account number's included;
+      // only an ISO date stays, matched whole so its year survives.
+      .replace(/\b\d{4}-\d{2}-\d{2}\b|\d{4,}/g, (run) => (run.includes('-') ? run : '#'.repeat(run.length)))
+      // And the prefix of a dashed account number ("X12-######").
+      .replace(/\b([A-Z]?)(\d{1,3})-(?=#{4,})/g, (_, letter: string, digits: string) => `${letter === '' ? '' : 'X'}${'#'.repeat(digits.length)}-`)
+  );
 }
 
 /** Digits only: words, names included, are kept. For a reader who has read the output first. */

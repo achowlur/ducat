@@ -133,6 +133,75 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   account, period) is written LAST with an id derived from the file's hash, so
   a write that fails midway records nothing and its re-run is not refused as
   already imported.
+  ONE FILE, SEVERAL ACCOUNTS. Fidelity's Investment Report covers every
+  account the holder has, each under its own "Account #" header, so a layout
+  returns a LIST of statements; each is reconciled on its own and the file is
+  refused whole if any fails. The batch id and the same-file check key on the
+  file AND the account. An investment's value moves with the market, so its
+  check is beginning + rows + the PRINTED "Change in Investment Value" =
+  ending (`marketChange`): the statement's own figure, never one derived, or
+  the check would hold by construction. Only money crossing the account is a
+  row (the closed box: trades, dividends, reinvestments and core sweeps stay
+  inside); a summary line moving money through a section the parser does not
+  read REFUSES the statement and names the line. Two guards came with it:
+  `--external-id` names ONE account, so under it a file holding several is
+  skipped rather than poured into it; and a statement whose period OVERLAPS
+  another for the same account (a quarterly report beside a monthly one) is
+  skipped, because rows are matched against the database, never against
+  another statement in the same run. Periods sharing only a boundary day do
+  not count as overlapping.
+  The first real run refused nearly every report with "rows add up to #.##,
+  the statement prints #.##" and nothing else, because the summary reader
+  SKIPPED a line whose figure it could not place, and a masked report cannot
+  show which. So the summary is read strictly: every line between the
+  beginning and ending value that prints a figure this period must sit under
+  Additions or Subtractions, each heading's lines must add up to it, and a
+  refusal quotes every label it read. The same run showed `--share` printing
+  whole account numbers: its mask kept any digit run next to a dash (for ISO
+  dates), and a brokerage account number has one. It now keeps only an ISO
+  date, and text a reason quotes from a statement is masked as a row is.
+  The strict reader's first run named the cause at once: the real reports set
+  the summary 18 points left of the dump the parser was written from (labels
+  at x 31 and the lines under them at 40, against 49 and 58), so "Deposits"
+  sat left of the fixed indent and belonged to no heading. Positions are now
+  read RELATIVE to the page's own headings: a line is under Additions when it
+  is set in from Additions, a wrapped description continues under the
+  Description column. Every line under Additions or Subtractions is read
+  through the section of its own name (Exchanges In, a fee as well as
+  Deposits), since each is money crossing the account. A summary with no
+  change-in-value line at all (an account holding only a balance) is no
+  change, which the value check still tests. The YEAR-END report is refused
+  by name: one summary of the whole year, which overlaps every monthly report
+  and which a December monthly report sits beside. And the dry run's list of
+  stored rows no statement explains leaves out an investment account's
+  trades and dividends (the closed box's own test), which no investment
+  statement lists: on the first run they buried the rows worth a look.
+  Brokerage words joined the mask's vocabulary ("Exchanges" printed as
+  "Xxxxxxxxx"), and `pdf:layout --pages-with` finds pages by their REAL
+  text, so a page can be asked for by a word the mask hides.
+  With `pdf:layout` run on the real reports (masked), the rest fell out:
+  an account with ONE activity table lists an exchange as a "Transferred
+  From/To" row in it, not a section of its own, so an exchange with no
+  section is read from those rows; securities moved IN KIND ("Transfers
+  Between Fidelity Accounts", a heading of its own) carry a quantity and no
+  amount, but print each one's VALUE OF TRANSACTION below it on both sides,
+  so they are one row per security at that value; fees and a trade's
+  transaction cost are counted with the change in value (as netWorth.ts
+  already counts an advisory fee inside the account), never as rows; and an
+  edge mark and the footer's code past the Amount column are never an
+  amount. The last find was the one that mattered: deposits came out as
+  gaps beside stored rows the feed had signed NEGATIVE, the known
+  disagreement between SimpleFIN and Fidelity's own records, so they would
+  have been added twice. In an investment account a statement row now
+  matches on the amount's magnitude.
+  AN ACCOUNT NO FEED EVER HAD. The reports also covered an account closed
+  before the feed was connected, so Ducat had never had it and its value
+  over the years it was open was missing from net worth. `--create-account=<last four>`
+  makes it from its statements: named with its digits so later runs match it,
+  its balance its last close (the one Account.balance an import writes, as
+  nothing else ever will), and created FIRST in the write, so a write failing
+  after it simply matches it on the re-run. Two accounts already carrying
+  those digits is ambiguity, never a reason to make a third.
   SHARING A LAYOUT WITHOUT SHARING A STATEMENT. Parsers were written from
   `npm run pdf:layout` dumps the operator pasted. Masking digits alone was not
   enough: a statement prints the holder's name and address and the people paid

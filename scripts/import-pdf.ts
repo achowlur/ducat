@@ -22,6 +22,7 @@ import { maskFigures, maskLayoutText } from './layoutMask';
  * Usage:
  *   npm run import:pdf -- <statement.pdf | folder> [more...] [--dry-run]
  *     [--external-id=<account externalId>] [--match-days=4] [--share]
+ *     [--create-account=<last four digits> [--account-name=<name>]]
  *
  * Reads bank statement PDFs into history. Each statement is read by the parser
  * for its layout and REFUSED WHOLE unless its rows add up to its own opening
@@ -37,9 +38,14 @@ import { maskFigures, maskLayoutText } from './layoutMask';
  * nothing; run it first, against the database the import will land in.
  *
  * --share prints the report so it can be pasted to someone helping: counts and
- * refusal reasons stay readable with their figures masked, and every listed
- * row goes through the pdf:layout mask (scripts/layoutMask.ts), so no name,
- * merchant or amount survives.
+ * refusal reasons stay readable with their figures masked, text a reason quotes
+ * from a statement and every listed row go through the pdf:layout mask
+ * (scripts/layoutMask.ts), so no name, merchant or amount survives.
+ *
+ * --create-account adds the account ending in those digits when the
+ * statements cover one Ducat has never had (a closed account no feed
+ * reached): named --account-name plus its digits, its balance its last
+ * statement's closing value. An account that exists is matched, never made.
  *
  * Each statement's closing balance is written as a snapshot dated to it, and
  * each file is recorded (name, hash, account, period) so a re-run skips it
@@ -77,6 +83,12 @@ function pdfFiles(paths: string[]): string[] {
 function report(plan: StatementImportPlan, refused: { fileName: string; reason: string }[]): void {
   for (const r of refused) console.log(`  REFUSED  ${r.fileName}: ${reason(r.reason)}`);
   for (const s of plan.skipped) console.log(`  SKIPPED  ${s.fileName}: ${reason(s.reason)}`);
+
+  for (const n of plan.newAccounts) {
+    console.log(
+      `  NEW      ${reason(n.account.name)} (${n.account.institution}, ${n.account.type.toLowerCase()}): created, its balance ${reason(n.balance.toFixed(2))} as of ${day(n.balanceDate)}`,
+    );
+  }
 
   let account = '';
   for (const p of plan.statements) {
@@ -126,7 +138,9 @@ async function main(): Promise<void> {
 
   const paths = process.argv.slice(2).filter((a) => !a.startsWith('--'));
   if (paths.length === 0) {
-    console.error('Usage: npm run import:pdf -- <statement.pdf | folder> [more...] [--dry-run] [--external-id=<id>] [--match-days=4] [--share]');
+    console.error(
+      'Usage: npm run import:pdf -- <statement.pdf | folder> [more...] [--dry-run] [--external-id=<id>] [--match-days=4] [--share] [--create-account=<last four> [--account-name=<name>]]',
+    );
     process.exit(1);
   }
   const windowDays = Number(arg('match-days') ?? '4');
@@ -134,30 +148,39 @@ async function main(): Promise<void> {
     console.error('--match-days must be a whole number from 0 to 10');
     process.exit(1);
   }
+  const createLast4 = arg('create-account');
+  if (createLast4 !== undefined && !/^\d{4}$/.test(createLast4)) {
+    console.error("--create-account takes the account's last four digits");
+    process.exit(1);
+  }
   const dryRun = hasFlag('dry-run');
   if (hasFlag('share')) {
     listed = maskLayoutText;
-    reason = maskFigures;
+    // A reason quotes what it read from the statement; that is masked as a row is.
+    reason = (text) => maskFigures(text).replace(/"([^"]*)"/g, (_, quote: string) => `"${maskLayoutText(quote)}"`);
   }
 
   const files: StatementFile[] = [];
   const refused: { fileName: string; reason: string }[] = [];
-  for (const path of pdfFiles(paths)) {
+  const found = pdfFiles(paths);
+  for (const path of found) {
     const bytes = readFileSync(path);
     const result = await readStatement(bytes);
     if (!result.ok) {
       refused.push({ fileName: basename(path), reason: result.reason });
       continue;
     }
-    files.push({
-      fileName: basename(path),
-      fileSha256: createHash('sha256').update(bytes).digest('hex'),
-      statement: result.statement,
-    });
+    // A brokerage report covers several accounts: one statement each.
+    const fileSha256 = createHash('sha256').update(bytes).digest('hex');
+    for (const statement of result.statements) files.push({ fileName: basename(path), fileSha256, statement });
   }
 
-  const plan = await planStatementImport(prisma, files, { windowDays, externalId: arg('external-id') });
-  console.log(`${dryRun ? 'DRY RUN' : 'IMPORT'}: ${files.length + refused.length} file(s), ${plan.statements.length} statement(s) to import`);
+  const plan = await planStatementImport(prisma, files, {
+    windowDays,
+    externalId: arg('external-id'),
+    ...(createLast4 === undefined ? {} : { createAccount: { last4: createLast4, name: arg('account-name') } }),
+  });
+  console.log(`${dryRun ? 'DRY RUN' : 'IMPORT'}: ${found.length} file(s), ${plan.statements.length} statement(s) to import`);
   report(plan, refused);
 
   if (dryRun) {

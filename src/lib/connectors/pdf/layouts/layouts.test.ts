@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TextLine } from '../lines';
-import { noonUtc, reconcile } from '../statement';
+import { noonUtc, reconcile, type ParsedStatement, type StatementLayout } from '../statement';
 import { chaseCard } from './chaseCard';
 import { wellsFargoDeposit } from './wellsFargoDeposit';
 
@@ -10,6 +10,13 @@ import { wellsFargoDeposit } from './wellsFargoDeposit';
  * real name, merchant or figure.
  */
 type Cell = [x: number, xEnd: number, text: string];
+
+/** A bank or card statement file holds exactly one account. */
+const parseOne = (layout: StatementLayout, lines: TextLine[]): ParsedStatement => {
+  const all = layout.parse(lines);
+  expect(all).toHaveLength(1);
+  return all[0];
+};
 const line = (page: number, y: number, ...cells: Cell[]): TextLine => ({
   page,
   y,
@@ -68,7 +75,7 @@ const wellsFargo2026 = (statementDate = 'October 9, 2026', begin = '9/11', end =
 
 describe('wellsFargoDeposit', () => {
   it('reads the older layout: period, account, balances and rows, wrapped lines joined', () => {
-    const s = wellsFargoDeposit.parse(wellsFargo2019());
+    const s = parseOne(wellsFargoDeposit, wellsFargo2019());
     expect([s.periodStart, s.periodEnd]).toEqual([noonUtc(2018, 12, 8), noonUtc(2019, 1, 9)]);
     expect([s.accountLast4, s.accountType, s.openingBalance, s.closingBalance]).toEqual(['1234', 'DEPOSITORY', 500, 1250]);
     expect(s.rows).toEqual([
@@ -80,7 +87,7 @@ describe('wellsFargoDeposit', () => {
   });
 
   it('reads the newer layout, taking the period from the statement date and the summary', () => {
-    const s = wellsFargoDeposit.parse(wellsFargo2026());
+    const s = parseOne(wellsFargoDeposit, wellsFargo2026());
     expect([s.periodStart, s.periodEnd]).toEqual([noonUtc(2026, 9, 11), noonUtc(2026, 10, 9)]);
     expect(s.accountLast4).toBe('5678');
     expect(s.rows.map((r) => [r.amount, r.description])).toEqual([
@@ -97,7 +104,7 @@ describe('wellsFargoDeposit', () => {
     const lines = wellsFargo2026().map((l) =>
       l.page === 1 && l.y === 738 ? line(1, 738, [36, 157, 'October 9, 2026 n Page 1 of 5']) : l,
     );
-    const s = wellsFargoDeposit.parse(lines.filter((l) => !(l.page === 2 && l.y === 758)));
+    const s = parseOne(wellsFargoDeposit, lines.filter((l) => !(l.page === 2 && l.y === 758)));
     expect([s.periodStart, s.periodEnd]).toEqual([noonUtc(2026, 9, 11), noonUtc(2026, 10, 9)]);
   });
 
@@ -105,11 +112,11 @@ describe('wellsFargoDeposit', () => {
     const lines = wellsFargo2026()
       .filter((l) => !(l.y === 738 || l.y === 758))
       .concat(line(3, 623, [36, 529, 'We are letting you know that as of October 1, 2026, the posting order changes']));
-    expect(() => wellsFargoDeposit.parse(lines)).toThrow(/no statement period or statement date/);
+    expect(() => parseOne(wellsFargoDeposit, lines)).toThrow(/no statement period or statement date/);
   });
 
   it('steps the start back a year when a statement-date-only period crosses New Year', () => {
-    const s = wellsFargoDeposit.parse(wellsFargo2026('January 9, 2027', '12/8', '1/9').filter((l) => !/^(9\/12|10\/01)$/.test(l.cells[0].text)));
+    const s = parseOne(wellsFargoDeposit, wellsFargo2026('January 9, 2027', '12/8', '1/9').filter((l) => !/^(9\/12|10\/01)$/.test(l.cells[0].text)));
     expect([s.periodStart, s.periodEnd]).toEqual([noonUtc(2026, 12, 8), noonUtc(2027, 1, 9)]);
   });
 
@@ -121,14 +128,14 @@ describe('wellsFargoDeposit', () => {
         ? line(2, l.y, [62, 81, '9/12'], [150, 345, 'Online Transfer'], [414, 434, '100.00'], [533, 565, '9,900.00'])
         : l,
     );
-    expect(reconcile(wellsFargoDeposit.parse(lines)).length).toBeGreaterThan(0);
+    expect(reconcile(parseOne(wellsFargoDeposit, lines)).length).toBeGreaterThan(0);
   });
 
   it('refuses an amount that sits under no column', () => {
     const lines = wellsFargo2026().map((l) =>
       l.cells[0].text === '9/12' ? line(2, l.y, [62, 81, '9/12'], [150, 345, 'Online Transfer'], [300, 320, '100.00']) : l,
     );
-    expect(() => wellsFargoDeposit.parse(lines)).toThrow(/sits under no column/);
+    expect(() => parseOne(wellsFargoDeposit, lines)).toThrow(/sits under no column/);
   });
 
   it('recognises only its own statements', () => {
@@ -186,14 +193,14 @@ function chase(): TextLine[] {
 
 describe('chaseCard', () => {
   it('reads the period, the account and the balances, owed balances negative', () => {
-    const s = chaseCard.parse(chase());
+    const s = parseOne(chaseCard, chase());
     expect([s.periodStart, s.periodEnd]).toEqual([noonUtc(2024, 12, 3), noonUtc(2025, 1, 2)]);
     expect([s.accountLast4, s.institution, s.accountType]).toEqual(['1234', 'Chase', 'CREDIT']);
     expect([s.openingBalance, s.closingBalance]).toEqual([-1000, -625.5]);
   });
 
   it('reads every dated row across pages, in the app signs, skipping detail lines', () => {
-    expect(chaseCard.parse(chase()).rows).toEqual([
+    expect(parseOne(chaseCard, chase()).rows).toEqual([
       { date: noonUtc(2024, 12, 28), description: 'Payment Thank You-Mobile', amount: 1000 },
       { date: noonUtc(2024, 12, 5), description: 'CORNER CAFE SPRINGFIELD IL', amount: -100 },
       { date: noonUtc(2024, 12, 20), description: 'EXAMPLE 0000000000000 EXAMPLECITY XX', amount: -300 },
@@ -204,12 +211,12 @@ describe('chaseCard', () => {
   });
 
   it('adds up to its balances and to every section of the summary', () => {
-    expect(reconcile(chaseCard.parse(chase()))).toEqual([]);
+    expect(reconcile(parseOne(chaseCard, chase()))).toEqual([]);
   });
 
   it('a dropped row fails the balance and its section', () => {
     const lines = chase().filter((l) => l.cells[0].text !== '01/01');
-    expect(reconcile(chaseCard.parse(lines))).toEqual([
+    expect(reconcile(parseOne(chaseCard, lines))).toEqual([
       'rows add up to 424.50 but the balance moved 374.50',
       'purchases in the account summary: rows add up to 550.00, the statement prints 600.00',
     ]);
@@ -221,7 +228,7 @@ describe('chaseCard', () => {
         ? line(4, l.y, [30, 49, '11/28'], [114, 489, 'EXAMPLE VERY LONG MERCHANT NAME REACHING THE COLUMN 50.00'])
         : l,
     );
-    const s = chaseCard.parse(lines);
+    const s = parseOne(chaseCard, lines);
     expect(s.rows.find((r) => r.amount === -50)).toEqual({
       date: noonUtc(2024, 11, 28),
       description: 'EXAMPLE VERY LONG MERCHANT NAME REACHING THE COLUMN',
@@ -232,7 +239,7 @@ describe('chaseCard', () => {
 
   it('says where a row without an amount ended, never what it said', () => {
     const lines = chase().map((l) => (l.cells[0].text === '01/01' ? line(4, l.y, [30, 49, '01/01'], [114, 249, 'EXAMPLE GROCER'], [300, 320, 'X']) : l));
-    expect(() => chaseCard.parse(lines)).toThrow(
+    expect(() => parseOne(chaseCard, lines)).toThrow(
       'the 01/01 row has no amount in the amount column (its text ends at x 49, 249, 320; the column ends at x 488; its last piece reads "X")',
     );
   });

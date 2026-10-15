@@ -236,17 +236,19 @@ export const wellsFargoDeposit: StatementLayout = {
       checks.push({ label: 'withdrawals in the Totals row', printedCents: cents(totals.withdrawals), rows: (r) => r.amount < 0 });
     }
 
-    return {
-      layout: 'wells-fargo-deposit',
-      institution: 'Wells Fargo',
-      accountType: 'DEPOSITORY',
-      accountLast4: accountNumber[1].slice(-4),
-      periodStart,
-      periodEnd,
-      openingBalance,
-      closingBalance,
-      rows,
-      checks,
-    };
+    return [
+      {
+        layout: 'wells-fargo-deposit',
+        institution: 'Wells Fargo',
+        accountType: 'DEPOSITORY',
+        accountLast4: accountNumber[1].slice(-4),
+        periodStart,
+        periodEnd,
+        openingBalance,
+        closingBalance,
+        rows,
+        checks,
+      },
+    ];
   },
 };
