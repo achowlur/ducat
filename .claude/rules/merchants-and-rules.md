@@ -17,6 +17,9 @@ anything below; several entries record "tried and failed, don't retry".
 
 - Grouped-review keys are ≥3 characters — they become priority-50 CONTAINS
   rules that outrank the pack.
+- A P2P row keys on its description's payee only when that key names the
+  rail or the merchant names no one (keysOnDescription, ONE test for
+  groupByPayee and merchantLabel); a card-network payment keys on its MERCHANT.
 - A P2P payment is NEVER categorized unseen: user CATEGORY rules only
   SUGGEST (same payee+amount → payee rule → clear favourite ≥2), only user
   TRANSFER rules auto-apply, and a payee decision confirms its waiting rows

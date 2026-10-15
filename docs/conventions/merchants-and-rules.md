@@ -306,3 +306,26 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   and 1 rule into Shopping (29 to 38 rows, 63 to 64 rules), and a category
   made in the picker and deleted into Uncategorized, its row read back as
   AGGREGATOR with no category and no rule left pointing at nothing.
+- A CARD-NETWORK P2P PAYMENT KEYS ON ITS MERCHANT (2026-10-15). Venmo paid
+  with a debit card reaches a statement as a card purchase: "Purchase
+  authorized on 03/14 Venmo* VISA Direct NY S0000000000000001 Card 1234". It
+  is P2P (the description names the rail), so the grouped review keyed it on
+  `payeeKey(description)`, which cuts at the date and leaves "purchase
+  authorized": the bank's bookkeeping, naming neither the rail nor anyone on
+  it. The review showed those payments as one "Purchase Authorized" payee,
+  and deciding it would have written DESCRIPTION CONTAINS "purchase
+  authorized" at user priority: every debit card purchase on the account,
+  past and future. The ledger's label read the same cut, so the row looked
+  as it was keyed. Found before any decision was made on a real queue.
+  The description's key now has to EARN its place: it is used when it names
+  the rail (every Zelle and Venmo line that names a person does) or when the
+  merchant names no one beyond the rail ("zelle transfer", where the person
+  is only ever in the description). Otherwise the row keys on its merchant
+  like any purchase: for a statement row that is the payee the layout read
+  (wellsFargoPayee), "venmo* visa direct ny", a MERCHANT rule matching
+  exactly those payments. One function, `keysOnDescription` in grouping.ts,
+  answers for both groupByPayee and merchantLabel, so the row read and the
+  group decided name the same payee (merchantLabel.test.ts pins the pair).
+  `payeeKey` itself is unchanged: its truncate-not-delete is load-bearing.
+  On the real queue only the card-network P2P rows changed key; every
+  Zelle and every non-P2P row kept its own.

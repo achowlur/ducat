@@ -73,6 +73,33 @@ describe('groupByPayee', () => {
     expect(groups[0].count).toBe(2);
   });
 
+  // A card-network P2P payment cuts at its date to "purchase authorized", the
+  // bank's bookkeeping. Keyed on that, one decision wrote DESCRIPTION CONTAINS
+  // "purchase authorized" at user priority: every debit card purchase on the
+  // account, recategorized from a row that showed only Venmo payments.
+  it('keys a card-network P2P payment on its merchant, never on the bank bookkeeping', () => {
+    const groups = groupByPayee([
+      txn({ id: '1', normalizedMerchant: 'venmo* visa direct ny', description: 'Purchase authorized on 03/14 Venmo* VISA Direct NY S0000000000000001 Card 1234' }),
+      txn({ id: '2', normalizedMerchant: 'venmo* visa direct ny', description: 'Purchase authorized on 04/02 Venmo* VISA Direct NY S0000000000000002 Card 1234' }),
+      txn({ id: '3', normalizedMerchant: 'paypal *studyapp', description: 'Recurring Payment authorized on 03/05 Paypal *Studyapp 4020000000 CA S0000000000000003 Card 1234' }),
+      txn({ id: '4', normalizedMerchant: 'river bakery', description: 'Purchase authorized on 03/15 River Bakery Fairview IL S0000000000000004 Card 1234' }),
+    ]);
+    expect(groups.map((g) => [g.key, g.matchField, g.isP2P])).toEqual([
+      ['venmo* visa direct ny', 'MERCHANT', true],
+      ['paypal *studyapp', 'MERCHANT', true],
+      ['river bakery', 'MERCHANT', false],
+    ]);
+  });
+
+  it('keeps a P2P row on its description when the merchant is only the rail', () => {
+    // The fallback needs a merchant that names someone: "zelle transfer" names
+    // no one, and as a MERCHANT rule it is every Zelle payment at once.
+    const groups = groupByPayee([
+      txn({ id: '1', normalizedMerchant: 'zelle transfer', description: 'ONLINE PAYMENT TO JANE DOE ON 07/21 REF # AAA' }),
+    ]);
+    expect(groups[0]).toMatchObject({ key: 'online payment to jane doe', matchField: 'DESCRIPTION' });
+  });
+
   it('orders by count so the highest-leverage decisions come first', () => {
     const groups = groupByPayee([
       txn({ id: '1', normalizedMerchant: 'rare' }),

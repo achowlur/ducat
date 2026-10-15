@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { groupByPayee } from "../sync/grouping";
 import { merchantKey, merchantLabel } from "./merchantLabel";
 
 const zelle = (description: string) => merchantLabel({ normalizedMerchant: "zelle transfer", description });
@@ -67,6 +68,19 @@ describe("merchantLabel", () => {
     expect(m.ruleField).toBe("DESCRIPTION");
   });
 
+  it("names a card-network P2P payment by its merchant, as the review groups it", () => {
+    // The description's key is "purchase authorized": a label every debit card
+    // purchase shares, and a rule that matches all of them.
+    const row = {
+      normalizedMerchant: "venmo* visa direct ny",
+      description: "Purchase authorized on 03/14 Venmo* VISA Direct NY S0000000000000001 Card 1234",
+    };
+    const m = merchantLabel(row);
+    expect(m).toEqual({ label: "Venmo* Visa Direct Ny", ruleValue: "venmo* visa direct ny", ruleField: "MERCHANT" });
+    const [group] = groupByPayee([{ id: "1", amount: -20, flow: "OUTFLOW", ...row }]);
+    expect([group.key, group.matchField]).toEqual([m.ruleValue, m.ruleField]);
+  });
+
   it("uses the description when there is no merchant at all", () => {
     const m = merchantLabel({ normalizedMerchant: "", description: "SOME UNMAPPED THING" });
     expect(m.label).toBe("Some Unmapped Thing");
@@ -100,9 +114,26 @@ describe("merchantKey", () => {
     };
     const pick = <T,>(xs: readonly T[]) => xs[Math.floor(rand() * xs.length)];
     const names = ["O'BRIEN KAI", "LENA", "AMARI  HOLLIS", "J & K CATERING", "DEE-ANN 2", "MO"];
-    const rails = ["ZELLE TO", "ZELLE FROM", "VENMO *", "Venmo Payment", "CASH APP*", "PAYPAL INST XFER"];
+    const rails = [
+      "ZELLE TO",
+      "ZELLE FROM",
+      "VENMO *",
+      "Venmo Payment",
+      "CASH APP*",
+      "PAYPAL INST XFER",
+      "Purchase authorized on 03/14 Venmo*",
+    ];
     const tails = [" ON 07/19 REF # WFCT0000000H", " 1234", "", " *PMT", " REF #WFCT0000001A FOR DINNER"];
-    const merchants = ["zelle transfer", "venmo", "", "  ", "corner bistro", "shop.example*qz41", "j & k catering"];
+    const merchants = [
+      "zelle transfer",
+      "venmo",
+      "",
+      "  ",
+      "corner bistro",
+      "shop.example*qz41",
+      "j & k catering",
+      "venmo* visa direct ny",
+    ];
     for (let i = 0; i < 2000; i += 1) {
       const row = { normalizedMerchant: pick(merchants), description: `${pick(rails)} ${pick(names)}${pick(tails)}` };
       const key = merchantKey(row);
