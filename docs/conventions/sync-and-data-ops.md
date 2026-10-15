@@ -202,6 +202,13 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   nothing else ever will), and created FIRST in the write, so a write failing
   after it simply matches it on the re-run. Two accounts already carrying
   those digits is ambiguity, never a reason to make a third.
+  THE OPENING ZERO. Net worth could draw no month before the newest account
+  existed: an account with no value in a month made that month unknown, and
+  one opened late had none before. A first statement that opens at zero, with
+  nothing stored before it, IS the account being opened, so the import writes
+  that zero on the statement's first day; with it, net worth can count the
+  account as nothing before then. It had to land before the real import,
+  because a statement already imported is never read again.
   SHARING A LAYOUT WITHOUT SHARING A STATEMENT. Parsers were written from
   `npm run pdf:layout` dumps the operator pasted. Masking digits alone was not
   enough: a statement prints the holder's name and address and the people paid

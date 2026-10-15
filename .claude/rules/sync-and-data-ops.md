@@ -49,7 +49,9 @@ Import and sync:
   Dry run and write share ONE plan (statementImport.ts).
 - A statement import never writes an EXISTING Account.balance (an account it
   creates, --create-account, takes its last close): closes become snapshots,
-  and ImportBatch is written LAST so a failed write can simply re-run.
+  an account's first statement opening at ZERO with nothing stored before it
+  also writes that opening (the account held nothing before it existed), and
+  ImportBatch is written LAST so a failed write can simply re-run.
 - Provider health derives from LOCAL signals only — no network call on
   launch, ever; staleBalanceDays: 5 is deliberate; a new connector owes a
   trust card in providers.ts.

@@ -125,7 +125,11 @@ way `npm run pdf:layout` masks a statement. Read it before you paste it.
 A statement import never changes an existing account's current balance. Each
 statement's closing balance is written as a balance snapshot dated to the
 statement's closing day, which gives net worth real month-end figures for the
-imported months.
+imported months. When an account's first statement opens at zero and Ducat
+holds nothing for it before that, the account was opened in that period: the
+zero is recorded on the statement's first day too, so net worth can count the
+account as holding nothing before it existed. A statement already imported is
+never read again, so this happens on the first import of that statement.
 
 ## An account Ducat never had
 
