@@ -289,6 +289,25 @@ describe('investment flows', () => {
     const july = computeNetWorthGrowth([brokerage], snapshots, txns, periods, 'MONTH').get('2026-07');
     expect(july?.investmentNetFlows).toBe(-500);
   });
+
+  // An IRA funded from a brokerage: the brokerage's line names the purpose
+  // ("contribution") AND the direction ("Transferred To"). Read by the purpose,
+  // both sides counted as money arriving, and the market was charged for it.
+  it('lets a stated direction outrank a word naming the purpose', () => {
+    const ira: AccountData = { id: 'ira', type: 'INVESTMENT', balance: 4000, balanceDate: utc(2026, 7, 31) };
+    const both = [
+      ...snapshots,
+      { accountId: 'ira', date: utc(2026, 6, 30), balance: 1000 },
+      { accountId: 'ira', date: utc(2026, 7, 31), balance: 4000 },
+    ];
+    const txns = [
+      txn({ accountId: 'brokerage', date: utc(2026, 7, 31), amount: -3000, description: 'X00-000000-0PRIOR CONTRIBUTION Transferred To' }),
+      txn({ accountId: 'ira', date: utc(2026, 7, 31), amount: 3000, description: 'X00-000001-0 Prior Contribution' }),
+    ];
+    const july = computeNetWorthGrowth([brokerage, ira], both, txns, periods, 'MONTH').get('2026-07');
+    expect(july?.investmentNetFlows).toBe(0); // one account to another: nothing crossed into the total
+    expect(july?.marketGains).toBe(4400); // the whole rise, 11,000 to 15,400, is the market's
+  });
 });
 
 describe('market gains decomposition (buy → appreciate → sell lifecycle)', () => {
