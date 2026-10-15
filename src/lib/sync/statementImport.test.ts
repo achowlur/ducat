@@ -277,6 +277,53 @@ describe('the dry run and the write agree', () => {
 
 // A card lists a late-posted charge under the merchant's date, months before
 // the statement it appears on; the feed stored it when it POSTED.
+describe('an account the statements cover and Ducat never had', () => {
+  // A closed brokerage account: emptied by a transfer out in its last statement.
+  const closing = statement({
+    accountType: 'INVESTMENT',
+    accountLast4: '0007',
+    periodStart: utc(1, 1),
+    periodEnd: utc(1, 31),
+    openingBalance: 634.18,
+    closingBalance: 0,
+    rows: [{ date: utc(1, 10), description: 'TRANSFERRED TO EXAMPLE BANK', amount: -634.18 }],
+  });
+  const create = { last4: '0007', name: 'Closed brokerage' };
+
+  it('is skipped, saying how to add it, unless asked for', async () => {
+    const { plan } = await verdictOf([file('closed.pdf', 'c7', closing)]);
+    expect(plan.statements).toEqual([]);
+    expect(plan.skipped[0].reason).toMatch(/--create-account=0007 to add it/);
+  });
+
+  it('is planned under its own name and digits, its balance its last close', async () => {
+    const plan = await planStatementImport(prisma, [file('closed.pdf', 'c7', closing)], { windowDays: 4, createAccount: create });
+    expect(plan.newAccounts.map((n) => [n.account.name, n.account.institution, n.account.type, n.balance, n.balanceDate])).toEqual([
+      ['Closed brokerage (0007)', 'Example Bank', 'INVESTMENT', 0, utc(1, 31)],
+    ]);
+    expect(plan.statements.map((p) => p.rows.map((r) => r.verdict.kind))).toEqual([['NEW']]);
+  });
+
+  it('is never created when an account carries those digits', async () => {
+    await expect(planStatementImport(prisma, [file('a.pdf', 'aa')], { windowDays: 4, createAccount: { last4: '0001' } })).rejects.toThrow(
+      'No statement in this run is for a missing account ending in 0001',
+    );
+  });
+
+  it('is created by the write, then matched like any account on a re-run', async () => {
+    const plan = await planStatementImport(prisma, [file('closed.pdf', 'c7', closing)], { windowDays: 4, createAccount: create });
+    await writeStatementImport(prisma, plan);
+    const made = await prisma.account.findFirstOrThrow({ where: { name: 'Closed brokerage (0007)' } });
+    expect([made.connectorType, made.isStale, Number(made.balance), made.balanceDate]).toEqual(['PDF', false, 0, utc(1, 31)]);
+    expect(await prisma.transaction.count({ where: { accountId: made.id } })).toBe(1);
+    expect(await prisma.balanceSnapshot.count({ where: { accountId: made.id } })).toBe(1);
+    expect(await prisma.importBatch.count({ where: { accountId: made.id } })).toBe(1);
+
+    const again = await planStatementImport(prisma, [file('closed.pdf', 'c7', closing)], { windowDays: 4 });
+    expect(again.skipped.map((k) => k.reason)).toEqual([expect.stringMatching(/^already imported on /)]);
+  });
+});
+
 describe('a late-posted row', () => {
   let cardId: string;
 

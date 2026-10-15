@@ -61,9 +61,22 @@ export interface PlannedSnapshot {
   balance: number;
 }
 
+/**
+ * An account the import creates (--create-account): one the statements cover
+ * and no feed ever did, typically closed. Its id in the plan is a placeholder
+ * until the write creates it; its balance is its last statement's closing
+ * value, since nothing else will ever set it.
+ */
+export interface NewAccount {
+  account: TargetAccount;
+  balance: number;
+  balanceDate: Date;
+}
+
 export interface StatementImportPlan {
   windowDays: number;
   statements: PlannedStatement[];
+  newAccounts: NewAccount[];
   skipped: SkippedFile[];
   /** Per account: stored rows inside the planned periods that no statement row accounts for. */
   storedOnly: Map<string, { date: Date; amount: number; description: string }[]>;
@@ -76,6 +89,8 @@ export interface PlanOptions {
   windowDays: number;
   /** File every statement under this account instead of matching by its last four digits. */
   externalId?: string;
+  /** Create the account ending in these four digits when no account matches it. */
+  createAccount?: { last4: string; name?: string };
 }
 
 const DAY_MS = 86_400_000;
@@ -133,6 +148,37 @@ export async function planStatementImport(
   if (options.externalId !== undefined && forced === null) {
     throw new Error(`No account has externalId "${options.externalId}".`);
   }
+  if (options.externalId !== undefined && options.createAccount !== undefined) {
+    throw new Error('Pass one of --external-id and --create-account.');
+  }
+
+  // The account --create-account names, made once from the first statement
+  // for it: grouped with the institution's existing accounts, and named with
+  // its last four digits so later runs match it.
+  const created = new Map<string, TargetAccount>();
+  const toCreate = (s: ParsedStatement): TargetAccount | null => {
+    const wanted = options.createAccount;
+    if (wanted === undefined || wanted.last4 !== s.accountLast4) return null;
+    // Two accounts carrying those digits is ambiguity, not absence: never a third.
+    if (accounts.some((a) => sameInstitution(s.institution, a.institution) && `${a.name} ${a.externalId}`.includes(s.accountLast4))) {
+      return null;
+    }
+    const known = created.get(s.accountLast4);
+    if (known !== undefined) return known;
+    const sibling = accounts.find((a) => sameInstitution(s.institution, a.institution));
+    const name = wanted.name ?? `${s.institution} account`;
+    const externalId = `pdf-${s.institution.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${s.accountLast4}`;
+    const account: TargetAccount = {
+      id: `new:${externalId}`,
+      externalId,
+      name: name.includes(s.accountLast4) ? name : `${name} (${s.accountLast4})`,
+      institution: sibling?.institution ?? s.institution,
+      type: s.accountType,
+      currency: sibling?.currency ?? 'USD',
+    };
+    created.set(s.accountLast4, account);
+    return account;
+  };
 
   // A file can hold several accounts (an investment report covers them all).
   // --external-id names ONE account, so it cannot say where each of them goes.
@@ -168,11 +214,12 @@ export async function planStatementImport(
       (matchAccount(
         s.accountLast4,
         accounts.filter((a) => a.type === s.accountType && sameInstitution(s.institution, a.institution)),
-      ) as TargetAccount | null);
+      ) as TargetAccount | null) ??
+      toCreate(s);
     if (account === null) {
       skipped.push({
         fileName: file.fileName,
-        reason: `no single ${s.institution} ${s.accountType.toLowerCase()} account ending in ${s.accountLast4} (pass --external-id to choose one)`,
+        reason: `no single ${s.institution} ${s.accountType.toLowerCase()} account ending in ${s.accountLast4} (pass --external-id to choose one, or --create-account=${s.accountLast4} to add it)`,
       });
       continue;
     }
@@ -205,10 +252,22 @@ export async function planStatementImport(
     accepted.push({ file, account });
   }
 
+  if (options.createAccount !== undefined && created.size === 0) {
+    throw new Error(
+      `No statement in this run is for a missing account ending in ${options.createAccount.last4}; an account that already exists is matched, never created.`,
+    );
+  }
+  const newAccounts: NewAccount[] = [...created.values()].flatMap((account) => {
+    const last = accepted
+      .filter((a) => a.account === account)
+      .reduce<ParsedStatement | null>((latest, a) => (latest === null || a.file.statement.periodEnd > latest.periodEnd ? a.file.statement : latest), null);
+    return last === null ? [] : [{ account, balance: last.closingBalance, balanceDate: last.periodEnd }];
+  });
+
   const accountIds = [...new Set(accepted.map((a) => a.account.id))];
   const storedOnly = new Map<string, { date: Date; amount: number; description: string }[]>();
   if (accepted.length === 0) {
-    return { windowDays: options.windowDays, statements: [], skipped, storedOnly, snapshots: [] };
+    return { windowDays: options.windowDays, statements: [], newAccounts, skipped, storedOnly, snapshots: [] };
   }
 
   // Every stored row the statements could overlap, in one read; and where each
@@ -326,7 +385,7 @@ export async function planStatementImport(
   const taken = new Set(existing.map((e) => `${e.accountId}|${e.date.getTime()}`));
   const snapshots = closes.filter((c) => !taken.has(`${c.accountId}|${c.date.getTime()}`));
 
-  return { windowDays: options.windowDays, statements, skipped, storedOnly, snapshots };
+  return { windowDays: options.windowDays, statements, newAccounts, skipped, storedOnly, snapshots };
 }
 
 /** Whether a planned row is written. AMBIGUOUS never is: a guess is worse than a report. */
@@ -370,8 +429,14 @@ export interface StatementImportResult {
 }
 
 /**
- * Carries out a plan: the rows through runSync, then the closing-balance
- * snapshots, then one ImportBatch per statement.
+ * Carries out a plan: any account it creates first, then the rows through
+ * runSync, then the closing-balance snapshots, then one ImportBatch per
+ * statement.
+ *
+ * A created account takes its last statement's closing value as its balance,
+ * not stale: no feed will ever set it. Named with its last four digits, it is
+ * matched like any other account on a re-run, so a write that fails after
+ * creating it does not create it twice.
  *
  * Batches go LAST and count what is actually stored under them: a batch is
  * what makes a later run skip the file, so it is written only once
@@ -381,8 +446,23 @@ export interface StatementImportResult {
  */
 export async function writeStatementImport(
   prisma: PrismaClient,
-  plan: StatementImportPlan,
+  planned: StatementImportPlan,
 ): Promise<StatementImportResult> {
+  const realIds = new Map<string, string>();
+  for (const n of planned.newAccounts) {
+    const { id, ...account } = n.account;
+    const made = await prisma.account.create({
+      data: { ...account, connectorType: 'PDF', balance: n.balance, balanceDate: n.balanceDate, isStale: false },
+    });
+    realIds.set(id, made.id);
+  }
+  const real = (account: TargetAccount): TargetAccount => ({ ...account, id: realIds.get(account.id) ?? account.id });
+  const plan: StatementImportPlan = {
+    ...planned,
+    statements: planned.statements.map((p) => ({ ...p, account: real(p.account) })),
+    snapshots: planned.snapshots.map((snap) => ({ ...snap, accountId: realIds.get(snap.accountId) ?? snap.accountId })),
+  };
+
   const sync = await runSync(prisma, connectorFor(plan), { since: new Date(0) });
 
   if (plan.snapshots.length > 0) {

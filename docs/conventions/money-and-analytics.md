@@ -71,6 +71,12 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   template for every uncovered month (usage in the script's own header). History
   otherwise grows one snapshot per sync. `marketGains` only computes once two
   consecutive periods are snapshot-backed.
+  ONE CARRY IS NO FICTION: ZERO. Adding a CLOSED brokerage account (from its
+  statements) would otherwise have erased net worth for every month after it
+  closed, since it never gets another snapshot. Rolling forward is a fiction
+  because the market moves a holding; an empty account has none. So an
+  investment account whose last snapshot is ZERO, with no transaction of its
+  own since, is known to be zero; any money in since makes it unknown again.
 - `investmentNetFlows` counts ONLY money crossing an investment account's
   boundary. Buys, sells, dividends and reinvestments move nothing in or out, and
   counting them turned a real ~$2.5k month into a reported $64.79k one. Classified

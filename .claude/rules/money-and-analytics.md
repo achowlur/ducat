@@ -32,6 +32,8 @@ anything below; several entries record "tried and failed, don't retry".
 - Net worth history requires SNAPSHOTS: investment accounts are known:false
   without a snapshot INSIDE the period; never reconstruct an investment
   balance from transactions, in either direction. Cash/credit are exempt.
+  The one carry: a last snapshot of ZERO with no transaction since stays
+  zero (a closed account has nothing for the market to move).
 - investmentNetFlows counts only money CROSSING the account boundary;
   direction comes from wording, only the magnitude is trusted.
 - Never trust one connector's sign convention — investment-amount readers

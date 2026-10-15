@@ -127,9 +127,33 @@ describe('balanceAt', () => {
     });
     expect(result).toMatchObject({ balance: 800, known: true });
   });
+
+  // An empty (closed) account has no market exposure, so its zero is no guess;
+  // money in since it was last valued makes it unknown again.
+  it("carries an investment account's zero forward while nothing moves in", () => {
+    const closed: AccountData = { id: 'acc3', type: 'INVESTMENT', balance: 0, balanceDate: utc(2026, 1, 31) };
+    const snapshots: SnapshotData[] = [{ accountId: 'acc3', date: utc(2026, 1, 31), balance: 0 }];
+    const march = { investmentSnapshotNotBefore: utc(2026, 3, 1) };
+    expect(balanceAt(closed, snapshots, [], utc(2026, 3, 31), march)).toEqual({ balance: 0, estimated: false, known: true });
+    const deposit = [txn({ accountId: 'acc3', date: utc(2026, 2, 10), amount: 512.37 })];
+    expect(balanceAt(closed, snapshots, deposit, utc(2026, 3, 31), march).known).toBe(false);
+  });
 });
 
 describe('computeNetWorthGrowth', () => {
+  // Otherwise a closed brokerage would erase net worth for every month after it.
+  it('stays known after an investment account closes at zero', () => {
+    const open: AccountData = { id: 'acc4', type: 'INVESTMENT', balance: 3027.88, balanceDate: utc(2026, 3, 31) };
+    const closed: AccountData = { id: 'acc3', type: 'INVESTMENT', balance: 0, balanceDate: utc(2026, 1, 31) };
+    const snapshots: SnapshotData[] = [
+      { accountId: 'acc3', date: utc(2026, 1, 31), balance: 0 },
+      { accountId: 'acc4', date: utc(2026, 2, 28), balance: 2914.06 },
+      { accountId: 'acc4', date: utc(2026, 3, 31), balance: 3027.88 },
+    ];
+    const result = computeNetWorthGrowth([open, closed], snapshots, [], ['2026-02', '2026-03'], 'MONTH');
+    expect([result.get('2026-02')?.netWorth, result.get('2026-03')?.netWorth]).toEqual([2914.06, 3027.88]);
+  });
+
   it('computes growth rate between consecutive periods', () => {
     const account: AccountData = {
       id: 'acc1', type: 'DEPOSITORY', balance: 1100, balanceDate: utc(2026, 7, 12),

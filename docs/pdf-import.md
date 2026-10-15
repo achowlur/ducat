@@ -122,10 +122,26 @@ way `npm run pdf:layout` masks a statement. Read it before you paste it.
 
 ## Balances
 
-A statement import never changes an account's current balance. Each
+A statement import never changes an existing account's current balance. Each
 statement's closing balance is written as a balance snapshot dated to the
 statement's closing day, which gives net worth real month-end figures for the
 imported months.
+
+## An account Ducat never had
+
+Statements can cover an account no feed ever reached, typically one closed
+before the feed was connected. Its statements are skipped with the reason
+"no single ... account ending in 1234", and the account can be added from them:
+
+```bash
+npm run import:pdf -- <folder> --dry-run --create-account=1234 --account-name="Managed account (closed)"
+```
+
+The account is created with that name and its last four digits (so later runs
+match it like any other), and its balance is its last statement's closing
+value. An investment account closed at zero stays zero in net worth for every
+month after it closed, since there is nothing left for the market to move. An
+account that already exists is matched, never created again.
 
 ## What is recorded, and undoing an import
 

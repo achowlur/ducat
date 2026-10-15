@@ -194,6 +194,14 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   disagreement between SimpleFIN and Fidelity's own records, so they would
   have been added twice. In an investment account a statement row now
   matches on the amount's magnitude.
+  AN ACCOUNT NO FEED EVER HAD. The reports also covered an account closed
+  before the feed was connected, so Ducat had never had it and its value
+  over the years it was open was missing from net worth. `--create-account=<last four>`
+  makes it from its statements: named with its digits so later runs match it,
+  its balance its last close (the one Account.balance an import writes, as
+  nothing else ever will), and created FIRST in the write, so a write failing
+  after it simply matches it on the re-run. Two accounts already carrying
+  those digits is ambiguity, never a reason to make a third.
   SHARING A LAYOUT WITHOUT SHARING A STATEMENT. Parsers were written from
   `npm run pdf:layout` dumps the operator pasted. Masking digits alone was not
   enough: a statement prints the holder's name and address and the people paid
