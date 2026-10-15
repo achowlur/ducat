@@ -258,6 +258,18 @@ describe('an investment statement', () => {
   });
 });
 
+describe('a row whose layout reads its payee', () => {
+  // The description carries per-row bookkeeping around the payee; the key is the payee's.
+  it('takes its merchant key from the payee, and keeps the description whole', async () => {
+    const report = statement({
+      rows: [{ date: utc(2, 18), description: 'Purchase authorized on 02/18 Corner Cafe S000000000000001 Card 1234', payee: 'Corner Cafe', amount: -20 }],
+    });
+    const plan = await planStatementImport(prisma, [file('payee.pdf', 'p1', report)], { windowDays: 4 });
+    const [row] = await connectorFor(plan).fetchTransactions(new Date(0));
+    expect([row.description, row.normalizedMerchant]).toEqual(['Purchase authorized on 02/18 Corner Cafe S000000000000001 Card 1234', 'corner cafe']);
+  });
+});
+
 describe('the dry run and the write agree', () => {
   it('previews exactly the rows the write then adds, and writes nothing itself', async () => {
     const plan = await planStatementImport(prisma, [file('a.pdf', 'aa')], { windowDays: 4 });

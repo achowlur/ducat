@@ -79,9 +79,9 @@ describe('wellsFargoDeposit', () => {
     expect([s.periodStart, s.periodEnd]).toEqual([noonUtc(2018, 12, 8), noonUtc(2019, 1, 9)]);
     expect([s.accountLast4, s.accountType, s.openingBalance, s.closingBalance]).toEqual(['1234', 'DEPOSITORY', 500, 1250]);
     expect(s.rows).toEqual([
-      { date: noonUtc(2018, 12, 14), description: 'Online Transfer From Example Savings Ref #IB0000 on 12/14/18', amount: 1000 },
-      { date: noonUtc(2018, 12, 14), description: 'ATM Withdrawal authorized on 12/14 Example Branch Springfield IL 0000001 ATM ID 0000A Card 1234', amount: -200 },
-      { date: noonUtc(2019, 1, 4), description: 'Purchase authorized on 1/03 Corner Cafe S000000000000000 Card 1234', amount: -50 },
+      { date: noonUtc(2018, 12, 14), description: 'Online Transfer From Example Savings Ref #IB0000 on 12/14/18', amount: 1000, payee: 'Online Transfer From Example Savings' },
+      { date: noonUtc(2018, 12, 14), description: 'ATM Withdrawal authorized on 12/14 Example Branch Springfield IL 0000001 ATM ID 0000A Card 1234', amount: -200, payee: 'ATM Withdrawal' },
+      { date: noonUtc(2019, 1, 4), description: 'Purchase authorized on 1/03 Corner Cafe S000000000000000 Card 1234', amount: -50, payee: 'Corner Cafe' },
     ]);
     expect(reconcile(s)).toEqual([]);
   });

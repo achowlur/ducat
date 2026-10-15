@@ -112,6 +112,10 @@ Each was decided where it is recorded; listed here so none is rediscovered.
   the rules holding these rows TRANSFER are all DESCRIPTION rules, which
   `repair:merchants` never touches), 0 rows changing category or flow, 341
   grouped-review keys unchanged.
+  RESOLVED FOR STATEMENTS 2026-10-15: the PDF statement import was the
+  backfill this entry waited for, and the Wells Fargo statement layout now
+  reads its own payee (merchants-and-rules evidence, A STATEMENT LAYOUT READS
+  ITS OWN PAYEE). The CSV path below is unchanged.
   DO NOT SHIP a third marker `authorized on`. "purchase authorized on macy's
   560 7875 plaza springfield il … card 1234" truncates to "purchase", and
   `MIN_MERCHANT = 3` does not refuse it because 8 characters precede — two rows

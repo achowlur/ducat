@@ -13,6 +13,12 @@ export interface StatementRow {
   description: string;
   amount: number;
   /**
+   * The payee, where the layout writes bookkeeping that varies per row around
+   * it (a card's S-number, a reference code): the merchant key is read from
+   * this instead of the whole description, so one payee's rows group.
+   */
+  payee?: string;
+  /**
    * Set only on a late-posted row (see settleLatePostings): the merchant's own
    * date, while `date` has moved to the opening day of the statement the row
    * appeared on.

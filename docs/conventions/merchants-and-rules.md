@@ -22,6 +22,24 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   appeared nowhere in the description. It now TRUNCATES at the first noise
   marker, making the key a contiguous prefix by construction (regression-tested
   as an invariant: every derived key must be findable in its own description).
+- A STATEMENT LAYOUT READS ITS OWN PAYEE (2026-10-15). The backlog's
+  shattered-merchants entry named the trigger that would make Wells Fargo's
+  "authorized on" layout worth fixing: a backfill of deeper history. The PDF
+  statement import was that backfill, and every Wells Fargo statement row
+  waiting for a category was its own payee group, since the description
+  carries the card's S-number, a reference code or the holder's name around
+  the payee. The fix is NOT a marker in the shared normalizer (the backlog
+  records why: the merchant comes AFTER "authorized on" and a marker cuts it
+  off). The layout reads its own payee (`wellsFargoPayee`: the merchant
+  after the date and before the S-number, an ATM line's kind, a transfer
+  without its reference, number and date, an ACH line up to its first code;
+  Zelle left to `payeeKey`), sets `StatementRow.payee`, and the import reads
+  the merchant key from it. `repair:merchants` re-reads stored Wells Fargo
+  statement rows the same way. Measured on a copy of the real database before
+  it ran: the waiting rows' payee groups roughly halved, and no category,
+  flow, MANUAL row or rule changed. A payee rule needs no findability in the
+  description here: a grouped decision writes a MERCHANT rule, matched against
+  the stored key, which the reader now makes stable.
 - Rules only ever WRITE, so deleting one does not undo it: every row it
   already categorized keeps that category, and a payee it marked TRANSFER
   stays out of spending. `reapplyRules` therefore returns each row as it was

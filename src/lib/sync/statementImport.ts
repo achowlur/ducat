@@ -438,7 +438,7 @@ export function connectorFor(plan: StatementImportPlan): PdfStatementConnector {
           r.row.transactionDate === undefined
             ? r.row.description
             : `${r.row.description} ${transactionDateNote(r.row.transactionDate)}`,
-        merchantText: r.row.description,
+        merchantText: r.row.payee ?? r.row.description,
         importBatchId: p.batchId,
       });
     }
