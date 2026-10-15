@@ -64,30 +64,6 @@ export function growthBetween(points: NetWorthPoint[], from: number, to: number)
   };
 }
 
-export const NET_WORTH_RANGES = [
-  { value: "1y", label: "1Y", months: 12 },
-  { value: "3y", label: "3Y", months: 36 },
-  { value: "5y", label: "5Y", months: 60 },
-  { value: "all", label: "All", months: null },
-] as const;
-
-export type NetWorthRange = (typeof NET_WORTH_RANGES)[number]["value"];
-
-/**
- * The ranges a history is long enough for. A range needs its base month too,
- * so a year is thirteen points; offering five years over two would draw All
- * under another name.
- */
-export function rangesFor(count: number): (typeof NET_WORTH_RANGES)[number][] {
-  return NET_WORTH_RANGES.filter((r) => r.months === null || count > r.months);
-}
-
-/** The points a range draws: its months and the base month before them. */
-export function pointsIn<T>(points: T[], range: NetWorthRange): T[] {
-  const months = NET_WORTH_RANGES.find((r) => r.value === range)?.months ?? null;
-  return months === null || points.length <= months ? points : points.slice(points.length - months - 1);
-}
-
 export interface YearGrowth extends Growth {
   year: string;
   /** The year is not over: the history ends inside it. */

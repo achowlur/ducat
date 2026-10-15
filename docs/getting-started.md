@@ -77,9 +77,9 @@ category you set by hand is never overridden.
   and what is typical by the same day, what changed since the month before
   (by category, merchant or card), a report you build yourself (spending,
   income or both, over the months you pick, as bars, a line, a pie or a
-  table), and net worth over the last one, three or five years or all of it,
-  with how much of the growth you saved and how much the markets added, year
-  by year. Every figure opens its transactions.
+  table), and net worth over time: pinch it (or Ctrl and scroll) to zoom into
+  any stretch, see how much of that growth you saved and how much the markets
+  added, and compare years in a table. Every figure opens its transactions.
 - **Insights** (`/insights`) — am I on track: where this month is heading,
   what changed and what it costs if it holds, upcoming commitments, savings
   goals. Projections are labelled as projections.

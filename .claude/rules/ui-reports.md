@@ -59,10 +59,11 @@ Overview:
 - Comparisons use COMPLETE months, except "this month so far", which cuts
   last month at the same DAY; a card names accounts whose records begin
   inside the earlier span, by first-transaction day.
-- Net worth's RANGE (1Y/3Y/5Y/All, offered only when the history holds it)
-  is its view: client-side, kept in URL + cookie. Growth splits into markets
-  (the months' own marketGains) and saved (the rest), adding up exactly; no
-  ratio is printed for All, whose base is wherever the records begin.
+- Net worth ZOOMS by gesture, never by preset buttons: pinch (two fingers
+  also move along), Ctrl/trackpad-pinch wheel, drag; a plain wheel scrolls
+  the page. The figures above follow the months on show: growth splits into
+  markets (the months' own marketGains) and saved (the rest), adding up
+  exactly, and no ratio is printed from the first month on record.
 
 /insights, /accounts, /providers:
 - /insights LEADS with one figure, the month's spending: projected (with

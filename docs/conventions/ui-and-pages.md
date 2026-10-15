@@ -1255,17 +1255,27 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   both flattens every recent month into a few pixels. The operator asked to
   zoom in, and to see how much growth came from investing rather than saving,
   and each year's growth against the years before.
-  THE RANGE IS A VIEW. 1Y, 3Y, 5Y and All, a range offered only when the
-  history holds its months AND the base month before them (a year is thirteen
-  points), so a switch never draws All under another name. Every month is
-  already on the page, so choosing one asks the server nothing; it is kept as
-  each card's "view as" is, in the URL (`n.view`) and a cookie, and a
-  remembered range the history is too short for falls back to All. The line
-  rescales to what it shows: a year of a six-figure history reads in
-  twenty-thousand-dollar steps, not hundred-thousand ones. The chart is keyed
-  by range, so a hovered month from a longer range cannot survive into a
-  shorter one.
-  THE SPLIT ADDS UP. The card leads with the change over the range, over a
+  PRESET RANGES WERE REJECTED. The first build offered 1Y, 3Y, 5Y and All as
+  buttons, kept like a card's "view as". The operator turned it down the
+  same day: zooming means zooming the GRAPH, as far in as the fingers go,
+  anywhere along it, on a phone as well. Do not bring presets back.
+  ZOOM BY GESTURE. Two fingers pinch, and the month under their midpoint
+  follows the midpoint, so spreading zooms and sliding both moves along the
+  line in one motion; one finger still scrubs the readout, as before. On a
+  computer a trackpad pinch arrives as a wheel with ctrlKey set, so one
+  handler serves it and Ctrl + scroll; a sideways swipe moves along once
+  zoomed, a drag moves along, and a double-click shows every month. A PLAIN
+  wheel scrolls the page and never the chart, or reading past the card would
+  zoom it. The wheel and touch listeners are attached natively, non-passive,
+  because React's are passive and could not stop the page zooming under a
+  pinch; the svg keeps touch-action pan-y, so one finger still scrolls the
+  page vertically. The window is index units held by the CARD (chartZoom.ts,
+  pure and tested), clamped between four points and the whole series; the
+  line is clipped to the plot, its scale fits the months on show, and month
+  labels thin by the spacing on show counted from the series' end, so moving
+  along never makes them hop. A "Show all months" control appears while
+  zoomed. Zoom is not remembered: it is a look, not a setting.
+  THE SPLIT ADDS UP. The card leads with the change over the months ON SHOW, over a
   context line: the span, the growth rate, then SAVED and MARKETS. Markets is
   the sum of each month's own `marketGains` after the base (what the
   investment accounts moved beyond the money put in or taken out); saved is
@@ -1274,10 +1284,11 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   a value returns, so a span holding both counts it once (pinned by test).
   The markets' share is printed only when both parts grew: a share of a whole
   that one part shrank is not a share of anything.
-  NO RATIO FOR ALL. All measures from wherever the records begin, which was a
-  first account holding a few hundred dollars: its growth rate came out in the
-  tens of thousands of percent, a fact about the records, not the growth. A
-  chosen range starts at a real month-end, so 1Y, 3Y and 5Y print one.
+  NO RATIO FROM THE FIRST MONTH. From the first month on record the base is
+  wherever the records begin, which was a first account holding a few hundred
+  dollars: its growth rate came out in the tens of thousands of percent, a
+  fact about the records, not the growth. Zoomed past it, the base is a real
+  month-end and the rate is printed.
   BY YEAR, newest first: each calendar year from the December before it to its
   last month on record ("so far" while it runs), with its growth against where
   it started (pctDelta's refusals, an empty cell's dash), saved and markets.
@@ -1286,7 +1297,10 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   row adds up as printed. A year holding partly estimated months carries a *,
   explained under the table in words.
   VERIFIED on a copy of the operator's data with the day's cloud changes
-  applied: the rows' changes sum to the history's, at 375px nothing scrolls
-  sideways, the range buttons clear 44px, and the chosen range survives a
-  reload from its cookie. The README's Trends picture and the walkthrough stop
-  above this card, so neither changes.
+  applied: the rows' changes sum to the history's; Ctrl + wheel zoomed about
+  the pointer and the headline followed; a drag moved along and a
+  double-click showed every month; a plain wheel was not taken; at 375px a
+  two-finger spread zoomed, a two-finger slide moved along, the page did not
+  zoom with it, one finger still read a month, and nothing scrolls sideways.
+  The README's Trends picture and the walkthrough stop above this card, so
+  neither changes.

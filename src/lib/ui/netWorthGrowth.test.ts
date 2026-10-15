@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { growthBetween, growthByYear, pointsIn, rangesFor, type NetWorthPoint } from "./netWorthGrowth";
+import { growthBetween, growthByYear, type NetWorthPoint } from "./netWorthGrowth";
 
 const point = (period: string, value: number, marketGains: number | null = 0, estimated = false): NetWorthPoint => ({
   period,
@@ -46,23 +46,6 @@ describe("growthBetween", () => {
     // returns and its market figure holds both months' movement.
     const points = [point("2026-01", 1000), point("2026-02", 1000, 0), point("2026-03", 1300, 300)];
     expect(growthBetween(points, 0, 2)).toMatchObject({ change: 300, markets: 300, saved: 0 });
-  });
-});
-
-describe("ranges", () => {
-  it("offers a range only when the history holds it and its base month", () => {
-    expect(rangesFor(12).map((r) => r.value)).toEqual(["all"]);
-    expect(rangesFor(13).map((r) => r.value)).toEqual(["1y", "all"]);
-    expect(rangesFor(61).map((r) => r.value)).toEqual(["1y", "3y", "5y", "all"]);
-  });
-
-  it("draws a year as its twelve months and the base month before them", () => {
-    const points = periods("2024-01", 30);
-    const year = pointsIn(points, "1y");
-    expect(year).toHaveLength(13);
-    expect([year[0], year[12]]).toEqual(["2025-06", "2026-06"]);
-    expect(pointsIn(points, "all")).toHaveLength(30);
-    expect(pointsIn(points, "5y")).toHaveLength(30); // shorter than the range: everything
   });
 });
 
