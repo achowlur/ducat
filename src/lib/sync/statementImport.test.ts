@@ -139,6 +139,12 @@ describe('planStatementImport', () => {
     expect(plan.snapshots).toEqual([{ accountId, date: utc(3, 13), balance: -709 }]);
   });
 
+  // An opening balance that is not zero is no account being opened.
+  it('plans no opening for a statement opening with a balance', async () => {
+    const { plan } = await verdictOf([file('a.pdf', 'aa')]);
+    expect(plan.openings).toEqual([]);
+  });
+
   it('skips a statement for an account it cannot name, saying why', async () => {
     const { plan } = await verdictOf([file('b.pdf', 'bb', statement({ accountLast4: '9999' }))]);
     expect(plan.statements).toEqual([]);
@@ -229,6 +235,22 @@ describe('an investment statement', () => {
     expect(kinds).toEqual(['EFT FUNDS RECEIVED MATCHED']);
   });
 
+  // History stored before the statement means the account was not opened in it.
+  it('records no opening for an account with history before its first statement', async () => {
+    const opensAtZero = statement({
+      institution: 'Example Brokerage',
+      accountType: 'INVESTMENT',
+      accountLast4: '0003',
+      periodStart: utc(3, 1),
+      periodEnd: utc(3, 31),
+      openingBalance: 0,
+      closingBalance: 0,
+      rows: [],
+    });
+    const { plan: planned } = await verdictOf([file('later.pdf', 'b2', opensAtZero)]);
+    expect(planned.openings).toEqual([]);
+  });
+
   // It lists only money crossing the account, so trades and dividends are never on it.
   it('lists no trade or dividend among the stored rows it does not explain', async () => {
     const { plan: planned } = await plan();
@@ -302,6 +324,20 @@ describe('an account the statements cover and Ducat never had', () => {
       ['Closed brokerage (0007)', 'Example Bank', 'INVESTMENT', 0, utc(1, 31)],
     ]);
     expect(plan.statements.map((p) => p.rows.map((r) => r.verdict.kind))).toEqual([['NEW']]);
+  });
+
+  // Opened in its first statement's period: it held nothing before, which net worth can count.
+  it('records the opening zero of a first statement that opens at zero', async () => {
+    const opened = statement({ ...closing, accountLast4: '0008', openingBalance: 0, closingBalance: 634.18, rows: [{ date: utc(1, 10), description: 'EFT FUNDS RECEIVED', amount: 634.18 }] });
+    const plan = await planStatementImport(prisma, [file('opened.pdf', 'o8', opened)], { windowDays: 4, createAccount: { last4: '0008' } });
+    expect(plan.openings).toEqual([{ accountId: plan.newAccounts[0].account.id, date: utc(1, 1), balance: 0 }]);
+    await writeStatementImport(prisma, plan);
+    const made = await prisma.account.findFirstOrThrow({ where: { name: { contains: '0008' } } });
+    const snaps = await prisma.balanceSnapshot.findMany({ where: { accountId: made.id }, orderBy: { date: 'asc' } });
+    expect(snaps.map((x) => [x.date, Number(x.balance)])).toEqual([
+      [utc(1, 1), 0],
+      [utc(1, 31), 634.18],
+    ]);
   });
 
   it('is never created when an account carries those digits', async () => {

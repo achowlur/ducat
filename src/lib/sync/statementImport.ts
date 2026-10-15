@@ -82,6 +82,12 @@ export interface StatementImportPlan {
   storedOnly: Map<string, { date: Date; amount: number; description: string }[]>;
   /** Statement closing balances with no snapshot on that date yet. */
   snapshots: PlannedSnapshot[];
+  /**
+   * An account's OPENING: a zero on its first statement's first day, when that
+   * statement opens at zero and nothing is stored before it. It is what tells
+   * net worth the account held nothing before it existed, rather than unknown.
+   */
+  openings: PlannedSnapshot[];
 }
 
 export interface PlanOptions {
@@ -267,7 +273,7 @@ export async function planStatementImport(
   const accountIds = [...new Set(accepted.map((a) => a.account.id))];
   const storedOnly = new Map<string, { date: Date; amount: number; description: string }[]>();
   if (accepted.length === 0) {
-    return { windowDays: options.windowDays, statements: [], newAccounts, skipped, storedOnly, snapshots: [] };
+    return { windowDays: options.windowDays, statements: [], newAccounts, skipped, storedOnly, snapshots: [], openings: [] };
   }
 
   // Every stored row the statements could overlap, in one read; and where each
@@ -385,7 +391,25 @@ export async function planStatementImport(
   const taken = new Set(existing.map((e) => `${e.accountId}|${e.date.getTime()}`));
   const snapshots = closes.filter((c) => !taken.has(`${c.accountId}|${c.date.getTime()}`));
 
-  return { windowDays: options.windowDays, statements, newAccounts, skipped, storedOnly, snapshots };
+  const firstSnapshots = await prisma.balanceSnapshot.groupBy({
+    by: ['accountId'],
+    where: { accountId: { in: accountIds } },
+    _min: { date: true },
+  });
+  const snapshotStart = new Map(firstSnapshots.map((s) => [s.accountId, s._min.date]));
+  const openings: PlannedSnapshot[] = [];
+  for (const accountId of accountIds) {
+    const first = statements
+      .filter((p) => p.account.id === accountId)
+      .map((p) => p.file.statement)
+      .reduce((a, b) => (b.periodStart.getTime() < a.periodStart.getTime() ? b : a));
+    const atOrBefore = (date: Date | null | undefined) => date != null && date.getTime() <= first.periodStart.getTime();
+    const storedEarlier = (historyStart.get(accountId)?.getTime() ?? Infinity) < first.periodStart.getTime();
+    if (first.openingBalance !== 0 || storedEarlier || atOrBefore(snapshotStart.get(accountId))) continue;
+    openings.push({ accountId, date: first.periodStart, balance: 0 });
+  }
+
+  return { windowDays: options.windowDays, statements, newAccounts, skipped, storedOnly, snapshots, openings };
 }
 
 /** Whether a planned row is written. AMBIGUOUS never is: a guess is worse than a report. */
@@ -461,12 +485,13 @@ export async function writeStatementImport(
     ...planned,
     statements: planned.statements.map((p) => ({ ...p, account: real(p.account) })),
     snapshots: planned.snapshots.map((snap) => ({ ...snap, accountId: realIds.get(snap.accountId) ?? snap.accountId })),
+    openings: planned.openings.map((snap) => ({ ...snap, accountId: realIds.get(snap.accountId) ?? snap.accountId })),
   };
 
   const sync = await runSync(prisma, connectorFor(plan), { since: new Date(0) });
 
-  if (plan.snapshots.length > 0) {
-    await prisma.balanceSnapshot.createMany({ data: plan.snapshots });
+  if (plan.snapshots.length + plan.openings.length > 0) {
+    await prisma.balanceSnapshot.createMany({ data: [...plan.snapshots, ...plan.openings] });
   }
 
   const batchIds = plan.statements.map((p) => p.batchId);
@@ -488,5 +513,5 @@ export async function writeStatementImport(
       rowsAdded: added.get(p.batchId) ?? 0,
     })),
   });
-  return { sync, batchesRecorded: plan.statements.length, snapshotsWritten: plan.snapshots.length };
+  return { sync, batchesRecorded: plan.statements.length, snapshotsWritten: plan.snapshots.length + plan.openings.length };
 }

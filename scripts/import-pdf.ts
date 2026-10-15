@@ -128,6 +128,9 @@ function report(plan: StatementImportPlan, refused: { fileName: string; reason: 
     if (rows.length > 15) console.log(`    ...and ${rows.length - 15} more`);
   }
   console.log(`\n  Balance snapshots: ${plan.snapshots.length} statement closing balance(s) to write`);
+  if (plan.openings.length > 0) {
+    console.log(`    and ${plan.openings.length} account opening(s): a zero on the first day of a first statement opening at zero`);
+  }
 }
 
 async function main(): Promise<void> {
