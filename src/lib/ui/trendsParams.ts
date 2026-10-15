@@ -1,3 +1,4 @@
+import { NET_WORTH_RANGES, type NetWorthRange } from "./netWorthGrowth";
 import {
   COMPARE_KEYS,
   EXPLORE_SPAN_KEYS,
@@ -67,6 +68,8 @@ export interface TrendsParams {
   b: { view: BView; span: CompareKey; by: GroupBy; show: Measure };
   /** `over` is a preset (report.ts EXPLORE_SPAN_KEYS) or one month's key. */
   e: { view: string; show: ExploreShow; by: ExploreBy; for: GroupTarget | null; over: string };
+  /** Net worth's range is its "view": every month is on the page, so zooming asks the server nothing. */
+  n: { range: NetWorthRange };
 }
 
 export type RawSearch = Record<string, string | string[] | undefined>;
@@ -88,11 +91,12 @@ function viewOf<T extends string>(
   raw: RawSearch,
   cookie: (name: string) => string | undefined,
   options: readonly { value: T }[],
+  fallback: T = options[0].value,
 ): T {
   const allowed = options.map((o) => o.value);
   const fromUrl = first(raw, `${card}.view`);
   if (fromUrl !== undefined && (allowed as string[]).includes(fromUrl)) return fromUrl as T;
-  return oneOf(cookie(`trends.${card}`), allowed, allowed[0]);
+  return oneOf(cookie(`trends.${card}`), allowed, fallback);
 }
 
 /** `category:<id>`, `account:<id>` or `merchant:<key>`; anything else is no filter. */
@@ -136,5 +140,6 @@ export function parseTrendsParams(raw: RawSearch, cookie: (name: string) => stri
         ? (first(raw, "e.over") as string)
         : oneOf(first(raw, "e.over"), EXPLORE_SPAN_KEYS, E_DEFAULTS.over),
     },
+    n: { range: viewOf("n", raw, cookie, NET_WORTH_RANGES, "all") },
   };
 }

@@ -1248,3 +1248,45 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   makes. Both branches were rendered against demo data before shipping (the
   projected one by lowering the pace threshold for one load, then
   restoring it).
+
+- NET WORTH ZOOMS, AND SAYS WHAT GREW IT (2026-10-15). Once statement history
+  reached back years, the net worth line spanned a first month of a few
+  hundred dollars and a last of a few hundred thousand: the axis that fits
+  both flattens every recent month into a few pixels. The operator asked to
+  zoom in, and to see how much growth came from investing rather than saving,
+  and each year's growth against the years before.
+  THE RANGE IS A VIEW. 1Y, 3Y, 5Y and All, a range offered only when the
+  history holds its months AND the base month before them (a year is thirteen
+  points), so a switch never draws All under another name. Every month is
+  already on the page, so choosing one asks the server nothing; it is kept as
+  each card's "view as" is, in the URL (`n.view`) and a cookie, and a
+  remembered range the history is too short for falls back to All. The line
+  rescales to what it shows: a year of a six-figure history reads in
+  twenty-thousand-dollar steps, not hundred-thousand ones. The chart is keyed
+  by range, so a hovered month from a longer range cannot survive into a
+  shorter one.
+  THE SPLIT ADDS UP. The card leads with the change over the range, over a
+  context line: the span, the growth rate, then SAVED and MARKETS. Markets is
+  the sum of each month's own `marketGains` after the base (what the
+  investment accounts moved beyond the money put in or taken out); saved is
+  the change less markets, so the two always add up to the headline exactly.
+  A carried month has no market figure and the movement it missed lands when
+  a value returns, so a span holding both counts it once (pinned by test).
+  The markets' share is printed only when both parts grew: a share of a whole
+  that one part shrank is not a share of anything.
+  NO RATIO FOR ALL. All measures from wherever the records begin, which was a
+  first account holding a few hundred dollars: its growth rate came out in the
+  tens of thousands of percent, a fact about the records, not the growth. A
+  chosen range starts at a real month-end, so 1Y, 3Y and 5Y print one.
+  BY YEAR, newest first: each calendar year from the December before it to its
+  last month on record ("so far" while it runs), with its growth against where
+  it started (pctDelta's refusals, an empty cell's dash), saved and markets.
+  Whole dollars, because five figure columns do not fit 327px with cents, and
+  saved is printed as the rounded change less the rounded markets, so every
+  row adds up as printed. A year holding partly estimated months carries a *,
+  explained under the table in words.
+  VERIFIED on a copy of the operator's data with the day's cloud changes
+  applied: the rows' changes sum to the history's, at 375px nothing scrolls
+  sideways, the range buttons clear 44px, and the chosen range survives a
+  reload from its cookie. The README's Trends picture and the walkthrough stop
+  above this card, so neither changes.
