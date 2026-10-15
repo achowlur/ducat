@@ -18,6 +18,7 @@
     "sync:simplefin": "tsx scripts/sync-simplefin.ts",
     "import:csv": "tsx scripts/import-csv.ts",
     "import:balances": "tsx scripts/import-balances.ts",
+    "pdf:layout": "tsx scripts/pdf-layout.ts",
     "health": "tsx scripts/health.ts",
     "subs:audit": "tsx scripts/audit-subscriptions.ts",
     "repair:text": "tsx scripts/repair-text.ts",
@@ -72,6 +73,7 @@
     "tailwindcss": "^4",
     "tsx": "^4.23.0",
     "typescript": "^5",
+    "unpdf": "^1.8.1",
     "vitest": "^4.1.10"
   },
   "allowScripts": {
