@@ -52,6 +52,16 @@ interface TxnLite {
   date: Date;
 }
 
+/**
+ * Whether a connector keeps an account's balance current. CSV and PDF imports
+ * are manual and point-in-time (a statement-only account may be long closed),
+ * so a balance age, an overdue sync or a "behind" label would be a permanent
+ * false alarm for them; only their sync errors apply.
+ */
+export function pollsForBalances(connectorType: string): boolean {
+  return connectorType !== 'CSV' && connectorType !== 'PDF';
+}
+
 /** Pure signal: accounts whose balance has silently stopped updating. */
 export function findStaleAccounts(
   accounts: AccountLite[],
@@ -303,9 +313,7 @@ export async function getProviderHealth(
       lastSuccessfulSyncAt === null ||
       now.getTime() - lastSuccessfulSyncAt.getTime() > options.syncOverdueDays * DAY_MS;
 
-    // CSV and PDF imports are manual and point-in-time: overdue/stale signals
-    // would be permanent false alarms, so only sync errors apply.
-    const isPolling = connectorType !== 'CSV' && connectorType !== 'PDF';
+    const isPolling = pollsForBalances(connectorType);
     const staleAccounts = isPolling ? findStaleAccounts(accounts, now, options.staleBalanceDays) : [];
     const txns = isPolling
       ? await prisma.transaction.findMany({

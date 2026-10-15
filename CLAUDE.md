@@ -183,12 +183,13 @@ Re-checked against current code by an independent reviewer and deliberately
 left alone: the merchant-string reducers (`normalizeMerchant`, `payeeKey`'s
 truncate-not-delete, `collapse` in `rules.ts`, `brandOf`); the account-lookup
 fallback vs `matchAccount`; the MANUAL exclusions in `sync.ts` and `rules.ts`;
-the `known:false` / `investmentSnapshotNotBefore` contract; the "only active
-periods" anomaly baseline; and the
-`internalActivity`/`inboundWording`/`outboundWording` triple. On the UI side:
-`/providers`, the coverage notices, refusing to draw net worth it can't know,
-the reimbursements-exceeded empty state, the grouped-review P2P tooltip, the
-money typography, and Overview's market-movement line.
+the `known:false` / `investmentSnapshotNotBefore` contract (AMENDED by the
+operator 2026-10-15: carry, opening zero, name what is left out); the "only
+active periods" anomaly baseline; and `crossingAmount`'s wording. On the UI
+side: `/providers`, the coverage notices, net worth saying in text what it
+estimates or leaves out, the reimbursements-exceeded empty state, the
+grouped-review P2P tooltip, the money typography, and Overview's
+market-movement line.
 
 ## Product direction
 

@@ -20,7 +20,13 @@ export interface TrendsSource {
   accounts: { id: string; name: string; firstDay: string | null }[];
   accountNames: Map<string, string>;
   categories: { id: string; name: string; isIncome: boolean }[];
-  netWorth: (MonthPoint & { value: number; estimated: boolean; marketGains: number | null })[];
+  netWorth: (MonthPoint & {
+    value: number;
+    estimated: boolean;
+    /** Accounts the month's figure leaves out, by name: no value for them that month. */
+    leftOut: string[];
+    marketGains: number | null;
+  })[];
 }
 
 function shortMonth(period: string): string {
@@ -80,10 +86,11 @@ export async function getTrendsSource(): Promise<TrendsSource> {
   }
   const open = accounts.filter((a) => !isClosedBox(a.type));
 
+  const accountNames = new Map(accounts.map((a) => [a.id, a.name]));
   return {
     entries: buildEntries(txns),
     accounts: open.map((a) => ({ id: a.id, name: a.name, firstDay: firstByAccount.get(a.id) ?? null })),
-    accountNames: new Map(accounts.map((a) => [a.id, a.name])),
+    accountNames,
     categories,
     netWorth: ofType<NetWorthGrowthPayload>(monthlyRows(netWorthRows), "NET_WORTH_GROWTH").map(
       ({ period, payload }) => ({
@@ -91,6 +98,7 @@ export async function getTrendsSource(): Promise<TrendsSource> {
         label: shortMonth(period),
         value: payload.netWorth,
         estimated: payload.estimatedAccountIds.length > 0,
+        leftOut: (payload.excludedAccountIds ?? []).map((id) => accountNames.get(id) ?? "an account no longer listed"),
         marketGains: payload.marketGains ?? null,
       }),
     ),

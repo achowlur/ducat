@@ -84,15 +84,55 @@ describe('balanceAt', () => {
     expect(result).toMatchObject({ balance: 150000, known: true });
   });
 
-  // Carrying an August month-end into September ignores a month of market
-  // movement — the same fiction as rolling backwards, just pointing forwards.
-  it('will not carry a stale investment snapshot into a later period', () => {
+  // A month with no value of its own carries the last one, saying so: only
+  // that month's market movement goes unseen (the operator's choice, 2026-10-15).
+  it('carries the last investment value into a later period, marked estimated', () => {
     const brokerage: AccountData = { id: 'acc2', type: 'INVESTMENT', balance: 197040, balanceDate: utc(2026, 7, 12) };
     const snapshots: SnapshotData[] = [{ accountId: 'acc2', date: utc(2026, 6, 30), balance: 150000 }];
     const july = balanceAt(brokerage, snapshots, [], utc(2026, 7, 31), {
       investmentSnapshotNotBefore: utc(2026, 7, 1),
     });
-    expect(july.known).toBe(false);
+    expect(july).toEqual({ balance: 150000, estimated: true, known: true, carried: true });
+  });
+
+  // A deposit is no market movement and is known; a trade moves nothing across.
+  it('adds money that crossed the account since to a carried value, never a trade', () => {
+    const brokerage: AccountData = { id: 'acc2', type: 'INVESTMENT', balance: 197040, balanceDate: utc(2026, 7, 12) };
+    const snapshots: SnapshotData[] = [{ accountId: 'acc2', date: utc(2026, 6, 30), balance: 150000 }];
+    const txns = [
+      txn({ accountId: 'acc2', date: utc(2026, 7, 9), amount: 512.37, description: 'EFT FUNDS RECEIVED' }),
+      txn({ accountId: 'acc2', date: utc(2026, 7, 10), amount: -318.06, description: 'YOU BOUGHT EXAMPLE INDEX FUND' }),
+    ];
+    const july = balanceAt(brokerage, snapshots, txns, utc(2026, 7, 31), { investmentSnapshotNotBefore: utc(2026, 7, 1) });
+    expect(july).toEqual({ balance: 150512.37, estimated: true, known: true, carried: true });
+  });
+
+  // An opening zero (a first statement's opening day) says the account held nothing before.
+  it('counts an account as zero before its opening zero, unless it moved money before then', () => {
+    const opened: AccountData = { id: 'acc5', type: 'INVESTMENT', balance: 3027.88, balanceDate: utc(2026, 3, 31) };
+    const snapshots: SnapshotData[] = [
+      { accountId: 'acc5', date: utc(2026, 3, 1), balance: 0 },
+      { accountId: 'acc5', date: utc(2026, 3, 31), balance: 3027.88 },
+    ];
+    const january = { investmentSnapshotNotBefore: utc(2026, 1, 1) };
+    expect(balanceAt(opened, snapshots, [], utc(2026, 1, 31), january)).toEqual({ balance: 0, estimated: false, known: true });
+    const earlier = [txn({ accountId: 'acc5', date: utc(2026, 1, 10), amount: 512.37, description: 'EFT FUNDS RECEIVED' })];
+    expect(balanceAt(opened, snapshots, earlier, utc(2026, 1, 31), january).known).toBe(false);
+  });
+
+  // Any account type: a card opened by its first statement held nothing before, whatever a reconstruction says.
+  it('counts a card as zero before its opening zero, not as a reconstruction', () => {
+    const card: AccountData = { id: 'acc8', type: 'CREDIT', balance: -318.06, balanceDate: utc(2026, 3, 31) };
+    const snapshots: SnapshotData[] = [{ accountId: 'acc8', date: utc(2026, 3, 1), balance: 0 }];
+    const txns = [txn({ accountId: 'acc8', date: utc(2026, 3, 9), amount: -318.06 })];
+    expect(balanceAt(card, snapshots, txns, utc(2026, 1, 31))).toEqual({ balance: 0, estimated: false, known: true });
+  });
+
+  // Records that simply start late cannot say what came before.
+  it('does not know an account whose first value is not an opening zero, before it', () => {
+    const late: AccountData = { id: 'acc6', type: 'INVESTMENT', balance: 2914.06, balanceDate: utc(2026, 3, 31) };
+    const snapshots: SnapshotData[] = [{ accountId: 'acc6', date: utc(2026, 3, 31), balance: 2914.06 }];
+    expect(balanceAt(late, snapshots, [], utc(2026, 1, 31), { investmentSnapshotNotBefore: utc(2026, 1, 1) }).known).toBe(false);
   });
 
   it('accepts a snapshot taken inside the period being asked about', () => {
@@ -135,8 +175,8 @@ describe('balanceAt', () => {
     const snapshots: SnapshotData[] = [{ accountId: 'acc3', date: utc(2026, 1, 31), balance: 0 }];
     const march = { investmentSnapshotNotBefore: utc(2026, 3, 1) };
     expect(balanceAt(closed, snapshots, [], utc(2026, 3, 31), march)).toEqual({ balance: 0, estimated: false, known: true });
-    const deposit = [txn({ accountId: 'acc3', date: utc(2026, 2, 10), amount: 512.37 })];
-    expect(balanceAt(closed, snapshots, deposit, utc(2026, 3, 31), march).known).toBe(false);
+    const deposit = [txn({ accountId: 'acc3', date: utc(2026, 2, 10), amount: 512.37, description: 'EFT FUNDS RECEIVED' })];
+    expect(balanceAt(closed, snapshots, deposit, utc(2026, 3, 31), march)).toEqual({ balance: 512.37, estimated: true, known: true, carried: true });
   });
 });
 
@@ -152,6 +192,21 @@ describe('computeNetWorthGrowth', () => {
     ];
     const result = computeNetWorthGrowth([open, closed], snapshots, [], ['2026-02', '2026-03'], 'MONTH');
     expect([result.get('2026-02')?.netWorth, result.get('2026-03')?.netWorth]).toEqual([2914.06, 3027.88]);
+  });
+
+  // A month leaves out, by name, an account it cannot know; it is not dropped whole.
+  it('leaves out an account it cannot know for a month, and compares no growth across it', () => {
+    const cash: AccountData = { id: 'acc7', type: 'DEPOSITORY', balance: 2914.06, balanceDate: utc(2026, 3, 31) };
+    const late: AccountData = { id: 'acc6', type: 'INVESTMENT', balance: 3027.88, balanceDate: utc(2026, 3, 31) };
+    const snapshots: SnapshotData[] = [
+      { accountId: 'acc7', date: utc(2026, 1, 31), balance: 2914.06 },
+      { accountId: 'acc7', date: utc(2026, 2, 28), balance: 2914.06 },
+      { accountId: 'acc7', date: utc(2026, 3, 31), balance: 2914.06 },
+      { accountId: 'acc6', date: utc(2026, 3, 31), balance: 3027.88 },
+    ];
+    const result = computeNetWorthGrowth([cash, late], snapshots, [], ['2026-01', '2026-02', '2026-03'], 'MONTH');
+    expect(result.get('2026-02')).toMatchObject({ netWorth: 2914.06, excludedAccountIds: ['acc6'], growthRate: 0 });
+    expect(result.get('2026-03')).toMatchObject({ netWorth: 5941.94, excludedAccountIds: [], growthRate: null, marketGains: null });
   });
 
   it('computes growth rate between consecutive periods', () => {

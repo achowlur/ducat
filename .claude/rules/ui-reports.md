@@ -72,7 +72,11 @@ Overview:
   attention" — all clear cannot be told from not checked. ONE `now` drives
   both admission and the current-period gate, or a render straddling UTC
   midnight splits them.
-- Per-account "Nd behind" measures against the LAST SYNC, never against now.
+- Per-account "Nd behind" measures against the LAST SYNC, never against now,
+  and never labels a statement-only (CSV/PDF) account (pollsForBalances).
+- Net worth says in TEXT what a month estimates or leaves out (Trends names
+  each left-out account and its last such month; Overview and /insights count
+  them): a month missing an account is smaller than the truth.
 - /providers' "This instance" block owes the same three parts a connector
   card does, residual risks included, and states the sync CADENCE, read from
   vercel.json so it cannot drift (the CLOUD data-locality HARD RULE).

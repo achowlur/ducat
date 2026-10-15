@@ -223,9 +223,15 @@ function renderRecurring(p: RecurringChargePayload, tracked: boolean): RowBody {
 }
 
 function renderNetWorth(p: NetWorthGrowthPayload): RowBody {
-  const growth = p.growthRate === null ? "no prior month in scope" : `${pct(p.growthRate)} vs prior month`;
+  const growth = p.growthRate === null ? "no growth comparable with the prior month" : `${pct(p.growthRate)} vs prior month`;
   const markets = p.marketGains !== null && p.marketGains !== 0 ? [`markets ${money(p.marketGains)}`] : [];
-  return { text: `Net worth ${money(p.netWorth)}`, facts: [growth, ...markets] };
+  // A figure the reader must discount says so beside it: estimated balances
+  // (carried or reconstructed), and accounts left out, which make it smaller.
+  const estimated = p.estimatedAccountIds.length;
+  const discount = estimated === 0 ? [] : [`${estimated === 1 ? "1 balance" : `${estimated} balances`} estimated`];
+  const leftOut = p.excludedAccountIds?.length ?? 0;
+  const missing = leftOut === 0 ? [] : [`leaves out ${leftOut === 1 ? "1 account" : `${leftOut} accounts`} with no value then`];
+  return { text: `Net worth ${money(p.netWorth)}`, facts: [growth, ...markets, ...discount, ...missing] };
 }
 
 function renderSpending(p: SpendingByCategoryPayload): RowBody {
