@@ -467,6 +467,13 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   accepted rather than plumbing a batch flag nothing else needed. The trust
   banner's local-mode sentence now names both outbound calls; keep it in step
   with any future fetcher.
+  SUPERSEDED FOR FRED 2026-10-15, the operator's call: the card renders only
+  once FRED is in use (its key set, or a rate stored before), because an
+  unused rates index that is no source of transactions is noise on a trust
+  page read on a phone. `showsProvider` (`src/lib/ui/providers.ts`) holds the
+  rule and its test pins it; every CONNECTOR still renders before it is set
+  up. The local-mode sentence still names the FRED call, which is still true
+  of what the app can make.
 - The "This instance" block owes the same THREE PARTS a connector card does
   (2026-08-03). Every connector below it carried a data path, a numbered
   "Residual risks you are accepting" list and a revocation note; the block
