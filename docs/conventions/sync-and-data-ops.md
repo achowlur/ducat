@@ -209,6 +209,13 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   that zero on the statement's first day; with it, net worth can count the
   account as nothing before then. It had to land before the real import,
   because a statement already imported is never read again.
+  SNAPSHOTS BEFORE THE SYNC. The real import emptied the net worth line: the
+  write ran its rows through runSync, which regenerates insights, and only
+  then stored the statement snapshots. The account it had just created had
+  none yet, so every month counted it unknown and no month was drawn. The
+  data was whole; `insights:generate` restored the line. The write now stores
+  the snapshots first, and statementImportInsights.test.ts pins it on a
+  database of its own, since another test's account would hide it.
   SHARING A LAYOUT WITHOUT SHARING A STATEMENT. Parsers were written from
   `npm run pdf:layout` dumps the operator pasted. Masking digits alone was not
   enough: a statement prints the holder's name and address and the people paid
