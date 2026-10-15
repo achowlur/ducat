@@ -18,14 +18,20 @@ import {
  * What is read per account is what the import keeps for an investment
  * account: its value (the Account Summary's beginning and ending value, the
  * ending one becoming a snapshot) and money crossing the account's boundary
- * (the rows of a section such as Deposits). Trades, dividends, reinvestments
- * and core-fund sweeps stay inside the account and are not read at all.
+ * (every line under Additions or Subtractions, read through the section of the
+ * same name: Deposits, Exchanges In, a fee). Trades, dividends, reinvestments
+ * and core-fund sweeps stay inside the account, in the change in investment
+ * value, and are not read at all.
  *
  * The check: beginning value + every money-in/out row + the printed change in
- * investment value = ending value, to the cent; and each money-flow line of
- * the summary equals the rows of its section. A summary line moving money this
- * period whose section this parser does not read REFUSES the statement, naming
- * the line, rather than leaving that money out.
+ * investment value = ending value, to the cent; and each line of the summary
+ * equals the rows of its section and that section's printed total. A line
+ * moving money this period with no section listing its rows REFUSES the
+ * statement, naming the line, rather than leaving that money out.
+ *
+ * Positions are read RELATIVE to the page's own headings: where a report sets
+ * its summary moves between reports (the first real run met the same summary
+ * 18 points further left than the layout dump it was written from).
  */
 
 const PERIOD = /([A-Za-z]{3,9}\.? \d{1,2}, \d{4})\s*-\s*([A-Za-z]{3,9}\.? \d{1,2}, \d{4})/;
@@ -35,14 +41,10 @@ const ROW_DATE = /^\d{1,2}\/\d{1,2}$/;
 const SLACK = 12;
 /** The account summary is the page's LEFT half; the right half holds charts and income. */
 const SUMMARY_MAX_X = 400;
-/** A summary label sits at the margin, a breakdown line under it a few points in. */
+/** A summary label sits at the left margin. */
 const LABEL_MAX_X = 100;
-const BREAKDOWN_MIN_X = 53;
-/** Where a wrapped description line starts; page headers sit further right. */
-const CONTINUATION_X: [number, number] = [290, 520];
-
-/** The money-flow sections this parser reads, by the summary line naming them. */
-const FLOW_SECTIONS = new Set(['deposits', 'withdrawals']);
+/** A line under Additions or Subtractions is set in from the heading (by about 9 points). */
+const INDENT = 4;
 
 interface AccountLines {
   number: string;
@@ -111,6 +113,9 @@ function summary(lines: TextLine[], column: number, account: string) {
   let closing: number | null = null;
   let market: number | null = null;
   let begun = false;
+  /** An account with nothing but a balance prints no change-in-value line at all. */
+  let changeLine = false;
+  let headingX = 0;
   let additions = 0;
   let subtractions = 0;
   const breakdown: Breakdown[] = [];
@@ -137,14 +142,17 @@ function summary(lines: TextLine[], column: number, account: string) {
     if (/^Additions$/i.test(label)) {
       additions = value ?? 0;
       under = 1;
+      headingX = first.x;
     } else if (/^Subtractions$/i.test(label)) {
       subtractions = value ?? 0;
       under = -1;
+      headingX = first.x;
     } else if (/^Change in Investment Value\b/i.test(label)) {
+      changeLine = true;
       market = value;
       under = null;
     } else if (value !== null) {
-      if (under === null || first.x < BREAKDOWN_MIN_X) {
+      if (under === null || first.x < headingX + INDENT) {
         throw new Error(
           `account ${account}: the summary line "${label}" (${at(first)}) prints a figure this period but is not a line under Additions or Subtractions`,
         );
@@ -156,7 +164,7 @@ function summary(lines: TextLine[], column: number, account: string) {
   const missing = [
     [opening === null, 'beginning value'],
     [closing === null, 'ending value'],
-    [market === null, 'change in investment value'],
+    [changeLine && market === null, 'change in investment value'],
   ]
     .filter(([absent]) => absent)
     .map(([, what]) => what);
@@ -180,25 +188,34 @@ function summary(lines: TextLine[], column: number, account: string) {
       );
     }
   }
-  return { opening: opening as number, closing: closing as number, market: market as number, additions, subtractions, breakdown };
+  return { opening: opening as number, closing: closing as number, market: market ?? 0, additions, subtractions, breakdown };
 }
 
-/** The rows of one money-flow section ("Deposits" ... "Total Deposits"). */
+/**
+ * The rows of one money-flow section, headed by the summary line's own label
+ * ("Deposits" ... "Total Deposits"). A wrapped description continues under the
+ * Description column.
+ */
 function section(lines: TextLine[], name: string) {
   const heading = lines.findIndex(
     (l) => l.cells.length === 1 && l.cells[0].x <= LABEL_MAX_X && l.cells[0].text.toLowerCase() === name.toLowerCase(),
   );
   if (heading === -1) return null;
   let amountX: number | null = null;
+  let descriptionX: number | null = null;
   let total: number | null = null;
+  const totalLine = new RegExp(`^Total ${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
   const rows: { dateText: string; description: string[]; amount: number }[] = [];
   for (const line of lines.slice(heading + 1)) {
     const first = line.cells[0];
     if (amountX === null) {
-      if (line.cells.some((c) => c.text === 'Date')) amountX = line.cells.find((c) => c.text === 'Amount')?.xEnd ?? null;
+      if (line.cells.some((c) => c.text === 'Date')) {
+        amountX = line.cells.find((c) => c.text === 'Amount')?.xEnd ?? null;
+        descriptionX = line.cells.find((c) => c.text === 'Description')?.x ?? null;
+      }
       continue;
     }
-    if (new RegExp(`^Total ${name}$`, 'i').test(first.text)) {
+    if (totalLine.test(first.text)) {
       total = parseMoney(line.cells[line.cells.length - 1].text);
       break;
     }
@@ -208,7 +225,12 @@ function section(lines: TextLine[], name: string) {
       const amount = cells.length > 1 && Math.abs(last.xEnd - amountX) <= SLACK ? parseMoney(last.text) : null;
       if (amount === null) throw new Error(`the ${first.text} ${name.toLowerCase()} row has no amount`);
       rows.push({ dateText: first.text, description: cells.slice(1, -1).map((c) => c.text), amount });
-    } else if (rows.length > 0 && first.x >= CONTINUATION_X[0] && first.x <= CONTINUATION_X[1] && line.cells.every((c) => parseMoney(c.text) === null)) {
+    } else if (
+      rows.length > 0 &&
+      descriptionX !== null &&
+      Math.abs(first.x - descriptionX) <= SLACK &&
+      line.cells.every((c) => parseMoney(c.text) === null)
+    ) {
       rows[rows.length - 1].description.push(line.text);
     }
   }
@@ -244,11 +266,9 @@ export const fidelityReport: StatementLayout = {
       for (const line of s.breakdown) {
         if (line.value === 0) continue;
         const name = line.name.toLowerCase();
-        const read = FLOW_SECTIONS.has(name) ? section(account.lines, line.name) : null;
+        const read = section(account.lines, line.name);
         if (read === null) {
-          throw new Error(
-            `account ${account.number} shows "${line.name}" this period, and this import does not read that section yet`,
-          );
+          throw new Error(`account ${account.number} shows "${line.name}" this period, but no "${line.name}" section lists its rows`);
         }
         for (const r of read.rows) {
           const row: StatementRow = {

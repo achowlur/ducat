@@ -105,10 +105,39 @@ describe('fidelityReport', () => {
     ]);
   });
 
-  // Money moved that no section here reads: refuse, naming it, rather than leave it out.
-  it('refuses a statement moving money through a section it does not read', () => {
+  // A report sets its summary wherever its page puts it; only the indent under a heading matters.
+  it('reads a report set further left the same way', () => {
+    const shifted = report().map((l) => ({ ...l, cells: l.cells.map((c) => ({ ...c, x: c.x - 18, xEnd: c.xEnd - 18 })) }));
+    expect(fidelityReport.parse(shifted).map(({ checks, ...s }) => ({ ...s, checks: checks.length }))).toEqual(
+      fidelityReport.parse(report()).map(({ checks, ...s }) => ({ ...s, checks: checks.length })),
+    );
+  });
+
+  // Any line under Additions or Subtractions is read through the section of its own name.
+  it('reads an exchange in through its own section', () => {
+    const exchanges = [
+      line(12, 380, [49, 118, 'Exchanges In']),
+      line(12, 363, [49, 67, 'Date'], [90, 129, 'Reference'], [310, 354, 'Description'], [713, 743, 'Amount']),
+      line(12, 354, [49, 69, '09/22'], [310, 420, 'Exchange In From X00-000003'], [722, 743, '$37.21']),
+      line(12, 343, [49, 123, 'Total Exchanges In'], [722, 743, '$37.21']),
+    ];
+    // On the brokerage's own page, after its deposits.
+    const lines = report('37.21').flatMap((l) =>
+      l.page === 4 && l.cells[0].text === 'Ending Account Value'
+        ? [{ ...l, cells: [l.cells[0], { ...l.cells[1], text: '$101,287.21' }, l.cells[2]] }]
+        : l.cells[0].text === 'Total Deposits'
+          ? [l, ...exchanges]
+          : [l],
+    );
+    const [brokerage] = fidelityReport.parse(lines);
+    expect(brokerage.rows.map((r) => [r.description, r.amount])).toContainEqual(['Exchange In From X00-000003', 37.21]);
+    expect(reconcile(brokerage)).toEqual([]);
+  });
+
+  // Money moved that no section lists: refuse, naming it, rather than leave it out.
+  it('refuses a statement moving money no section lists', () => {
     expect(() => fidelityReport.parse(report('37.21'))).toThrow(
-      'account X00-000001 shows "Exchanges In" this period, and this import does not read that section yet',
+      'account X00-000001 shows "Exchanges In" this period, but no "Exchanges In" section lists its rows',
     );
   });
 
@@ -129,10 +158,18 @@ describe('fidelityReport', () => {
     );
   });
 
-  it('refuses a summary missing its change in value, saying what it does read', () => {
+  // An account holding only a balance prints no change line; the value check still has to hold.
+  it('takes a missing change-in-value line as no change, which the value check then tests', () => {
     const lines = report().filter((l) => !(l.page === 17 && l.cells[0].text.startsWith('Change in')));
+    const ira = fidelityReport.parse(lines)[1];
+    expect(ira.marketChange).toBe(0);
+    expect(reconcile(ira)).toEqual(['rows add up to 0.00 but the value moved -61.27 beyond the printed market change']);
+  });
+
+  it('refuses a change-in-value line with no figure, saying what it does read', () => {
+    const lines = report().map((l) => (l.page === 17 && l.cells[0].text.startsWith('Change in') ? { ...l, cells: [l.cells[0]] } : l));
     expect(() => fidelityReport.parse(lines)).toThrow(
-      'account 000-000002: the summary has no change in investment value in the This Period column (ending at x 299); it reads: "Ending Account Value"',
+      'account 000-000002: the summary has no change in investment value in the This Period column (ending at x 299); it reads: "Change in Investment Value *", "Ending Account Value"',
     );
   });
 

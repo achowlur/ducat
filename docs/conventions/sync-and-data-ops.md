@@ -160,6 +160,17 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   whole account numbers: its mask kept any digit run next to a dash (for ISO
   dates), and a brokerage account number has one. It now keeps only an ISO
   date, and text a reason quotes from a statement is masked as a row is.
+  The strict reader's first run named the cause at once: the real reports set
+  the summary 18 points left of the dump the parser was written from (labels
+  at x 31 and the lines under them at 40, against 49 and 58), so "Deposits"
+  sat left of the fixed indent and belonged to no heading. Positions are now
+  read RELATIVE to the page's own headings: a line is under Additions when it
+  is set in from Additions, a wrapped description continues under the
+  Description column. Every line under Additions or Subtractions is read
+  through the section of its own name (Exchanges In, a fee as well as
+  Deposits), since each is money crossing the account. A summary with no
+  change-in-value line at all (an account holding only a balance) is no
+  change, which the value check still tests.
   SHARING A LAYOUT WITHOUT SHARING A STATEMENT. Parsers were written from
   `npm run pdf:layout` dumps the operator pasted. Masking digits alone was not
   enough: a statement prints the holder's name and address and the people paid

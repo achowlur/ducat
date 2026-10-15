@@ -90,15 +90,17 @@ imported. For each account the import keeps:
 
 - **its value**: the ending account value becomes a balance snapshot, which is
   what net worth reads for an investment account;
-- **money in and out**: the rows of its Deposits and Withdrawals sections.
+- **money in and out**: the rows behind every line under Additions and
+  Subtractions in its account summary (deposits, withdrawals, exchanges, fees),
+  each read from the section of the same name.
 
 Trades, dividends, reinvestments and the sweep into the core position stay
 inside the account, so they are not read at all; what the account earned is
 the statement's own "Change in Investment Value". The check is the beginning
 value plus every row plus that printed change, which must equal the ending
-value to the cent. If an account moved money through a section the import does
-not read yet (an exchange or a transfer between accounts), the file is refused
-with that section's name.
+value to the cent. If an account moved money through a summary line that no
+section lists, or the summary holds a line the import cannot place, the file is
+refused with that line's name.
 
 ## Sharing the report
 
