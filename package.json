@@ -51,7 +51,7 @@
     "clsx": "^2.1.1",
     "jose": "^6.2.3",
     "lucide-react": "^1.24.0",
-    "next": "15.5.25",
+    "next": "15.5.27",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "shadcn": "^4.13.0",
@@ -67,7 +67,7 @@
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",
     "eslint": "^9",
-    "eslint-config-next": "15.5.25",
+    "eslint-config-next": "15.5.27",
     "playwright": "^1.63.0",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
@@ -75,6 +75,14 @@
     "typescript": "^5",
     "unpdf": "^1.8.1",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.23"
+    },
+    "prisma": {
+      "mysql2": "^3.23.1"
+    }
   },
   "allowScripts": {
     "@prisma/engines": true,
