@@ -118,7 +118,7 @@ describe('fidelityReport', () => {
     const exchanges = [
       line(12, 380, [49, 118, 'Exchanges In']),
       line(12, 363, [49, 67, 'Date'], [90, 129, 'Reference'], [310, 354, 'Description'], [713, 743, 'Amount']),
-      line(12, 354, [49, 69, '09/22'], [310, 420, 'Exchange In From X00-000003'], [722, 743, '$37.21']),
+      line(12, 354, [49, 69, '09/22'], [310, 420, 'Exchange In From X00-000003'], [461, 463, '-'], [515, 517, '-'], [722, 743, '$37.21']),
       line(12, 343, [49, 123, 'Total Exchanges In'], [722, 743, '$37.21']),
     ];
     // On the brokerage's own page, after its deposits.
@@ -139,6 +139,72 @@ describe('fidelityReport', () => {
     expect(() => fidelityReport.parse(report('37.21'))).toThrow(
       'account X00-000001 shows "Exchanges In" this period, but no "Exchanges In" section lists its rows',
     );
+  });
+
+  // An account with one activity table lists an exchange as a "Transferred From" row in it.
+  it('reads an exchange in from the activity table when no section names it', () => {
+    const lines = report('37.21').flatMap((l) =>
+      l.page === 4 && l.cells[0].text === 'Ending Account Value'
+        ? [{ ...l, cells: [l.cells[0], { ...l.cells[1], text: '$101,287.21' }, l.cells[2]] }]
+        : l.page === 9 && l.cells[0].text === 'Security Name'
+          ? [
+              line(9, 452, [49, 105, 'Security Name'], [210, 227, 'Date'], [310, 402, 'Transaction Description'], [713, 743, 'Amount']),
+              line(9, 425, [49, 110, 'X00-000003-1'], [210, 230, '09/22'], [310, 380, 'Transferred From'], [461, 463, '-'], [515, 517, '-'], [722, 743, '$37.21']),
+            ]
+          : [l],
+    );
+    const [brokerage] = fidelityReport.parse(lines);
+    expect(brokerage.rows.map((r) => [r.date, r.description, r.amount])).toContainEqual([noonUtc(2026, 9, 22), 'X00-000003-1 Transferred From', 37.21]);
+    expect(reconcile(brokerage)).toEqual([]);
+  });
+
+  // A fee or a trade's transaction cost is what the account's value did, like the market: never a row.
+  it('counts costs paid inside the account with its change in value', () => {
+    const lines = report().map((l) => {
+      if (l.page !== 4) return l;
+      const thisPeriod = (text: string) => ({ ...l, cells: [l.cells[0], { ...l.cells[1], text }, ...l.cells.slice(2)] });
+      if (l.cells[0].text === 'Subtractions' || l.cells[0].text === 'Transaction Account Fees') return thisPeriod('-18.43');
+      if (l.cells[0].text === 'Ending Account Value') return thisPeriod('$101,231.57');
+      return l;
+    });
+    const [brokerage] = fidelityReport.parse(lines);
+    expect(brokerage.marketChange).toBe(-1268.43);
+    expect(brokerage.rows.map((r) => r.amount)).toEqual([1612.34, 887.66]);
+    expect(reconcile(brokerage)).toEqual([]);
+  });
+
+  // Securities moved in kind carry no amount; each prints its value on the lines below it.
+  it('reads securities moved in kind at the value of each transaction', () => {
+    const lines = report().flatMap((l) => {
+      if (l.page !== 17) return [l];
+      if (l.cells[0].text === 'Beginning Account Value') {
+        return [l, line(17, 372, [49, 230, 'Transfers Between Fidelity Accounts'], [252, 297, '4,512.66'], [336, 382, '4,512.66'])];
+      }
+      if (l.cells[0].text === 'Ending Account Value') return [{ ...l, cells: [l.cells[0], { ...l.cells[1], text: '$25,835.94' }, l.cells[2]] }];
+      return [l];
+    });
+    lines.push(
+      line(18, 452, [49, 105, 'Security Name'], [210, 227, 'Date'], [310, 402, 'Transaction Description'], [713, 743, 'Amount']),
+      line(18, 443, [49, 160, 'EXAMPLE INDEX FUND'], [210, 230, '09/24'], [239, 279, '000000000'], [310, 380, 'Transferred From'], [435, 464, '12.345'], [722, 725, '-']),
+      line(18, 434, [49, 200, 'X00-000001-1 VALUE OF TRANSACTION']),
+      line(18, 425, [49, 90, '$4,512.66']),
+    );
+    const ira = fidelityReport.parse(lines)[1];
+    expect(ira.rows).toEqual([
+      { date: noonUtc(2026, 9, 24), description: 'EXAMPLE INDEX FUND Transferred From X00-000001-1 (in kind)', amount: 4512.66 },
+    ]);
+    expect(reconcile(ira)).toEqual([]);
+  });
+
+  // Past the Amount column sit an edge mark and the footer's code: never an amount.
+  it('reads amounts and totals from the Amount column, past page furniture', () => {
+    const lines = report().map((l) =>
+      l.cells[0].text === 'Total Deposits' || l.cells[0].text === '09/17'
+        ? { ...l, cells: [...l.cells, { x: 744, xEnd: 893, text: 'XX_XX _XXXXXXXXXXXXX_XXXXX 00000000' }] }
+        : l,
+    );
+    expect(fidelityReport.parse(lines)[0].rows).toEqual(fidelityReport.parse(report())[0].rows);
+    expect(reconcile(fidelityReport.parse(lines)[0])).toEqual([]);
   });
 
   // A line whose figure cannot be placed must not vanish: Additions would then

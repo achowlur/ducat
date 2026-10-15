@@ -261,6 +261,10 @@ export async function planStatementImport(
         p.rows.filter((r) => r.verdict.kind === 'PRESENT').map((r) => storedIds.get(transactionKey(accountId, r.externalId))),
       ),
     );
+    // Feeds disagree on an investment transfer's SIGN (SimpleFIN stores a
+    // brokerage deposit negative, Fidelity's CSV and statement positive), so
+    // in an investment account a row matches on its magnitude.
+    const matched = mine[0].account.type === 'INVESTMENT' ? Math.abs : (amount: number) => amount;
     const incoming = planned.flatMap((p, s) => {
       const { periodStart, periodEnd } = p.file.statement;
       const lateBefore = periodStart.getTime() - options.windowDays * DAY_MS;
@@ -268,7 +272,7 @@ export async function planStatementImport(
         .map((r, i) => ({
           key: `${s}:${i}`,
           date: r.row.date,
-          amount: r.row.amount,
+          amount: matched(r.row.amount),
           kind: r.verdict.kind,
           ...(r.row.transactionDate !== undefined || r.row.date.getTime() < lateBefore
             ? { postedWithin: { from: periodStart, to: periodEnd } }
@@ -278,7 +282,7 @@ export async function planStatementImport(
     });
     const candidates = storedHere
       .filter((t) => !presentIds.has(t.id))
-      .map((t) => ({ id: t.id, date: t.date, amount: Number(t.amount) }));
+      .map((t) => ({ id: t.id, date: t.date, amount: matched(Number(t.amount)) }));
     const { verdicts, claimed } = matchOverlap(incoming, candidates, options.windowDays, historyStart.get(accountId) ?? null);
     planned.forEach((p, s) =>
       p.rows.forEach((r, i) => {

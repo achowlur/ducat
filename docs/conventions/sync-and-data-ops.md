@@ -179,6 +179,21 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   Brokerage words joined the mask's vocabulary ("Exchanges" printed as
   "Xxxxxxxxx"), and `pdf:layout --pages-with` finds pages by their REAL
   text, so a page can be asked for by a word the mask hides.
+  With `pdf:layout` run on the real reports (masked), the rest fell out:
+  an account with ONE activity table lists an exchange as a "Transferred
+  From/To" row in it, not a section of its own, so an exchange with no
+  section is read from those rows; securities moved IN KIND ("Transfers
+  Between Fidelity Accounts", a heading of its own) carry a quantity and no
+  amount, but print each one's VALUE OF TRANSACTION below it on both sides,
+  so they are one row per security at that value; fees and a trade's
+  transaction cost are counted with the change in value (as netWorth.ts
+  already counts an advisory fee inside the account), never as rows; and an
+  edge mark and the footer's code past the Amount column are never an
+  amount. The last find was the one that mattered: deposits came out as
+  gaps beside stored rows the feed had signed NEGATIVE, the known
+  disagreement between SimpleFIN and Fidelity's own records, so they would
+  have been added twice. In an investment account a statement row now
+  matches on the amount's magnitude.
   SHARING A LAYOUT WITHOUT SHARING A STATEMENT. Parsers were written from
   `npm run pdf:layout` dumps the operator pasted. Masking digits alone was not
   enough: a statement prints the holder's name and address and the people paid

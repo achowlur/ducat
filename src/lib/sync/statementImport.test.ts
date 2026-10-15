@@ -174,8 +174,20 @@ describe('planStatementImport', () => {
 });
 
 describe('an investment statement', () => {
-  // It lists only money crossing the account, so trades and dividends are never on it.
-  it('lists no trade or dividend among the stored rows it does not explain', async () => {
+  let brokerageId: string;
+  const plan = async () => {
+    const report = statement({
+      institution: 'Example Brokerage',
+      accountType: 'INVESTMENT',
+      accountLast4: '0003',
+      openingBalance: 5123.89,
+      closingBalance: 5123.89,
+      rows: [{ date: utc(2, 24), description: 'EFT FUNDS RECEIVED', amount: 397.52 }],
+    });
+    return verdictOf([file('brokerage.pdf', 'b1', report)]);
+  };
+
+  beforeAll(async () => {
     const brokerage = await prisma.account.create({
       data: {
         externalId: 'ext-brokerage',
@@ -205,18 +217,22 @@ describe('an investment statement', () => {
         row('feed-dividend', utc(2, 20), 12.47, 'DIVIDEND RECEIVED EXAMPLE INDEX FUND'),
         row('feed-buy', utc(2, 21), -318.06, 'YOU BOUGHT EXAMPLE INDEX FUND'),
         row('feed-out', utc(3, 1), -246.91, 'TRANSFERRED TO EXAMPLE BANK'),
+        // The feed signs a brokerage deposit negative; the statement prints it positive.
+        row('feed-in', utc(2, 25), -397.52, 'EFT FUNDS RECEIVED'),
       ],
     });
-    const report = statement({
-      institution: 'Example Brokerage',
-      accountType: 'INVESTMENT',
-      accountLast4: '0003',
-      openingBalance: 5123.89,
-      closingBalance: 5123.89,
-      rows: [],
-    });
-    const { plan } = await verdictOf([file('brokerage.pdf', 'b1', report)]);
-    expect(plan.storedOnly.get(brokerage.id)?.map((r) => r.description)).toEqual(['TRANSFERRED TO EXAMPLE BANK']);
+    brokerageId = brokerage.id;
+  });
+
+  it('matches a stored row of the same amount whichever sign its source gave it', async () => {
+    const { kinds } = await plan();
+    expect(kinds).toEqual(['EFT FUNDS RECEIVED MATCHED']);
+  });
+
+  // It lists only money crossing the account, so trades and dividends are never on it.
+  it('lists no trade or dividend among the stored rows it does not explain', async () => {
+    const { plan: planned } = await plan();
+    expect(planned.storedOnly.get(brokerageId)?.map((r) => r.description)).toEqual(['TRANSFERRED TO EXAMPLE BANK']);
   });
 });
 

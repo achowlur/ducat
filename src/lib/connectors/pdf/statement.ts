@@ -49,7 +49,8 @@ export interface ParsedStatement {
   closingBalance: number;
   /**
    * A change in value the statement prints and no row explains: an investment
-   * account's market movement. The balance check then reads opening + rows +
+   * account's market movement, and the costs it pays inside itself (a fee, a
+   * trade's transaction cost). The balance check then reads opening + rows +
    * this = closing. Absent on a bank or card statement, where every change is
    * a row.
    */

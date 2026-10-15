@@ -39,7 +39,7 @@ const VOCABULARY = new Set(
   investment value change market exchange exchanges cost costs core fund funds
   securities bought sold income dividend dividends reinvestment contribution
   contributions distribution distributions taxes withheld advisory managed
-  program report
+  program report transferred out
   `
     .split(/\s+/)
     .filter(Boolean),

@@ -19,15 +19,16 @@ import {
  * account: its value (the Account Summary's beginning and ending value, the
  * ending one becoming a snapshot) and money crossing the account's boundary
  * (every line under Additions or Subtractions, read through the section of the
- * same name: Deposits, Exchanges In, a fee). Trades, dividends, reinvestments
- * and core-fund sweeps stay inside the account, in the change in investment
- * value, and are not read at all.
+ * same name, or an exchange through its "Transferred From/To" rows). Trades,
+ * dividends, reinvestments and core-fund sweeps stay inside the account, in the
+ * change in investment value, and are not read at all; so do the costs it pays
+ * inside itself, a fee or a trade's transaction cost.
  *
  * The check: beginning value + every money-in/out row + the printed change in
- * investment value = ending value, to the cent; and each line of the summary
- * equals the rows of its section and that section's printed total. A line
- * moving money this period with no section listing its rows REFUSES the
- * statement, naming the line, rather than leaving that money out.
+ * investment value + the printed costs = ending value, to the cent; and each
+ * line of the summary equals the rows of its section and that section's
+ * printed total. A line moving money this period with no rows listing it
+ * REFUSES the statement, naming the line, rather than leaving that money out.
  *
  * Positions are read RELATIVE to the page's own headings: where a report sets
  * its summary moves between reports (the first real run met the same summary
@@ -47,6 +48,20 @@ const SUMMARY_MAX_X = 400;
 const LABEL_MAX_X = 100;
 /** A line under Additions or Subtractions is set in from the heading (by about 9 points). */
 const INDENT = 4;
+/**
+ * Costs paid inside the account (an advisory fee, a trade's transaction
+ * cost): what its value did, like the market, and never a row. Ducat counts an
+ * advisory fee inside an investment account the same way (netWorth.ts).
+ */
+const COSTS = /\b(fees?|charges|costs?)\b/i;
+/** Money moved between the holder's own accounts, which may have no section of its own. */
+const EXCHANGE = /^Exchanges (In|Out)$/i;
+/**
+ * A summary heading of its own beside Additions and Subtractions: securities
+ * moved IN KIND between the holder's accounts, whose activity rows carry a
+ * quantity and no amount, so only the summary prints what they were worth.
+ */
+const IN_KIND = /^Transfers Between\b.*\bAccounts$/i;
 
 interface AccountLines {
   number: string;
@@ -56,8 +71,10 @@ interface AccountLines {
 interface Breakdown {
   name: string;
   value: number;
-  /** +1 under Additions, -1 under Subtractions. */
+  /** +1 under Additions or in, -1 under Subtractions or out. */
   sign: 1 | -1;
+  /** A heading of its own (an in-kind transfer), not a line under one. */
+  heading?: true;
 }
 
 /** Each account's lines, in page order, keyed by the number its pages print. */
@@ -153,6 +170,9 @@ function summary(lines: TextLine[], column: number, account: string) {
       changeLine = true;
       market = value;
       under = null;
+    } else if (IN_KIND.test(label)) {
+      if (value !== null && value !== 0) breakdown.push({ name: label, value, sign: value < 0 ? -1 : 1, heading: true });
+      under = null;
     } else if (value !== null) {
       if (under === null || first.x < headingX + INDENT) {
         throw new Error(
@@ -181,7 +201,7 @@ function summary(lines: TextLine[], column: number, account: string) {
     ['Additions', additions, 1],
     ['Subtractions', subtractions, -1],
   ] as const) {
-    const read = breakdown.filter((b) => b.sign === sign);
+    const read = breakdown.filter((b) => b.sign === sign && b.heading !== true);
     const sum = read.reduce((total, b) => total + Math.abs(cents(b.value)), 0);
     if (sum !== Math.abs(cents(printed))) {
       const named = read.length > 0 ? read.map((b) => `"${b.name}" ${money(b.value)}`).join(', ') : 'none';
@@ -218,15 +238,26 @@ function section(lines: TextLine[], name: string) {
       continue;
     }
     if (totalLine.test(first.text)) {
-      total = parseMoney(line.cells[line.cells.length - 1].text);
+      // The figure under Amount: a page can set a mark of its own past it.
+      const amountEnd = amountX;
+      const figureCell = line.cells.find((c) => c !== first && Math.abs(c.xEnd - amountEnd) <= SLACK);
+      total = figureCell === undefined ? null : parseMoney(figureCell.text);
       break;
     }
     if (ROW_DATE.test(first.text) && first.x <= LABEL_MAX_X) {
-      const cells = splitTrailingAmount(line.cells, amountX, SLACK);
+      // Past the Amount column is page furniture: an edge mark, the footer's code.
+      const amountEnd = amountX;
+      const cells = splitTrailingAmount(
+        line.cells.filter((c) => c.x < amountEnd),
+        amountEnd,
+        SLACK,
+      );
       const last = cells[cells.length - 1];
       const amount = cells.length > 1 && Math.abs(last.xEnd - amountX) <= SLACK ? parseMoney(last.text) : null;
       if (amount === null) throw new Error(`the ${first.text} ${name.toLowerCase()} row has no amount`);
-      rows.push({ dateText: first.text, description: cells.slice(1, -1).map((c) => c.text), amount });
+      // A "-" holds an empty quantity or price column.
+      const words = cells.slice(1, -1).filter((c) => c.text !== '-');
+      rows.push({ dateText: first.text, description: words.map((c) => c.text), amount });
     } else if (
       rows.length > 0 &&
       descriptionX !== null &&
@@ -239,6 +270,75 @@ function section(lines: TextLine[], name: string) {
   if (amountX === null) throw new Error(`the ${name} section has no amount column`);
   if (total === null) throw new Error(`the ${name} section has no total`);
   return { rows, total };
+}
+
+/**
+ * An exchange listed as a row of the account's activity table rather than a
+ * section of its own: "Transferred From" coming in, "Transferred To" going
+ * out, with the other account's number in the security-name column. A long
+ * name can run into the Date column and carry the date at its end. Null when
+ * no such row is listed. There is no printed total; the summary line is the
+ * check.
+ */
+function transferRows(lines: TextLine[], direction: 'From' | 'To') {
+  const verb = new RegExp(`^Transferred ${direction}$`, 'i');
+  let amountX: number | null = null;
+  const rows: { dateText: string; description: string[]; amount: number }[] = [];
+  for (const line of lines) {
+    if (line.cells.some((c) => c.text === 'Transaction Description')) {
+      amountX = line.cells.find((c) => c.text === 'Amount')?.xEnd ?? null;
+      continue;
+    }
+    const verbAt = line.cells.findIndex((c) => verb.test(c.text));
+    if (verbAt === -1) continue;
+    const amountEnd = amountX;
+    const before = line.cells.slice(0, verbAt);
+    const dateCell = before.find((c) => ROW_DATE.test(c.text));
+    const merged = dateCell === undefined ? before.map((c) => /^(.*\S)\s+(\d{1,2}\/\d{1,2})$/.exec(c.text)).find((m) => m !== null) : null;
+    const amountCell =
+      amountEnd === null ? undefined : line.cells.slice(verbAt + 1).find((c) => Math.abs(c.xEnd - amountEnd) <= SLACK);
+    // No amount, a quantity instead: securities moved in kind, read through
+    // their own summary line (inKind below), never as cash.
+    if (amountCell?.text === '-') continue;
+    const amount = amountCell === undefined ? null : parseMoney(amountCell.text);
+    const dateText = dateCell?.text ?? merged?.[2];
+    if (dateText === undefined || amount === null) {
+      throw new Error(`a "${line.cells[verbAt].text}" row (${at(line.cells[verbAt])}) has no date or no amount`);
+    }
+    const names = before.filter((c) => c !== dateCell).map((c) => (merged != null && c.text === merged[0] ? merged[1] : c.text));
+    rows.push({ dateText, description: [...names, line.cells[verbAt].text], amount });
+  }
+  return rows.length === 0 ? null : { rows, total: null };
+}
+
+/**
+ * Securities moved in kind: "Transferred From/To" rows whose Amount is "-",
+ * each followed by a line naming the other account and "VALUE OF
+ * TRANSACTION", then that value on a line of its own. One row per security at
+ * that value, on either side (a section of its own on one, the activity table
+ * on the other). Null when no such row is listed.
+ */
+function inKind(lines: TextLine[], direction: 'From' | 'To') {
+  const verb = new RegExp(`^Transferred ${direction}$`, 'i');
+  const rows: { dateText: string; description: string[]; amount: number }[] = [];
+  lines.forEach((line, i) => {
+    const verbAt = line.cells.findIndex((c) => verb.test(c.text));
+    if (verbAt === -1 || line.cells[line.cells.length - 1].text !== '-') return;
+    const before = line.cells.slice(0, verbAt);
+    const dated = before.map((c) => /^(.*?)\s*(\d{1,2}\/\d{1,2})$/.exec(c.text)).find((m) => m !== null);
+    const following = lines.slice(i + 1, i + 7);
+    const next = following.findIndex((l) => l.cells.some((c) => ROW_DATE.test(c.text)));
+    const block = next === -1 ? following : following.slice(0, next);
+    const labelAt = block.findIndex((l) => /VALUE OF TRANSACTION$/i.test(l.cells[0]?.text ?? ''));
+    const value = labelAt === -1 ? null : parseMoney(block[labelAt + 1]?.cells[0]?.text ?? '');
+    if (dated == null || value === null) {
+      throw new Error(`an in-kind "${line.cells[verbAt].text}" row (${at(line.cells[verbAt])}) prints no date or no value of transaction`);
+    }
+    const names = before.map((c) => (c.text === dated[0] ? dated[1] : c.text)).filter((t) => t !== '' && !/^\d+[A-Z\d]*$/.test(t));
+    const other = block[labelAt].cells[0].text.replace(/\s*VALUE OF TRANSACTION$/i, '');
+    rows.push({ dateText: dated[2], description: [...names, line.cells[verbAt].text, other, '(in kind)'], amount: value });
+  });
+  return rows.length === 0 ? null : { rows, total: null };
 }
 
 export const fidelityReport: StatementLayout = {
@@ -267,11 +367,24 @@ export const fidelityReport: StatementLayout = {
 
       const rows: StatementRow[] = [];
       const sectionOf = new Map<StatementRow, string>();
+      /** Rows of a heading of their own, which Additions and Subtractions do not count. */
+      const ownHeading = new Set<StatementRow>();
       const checks: StatementCheck[] = [];
+      /** Costs paid inside the account, counted with its change in value. */
+      let kept = 0;
       for (const line of s.breakdown) {
         if (line.value === 0) continue;
+        if (COSTS.test(line.name)) {
+          kept += line.sign * Math.abs(line.value);
+          continue;
+        }
         const name = line.name.toLowerCase();
-        const read = section(account.lines, line.name);
+        const exchange = EXCHANGE.exec(line.name);
+        const read =
+          line.heading === true
+            ? inKind(account.lines, line.sign === 1 ? 'From' : 'To')
+            : (section(account.lines, line.name) ??
+              (exchange === null ? null : transferRows(account.lines, exchange[1].toLowerCase() === 'in' ? 'From' : 'To')));
         if (read === null) {
           throw new Error(`account ${account.number} shows "${line.name}" this period, but no "${line.name}" section lists its rows`);
         }
@@ -283,15 +396,19 @@ export const fidelityReport: StatementLayout = {
           };
           rows.push(row);
           sectionOf.set(row, name);
+          if (line.heading === true) ownHeading.add(row);
         }
-        checks.push(
-          { label: `${line.name} in the account summary`, printedCents: cents(line.value), rows: (r) => sectionOf.get(r) === name },
-          { label: `Total ${line.name}`, printedCents: cents(read.total), rows: (r) => sectionOf.get(r) === name },
-        );
+        checks.push({ label: `${line.name} in the account summary`, printedCents: cents(line.value), rows: (r) => sectionOf.get(r) === name });
+        if (read.total !== null) {
+          checks.push({ label: `Total ${line.name}`, printedCents: cents(read.total), rows: (r) => sectionOf.get(r) === name });
+        }
       }
+      // Each heading less the costs under it, which are no rows.
+      const costsUnder = (sign: 1 | -1) =>
+        s.breakdown.filter((b) => b.sign === sign && COSTS.test(b.name)).reduce((total, b) => total + Math.abs(cents(b.value)), 0);
       checks.push(
-        { label: 'additions in the account summary', printedCents: cents(s.additions), rows: (r) => r.amount > 0 },
-        { label: 'subtractions in the account summary', printedCents: cents(s.subtractions), rows: (r) => r.amount < 0 },
+        { label: 'additions in the account summary', printedCents: Math.abs(cents(s.additions)) - costsUnder(1), rows: (r) => r.amount > 0 && !ownHeading.has(r) },
+        { label: 'subtractions in the account summary', printedCents: Math.abs(cents(s.subtractions)) - costsUnder(-1), rows: (r) => r.amount < 0 && !ownHeading.has(r) },
       );
 
       statements.push({
@@ -303,7 +420,7 @@ export const fidelityReport: StatementLayout = {
         periodEnd,
         openingBalance: s.opening,
         closingBalance: s.closing,
-        marketChange: s.market,
+        marketChange: s.market + kept,
         rows,
         checks,
       });
