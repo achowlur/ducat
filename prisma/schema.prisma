@@ -29,6 +29,7 @@ enum CategorySource {
 enum TransactionSource {
   SIMPLEFIN
   CSV
+  PDF
 }
 
 enum RuleMatchField {
@@ -59,8 +60,27 @@ model Account {
   isStale       Boolean
   createdAt     DateTime @default(now())
 
-  transactions Transaction[]
-  snapshots    BalanceSnapshot[]
+  transactions  Transaction[]
+  snapshots     BalanceSnapshot[]
+  importBatches ImportBatch[]
+}
+
+// One statement file an import read: which file, which account and period,
+// and how many rows it added. Transaction.importBatchId points here, which is
+// what makes "which file produced this row" answerable and an import undoable.
+model ImportBatch {
+  id          String            @id @default(cuid())
+  source      TransactionSource
+  fileName    String
+  // The file's bytes, hashed: the same statement downloaded twice is one
+  // statement whatever it was named, and is refused the second time.
+  fileSha256  String
+  accountId   String
+  account     Account           @relation(fields: [accountId], references: [id])
+  periodStart DateTime
+  periodEnd   DateTime
+  rowsAdded   Int
+  importedAt  DateTime          @default(now())
 }
 
 model BalanceSnapshot {
@@ -101,8 +121,14 @@ model Transaction {
   // default, deliberately: exactly the shape schema:push can ADD to a
   // populated cloud table.
   groupLabel         String?
+  // The ImportBatch (statement file) this row came from; null for every row a
+  // feed or CSV wrote. A plain column with no relation, deliberately: a
+  // foreign key is a TABLE constraint, which SQLite cannot add to a populated
+  // table, where a nullable column is the shape schema:push can ADD.
+  importBatchId      String?
 
   @@unique([accountId, externalId])
+  @@index([importBatchId])
 }
 
 model Category {

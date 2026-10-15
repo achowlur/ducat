@@ -16,7 +16,7 @@ export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
 export type TransactionFlow = 'INFLOW' | 'OUTFLOW' | 'TRANSFER';
 
-export type ConnectorType = 'SIMPLEFIN' | 'CSV';
+export type ConnectorType = 'SIMPLEFIN' | 'CSV' | 'PDF';
 
 /**
  * Period keys by granularity:
@@ -163,6 +163,8 @@ export interface NormalizedTransaction {
   normalizedMerchant: string;
   flow: TransactionFlow;
   source: ConnectorType;
+  /** The ImportBatch (statement file) the row came from; feeds and CSVs set none. */
+  importBatchId?: string;
 }
 
 export interface Connector {

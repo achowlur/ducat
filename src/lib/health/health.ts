@@ -303,9 +303,9 @@ export async function getProviderHealth(
       lastSuccessfulSyncAt === null ||
       now.getTime() - lastSuccessfulSyncAt.getTime() > options.syncOverdueDays * DAY_MS;
 
-    // CSV is manual and point-in-time: overdue/stale signals would be
-    // permanent false alarms, so only sync errors apply.
-    const isPolling = connectorType !== 'CSV';
+    // CSV and PDF imports are manual and point-in-time: overdue/stale signals
+    // would be permanent false alarms, so only sync errors apply.
+    const isPolling = connectorType !== 'CSV' && connectorType !== 'PDF';
     const staleAccounts = isPolling ? findStaleAccounts(accounts, now, options.staleBalanceDays) : [];
     const txns = isPolling
       ? await prisma.transaction.findMany({

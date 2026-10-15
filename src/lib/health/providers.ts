@@ -37,6 +37,18 @@ export const PROVIDER_TRUST_CARDS: Record<ProviderId, ProviderTrustCard> = {
     ],
     revocation: 'Nothing to revoke. Delete the CSV files when done importing.',
   },
+  PDF: {
+    connectorType: 'PDF',
+    displayName: 'PDF statement import',
+    dataPath:
+      'Statement PDF on your disk → this app. No third party is involved in the transfer: the import command reads the file on your machine, and nothing about it is sent anywhere. The PDF itself is never stored, only the rows it lists and the file name and hash that let an import be traced.',
+    residualRisks: [
+      'Manual and point-in-time: history reaches only as far back as the statements you download.',
+      'Each bank\'s layout is read by its own parser, so a redesigned statement is refused until one exists, and a statement whose rows do not add up to its own balances is refused whole.',
+      'Inside the dates already stored, a statement row matching nothing is added as a gap; the dry run lists every one before anything is written.',
+    ],
+    revocation: 'Nothing to revoke. Delete the PDF files when done importing.',
+  },
   FRED: {
     connectorType: 'FRED',
     displayName: 'FRED mortgage-rate index',

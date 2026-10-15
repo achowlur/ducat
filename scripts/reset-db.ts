@@ -2,8 +2,9 @@ import 'dotenv/config';
 import { prisma } from '../src/lib/prisma';
 
 /**
- * Wipes every row from the local database — accounts, transactions, snapshots,
- * categories, rules, insights, sync history, subscriptions, and settings.
+ * Wipes every row from the local database — accounts, transactions, import
+ * batches, snapshots, categories, rules, insights, sync history,
+ * subscriptions, and settings.
  *
  * Unlike `npm run db:seed`, this also clears the `Setting` table, which holds
  * the `lastSync:<connector>` marker. Leaving that marker behind makes the next
@@ -26,6 +27,7 @@ async function main(): Promise<void> {
   await prisma.insight.deleteMany();
   await prisma.balanceSnapshot.deleteMany();
   await prisma.transaction.deleteMany();
+  await prisma.importBatch.deleteMany();
   await prisma.rule.deleteMany();
   await prisma.category.deleteMany();
   await prisma.account.deleteMany();

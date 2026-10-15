@@ -50,6 +50,7 @@ export const TABLES = [
   'Insight',
   'Rule',
   'BalanceSnapshot',
+  'ImportBatch',
   'Transaction',
 ] as const;
 

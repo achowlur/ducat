@@ -232,6 +232,7 @@ async function runPipeline(
       flow: t.flow,
       categorySource: 'AGGREGATOR' as const,
       source: t.source,
+      importBatchId: t.importBatchId ?? null,
     })),
   });
 

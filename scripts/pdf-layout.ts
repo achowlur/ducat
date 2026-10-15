@@ -1,20 +1,23 @@
 import { readFileSync } from 'node:fs';
 import { extractLines } from '../src/lib/connectors/pdf/extract';
 import { arg, hasFlag } from './args';
+import { maskDigits, maskLayoutText } from './layoutMask';
 
 /**
  * Usage:
- *   npm run pdf:layout -- <statement.pdf> [--pages=1-3] [--unmasked]
+ *   npm run pdf:layout -- <statement.pdf> [--pages=1-3] [--keep-words | --unmasked]
  *
  * Prints a statement's text as the import reads it: one line per row of the
  * page, each cell with the x positions it starts and ends at. Writing a parser for a new
  * statement layout starts here, because the columns a parser keys on are
  * those positions.
  *
- * EVERY DIGIT IS PRINTED AS # by default, so dates, amounts, balances and
- * account numbers do not survive and the output can be shared to describe a
- * layout. Words are kept, merchant names included: read it before you paste
- * it anywhere. --unmasked prints the real text, for your own eyes only.
+ * MASKED BY DEFAULT (scripts/layoutMask.ts): every digit prints as #, and
+ * every word that is not statement vocabulary as x's of the same shape. Your
+ * name and address, people paid by Zelle and every merchant come out as
+ * Xxxxx Xxxxxx; headings, column labels and transaction types survive, which is
+ * all a parser keys on. --keep-words masks digits only (names included: read
+ * it first); --unmasked prints the real text, for your own eyes only.
  */
 
 function pageRange(spec: string | undefined, total: number): Set<number> {
@@ -27,10 +30,10 @@ function pageRange(spec: string | undefined, total: number): Set<number> {
 async function main(): Promise<void> {
   const file = process.argv[2];
   if (file === undefined || file.startsWith('--')) {
-    console.error('Usage: npm run pdf:layout -- <statement.pdf> [--pages=1-3] [--unmasked]');
+    console.error('Usage: npm run pdf:layout -- <statement.pdf> [--pages=1-3] [--keep-words | --unmasked]');
     process.exit(1);
   }
-  const mask = hasFlag('unmasked') ? (s: string) => s : (s: string) => s.replace(/\d/g, '#');
+  const mask = hasFlag('unmasked') ? (s: string) => s : hasFlag('keep-words') ? maskDigits : maskLayoutText;
 
   const lines = await extractLines(readFileSync(file));
   if (lines.length === 0) {

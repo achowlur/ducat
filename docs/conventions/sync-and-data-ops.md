@@ -73,6 +73,89 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   that reported it would import 4 rows, and the real import of the same file
   landed exactly the counts the preview had printed (1 account created, 10
   imported, 0 already present, 6 rules applied).
+- PDF STATEMENT IMPORT (BUILT 2026-10-15, `npm run import:pdf`). History older
+  than any CSV download window comes from the bank's PDF statements, and the
+  rule that shaped it is the operator's: a transaction already stored must not
+  be added again, though the feed and a CSV each stored it under an id of
+  their own. What each part cost:
+  POSITION, NOT TEXT. A Wells Fargo deposit statement prints deposits and
+  withdrawals in separate columns with no sign, so a number's meaning is the
+  column it sits under. `src/lib/connectors/pdf/lines.ts` keeps every text
+  item's x, and each parser finds its columns from the table's own header row,
+  so a layout shifted a few points between years still lines up. An amount
+  under no column refuses the statement.
+  THE STATEMENT CHECKS ITSELF, AND THAT IS THE TEST THAT MATTERS. Opening
+  balance plus every row must equal the closing balance to the cent, and every
+  total the statement prints must match the rows it covers: Chase's summary
+  per section, Wells Fargo's summary, Totals row and the ending daily balance
+  on each day's last row. A statement failing any of them is refused WHOLE.
+  On the first real run every refusal was a parser bug, and every one named
+  its statement and reason; none was a wrong row that slipped through.
+  THE BUGS REAL STATEMENTS FOUND, none of which an invented fixture would have
+  shown, each now pinned by an invented one in its shape:
+  - Chase draws bold headings twice, so "ACCOUNT ACTIVITY" extracts with every
+    letter doubled; the parser keys on the column header and section names,
+    which print once.
+  - Chase prints summary amounts with a leading "+".
+  - Some older Wells Fargo statements print only the statement date, set so
+    close to the page marker that the two read as one cell ("June 9, 2020 n
+    Page 1 of 3"): a date is read from the START of a cell, never mid-cell.
+  - A description long enough to reach the amount column merges with the
+    amount; a trailing money token on a cell ending at the column is split off.
+  - A card lists a late-posted row (a refund) by its ORIGINAL transaction
+    date, months before the period it appears in. A slack window kept failing
+    as rows got later, so the rule became the one that cannot: a statement
+    never lists a future row, so a row's year is the latest that does not put
+    it after the closing date. And because the feed dated that row when it
+    POSTED, it also matches a stored row of its amount anywhere in its
+    statement's period; without that it was a gap and would have been stored
+    twice. Then the operator's call: such a row is DATED ON ITS STATEMENT'S
+    OPENING DAY, the merchant's date kept in its description as
+    "(transaction date MM/DD/YYYY)", because the money moved in that period
+    and a month already closed should not reopen for it. The merchant key is
+    read from the printed text, so the note never splits a payee in the rules
+    or the grouped review. A lag of a week or less keeps its own date, as a
+    CSV export would.
+  THE DUPLICATE RULE is `src/lib/sync/overlap.ts`: same account, same amount
+  to the cent, dates within `--match-days` (4: a card statement lists the
+  transaction date, a feed often the posting date), matched as a MULTISET so
+  two identical coffees on one day stay two rows. A surplus among rows on
+  different days is AMBIGUOUS and never added, because which one is missing
+  cannot be known. Description similarity was planned as a tiebreak and was
+  not needed: the first real run matched every overlapping row with no
+  ambiguous row at all. Rows inside the stored dates that match nothing are
+  GAPS, added, and the dry run lists every one.
+  ONE PLAN, TWO PATHS: `planStatementImport` is read-only and both the dry run
+  and the write consume it, the dry run through `previewImport` with the same
+  connector `runSync` gets; `statementImport.test.ts` pins the two together.
+  The import never writes `Account.balance` (statements are history); each
+  statement's close becomes a snapshot. `ImportBatch` (file name, hash,
+  account, period) is written LAST with an id derived from the file's hash, so
+  a write that fails midway records nothing and its re-run is not refused as
+  already imported.
+  SHARING A LAYOUT WITHOUT SHARING A STATEMENT. Parsers were written from
+  `npm run pdf:layout` dumps the operator pasted. Masking digits alone was not
+  enough: a statement prints the holder's name and address and the people paid
+  by Zelle. So words are masked too, except statement vocabulary
+  (`scripts/layoutMask.ts`), and bank and product names stay OFF that list
+  because Chase, Wells, Bill, Cash and Page are also people's names. The
+  import's own report has `--share` for the same reason: counts, x positions
+  and statement dates survive, amounts, account digits and every listed row do
+  not. A refusal reports where text sat and its SHAPE (letters as X, digits as
+  #), never what it said.
+  THE SCHEMA, AND WHAT RUNS THE BACKUP. A foreign key is a table constraint
+  SQLite cannot add to a populated table, so `Transaction.importBatchId` is a
+  plain nullable column, the shape `schema:push` adds; `ImportBatch` is a new
+  table. A new table must join `TABLES` in `scripts/copyDatabase.ts` or every
+  backup and mirror silently drops it; that moves the pinned overall
+  fingerprint, never a table's digest, which `fingerprintDatabase.test.ts`
+  now proves by recomputing the old value over the old list. And the 00:30 UTC
+  backup builds its file from the MAIN checkout's `prisma/schema.prisma` and
+  `TABLES`, so schema work stays in a worktree until rollout: the cloud (and
+  the demo's own database) take the schema BEFORE the merge, since old code
+  ignores a new column and new code needs it, and the rest (pull, local
+  schema, one `db:mirror -- --confirm`, since a new column changes local's
+  recorded digests) lands the same day before that backup runs.
 - CODE ships with `git push`; DATA does not. There are TWO databases — local
   `file:./data/ducat.db` and the cloud Turso one — and anything that writes
   ROWS (retargeting a rule, recategorizing, `reapplyRules`, regenerating
