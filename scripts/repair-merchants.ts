@@ -17,10 +17,17 @@
  * Nothing here re-categorizes. Rules only ever write on a match, so no row
  * loses the category it has; re-running `npm run rules:install` afterwards is
  * what lets the newly-visible names pick up better ones.
+ *
+ * Rows a Wells Fargo deposit STATEMENT supplied (import:pdf) are re-read
+ * through that layout's payee reader (wellsFargoPayee), which import:pdf now
+ * applies at import: the statement writes its bookkeeping around the payee,
+ * so the whole description gave every row a key of its own.
  */
 import 'dotenv/config';
 import { hasTransactionType, normalizeMerchant } from '../src/lib/connectors/normalize';
+import { wellsFargoPayee } from '../src/lib/connectors/pdf/layouts/wellsFargoPayee';
 import { prisma } from '../src/lib/prisma';
+import { printDatabase } from './database-label';
 
 const APPLY = process.argv.includes('--apply');
 
@@ -59,15 +66,31 @@ function bestMerchant(stored: string, description: string): string {
     : fromStored;
 }
 
+/** A row a Wells Fargo deposit statement supplied, read as the import now reads it. */
+function statementMerchant(description: string): string {
+  // A late-posted row carries the merchant's own date after its text.
+  return normalizeMerchant(wellsFargoPayee(description.replace(/\s*\(transaction date \d{2}\/\d{2}\/\d{4}\)$/, '')));
+}
+
 async function main(): Promise<void> {
+  // Before anything is read or written, which database this is.
+  printDatabase();
   const txns = await prisma.transaction.findMany({
-    select: { id: true, normalizedMerchant: true, description: true },
+    select: {
+      id: true,
+      normalizedMerchant: true,
+      description: true,
+      source: true,
+      account: { select: { institution: true, type: true } },
+    },
   });
+  const fromWellsFargoStatement = (t: (typeof txns)[number]) =>
+    t.source === 'PDF' && t.account.type === 'DEPOSITORY' && /wells fargo/i.test(t.account.institution);
   const txnFixes = txns
     .map((t) => ({
       id: t.id,
       was: t.normalizedMerchant,
-      now: bestMerchant(t.normalizedMerchant, t.description),
+      now: fromWellsFargoStatement(t) ? statementMerchant(t.description) : bestMerchant(t.normalizedMerchant, t.description),
     }))
     .filter((f) => f.now !== f.was && f.now !== '');
 

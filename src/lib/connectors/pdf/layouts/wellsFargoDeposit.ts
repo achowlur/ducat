@@ -9,6 +9,7 @@ import {
   type StatementLayout,
   type StatementRow,
 } from '../statement';
+import { wellsFargoPayee } from './wellsFargoPayee';
 
 /**
  * Wells Fargo checking and savings statements.
@@ -208,10 +209,13 @@ export const wellsFargoDeposit: StatementLayout = {
       if ((draft.deposit === null) === (draft.withdrawal === null)) {
         throw new Error(`the ${draft.dateText} row has ${draft.deposit === null ? 'no amount' : 'two amounts'}`);
       }
+      const description = draft.description.join(' ');
+      const payee = wellsFargoPayee(description);
       const row: StatementRow = {
         date: rowDate(draft.dateText, periodEnd),
-        description: draft.description.join(' '),
+        description,
         amount: draft.deposit !== null ? Math.abs(draft.deposit) : -Math.abs(draft.withdrawal as number),
+        ...(payee === description ? {} : { payee }),
       };
       rows.push(row);
       if (draft.daily !== null) {

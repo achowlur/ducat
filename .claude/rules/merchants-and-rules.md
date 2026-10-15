@@ -41,6 +41,9 @@ anything below; several entries record "tried and failed, don't retry".
 - normalizeMerchant truncates at OBSERVED TRANSACTION_TYPE markers only
   (≥3 chars must precede); adding a marker can WIDEN existing rule
   matchValues — measure what the shortened values newly match first.
+- A layout whose payee sits INSIDE its bookkeeping reads it itself
+  (wellsFargoPayee sets StatementRow.payee); the shared normalizer never
+  learns `authorized on`. repair:merchants re-reads such stored rows.
 - ABBREVIATIONS entries must MEASURABLY split a payee. "fid bkg svc llc"
   now meets the bar; if fixed, the instrument is an expansion, not a marker.
 - repair:merchants' description-fallback requires: has a marker, shorter,
