@@ -453,9 +453,11 @@ export interface StatementImportResult {
 }
 
 /**
- * Carries out a plan: any account it creates first, then the rows through
- * runSync, then the closing-balance snapshots, then one ImportBatch per
- * statement.
+ * Carries out a plan: any account it creates first, then the statement
+ * snapshots, then the rows through runSync (which regenerates insights, so
+ * the snapshots must already be there), then one ImportBatch per statement.
+ * A write failing after the snapshots re-runs cleanly: the plan skips any
+ * snapshot already stored on its date.
  *
  * A created account takes its last statement's closing value as its balance,
  * not stale: no feed will ever set it. Named with its last four digits, it is
@@ -488,11 +490,14 @@ export async function writeStatementImport(
     openings: planned.openings.map((snap) => ({ ...snap, accountId: realIds.get(snap.accountId) ?? snap.accountId })),
   };
 
-  const sync = await runSync(prisma, connectorFor(plan), { since: new Date(0) });
-
+  // Snapshots BEFORE the sync: it regenerates insights, and net worth can only
+  // know an investment account through them. Written after, an account the
+  // import created left every month unknown and the net worth line empty.
   if (plan.snapshots.length + plan.openings.length > 0) {
     await prisma.balanceSnapshot.createMany({ data: [...plan.snapshots, ...plan.openings] });
   }
+
+  const sync = await runSync(prisma, connectorFor(plan), { since: new Date(0) });
 
   const batchIds = plan.statements.map((p) => p.batchId);
   const counts = await prisma.transaction.groupBy({
