@@ -27,6 +27,7 @@ export async function reseedDemo(
   await prisma.balanceSnapshot.deleteMany();
   await prisma.transaction.updateMany({ data: { transferPairId: null, reimbursesId: null } });
   await prisma.transaction.deleteMany();
+  await prisma.importBatch.deleteMany();
   await prisma.rule.deleteMany();
   await prisma.category.deleteMany();
   await prisma.account.deleteMany();

@@ -117,16 +117,30 @@ const SETUP_HINTS: Record<ProviderId, string> = {
   SIMPLEFIN:
     "npm run simplefin:claim -- <setup-token>  →  set the printed SIMPLEFIN_ACCESS_URL in this instance's environment  →  npm run sync:simplefin",
   CSV: "npm run import:csv -- <file.csv> --mapping=<chase-checking|chase-credit|wells-fargo|fidelity> --name=<account> --type=<DEPOSITORY|CREDIT|INVESTMENT|LOAN> --institution=<bank>",
+  PDF: "npm run import:pdf -- <statement.pdf or folder> --dry-run  →  read the report  →  run it again without --dry-run",
   FRED:
     `get a free API key at fredaccount.stlouisfed.org/apikeys  →  set ${FRED_API_KEY_ENV} in this instance's environment  →  the next sync stores the day's ${FRED_SERIES_ID} observation. ` +
     "Used by the /insights readiness panel only when its config declares no typed rate (npm run readiness -- --fetched-rate).",
 };
 
 /**
- * Every known provider renders — including ones not set up yet, so the
- * trust card (data path, residual risks, revocation) is readable BEFORE
- * connecting, which is when it matters most. The access URL itself is a
- * credential and is never read into page data — only its presence.
+ * Whether /providers shows a provider's card.
+ *
+ * Every CONNECTOR renders, set up or not, so its trust card (data path,
+ * residual risks, revocation) is readable BEFORE connecting, which is when it
+ * matters most. FRED is the exception, by the operator's call (2026-10-15): it
+ * is no source of transactions and turns on only through an environment
+ * variable, so while unused its card is noise. It renders once the key is set
+ * or a rate was ever stored (health then reports it), so an instance that opts
+ * in sees the deal again.
+ */
+export function showsProvider(id: ProviderId, health: ProviderHealth | null, fredKeySet: boolean): boolean {
+  return id !== "FRED" || health !== null || fredKeySet;
+}
+
+/**
+ * The cards /providers renders: see showsProvider for which. The access URL
+ * itself is a credential and is never read into page data, only its presence.
  *
  * `paging` selects which connector's history is being paged (from
  * `?logs=&logsPage=`); every other connector shows page 1. The page is
@@ -149,8 +163,10 @@ export async function getProvidersData(
   const totalFor = new Map(totals.map((t) => [t.connectorType, t._count]));
 
   const views: ProviderView[] = [];
+  const fredKeySet = (process.env[FRED_API_KEY_ENV] ?? "") !== "";
   for (const card of Object.values(PROVIDER_TRUST_CARDS)) {
     const existing = byType.get(card.connectorType) ?? null;
+    if (!showsProvider(card.connectorType, existing, fredKeySet)) continue;
     const h: ProviderHealth =
       existing ?? {
         connectorType: card.connectorType,
@@ -194,7 +210,7 @@ export async function getProvidersData(
       logsPage,
       setupHint:
         ((card.connectorType === "SIMPLEFIN" || card.connectorType === "FRED") && !configured) ||
-        (existing === null && card.connectorType === "CSV")
+        (existing === null && (card.connectorType === "CSV" || card.connectorType === "PDF"))
           ? SETUP_HINTS[card.connectorType]
           : null,
       syncLogs: logs.map((l) => ({

@@ -1,5 +1,7 @@
 import { createClient, type Client } from '@libsql/client';
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
+import { TABLES } from './copyDatabase';
 import { fingerprintOf } from './fingerprintDatabase';
 
 /**
@@ -12,8 +14,14 @@ import { fingerprintOf } from './fingerprintDatabase';
  * algorithm changed — and every recorded digest (the mirror-proof ones in
  * DEPLOY.md's procedure, the backup.lastRun Settings) becomes incomparable
  * with new output. Do not update the constant without meaning exactly that.
+ *
+ * The overall ALSO changes when TABLES gains a table, which is a change of
+ * WHAT is fingerprinted, not how: ImportBatch (2026-10-14) moved it from
+ * 1f1dd7c8d37afed0. The per-table digests did not move, which the second
+ * test below proves by recomputing the old overall over the old table list.
  */
-const PINNED_OVERALL = '1f1dd7c8d37afed0';
+const PINNED_OVERALL = 'd9055d65b2763a32';
+const PINNED_OVERALL_BEFORE_IMPORT_BATCH = '1f1dd7c8d37afed0';
 
 const SCHEMA = `
   create table "Account" (id text primary key, name text, balance real);
@@ -24,6 +32,7 @@ const SCHEMA = `
   create table "Insight" (id text primary key, dismissed integer);
   create table "Rule" (id text primary key);
   create table "BalanceSnapshot" (id text primary key);
+  create table "ImportBatch" (id text primary key);
   create table "Transaction" (id text primary key, amount real, date text);
 `;
 
@@ -47,6 +56,16 @@ describe('fingerprintOf', () => {
     const fp = await fingerprintOf(db);
     expect(fp.overall).toBe(PINNED_OVERALL);
     expect(fp.tables['Transaction'].rows).toBe(2);
+  });
+
+  it('adding a table left every existing table digest exactly as it was', async () => {
+    const fp = await fingerprintOf(await fixture(ROWS));
+    const before = TABLES.filter((t) => t !== 'ImportBatch');
+    const overall = createHash('sha256')
+      .update(before.map((t) => `${t}=${fp.tables[t].digest}`).join('|'))
+      .digest('hex')
+      .slice(0, 16);
+    expect(overall).toBe(PINNED_OVERALL_BEFORE_IMPORT_BATCH);
   });
 
   it('is independent of physical insert order', async () => {
