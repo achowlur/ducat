@@ -50,11 +50,23 @@ export interface NetWorthGrowthPayload {
   /** Net transaction flow into INVESTMENT accounts during the period. */
   investmentNetFlows: number;
   /**
-   * Accounts whose period-end balance was reconstructed from transaction
-   * history because no BalanceSnapshot covered the period. Reconstruction is
-   * inaccurate for INVESTMENT accounts (market moves aren't transactions).
+   * Accounts whose period-end balance is not that period's own: reconstructed
+   * from transaction history, or (investment) a snapshot from earlier.
    */
   estimatedAccountIds: string[];
+  /**
+   * The investment accounts among those whose value is CARRIED from an
+   * earlier period, its market movement since unseen. Absent on payloads
+   * stored before 2026-10-15.
+   */
+  carriedAccountIds?: string[];
+  /**
+   * Accounts LEFT OUT of `netWorth` because their balance is unknown for the
+   * period (records that start late): the figure is smaller than the truth by
+   * them, and every screen names them. Absent on payloads stored before
+   * 2026-10-15, when such a period was not drawn at all.
+   */
+  excludedAccountIds?: string[];
 }
 
 export interface CategorySpending {

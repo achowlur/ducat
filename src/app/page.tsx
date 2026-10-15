@@ -181,7 +181,7 @@ async function renderOverview() {
               <span className="font-money text-[2.1rem] tabular">{money(data.liveNetWorth)}</span>
             </div>
             {ctx !== null &&
-              (ctx.growthRate !== null || hasMarketLine || ctx.estimatedCount > 0) && (
+              (ctx.growthRate !== null || hasMarketLine || ctx.estimatedCount > 0 || ctx.leftOutCount > 0) && (
                 <p className="mt-1 text-[0.78rem] text-faint">
                   <span className="font-semibold text-ink">{ctx.label}:</span>{" "}
                   {ctx.growthRate !== null && (
@@ -208,8 +208,14 @@ async function renderOverview() {
                   )}
                   {ctx.estimatedCount > 0 && (
                     <>
-                      {ctx.estimatedCount} of {ctx.monthName}&apos;s balances reconstructed from
-                      transactions (no snapshot).
+                      {ctx.estimatedCount} of {ctx.monthName}&apos;s balances estimated (carried from an earlier
+                      month or worked out from transactions).{" "}
+                    </>
+                  )}
+                  {ctx.leftOutCount > 0 && (
+                    <>
+                      {ctx.leftOutCount === 1 ? "1 account" : `${ctx.leftOutCount} accounts`} left out of{" "}
+                      {ctx.monthName}&apos;s net worth (no value then).
                     </>
                   )}
                 </p>

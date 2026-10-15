@@ -77,6 +77,30 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   because the market moves a holding; an empty account has none. So an
   investment account whose last snapshot is ZERO, with no transaction of its
   own since, is known to be zero; any money in since makes it unknown again.
+- NET WORTH DRAWS WHAT IT KNOWS AND SAYS THE REST (2026-10-15, the
+  operator's decision, AMENDING the entry above). Once statement history
+  arrived, the all-or-nothing rule threw away most of it: a month appeared
+  only if every account had a snapshot inside it, so one recently opened
+  account hid every month before it, and a quiet month (a brokerage sends no
+  statement for a month without activity) hid that month. Measured on a copy
+  of the real database: most of the months the statements cover went
+  undrawn under the old rule, and every one is drawn under the new, none
+  leaving an account out. The new contract, in `balanceAt`:
+  (1) an investment value with no snapshot in the period is CARRIED: the last
+  snapshot plus the money that CROSSED the account since (`crossingAmount`,
+  the same wording rules as the flows), flagged estimated and carried, so
+  only that month's market movement goes unseen, which is the error the old
+  rule existed to avoid and is now stated instead of avoided; (2) a last
+  snapshot of ZERO with nothing since stays exactly zero (a closed account);
+  (3) ANY account before an OPENING-ZERO snapshot (import:pdf writes one when
+  a first statement opens at zero) is exactly zero, which also stopped a card
+  opened years into the history being "reconstructed" before it; (4) anything else is
+  unknown, and the month LEAVES IT OUT by name (`excludedAccountIds`) rather
+  than being dropped. Growth and market gains compare two months only over
+  the same accounts: an account entering the sum is neither growth nor gain.
+  Still never: rolling a brokerage value through its TRADES. The demo is
+  unchanged on purpose: it gives every account a value in every month (see
+  ui-and-pages, THE DEMO DATA, item c), so none of these states appears there.
 - `investmentNetFlows` counts ONLY money crossing an investment account's
   boundary. Buys, sells, dividends and reinvestments move nothing in or out, and
   counting them turned a real ~$2.5k month into a reported $64.79k one. Classified

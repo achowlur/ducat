@@ -1,5 +1,5 @@
 import { prisma } from "../prisma";
-import { DEFAULT_HEALTH_OPTIONS } from "../health/health";
+import { DEFAULT_HEALTH_OPTIONS, pollsForBalances } from "../health/health";
 import { countsAsCash, readCashAccountIds } from "./liquidity";
 import { isoDate } from "./format";
 
@@ -110,7 +110,7 @@ export async function getAccountsData(now: Date = new Date()): Promise<AccountsP
         syncedAt === null ? 0 : Math.max(0, Math.floor((syncedAt - a.balanceDate.getTime()) / DAY_MS)),
       balanceUnknown: a.isStale,
       isCash: countsAsCash({ id: a.id, type: a.type, balance: Number(a.balance) }, cashAccountIds),
-      staleByAge: daysSinceBalance > DEFAULT_HEALTH_OPTIONS.staleBalanceDays,
+      staleByAge: pollsForBalances(a.connectorType) && daysSinceBalance > DEFAULT_HEALTH_OPTIONS.staleBalanceDays,
       txnCount: stats?._count._all ?? 0,
       firstTxnDate: stats?._min.date === null || stats === undefined ? null : isoDate(stats._min.date),
       lastTxnDate: stats?._max.date === null || stats === undefined ? null : isoDate(stats._max.date),

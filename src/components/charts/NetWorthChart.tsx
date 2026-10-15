@@ -9,6 +9,8 @@ interface MonthValue {
   label: string;
   value: number;
   estimated: boolean;
+  /** Accounts the month leaves out (no value then): drawn as uncertain as an estimate is. */
+  leftOut?: string[];
   /** Unrealized investment movement for the month; null = no baseline. */
   marketGains: number | null;
 }
@@ -26,6 +28,20 @@ interface MonthValue {
  * Mobile keeps its own height: it is already narrow, so the line is steep
  * enough without help.
  */
+/** A month the reader must discount: an estimated value, or an account left out. */
+function uncertain(m: MonthValue): boolean {
+  return m.estimated || (m.leftOut?.length ?? 0) > 0;
+}
+
+/** Why a month is uncertain, in words, between the given brackets; empty when it is not. */
+function qualifier(m: MonthValue, open: string, close: string): string {
+  const parts = [
+    ...(m.estimated ? ["partly estimated"] : []),
+    ...((m.leftOut?.length ?? 0) > 0 ? [`leaves out ${m.leftOut?.length === 1 ? "1 account" : `${m.leftOut?.length} accounts`}`] : []),
+  ];
+  return parts.length === 0 ? "" : `${open}${parts.join(", ")}${close}`;
+}
+
 const DESKTOP = { w: 940, h: 320 };
 const MOBILE = { w: 340, h: 250 };
 
@@ -42,8 +58,8 @@ export function NetWorthChart({ months }: { months: MonthValue[] }) {
   if (months.length === 0) {
     return (
       <p className="py-6 text-[0.85rem] text-faint">
-        No month yet has a balance snapshot behind every account, so there is nothing to chart. Run a sync,
-        or add month-end balances with <span className="font-money">npm run import:balances</span>.
+        No month has a value behind any account yet, so there is nothing to chart. Run a sync, or add
+        month-end balances with <span className="font-money">npm run import:balances</span>.
       </p>
     );
   }
@@ -72,7 +88,11 @@ function Plot({ months, view }: { months: MonthValue[]; view: { w: number; h: nu
 
   const values = months.map((m) => m.value);
   const pad = (Math.max(...values) - Math.min(...values)) * 0.12 || 1;
-  const ticks = niceTicks(Math.min(...values) - pad, Math.max(...values) + pad, 4);
+  // Padding must not invent a NEGATIVE band no month reaches: a history that
+  // starts near zero padded a "−$100k" tick under a line that never went below
+  // zero. Below zero is drawn only when a month is.
+  const bottom = Math.min(...values) >= 0 ? Math.max(0, Math.min(...values) - pad) : Math.min(...values) - pad;
+  const ticks = niceTicks(bottom, Math.max(...values) + pad, 4);
   const lo = ticks[0];
   const hi = ticks[ticks.length - 1];
   const y = (v: number) => PLOT_BOTTOM - ((v - lo) / (hi - lo)) * (PLOT_BOTTOM - PLOT_TOP);
@@ -108,7 +128,7 @@ function Plot({ months, view }: { months: MonthValue[]; view: { w: number; h: nu
     y1: y(months[i].value),
     x2: x(i + 1),
     y2: y(m.value),
-    estimated: months[i].estimated || m.estimated,
+    estimated: uncertain(months[i]) || uncertain(m),
   }));
 
   // Nearest month to a pointer, in viewBox units. Touch goes through the same
@@ -133,9 +153,7 @@ function Plot({ months, view }: { months: MonthValue[]; view: { w: number; h: nu
     setHovered(nearest);
   };
 
-  const summary = months
-    .map((m) => `${m.label} ${money(m.value)}${m.estimated ? " (partly estimated)" : ""}`)
-    .join(", ");
+  const summary = months.map((m) => `${m.label} ${money(m.value)}${qualifier(m, " (", ")")}`).join(", ");
 
   return (
     <div className="relative">
@@ -175,7 +193,7 @@ function Plot({ months, view }: { months: MonthValue[]; view: { w: number; h: nu
         {/* A hollow point on each estimated month, so the mark survives a
             single estimated month with no neighbour to dash against. */}
         {months.map((m, i) =>
-          m.estimated ? (
+          uncertain(m) ? (
             <circle
               key={`est-${m.period}`}
               cx={x(i)}
@@ -248,7 +266,7 @@ function Plot({ months, view }: { months: MonthValue[]; view: { w: number; h: nu
           <div className="mb-0.5 text-[0.65rem] opacity-80">{monthWithYear(months[hovered].period)}</div>
           <div>
             {money(months[hovered].value)}
-            {months[hovered].estimated ? " · partly estimated" : ""}
+            {qualifier(months[hovered], " · ", "")}
           </div>
           {months[hovered].marketGains !== null && months[hovered].marketGains !== 0 && (
             <div className="opacity-80">markets {money(months[hovered].marketGains)}</div>

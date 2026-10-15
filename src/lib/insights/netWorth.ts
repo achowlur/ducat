@@ -19,14 +19,20 @@ import type { AccountData, SnapshotData, TxnData } from './types';
  * leaving with no offsetting entry for what it bought) yields a figure with no
  * relationship to what the account was worth.
  *
- * `investmentSnapshotNotBefore` bounds how stale a market-valued account's
- * snapshot may be. Rolling one FORWARD is the same fiction as rolling it back:
- * an August month-end carried to September ignores a month of market movement
- * on a six-figure portfolio. Callers pass the period start, which makes the
- * contract "an investment balance is known for a period only if a snapshot
- * falls inside that period" — i.e. import one month-end per month you want.
- * Save one case: a last snapshot of ZERO with no transaction since stays zero,
- * since an empty (closed) account has no market exposure to move it.
+ * `investmentSnapshotNotBefore` (callers pass the period start) separates a
+ * value that IS the period's from one that stands in for it. With no snapshot
+ * inside the period, an investment account is:
+ * - ZERO, exactly, when its last snapshot is zero with no transaction since
+ *   (a closed account: nothing left for the market to move);
+ * - CARRIED, its last earlier snapshot standing in, `estimated` and `carried`
+ *   (the operator's choice, 2026-10-15: a month of market movement unseen on
+ *   one account is a smaller error than refusing the whole month, PROVIDED
+ *   the month says so in text);
+ * - otherwise unknown: records that simply start late cannot say what came
+ *   before, and the caller names the account instead of guessing.
+ * Before an account existed, of ANY type, it is ZERO exactly: its first
+ * snapshot is an opening zero (a statement's opening day) and nothing of its
+ * own came before it.
  */
 export function balanceAt(
   account: AccountData,
@@ -34,7 +40,7 @@ export function balanceAt(
   txns: TxnData[],
   at: Date,
   options: { investmentSnapshotNotBefore?: Date } = {},
-): { balance: number; estimated: boolean; known: boolean } {
+): { balance: number; estimated: boolean; known: boolean; carried?: true } {
   const marketValued = account.type === 'INVESTMENT';
   const floor = marketValued ? options.investmentSnapshotNotBefore?.getTime() : undefined;
   const own = snapshots
@@ -46,17 +52,40 @@ export function balanceAt(
     )
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 
+  const mine = snapshots.filter((s) => s.accountId === account.id);
+  const ownTxnIn = (from: number, to: number) =>
+    txns.some((t) => t.accountId === account.id && t.date.getTime() > from && t.date.getTime() <= to);
+
+  // Not yet open, for ANY account: its first value is an opening zero (a
+  // statement's opening day) and nothing of its own came before it. A card
+  // opened in 2025 held nothing in 2019, whatever a reconstruction says.
+  if (!mine.some((s) => s.date.getTime() <= at.getTime())) {
+    const first = mine.reduce<SnapshotData | null>(
+      (earliest, s) => (earliest === null || s.date.getTime() < earliest.date.getTime() ? s : earliest),
+      null,
+    );
+    if (first !== null && first.balance === 0 && !ownTxnIn(-Infinity, at.getTime())) {
+      return { balance: 0, estimated: false, known: true };
+    }
+  }
+
   if (own.length === 0 && marketValued) {
-    // The exception: an account last valued at ZERO with no transaction since
-    // (a closed account) has nothing for the market to move, so carrying that
-    // zero forward is no fiction. Any money in since makes it unknown again.
-    const last = snapshots
-      .filter((s) => s.accountId === account.id && s.date.getTime() <= at.getTime())
+    const last = mine
+      .filter((s) => s.date.getTime() <= at.getTime())
       .reduce<SnapshotData | null>((latest, s) => (latest === null || s.date.getTime() > latest.date.getTime() ? s : latest), null);
-    const untouched =
-      last !== null &&
-      !txns.some((t) => t.accountId === account.id && t.date.getTime() > last.date.getTime() && t.date.getTime() <= at.getTime());
-    if (last !== null && last.balance === 0 && untouched) return { balance: 0, estimated: false, known: true };
+    if (last !== null) {
+      // Closed: nothing for the market to move, while no money has come in since.
+      if (last.balance === 0 && !ownTxnIn(last.date.getTime(), at.getTime())) {
+        return { balance: 0, estimated: false, known: true };
+      }
+      // Carried: the last value, plus money that has CROSSED the account since
+      // (a deposit is no market movement and is known). Only the market's
+      // movement goes unseen, which is what `estimated` says.
+      const moved = txns
+        .filter((t) => t.accountId === account.id && t.date.getTime() > last.date.getTime() && t.date.getTime() <= at.getTime())
+        .reduce((sum, t) => sum + crossingAmount(t), 0);
+      return { balance: round2(last.balance + moved), estimated: true, known: true, carried: true };
+    }
     return { balance: 0, estimated: true, known: false };
   }
 
@@ -99,6 +128,44 @@ export function balanceAt(
 export const INTERNAL_INVESTMENT_ACTIVITY =
   /\b(you bought|you sold|reinvest\w*|purchase into core|dividend|interest\b|cap(ital)? gain|advisory fee|in lieu of|redemption|exchange (in|out))\b/i;
 
+/**
+ * What one investment-account row moves ACROSS the account's boundary: money
+ * in positive, money out negative, and nothing for activity that stays inside.
+ * Any balance change not explained by these is market movement.
+ *
+ * Most activity inside a brokerage moves nothing in or out: buying a security
+ * turns cash into shares, a dividend is earned in place, a reinvestment does
+ * both. Counting those as flows is badly wrong — one month of trading
+ * ($59,552.76 of purchases against a $3,628.42 deposit) turned a real ~$2.5k gain
+ * into a reported $64.79k one. Only genuine transfers count.
+ *
+ * The automatic sweep of arriving cash into the core money-market position
+ * ("PURCHASE INTO CORE ACCOUNT") is the same kind of move. SimpleFIN signs it
+ * positive, so without the verb it read as a second deposit of the same total.
+ *
+ * Classification is by exclusion because brokerage verbs are a small stable
+ * set while transfer descriptors vary by institution; anything unrecognised
+ * counts as a flow, which understates gains rather than inflating them.
+ *
+ * Direction is taken from the wording when the wording is unambiguous, because
+ * sources disagree on the sign. The SAME monthly $3,628.42 transfer, same
+ * account and same description, arrives as +1400 from Fidelity's own CSV and
+ * -1400 from SimpleFIN. Fidelity's export and the paired debit on the funding
+ * account both say it is money IN, so the wording is the reliable signal and
+ * only the magnitude is taken from the amount.
+ */
+const INBOUND_WORDING = /\b(received|transferred from|deposit|contribution|rollover in)\b/i;
+const OUTBOUND_WORDING = /\b(withdrawal|transferred to|distribution|rollover out)\b/i;
+function crossingAmount(t: TxnData): number {
+  if (INTERNAL_INVESTMENT_ACTIVITY.test(t.description)) return 0;
+  const magnitude = Math.abs(t.amount);
+  return INBOUND_WORDING.test(t.description) ? magnitude : OUTBOUND_WORDING.test(t.description) ? -magnitude : t.amount;
+}
+
+function sameAccounts(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((id) => b.includes(id));
+}
+
 export function computeNetWorthGrowth(
   accounts: AccountData[],
   snapshots: SnapshotData[],
@@ -107,12 +174,24 @@ export function computeNetWorthGrowth(
   granularity: PeriodGranularity,
 ): Map<string, NetWorthGrowthPayload> {
   /**
-   * Null when any account's balance is unrecoverable for the period. A net
-   * worth missing an account is not a smaller net worth, it's a wrong one —
-   * better to report nothing for that period than a confident fiction. In
-   * practice this means history begins where balance snapshots begin.
+   * The period's net worth over every account whose balance is known for it.
+   * An account that is not is LEFT OUT and named (`excluded`), never guessed:
+   * a net worth missing an account is a smaller one than the truth, so the
+   * payload carries which accounts it leaves out and every screen says so in
+   * text. (Until 2026-10-15 such a period was dropped whole, which, once
+   * statement history arrived, threw away years of months for one account
+   * whose records start late.) Null only when no account is known at all.
    */
-  const netWorthAt = (key: string): { total: number; invTotal: number; byType: Partial<Record<AccountType, number>>; estimated: string[] } | null => {
+  const netWorthAt = (
+    key: string,
+  ): {
+    total: number;
+    invTotal: number;
+    byType: Partial<Record<AccountType, number>>;
+    estimated: string[];
+    carried: string[];
+    excluded: string[];
+  } | null => {
     // "End of period" = last instant before the next period starts.
     const at = new Date(periodEndExclusive(key).getTime() - 1);
     const notBefore = periodStart(key);
@@ -120,60 +199,33 @@ export function computeNetWorthGrowth(
     let invTotal = 0;
     const byType: Partial<Record<AccountType, number>> = {};
     const estimated: string[] = [];
+    const carried: string[] = [];
+    const excluded: string[] = [];
     for (const account of accounts) {
-      const { balance, estimated: isEstimated, known } = balanceAt(account, snapshots, txns, at, {
+      const { balance, estimated: isEstimated, known, carried: isCarried } = balanceAt(account, snapshots, txns, at, {
         investmentSnapshotNotBefore: notBefore,
       });
-      if (!known) return null;
+      if (!known) {
+        excluded.push(account.id);
+        continue;
+      }
       total += balance;
       if (account.type === 'INVESTMENT') invTotal += balance;
       byType[account.type] = round2((byType[account.type] ?? 0) + balance);
       if (isEstimated) estimated.push(account.id);
+      if (isCarried === true) carried.push(account.id);
     }
-    return { total: round2(total), invTotal: round2(invTotal), byType, estimated };
+    if (excluded.length === accounts.length) return null;
+    return { total: round2(total), invTotal: round2(invTotal), byType, estimated, carried, excluded };
   };
 
   const investmentAccountIds = new Set(accounts.filter((a) => a.type === 'INVESTMENT').map((a) => a.id));
-  /**
-   * Net money CROSSING an investment account's boundary in the period. Any
-   * balance change not explained by it is market movement.
-   *
-   * Most activity inside a brokerage moves nothing in or out: buying a security
-   * turns cash into shares, a dividend is earned in place, a reinvestment does
-   * both. Counting those as flows is badly wrong — one month of trading
-   * ($59,552.76 of purchases against a $3,628.42 deposit) turned a real ~$2.5k gain
-   * into a reported $64.79k one. Only genuine transfers count.
-   *
-   * The automatic sweep of arriving cash into the core money-market position
-   * ("PURCHASE INTO CORE ACCOUNT") is the same kind of move. SimpleFIN signs it
-   * positive, so without the verb it read as a second deposit of the same total.
-   *
-   * Classification is by exclusion because brokerage verbs are a small stable
-   * set while transfer descriptors vary by institution; anything unrecognised
-   * counts as a flow, which understates gains rather than inflating them.
-   */
-  const internalActivity = INTERNAL_INVESTMENT_ACTIVITY;
-  /**
-   * Direction taken from the wording when the wording is unambiguous, because
-   * sources disagree on the sign. The SAME monthly $3,628.42 transfer, same
-   * account and same description, arrives as +1400 from Fidelity's own CSV and
-   * -1400 from SimpleFIN. Fidelity's export and the paired debit on the funding
-   * account both say it is money IN, so the wording is the reliable signal and
-   * only the magnitude is taken from the amount.
-   */
-  const inboundWording = /\b(received|transferred from|deposit|contribution|rollover in)\b/i;
-  const outboundWording = /\b(withdrawal|transferred to|distribution|rollover out)\b/i;
-  const investmentFlows = (key: string): number => {
+  /** Net money CROSSING an investment account's boundary in the period (see crossingAmount). */
+  const investmentFlows = (key: string, leftOut: string[]): number => {
     let sum = 0;
     for (const t of txns) {
-      if (!investmentAccountIds.has(t.accountId) || !inPeriod(t.date, key)) continue;
-      if (internalActivity.test(t.description)) continue;
-      const magnitude = Math.abs(t.amount);
-      sum += inboundWording.test(t.description)
-        ? magnitude
-        : outboundWording.test(t.description)
-          ? -magnitude
-          : t.amount;
+      if (!investmentAccountIds.has(t.accountId) || leftOut.includes(t.accountId) || !inPeriod(t.date, key)) continue;
+      sum += crossingAmount(t);
     }
     return round2(sum);
   };
@@ -186,13 +238,13 @@ export function computeNetWorthGrowth(
     // Only compare when the previous period is also in scope; otherwise we'd
     // report growth against a period with no data behind it.
     const previous = periods.includes(prevKey) ? netWorthAt(prevKey) : null;
+    // Two months over different accounts are not one net worth moving: an
+    // account entering the sum is not growth, and its value is not a gain.
+    const comparable = previous !== null && sameAccounts(previous.excluded, current.excluded);
     const growthRate =
-      previous !== null && previous.total !== 0
-        ? round4((current.total - previous.total) / Math.abs(previous.total))
-        : null;
-    const flows = investmentFlows(key);
-    const marketGains =
-      previous === null ? null : round2(current.invTotal - previous.invTotal - flows);
+      comparable && previous.total !== 0 ? round4((current.total - previous.total) / Math.abs(previous.total)) : null;
+    const flows = investmentFlows(key, current.excluded);
+    const marketGains = comparable ? round2(current.invTotal - previous.invTotal - flows) : null;
     result.set(key, {
       granularity,
       netWorth: current.total,
@@ -202,6 +254,8 @@ export function computeNetWorthGrowth(
       marketGains,
       investmentNetFlows: flows,
       estimatedAccountIds: current.estimated,
+      carriedAccountIds: current.carried,
+      excludedAccountIds: current.excluded,
     });
   }
   return result;

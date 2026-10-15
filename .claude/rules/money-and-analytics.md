@@ -29,11 +29,13 @@ anything below; several entries record "tried and failed, don't retry".
   second definition of spending or income: a credit files under the row it
   nets against (reimbursementSources), and every month's totals are pinned to
   the analyzers to the cent (report.test.ts).
-- Net worth history requires SNAPSHOTS: investment accounts are known:false
-  without a snapshot INSIDE the period; never reconstruct an investment
-  balance from transactions, in either direction. Cash/credit are exempt.
-  The one carry: a last snapshot of ZERO with no transaction since stays
-  zero (a closed account has nothing for the market to move).
+- Net worth history requires SNAPSHOTS; never reconstruct an investment
+  balance from its TRADES, in either direction. Without a snapshot inside the
+  period an investment value is CARRIED (last snapshot + money that crossed
+  the account since, estimated), ZERO when its last snapshot is zero with
+  nothing since, ZERO for ANY account before an opening-zero snapshot, else
+  unknown. A month LEAVES OUT and names an unknown account, never drops whole;
+  growth and market gains compare only months over the same accounts.
 - investmentNetFlows counts only money CROSSING the account boundary;
   direction comes from wording, only the magnitude is trusted.
 - Never trust one connector's sign convention — investment-amount readers

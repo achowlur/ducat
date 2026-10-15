@@ -13,7 +13,7 @@
 import type { NetWorthGrowthPayload, SpendingByCategoryPayload } from "../../types/contracts";
 import { isP2P } from "../p2p";
 import { prisma } from "../prisma";
-import { DEFAULT_HEALTH_OPTIONS, getProviderHealth } from "../health/health";
+import { DEFAULT_HEALTH_OPTIONS, getProviderHealth, pollsForBalances } from "../health/health";
 import { pendingPackRules } from "../sync/rulePack";
 import type { ProviderHealth } from "../health/types";
 import {
@@ -74,8 +74,10 @@ export interface MonthContext {
   monthName: string;
   growthRate: number | null;
   marketGains: number | null;
-  /** Accounts whose balance in THAT month's net worth was reconstructed. */
+  /** Accounts whose balance in THAT month's net worth was estimated (carried or reconstructed). */
   estimatedCount: number;
+  /** Accounts THAT month's net worth leaves out, for having no value then. */
+  leftOutCount: number;
 }
 
 export interface OverviewData {
@@ -200,8 +202,11 @@ export async function getOverviewData(): Promise<OverviewData> {
         balance,
         snapshotBacked: snapDate !== null,
         snapshotDate: snapDate === null ? null : shortDate(snapDate),
+        // No sync keeps a statement-only balance current, so it is never behind one.
         balanceLagDays:
-          syncedAt === null ? 0 : Math.max(0, Math.floor((syncedAt - a.balanceDate.getTime()) / 86_400_000)),
+          syncedAt === null || !pollsForBalances(a.connectorType)
+            ? 0
+            : Math.max(0, Math.floor((syncedAt - a.balanceDate.getTime()) / 86_400_000)),
         stale: staleIds.has(a.id),
         isCash: countsAsCash({ id: a.id, type: a.type, balance }, cashAccountIds),
       };
@@ -245,6 +250,7 @@ export async function getOverviewData(): Promise<OverviewData> {
             growthRate: latestComplete.payload.growthRate,
             marketGains: latestComplete.payload.marketGains,
             estimatedCount: latestComplete.payload.estimatedAccountIds.length,
+            leftOutCount: latestComplete.payload.excludedAccountIds?.length ?? 0,
           },
     currentPeriod,
     currentPeriodLabel: monthLabel(currentPeriod),
