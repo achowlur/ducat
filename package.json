@@ -18,6 +18,7 @@
     "sync:simplefin": "tsx scripts/sync-simplefin.ts",
     "import:csv": "tsx scripts/import-csv.ts",
     "import:balances": "tsx scripts/import-balances.ts",
+    "import:pdf": "tsx scripts/import-pdf.ts",
     "pdf:layout": "tsx scripts/pdf-layout.ts",
     "health": "tsx scripts/health.ts",
     "subs:audit": "tsx scripts/audit-subscriptions.ts",

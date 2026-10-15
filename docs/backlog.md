@@ -36,6 +36,14 @@ Each item checked against the code after PR #29.
   account, only `scripts/import-csv.ts` parses one global value); historical
   snapshots from the running-balance column; and a record of which file
   produced which rows.
+- **PDF statement import, what is left** (raised 2026-10-15, once the import
+  was built; history.md, Built since the 2026-10-04 cut). An UNDO command:
+  every imported row carries its `ImportBatch`, so undoing a statement is a
+  delete by batch, but a row a person has since categorized (MANUAL), linked
+  as a repayment or seen paired as a transfer carries decisions the delete
+  would take with it, so it must report those and leave them to a person.
+  And more layouts as they are needed, each written from a
+  `npm run pdf:layout` dump as the two shipped layouts were.
 
 ### Needs a decision before any code
 
@@ -45,10 +53,6 @@ Each item checked against the code after PR #29.
   (`src/lib/insights/netWorth.ts`) no longer overlap, and saved dollars and
   market movement now split cleanly. The entry's snapshot count ("only seven
   months") is out of date; recount it before the discussion.
-- **PDF statement import** (full entry below, raised 2026-10-14). A third way
-  in for history older than any CSV download window, which must never add a
-  transaction the database already holds from a CSV or the feed. Decide the
-  duplicate rule and the PDF text dependency first.
 
 ### Watching, not work
 
@@ -257,90 +261,6 @@ Each was decided where it is recorded; listed here so none is rediscovered.
   reconciliation line, house readiness, the typed-first rate resolution) and
   `money-and-analytics.md` (net worth requires snapshots; never reconstruct an
   investment balance from transactions).
-
-- **PDF STATEMENT IMPORT: read a bank's PDF statements into history, and never
-  add a row that is already there. Raised 2026-10-14, SCOPE BEFORE BUILDING.**
-  Card statements first. Banks keep PDF statements years longer than their
-  CSV download windows (90 days to 18 months, against up to seven years for
-  statements; researched 2026-07-26 and again 2026-10-05, never made an item
-  until now), and older history requested from a bank can arrive as PDFs. If a
-  request comes back as CSV or a spreadsheet instead, none of this is needed:
-  a new `csvMappings.ts` entry is the whole job.
-  WHAT IT REUSES. A `PdfStatementConnector` beside `CsvConnector`
-  (`src/lib/connectors/csv.ts`) emits the same `NormalizedAccount` and
-  `NormalizedTransaction` into the same `runSync`, so rules, the closed box,
-  transfer pairing, insights, the label line and `--dry-run` come for free. The
-  CLI is a sibling of `scripts/import-csv.ts` with its flags. The account is
-  routed by the "account ending in" digits the statement prints, through
-  `matchAccount`, and an unmatched statement is reported, never guessed at.
-  Text extraction runs locally in the import script, never in the app: a
-  pure-JS PDF text library (an `allowScripts` reason if it carries an install
-  script), no OCR (a portal-downloaded statement is a text PDF; a scanned one
-  is refused), and no LLM call (HARD RULES).
-  THE DUPLICATE RULE IS THE DESIGN QUESTION, and the ask ("if it already
-  exists, don't add it") is stronger than anything the import path does today.
-  Dedupe is `(accountId, externalId)`. A CSV row's id hashes its own text, a
-  feed row's is the feed's, and a PDF row's would hash a third text, so the
-  same purchase arriving by PDF and by CSV or feed lands twice. The texts also
-  disagree on purpose: a card statement prints a transaction date AND a post
-  date where a CSV carries one, and each source truncates descriptions its own
-  way. Two layers, in this order:
-  1. A per-account CAP read from the database, not typed: drop every PDF row
-     dated on or after the account's EARLIEST existing transaction. This is the
-     backlog's per-account `--until` complaint, answered by the data instead of
-     a flag, and it covers everything before the CSV era (2024-06-28) with no
-     matching at all. The boundary is where the two date conventions disagree,
-     so rows within the match window before the cap go through layer 2 too.
-  2. Inside any overlap (that boundary, a gap in existing history, or an
-     explicit override), match as a MULTISET: same account, same signed
-     amount, dates within a small window (transaction date against post date;
-     size it on real statements), each existing row claimed by at most one PDF
-     row. Two identical coffees on one day are two rows, and only the surplus
-     is added. A row with more than one candidate is AMBIGUOUS and is listed
-     by the dry run, never resolved by guessing. Description similarity breaks
-     ties only, since the texts differ by source by design.
-  A PDF row's own id is a content hash over account, transaction date, amount,
-  normalized description and occurrence within the statement, so the same
-  statement imported twice, or two overlapping downloads, dedupes on the key
-  that exists today.
-  WHAT A PDF GIVES THAT A CSV DOES NOT, and the reason to build around it:
-  every statement prints a previous balance, a new balance and a closing date.
-  That is (a) a PARSE PROOF: previous balance plus the signed sum of the parsed
-  rows must equal the new balance to the cent, or the whole statement is
-  refused, which catches a dropped row, a missed continuation page or a flipped
-  sign without anyone reading it; and (b) one `BalanceSnapshot` per statement
-  close, the historical snapshots the deeper-history entry says a CSV backfill
-  never produces. The section subtotals (payments, purchases, fees, interest)
-  are a second, finer check of the same kind.
-  PARSING HAZARDS, each pinned by a test on INVENTED extracted text (`.pdf` is
-  already a binary type `privacy.test.ts` keeps out of the repo, and no real
-  statement line goes in a fixture):
-  - dates print as MM/DD with no year; the year comes from the statement
-    period, and a December-to-January statement spans two years;
-  - purchases print positive and payments or credits negative or with "CR",
-    while a stored CREDIT outflow is negative (`src/types/contracts.ts`);
-  - a deposit statement prints deposits and withdrawals in SEPARATE columns
-    with no sign, so a row's sign is the column its number sits in: the
-    extraction keeps each text item's position, and a parser that flattens a
-    page to lines cannot tell a deposit from a withdrawal. The same layout's
-    ending-daily-balance column is a snapshot per day, not just per statement;
-  - rows wrap: a foreign-currency purchase carries its rate on a second line,
-    and long merchants break;
-  - page breaks repeat the column header and add "continued" lines;
-  - one bank's layout changes across years, so a parser is chosen per bank AND
-    per layout era by a header it can detect, never by date alone;
-  - a card payment is a transfer-pair candidate only if the paying account's
-    side is imported too, and only within the pair window.
-  COST. Review labour, not rows: the deeper-history entry's grouped-review rate
-  is worst in the oldest months, so a multi-year PDF backfill is hundreds of
-  decisions, worked in date-ordered slices. Re-measure it with the dry run
-  before planning. The pre-import `cloud:backup` is still the only undo, so
-  the CSV backfill item's ask (record which file produced which rows) belongs
-  in the same change. The import is a DATA change: it writes the cloud only,
-  run by the operator with the Turso variables inline, simulated on a backup
-  copy first (`cloud-data-change`).
-  Open before code: which bank and layout first; the match window's size; and
-  whether description similarity earns its place once the multiset is in.
 
 - **The cloud-mode DATABASE-UNREACHABLE page has never been SEEN — open, and
   the reason is structural.** The classifier, the copy and the local-mode

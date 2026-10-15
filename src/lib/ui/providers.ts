@@ -117,6 +117,7 @@ const SETUP_HINTS: Record<ProviderId, string> = {
   SIMPLEFIN:
     "npm run simplefin:claim -- <setup-token>  →  set the printed SIMPLEFIN_ACCESS_URL in this instance's environment  →  npm run sync:simplefin",
   CSV: "npm run import:csv -- <file.csv> --mapping=<chase-checking|chase-credit|wells-fargo|fidelity> --name=<account> --type=<DEPOSITORY|CREDIT|INVESTMENT|LOAN> --institution=<bank>",
+  PDF: "npm run import:pdf -- <statement.pdf or folder> --dry-run  →  read the report  →  run it again without --dry-run",
   FRED:
     `get a free API key at fredaccount.stlouisfed.org/apikeys  →  set ${FRED_API_KEY_ENV} in this instance's environment  →  the next sync stores the day's ${FRED_SERIES_ID} observation. ` +
     "Used by the /insights readiness panel only when its config declares no typed rate (npm run readiness -- --fetched-rate).",
@@ -194,7 +195,7 @@ export async function getProvidersData(
       logsPage,
       setupHint:
         ((card.connectorType === "SIMPLEFIN" || card.connectorType === "FRED") && !configured) ||
-        (existing === null && card.connectorType === "CSV")
+        (existing === null && (card.connectorType === "CSV" || card.connectorType === "PDF"))
           ? SETUP_HINTS[card.connectorType]
           : null,
       syncLogs: logs.map((l) => ({

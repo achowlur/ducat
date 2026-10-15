@@ -31,6 +31,20 @@ Import and sync:
   pipeline: it shares sync.ts's account lookup and dedupe key, is pinned
   against a real runSync by test, and states what it cannot count (transfer
   pairs, insights) instead of implying zero.
+- import:pdf refuses a statement WHOLE unless opening + rows = closing to the
+  cent and every printed total matches its rows; parsers read column
+  POSITIONS (a deposit statement's amounts carry no sign), never OCR, never
+  an LLM; a new layout starts from pdf:layout, masked by default, and is
+  tested on INVENTED lines in its shape, never a real date or cycle.
+- A statement row stored under ANOTHER source's id matches on account +
+  amount + date window as a MULTISET; a surplus among rows on different days
+  is AMBIGUOUS and never added; a row's year is the latest not after the
+  closing date. A row dated over 7 days before its period is RE-DATED to the
+  opening day (merchant date kept in the description, merchant key read from
+  the printed text) and also matches anywhere inside that period.
+  Dry run and write share ONE plan (statementImport.ts).
+- A statement import never writes Account.balance: closes become snapshots,
+  and ImportBatch is written LAST so a failed write can simply re-run.
 - Provider health derives from LOCAL signals only — no network call on
   launch, ever; staleBalanceDays: 5 is deliberate; a new connector owes a
   trust card in providers.ts.
@@ -95,6 +109,11 @@ Upgrades and schema:
 - SCHEMA is the third upgrade axis: npm run schema:push diffs and only ever
   ADDS; one refusal blocks the whole run; an empty database goes to
   turso:push.
+- A new TABLE joins copyDatabase.ts TABLES or every backup and mirror drops
+  it; that moves the pinned OVERALL fingerprint, never a table's digest.
+- The 00:30 UTC backup builds from the MAIN checkout's schema and TABLES:
+  schema work waits in a worktree; cloud AND demo take it BEFORE the merge;
+  pull, local schema and one db:mirror --confirm land the same day.
 - Whether ADD COLUMN is legal depends on the table having ROWS — the delta
   takes row counts before classifying; Prisma's own diff will DROP what
   schema:push refuses — read its script before running any of it.

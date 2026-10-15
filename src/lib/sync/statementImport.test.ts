@@ -1,0 +1,263 @@
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PrismaClient } from '../../generated/prisma/client';
+import { normalizeMerchant } from '../connectors/normalize';
+import { settleLatePostings, type ParsedStatement } from '../connectors/pdf/statement';
+import { previewImport } from './previewImport';
+import {
+  batchIdFor,
+  connectorFor,
+  planStatementImport,
+  writeStatementImport,
+  type StatementFile,
+} from './statementImport';
+
+const utc = (m: number, d: number) => new Date(Date.UTC(2025, m - 1, d, 12));
+
+// An INVENTED card statement, in the app's signs (the balance owed is
+// negative). Stored history begins 03/05, inside its period.
+const statement = (overrides: Partial<ParsedStatement> = {}): ParsedStatement => ({
+  layout: 'test',
+  institution: 'Example Bank',
+  accountType: 'CREDIT',
+  accountLast4: '0001',
+  periodStart: utc(2, 10),
+  periodEnd: utc(3, 13),
+  openingBalance: -1000,
+  closingBalance: -709,
+  rows: [
+    { date: utc(2, 18), description: 'CORNER CAFE', amount: -20 },
+    { date: utc(2, 25), description: 'EXAMPLE GROCER', amount: -150 },
+    { date: utc(3, 4), description: 'PAYMENT THANK YOU', amount: 500 },
+    { date: utc(3, 8), description: 'EXAMPLE BOOKSHOP', amount: -30 },
+    { date: utc(3, 10), description: 'EXAMPLE COFFEE', amount: -4.5 },
+    { date: utc(3, 12), description: 'EXAMPLE COFFEE', amount: -4.5 },
+  ],
+  checks: [],
+  ...overrides,
+});
+
+const file = (name: string, sha: string, s = statement()): StatementFile => ({
+  fileName: name,
+  fileSha256: sha.padEnd(64, '0'),
+  statement: s,
+});
+
+let dir: string;
+let prisma: PrismaClient;
+let accountId: string;
+
+beforeAll(async () => {
+  dir = mkdtempSync(join(tmpdir(), 'ducat-statement-test-'));
+  const url = `file:${join(dir, 'test.db').replace(/\\/g, '/')}`;
+  const factory = new PrismaBetterSqlite3({ url });
+  const conn = await factory.connect();
+  const migrationsDir = join(process.cwd(), 'prisma', 'migrations');
+  for (const name of readdirSync(migrationsDir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort()) {
+    await conn.executeScript(readFileSync(join(migrationsDir, name, 'migration.sql'), 'utf8'));
+  }
+  await conn.dispose();
+  prisma = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url }) });
+
+  const account = await prisma.account.create({
+    data: {
+      externalId: 'ext-card',
+      connectorType: 'SIMPLEFIN',
+      institution: 'Example Bank',
+      name: 'Example Card (0001)',
+      type: 'CREDIT',
+      currency: 'USD',
+      balance: -700,
+      balanceDate: utc(3, 20),
+      isStale: false,
+    },
+  });
+  accountId = account.id;
+  const feed = (externalId: string, date: Date, amount: number, description: string) => ({
+    accountId,
+    externalId,
+    date,
+    amount,
+    description,
+    normalizedMerchant: description.toLowerCase(),
+    flow: amount >= 0 ? ('INFLOW' as const) : ('OUTFLOW' as const),
+    categorySource: 'AGGREGATOR' as const,
+    source: 'SIMPLEFIN' as const,
+  });
+  await prisma.transaction.createMany({
+    data: [
+      feed('feed-pay', utc(3, 6), 500, 'PAYMENT RECEIVED'),
+      feed('feed-other', utc(3, 9), -60, 'EXAMPLE FUEL'),
+      feed('feed-coffee', utc(3, 11), -4.5, 'EXAMPLE COFFEE'),
+      feed('feed-first', utc(3, 5), -1, 'EXAMPLE PARKING'),
+    ],
+  });
+});
+
+afterAll(async () => {
+  await prisma.$disconnect();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+const verdictOf = async (files: StatementFile[]) => {
+  const plan = await planStatementImport(prisma, files, { windowDays: 4 });
+  return {
+    plan,
+    kinds: plan.statements.flatMap((p) => p.rows.map((r) => `${r.row.description} ${r.verdict.kind}`)),
+  };
+};
+
+describe('planStatementImport', () => {
+  it('sorts every row into older history, already stored, a gap, or ambiguous', async () => {
+    const { kinds } = await verdictOf([file('a.pdf', 'aa')]);
+    expect(kinds).toEqual([
+      'CORNER CAFE NEW',
+      'EXAMPLE GROCER NEW',
+      'PAYMENT THANK YOU MATCHED',
+      'EXAMPLE BOOKSHOP GAP',
+      'EXAMPLE COFFEE MATCHED',
+      'EXAMPLE COFFEE AMBIGUOUS',
+    ]);
+  });
+
+  it('files the statement under the account its last four digits name', async () => {
+    const { plan } = await verdictOf([file('a.pdf', 'aa')]);
+    expect(plan.statements.map((p) => p.account.id)).toEqual([accountId]);
+    expect(plan.statements[0].batchId).toBe(batchIdFor('aa'.padEnd(64, '0')));
+  });
+
+  it('lists stored rows inside the period that no statement row explains', async () => {
+    const { plan } = await verdictOf([file('a.pdf', 'aa')]);
+    expect(plan.storedOnly.get(accountId)?.map((r) => r.description)).toEqual(['EXAMPLE PARKING', 'EXAMPLE FUEL']);
+  });
+
+  it('plans one closing-balance snapshot per statement', async () => {
+    const { plan } = await verdictOf([file('a.pdf', 'aa')]);
+    expect(plan.snapshots).toEqual([{ accountId, date: utc(3, 13), balance: -709 }]);
+  });
+
+  it('skips a statement for an account it cannot name, saying why', async () => {
+    const { plan } = await verdictOf([file('b.pdf', 'bb', statement({ accountLast4: '9999' }))]);
+    expect(plan.statements).toEqual([]);
+    expect(plan.skipped[0].reason).toMatch(/ending in 9999/);
+  });
+
+  it('skips the same file, and the same statement in another file, within one run', async () => {
+    const { plan } = await verdictOf([file('a.pdf', 'aa'), file('a copy.pdf', 'aa'), file('redownload.pdf', 'cc')]);
+    expect(plan.statements.map((p) => p.file.fileName)).toEqual(['a.pdf']);
+    expect(plan.skipped.map((s) => s.fileName)).toEqual(['a copy.pdf', 'redownload.pdf']);
+  });
+});
+
+describe('the dry run and the write agree', () => {
+  it('previews exactly the rows the write then adds, and writes nothing itself', async () => {
+    const plan = await planStatementImport(prisma, [file('a.pdf', 'aa')], { windowDays: 4 });
+    const before = await prisma.transaction.count();
+    const preview = await previewImport(prisma, connectorFor(plan), new Date(0));
+    expect(await prisma.transaction.count()).toBe(before);
+
+    const result = await writeStatementImport(prisma, plan);
+    expect(preview.newRows).toBe(3);
+    expect(result.sync.transactionsImported).toBe(preview.newRows);
+    expect(await prisma.transaction.count()).toBe(before + 3);
+  });
+
+  it('marks every added row with its source and statement, and records the statement', async () => {
+    const rows = await prisma.transaction.findMany({ where: { source: 'PDF' }, orderBy: { date: 'asc' } });
+    expect(rows.map((r) => r.description)).toEqual(['CORNER CAFE', 'EXAMPLE GROCER', 'EXAMPLE BOOKSHOP']);
+    const batchId = batchIdFor('aa'.padEnd(64, '0'));
+    expect(new Set(rows.map((r) => r.importBatchId))).toEqual(new Set([batchId]));
+    const batch = await prisma.importBatch.findUniqueOrThrow({ where: { id: batchId } });
+    expect([batch.fileName, batch.rowsAdded, batch.accountId]).toEqual(['a.pdf', 3, accountId]);
+  });
+
+  it('writes the closing balance as a snapshot and leaves the current balance alone', async () => {
+    const snapshot = await prisma.balanceSnapshot.findFirstOrThrow({ where: { accountId, date: utc(3, 13) } });
+    expect(Number(snapshot.balance)).toBe(-709);
+    const account = await prisma.account.findUniqueOrThrow({ where: { id: accountId } });
+    expect([Number(account.balance), account.connectorType]).toEqual([-700, 'SIMPLEFIN']);
+  });
+
+  it('skips the file on a later run, and the same statement under another name', async () => {
+    const plan = await planStatementImport(prisma, [file('a.pdf', 'aa'), file('renamed.pdf', 'dd')], { windowDays: 4 });
+    expect(plan.statements).toEqual([]);
+    expect(plan.skipped.map((s) => s.reason)).toEqual([
+      expect.stringMatching(/^already imported on \d{4}-\d{2}-\d{2}, as a\.pdf$/),
+      'this 2025-02-10 to 2025-03-13 statement is already imported, from a.pdf',
+    ]);
+  });
+});
+
+// A card lists a late-posted charge under the merchant's date, months before
+// the statement it appears on; the feed stored it when it POSTED.
+describe('a late-posted row', () => {
+  let cardId: string;
+
+  beforeAll(async () => {
+    const card = await prisma.account.create({
+      data: {
+        externalId: 'ext-card-2',
+        connectorType: 'SIMPLEFIN',
+        institution: 'Example Bank',
+        name: 'Example Card (0002)',
+        type: 'CREDIT',
+        currency: 'USD',
+        balance: 0,
+        balanceDate: utc(9, 20),
+        isStale: false,
+      },
+    });
+    cardId = card.id;
+    const feed = (externalId: string, date: Date, amount: number, description: string) => ({
+      accountId: cardId,
+      externalId,
+      date,
+      amount,
+      description,
+      normalizedMerchant: description.toLowerCase(),
+      flow: 'OUTFLOW' as const,
+      categorySource: 'AGGREGATOR' as const,
+      source: 'SIMPLEFIN' as const,
+    });
+    await prisma.transaction.createMany({
+      data: [feed('feed-late', utc(8, 20), -12, 'EXAMPLE DINER'), feed('feed-first', utc(1, 5), -1, 'EXAMPLE PARKING')],
+    });
+  });
+
+  const late = () =>
+    settleLatePostings(
+      statement({
+        accountLast4: '0002',
+        periodStart: utc(8, 10),
+        periodEnd: utc(9, 9),
+        openingBalance: 0,
+        closingBalance: -42,
+        rows: [
+          { date: utc(3, 11), description: 'EXAMPLE DINER', amount: -12 },
+          { date: utc(3, 11), description: 'EXAMPLE DINER', amount: -30 },
+        ],
+      }),
+    );
+
+  it('is dated on the opening day, and still matches what the feed stored when it posted', async () => {
+    const plan = await planStatementImport(prisma, [file('late.pdf', 'ee', late())], { windowDays: 4 });
+    expect(plan.statements[0].rows.map((r) => [r.row.date, r.verdict.kind])).toEqual([
+      [utc(8, 10), 'MATCHED'],
+      [utc(8, 10), 'GAP'],
+    ]);
+  });
+
+  it('is stored with the merchant date in its description and its merchant as printed', async () => {
+    await writeStatementImport(prisma, await planStatementImport(prisma, [file('late.pdf', 'ee', late())], { windowDays: 4 }));
+    const row = await prisma.transaction.findFirstOrThrow({ where: { accountId: cardId, source: 'PDF' } });
+    expect([row.date, row.description, row.normalizedMerchant, Number(row.amount)]).toEqual([
+      utc(8, 10),
+      'EXAMPLE DINER (transaction date 03/11/2025)',
+      normalizeMerchant('EXAMPLE DINER'),
+      -30,
+    ]);
+  });
+});
