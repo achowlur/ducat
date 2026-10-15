@@ -142,22 +142,21 @@ async function main(): Promise<void> {
 
   const files: StatementFile[] = [];
   const refused: { fileName: string; reason: string }[] = [];
-  for (const path of pdfFiles(paths)) {
+  const found = pdfFiles(paths);
+  for (const path of found) {
     const bytes = readFileSync(path);
     const result = await readStatement(bytes);
     if (!result.ok) {
       refused.push({ fileName: basename(path), reason: result.reason });
       continue;
     }
-    files.push({
-      fileName: basename(path),
-      fileSha256: createHash('sha256').update(bytes).digest('hex'),
-      statement: result.statement,
-    });
+    // A brokerage report covers several accounts: one statement each.
+    const fileSha256 = createHash('sha256').update(bytes).digest('hex');
+    for (const statement of result.statements) files.push({ fileName: basename(path), fileSha256, statement });
   }
 
   const plan = await planStatementImport(prisma, files, { windowDays, externalId: arg('external-id') });
-  console.log(`${dryRun ? 'DRY RUN' : 'IMPORT'}: ${files.length + refused.length} file(s), ${plan.statements.length} statement(s) to import`);
+  console.log(`${dryRun ? 'DRY RUN' : 'IMPORT'}: ${found.length} file(s), ${plan.statements.length} statement(s) to import`);
   report(plan, refused);
 
   if (dryRun) {

@@ -133,6 +133,23 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   account, period) is written LAST with an id derived from the file's hash, so
   a write that fails midway records nothing and its re-run is not refused as
   already imported.
+  ONE FILE, SEVERAL ACCOUNTS. Fidelity's Investment Report covers every
+  account the holder has, each under its own "Account #" header, so a layout
+  returns a LIST of statements; each is reconciled on its own and the file is
+  refused whole if any fails. The batch id and the same-file check key on the
+  file AND the account. An investment's value moves with the market, so its
+  check is beginning + rows + the PRINTED "Change in Investment Value" =
+  ending (`marketChange`): the statement's own figure, never one derived, or
+  the check would hold by construction. Only money crossing the account is a
+  row (the closed box: trades, dividends, reinvestments and core sweeps stay
+  inside); a summary line moving money through a section the parser does not
+  read REFUSES the statement and names the line. Two guards came with it:
+  `--external-id` names ONE account, so under it a file holding several is
+  skipped rather than poured into it; and a statement whose period OVERLAPS
+  another for the same account (a quarterly report beside a monthly one) is
+  skipped, because rows are matched against the database, never against
+  another statement in the same run. Periods sharing only a boundary day do
+  not count as overlapping.
   SHARING A LAYOUT WITHOUT SHARING A STATEMENT. Parsers were written from
   `npm run pdf:layout` dumps the operator pasted. Masking digits alone was not
   enough: a statement prints the holder's name and address and the people paid

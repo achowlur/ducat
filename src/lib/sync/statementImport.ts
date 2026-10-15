@@ -79,9 +79,14 @@ export interface PlanOptions {
 
 const DAY_MS = 86_400_000;
 
-/** The batch id a statement file is recorded under: the same file, the same id. */
-export function batchIdFor(fileSha256: string): string {
-  return `pdf-${fileSha256.slice(0, 24)}`;
+/**
+ * The batch a statement is recorded under: one per file AND account, since a
+ * brokerage report covers several accounts. The same file read again gives
+ * the same ids, which is what lets a re-run after a failed write file its
+ * rows under the record it then writes.
+ */
+export function batchIdFor(fileSha256: string, accountLast4: string): string {
+  return `pdf-${createHash('sha256').update(`${fileSha256}|${accountLast4}`).digest('hex').slice(0, 24)}`;
 }
 
 /**
@@ -128,18 +133,32 @@ export async function planStatementImport(
     throw new Error(`No account has externalId "${options.externalId}".`);
   }
 
+  // A file can hold several accounts (an investment report covers them all).
+  // --external-id names ONE account, so it cannot say where each of them goes.
+  const accountsInFile = new Map<string, Set<string>>();
+  for (const file of files) {
+    const held = accountsInFile.get(file.fileSha256) ?? new Set<string>();
+    held.add(file.statement.accountLast4);
+    accountsInFile.set(file.fileSha256, held);
+  }
+
   // Which statements go ahead, and into which account.
   const accepted: { file: StatementFile; account: TargetAccount }[] = [];
   for (const file of files) {
     const s = file.statement;
-    const imported = priorBatches.find((b) => b.fileSha256 === file.fileSha256);
-    if (imported !== undefined) {
-      skipped.push({ fileName: file.fileName, reason: `already imported on ${day(imported.importedAt)}, as ${imported.fileName}` });
-      continue;
-    }
-    const twin = accepted.find((a) => a.file.fileSha256 === file.fileSha256);
+    const twin = accepted.find(
+      (a) => a.file.fileSha256 === file.fileSha256 && a.file.statement.accountLast4 === s.accountLast4,
+    );
     if (twin !== undefined) {
       skipped.push({ fileName: file.fileName, reason: `the same file as ${twin.file.fileName}, earlier in this run` });
+      continue;
+    }
+    const held = accountsInFile.get(file.fileSha256)?.size ?? 1;
+    if (forced !== null && held > 1) {
+      skipped.push({
+        fileName: file.fileName,
+        reason: `it holds ${held} accounts and --external-id names one, so the account ending in ${s.accountLast4} is left out (run it without --external-id)`,
+      });
       continue;
     }
 
@@ -157,14 +176,28 @@ export async function planStatementImport(
       continue;
     }
 
-    const samePeriod = (start: Date, end: Date, accountId: string) =>
-      accountId === account.id && start.getTime() === s.periodStart.getTime() && end.getTime() === s.periodEnd.getTime();
-    const prior = priorBatches.find((b) => samePeriod(b.periodStart, b.periodEnd, b.accountId));
-    const earlier = accepted.find((a) => samePeriod(a.file.statement.periodStart, a.file.statement.periodEnd, a.account.id));
-    if (prior !== undefined || earlier !== undefined) {
+    const imported = priorBatches.find((b) => b.fileSha256 === file.fileSha256 && b.accountId === account.id);
+    if (imported !== undefined) {
+      skipped.push({ fileName: file.fileName, reason: `already imported on ${day(imported.importedAt)}, as ${imported.fileName}` });
+      continue;
+    }
+
+    // Periods that share more than a boundary day hold the same rows twice (a
+    // quarterly report beside a monthly one), and rows are matched against the
+    // database, never against another statement in the run.
+    const overlaps = (start: Date, end: Date, accountId: string) =>
+      accountId === account.id && start.getTime() < s.periodEnd.getTime() && end.getTime() > s.periodStart.getTime();
+    const prior = priorBatches.find((b) => overlaps(b.periodStart, b.periodEnd, b.accountId));
+    const earlier = accepted.find((a) => overlaps(a.file.statement.periodStart, a.file.statement.periodEnd, a.account.id));
+    const other = prior ?? earlier?.file.statement;
+    if (other !== undefined) {
+      const same = other.periodStart.getTime() === s.periodStart.getTime() && other.periodEnd.getTime() === s.periodEnd.getTime();
+      const where = prior !== undefined ? `imported, from ${prior.fileName}` : `in this run, as ${earlier?.file.fileName}`;
       skipped.push({
         fileName: file.fileName,
-        reason: `this ${day(s.periodStart)} to ${day(s.periodEnd)} statement is already ${prior !== undefined ? `imported, from ${prior.fileName}` : `in this run, as ${earlier?.file.fileName}`}`,
+        reason: same
+          ? `this ${day(s.periodStart)} to ${day(s.periodEnd)} statement is already ${where}`
+          : `this ${day(s.periodStart)} to ${day(s.periodEnd)} statement overlaps the ${day(other.periodStart)} to ${day(other.periodEnd)} one already ${where}`,
       });
       continue;
     }
@@ -211,7 +244,7 @@ export async function planStatementImport(
       return {
         file,
         account,
-        batchId: batchIdFor(file.fileSha256),
+        batchId: batchIdFor(file.fileSha256, file.statement.accountLast4),
         rows: file.statement.rows.map((row, i): PlannedRow => ({
           row,
           externalId: ids[i],

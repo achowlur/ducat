@@ -11,6 +11,7 @@ give you, the statements are the record.
 | --- | --- |
 | `chase-card` | Chase credit card |
 | `wells-fargo-deposit` | Wells Fargo checking and savings |
+| `fidelity-report` | Fidelity Investment Report, every account in it (see [Investment accounts](#investment-accounts)) |
 
 Any other PDF is refused with a reason; nothing is guessed at. To add a layout,
 see [Adding a layout](#adding-a-layout).
@@ -28,7 +29,8 @@ Each statement lands in the account it belongs to, found by the last four
 digits the statement prints. The account must already exist (a live feed or an
 earlier import made it); a statement for an account the import cannot name is
 skipped and reported. `--external-id=<id>` files every statement in the run
-under that one account instead.
+under that one account instead; a file holding several accounts is skipped
+under it, since one id cannot say where each goes.
 
 ## What makes a statement acceptable
 
@@ -37,7 +39,8 @@ A statement is imported **whole or not at all**. It is refused when:
 - it is a scan with no text layer (there is no OCR);
 - its layout is not one listed above;
 - its rows do not add up: the opening balance plus every row must equal the
-  closing balance to the cent, and every subtotal the statement prints must
+  closing balance to the cent (for an investment account, plus the market
+  change the statement prints), and every subtotal the statement prints must
   match the rows it covers. This is what catches a dropped row, a missed page
   or a misread sign without anyone checking by hand.
 
@@ -75,7 +78,27 @@ bank's own record of its period, so they are worth a look.
 
 The same file is never imported twice (it is recognised by its contents, not
 its name), and neither is the same statement downloaded again as a different
-file.
+file. A statement whose dates overlap another one for the same account, such
+as a quarterly report beside the monthly ones, is skipped with the reason,
+since the two would list the same rows.
+
+## Investment accounts
+
+A Fidelity Investment Report holds every account in one file. Each account is
+read as its own statement, and if any of them does not add up, none is
+imported. For each account the import keeps:
+
+- **its value**: the ending account value becomes a balance snapshot, which is
+  what net worth reads for an investment account;
+- **money in and out**: the rows of its Deposits and Withdrawals sections.
+
+Trades, dividends, reinvestments and the sweep into the core position stay
+inside the account, so they are not read at all; what the account earned is
+the statement's own "Change in Investment Value". The check is the beginning
+value plus every row plus that printed change, which must equal the ending
+value to the cent. If an account moved money through a section the import does
+not read yet (an exchange or a transfer between accounts), the file is refused
+with that section's name.
 
 ## Sharing the report
 

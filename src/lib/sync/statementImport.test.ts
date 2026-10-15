@@ -126,7 +126,7 @@ describe('planStatementImport', () => {
   it('files the statement under the account its last four digits name', async () => {
     const { plan } = await verdictOf([file('a.pdf', 'aa')]);
     expect(plan.statements.map((p) => p.account.id)).toEqual([accountId]);
-    expect(plan.statements[0].batchId).toBe(batchIdFor('aa'.padEnd(64, '0')));
+    expect(plan.statements[0].batchId).toBe(batchIdFor('aa'.padEnd(64, '0'), '0001'));
   });
 
   it('lists stored rows inside the period that no statement row explains', async () => {
@@ -150,6 +150,27 @@ describe('planStatementImport', () => {
     expect(plan.statements.map((p) => p.file.fileName)).toEqual(['a.pdf']);
     expect(plan.skipped.map((s) => s.fileName)).toEqual(['a copy.pdf', 'redownload.pdf']);
   });
+
+  it('skips a statement overlapping another, but not one sharing only its boundary day', async () => {
+    const quarter = statement({ periodStart: utc(1, 1), periodEnd: utc(3, 13), rows: [] });
+    const next = statement({ periodStart: utc(3, 13), periodEnd: utc(4, 12), rows: [] });
+    const { plan } = await verdictOf([file('a.pdf', 'aa'), file('quarter.pdf', 'ee', quarter), file('next.pdf', 'ff', next)]);
+    expect(plan.statements.map((p) => p.file.fileName)).toEqual(['a.pdf', 'next.pdf']);
+    expect(plan.skipped.map((s) => s.reason)).toEqual([
+      'this 2025-01-01 to 2025-03-13 statement overlaps the 2025-02-10 to 2025-03-13 one already in this run, as a.pdf',
+    ]);
+  });
+
+  // One --external-id cannot route two accounts; forcing both into it would mix them.
+  it('refuses --external-id for a file holding several accounts', async () => {
+    const report = [file('report.pdf', 'dd'), file('report.pdf', 'dd', statement({ accountLast4: '0002' }))];
+    const plan = await planStatementImport(prisma, report, { windowDays: 4, externalId: 'ext-card' });
+    expect(plan.statements).toEqual([]);
+    expect(plan.skipped.map((s) => s.reason)).toEqual([
+      'it holds 2 accounts and --external-id names one, so the account ending in 0001 is left out (run it without --external-id)',
+      'it holds 2 accounts and --external-id names one, so the account ending in 0002 is left out (run it without --external-id)',
+    ]);
+  });
 });
 
 describe('the dry run and the write agree', () => {
@@ -168,7 +189,7 @@ describe('the dry run and the write agree', () => {
   it('marks every added row with its source and statement, and records the statement', async () => {
     const rows = await prisma.transaction.findMany({ where: { source: 'PDF' }, orderBy: { date: 'asc' } });
     expect(rows.map((r) => r.description)).toEqual(['CORNER CAFE', 'EXAMPLE GROCER', 'EXAMPLE BOOKSHOP']);
-    const batchId = batchIdFor('aa'.padEnd(64, '0'));
+    const batchId = batchIdFor('aa'.padEnd(64, '0'), '0001');
     expect(new Set(rows.map((r) => r.importBatchId))).toEqual(new Set([batchId]));
     const batch = await prisma.importBatch.findUniqueOrThrow({ where: { id: batchId } });
     expect([batch.fileName, batch.rowsAdded, batch.accountId]).toEqual(['a.pdf', 3, accountId]);

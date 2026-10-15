@@ -47,6 +47,13 @@ export interface ParsedStatement {
   periodEnd: Date;
   openingBalance: number;
   closingBalance: number;
+  /**
+   * A change in value the statement prints and no row explains: an investment
+   * account's market movement. The balance check then reads opening + rows +
+   * this = closing. Absent on a bank or card statement, where every change is
+   * a row.
+   */
+  marketChange?: number;
   rows: StatementRow[];
   checks: StatementCheck[];
 }
@@ -55,8 +62,12 @@ export interface StatementLayout {
   id: string;
   /** Recognises the layout from what the first page says, never from a date. */
   detect(lines: TextLine[]): boolean;
-  /** Throws, naming what it could not read, rather than return a guess. */
-  parse(lines: TextLine[]): ParsedStatement;
+  /**
+   * One statement per account the file covers: a bank or card statement is
+   * one, a brokerage report can hold several. Throws, naming what it could
+   * not read, rather than return a guess.
+   */
+  parse(lines: TextLine[]): ParsedStatement[];
 }
 
 /** Money as integer cents, so a sum of hundreds of rows cannot drift. */
@@ -210,10 +221,13 @@ export function transactionDateNote(date: Date): string {
 export function reconcile(statement: ParsedStatement): string[] {
   const problems: string[] = [];
   const sum = statement.rows.reduce((total, r) => total + cents(r.amount), 0);
-  const expected = cents(statement.closingBalance) - cents(statement.openingBalance);
+  const expected =
+    cents(statement.closingBalance) - cents(statement.openingBalance) - cents(statement.marketChange ?? 0);
   if (sum !== expected) {
     problems.push(
-      `rows add up to ${(sum / 100).toFixed(2)} but the balance moved ${(expected / 100).toFixed(2)}`,
+      statement.marketChange === undefined
+        ? `rows add up to ${(sum / 100).toFixed(2)} but the balance moved ${(expected / 100).toFixed(2)}`
+        : `rows add up to ${(sum / 100).toFixed(2)} but the value moved ${(expected / 100).toFixed(2)} beyond the printed market change`,
     );
   }
   for (const check of statement.checks) {

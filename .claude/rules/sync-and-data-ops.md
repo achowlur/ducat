@@ -31,8 +31,11 @@ Import and sync:
   pipeline: it shares sync.ts's account lookup and dedupe key, is pinned
   against a real runSync by test, and states what it cannot count (transfer
   pairs, insights) instead of implying zero.
-- import:pdf refuses a statement WHOLE unless opening + rows = closing to the
-  cent and every printed total matches its rows; parsers read column
+- import:pdf refuses a statement WHOLE unless opening + rows (+ an investment
+  statement's PRINTED market change) = closing to the cent and every printed
+  total matches its rows; a file holding several accounts is refused whole if
+  any fails, and a period OVERLAPPING another for the account is skipped;
+  parsers read column
   POSITIONS (a deposit statement's amounts carry no sign), never OCR, never
   an LLM; a new layout starts from pdf:layout, masked by default, and is
   tested on INVENTED lines in its shape, never a real date or cycle.
