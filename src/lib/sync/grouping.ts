@@ -78,12 +78,42 @@ export function payeeKey(description: string): string {
     .trim();
 }
 
+/**
+ * The rail and its direction words, which carry no information about WHO.
+ * Measured against what remains, because a length check on the whole payee is
+ * a floor in name only: "ZELLE 12345678" keys to "zelle", five characters that
+ * pass any such test and match every P2P payment in the database.
+ */
+export const RAIL_WORDS = /\b(to|from|payment|transfer|pmt)\b/g;
+
+/** Shorter than this matches half the ledger, as a rule value or a name. */
+export const MIN_PAYEE_NAME = 3;
+
+/** What a P2P string names beyond its rail: "zelle to lena" is "lena", "zelle transfer" nothing. */
+export function beyondRail(s: string): string {
+  return s.replace(P2P_PATTERN, ' ').replace(RAIL_WORDS, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Whether a P2P row keys on the counterparty in its DESCRIPTION or, as any
+ * purchase does, on its merchant. The description wins unless its key never
+ * reaches the rail while the merchant names more than the rail. A card-network
+ * payment ("Purchase authorized on 11/19 Venmo* VISA Direct NY ...") cuts at
+ * its date to "purchase authorized": the bank's bookkeeping, naming neither the
+ * rail nor anyone on it, and as a DESCRIPTION rule it matches every card
+ * purchase on the account. Its merchant ("venmo* visa direct ny") is the payee.
+ */
+export function keysOnDescription(t: { normalizedMerchant: string; description: string }): boolean {
+  return P2P_PATTERN.test(payeeKey(t.description)) || beyondRail(t.normalizedMerchant).length < MIN_PAYEE_NAME;
+}
+
 export function groupByPayee(txns: GroupTxn[]): PayeeGroup[] {
   const groups = new Map<string, PayeeGroup>();
 
   for (const t of txns) {
     const isP2P = P2P_PATTERN.test(t.normalizedMerchant) || P2P_PATTERN.test(t.description);
-    const key = isP2P
+    const byPayee = isP2P && keysOnDescription(t);
+    const key = byPayee
       ? payeeKey(t.description)
       : t.normalizedMerchant !== ''
         ? t.normalizedMerchant
@@ -94,7 +124,7 @@ export function groupByPayee(txns: GroupTxn[]): PayeeGroup[] {
     if (existing === undefined) {
       groups.set(key, {
         key,
-        matchField: isP2P ? 'DESCRIPTION' : 'MERCHANT',
+        matchField: byPayee ? 'DESCRIPTION' : 'MERCHANT',
         isP2P,
         count: 1,
         total: Math.abs(t.amount),

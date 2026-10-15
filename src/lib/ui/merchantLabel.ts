@@ -1,4 +1,4 @@
-import { payeeKey } from "../sync/grouping";
+import { beyondRail, keysOnDescription, MIN_PAYEE_NAME, payeeKey } from "../sync/grouping";
 import { P2P_PATTERN } from "../sync/rules";
 import { titleCase } from "./format";
 
@@ -26,17 +26,6 @@ export interface MerchantLabel {
   ruleField: "MERCHANT" | "DESCRIPTION";
 }
 
-/** Shorter than this matches half the ledger — the grouped review's floor, for the same reason. */
-const MIN_RULE_VALUE = 3;
-
-/**
- * The rail and its direction word, which carry no information about WHO.
- * Measured against what remains, because a length check on the whole payee is
- * a floor in name only: "ZELLE 12345678" keys to "zelle", five characters that
- * pass any such test and match every P2P payment in the database.
- */
-const RAIL_WORDS = /\b(to|from|payment|transfer|pmt)\b/g;
-
 export function merchantLabel(t: { normalizedMerchant: string; description: string }): MerchantLabel {
   const merchant = t.normalizedMerchant.trim();
   const fallback: MerchantLabel = {
@@ -45,20 +34,17 @@ export function merchantLabel(t: { normalizedMerchant: string; description: stri
     ruleField: "MERCHANT",
   };
 
+  // The grouped review's own test, so the row you read and the group you
+  // decide on name the same payee: a card-network payment keys on its merchant.
   const isP2P = P2P_PATTERN.test(t.normalizedMerchant) || P2P_PATTERN.test(t.description);
-  if (!isP2P) return fallback;
+  if (!isP2P || !keysOnDescription(t)) return fallback;
 
   // The rail carries the counterparty in its description. `payeeKey` truncates
   // at the first reference marker rather than deleting one mid-string, so the
   // result stays a contiguous prefix of the description — which is what lets it
   // work as a DESCRIPTION rule's CONTAINS value.
   const payee = payeeKey(t.description);
-  const named = payee
-    .replace(P2P_PATTERN, " ")
-    .replace(RAIL_WORDS, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (named.length < MIN_RULE_VALUE) return fallback;
+  if (beyondRail(payee).length < MIN_PAYEE_NAME) return fallback;
 
   return {
     label: titleCase(payee),
