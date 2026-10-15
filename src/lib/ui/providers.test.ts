@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { cronSummary, STATUS_CHIP, STATUS_DOT } from './providers';
+import type { ProviderHealth } from '../health/types';
+import { cronSummary, showsProvider, STATUS_CHIP, STATUS_DOT } from './providers';
 import vercelConfig from '../../../vercel.json';
 
 describe('cronSummary', () => {
@@ -44,5 +45,18 @@ describe('provider status colours', () => {
     }
     expect(STATUS_CHIP.WARN).not.toBe(STATUS_CHIP.UNKNOWN);
     expect(STATUS_DOT.WARN).not.toBe(STATUS_DOT.UNKNOWN);
+  });
+});
+
+describe('which provider cards /providers shows', () => {
+  it('shows every connector, set up or not, so its deal is readable before connecting', () => {
+    for (const id of ['SIMPLEFIN', 'CSV', 'PDF'] as const) expect(showsProvider(id, null, false)).toBe(true);
+  });
+
+  // The operator's call (2026-10-15): an unused rates index is noise there.
+  it('shows FRED only once it is in use: its key set, or a rate stored before', () => {
+    expect(showsProvider('FRED', null, false)).toBe(false);
+    expect(showsProvider('FRED', null, true)).toBe(true);
+    expect(showsProvider('FRED', { connectorType: 'FRED' } as ProviderHealth, false)).toBe(true);
   });
 });

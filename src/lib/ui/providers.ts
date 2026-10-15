@@ -124,10 +124,23 @@ const SETUP_HINTS: Record<ProviderId, string> = {
 };
 
 /**
- * Every known provider renders — including ones not set up yet, so the
- * trust card (data path, residual risks, revocation) is readable BEFORE
- * connecting, which is when it matters most. The access URL itself is a
- * credential and is never read into page data — only its presence.
+ * Whether /providers shows a provider's card.
+ *
+ * Every CONNECTOR renders, set up or not, so its trust card (data path,
+ * residual risks, revocation) is readable BEFORE connecting, which is when it
+ * matters most. FRED is the exception, by the operator's call (2026-10-15): it
+ * is no source of transactions and turns on only through an environment
+ * variable, so while unused its card is noise. It renders once the key is set
+ * or a rate was ever stored (health then reports it), so an instance that opts
+ * in sees the deal again.
+ */
+export function showsProvider(id: ProviderId, health: ProviderHealth | null, fredKeySet: boolean): boolean {
+  return id !== "FRED" || health !== null || fredKeySet;
+}
+
+/**
+ * The cards /providers renders: see showsProvider for which. The access URL
+ * itself is a credential and is never read into page data, only its presence.
  *
  * `paging` selects which connector's history is being paged (from
  * `?logs=&logsPage=`); every other connector shows page 1. The page is
@@ -150,8 +163,10 @@ export async function getProvidersData(
   const totalFor = new Map(totals.map((t) => [t.connectorType, t._count]));
 
   const views: ProviderView[] = [];
+  const fredKeySet = (process.env[FRED_API_KEY_ENV] ?? "") !== "";
   for (const card of Object.values(PROVIDER_TRUST_CARDS)) {
     const existing = byType.get(card.connectorType) ?? null;
+    if (!showsProvider(card.connectorType, existing, fredKeySet)) continue;
     const h: ProviderHealth =
       existing ?? {
         connectorType: card.connectorType,

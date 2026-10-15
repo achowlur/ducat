@@ -73,8 +73,8 @@ async function renderProviders({
             <>
               Running in <strong>local mode</strong>, against a file database on this machine, bound to
               127.0.0.1. Transaction data never leaves this device. The only outbound connections the
-              app makes are the ones on this page: the SimpleFIN feed, plus the FRED rate index only if
-              you opt in with an API key. Nothing outbound carries transaction data.
+              app makes are the SimpleFIN feed and, only if you opt in with an API key, the FRED rate
+              index, whose card appears here once you do. Nothing outbound carries transaction data.
             </>
           )}{" "}
           {/* "How often" was unanswerable from this page — the words schedule,
