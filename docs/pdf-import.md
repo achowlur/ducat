@@ -98,7 +98,9 @@ Trades, dividends, reinvestments and the sweep into the core position stay
 inside the account, so they are not read at all; what the account earned is
 the statement's own "Change in Investment Value". The check is the beginning
 value plus every row plus that printed change, which must equal the ending
-value to the cent. If an account moved money through a summary line that no
+value to the cent. The year-end report is refused: it summarises the whole
+year at once, and the monthly reports carry its months. If an account moved
+money through a summary line that no
 section lists, or the summary holds a line the import cannot place, the file is
 refused with that line's name.
 
@@ -141,7 +143,9 @@ DATABASE_URL="libsql://…turso.io" TURSO_AUTH_TOKEN="…" npm run import:pdf --
 npm run pdf:layout -- <statement.pdf>
 ```
 
-prints a statement the way the import reads it: one line per row of the page,
+prints a statement the way the import reads it (`--pages=4-6` for some pages,
+or `--pages-with="Exchanges In"` for the pages holding a phrase, found in the
+real text even when the mask hides it): one line per row of the page,
 each piece of text with the x positions it starts and ends at. It is masked by
 default: every digit prints as `#`, and every word that is not statement
 vocabulary (your name and address, people paid by Zelle, every merchant)

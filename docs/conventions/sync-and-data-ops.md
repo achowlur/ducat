@@ -170,7 +170,15 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   through the section of its own name (Exchanges In, a fee as well as
   Deposits), since each is money crossing the account. A summary with no
   change-in-value line at all (an account holding only a balance) is no
-  change, which the value check still tests.
+  change, which the value check still tests. The YEAR-END report is refused
+  by name: one summary of the whole year, which overlaps every monthly report
+  and which a December monthly report sits beside. And the dry run's list of
+  stored rows no statement explains leaves out an investment account's
+  trades and dividends (the closed box's own test), which no investment
+  statement lists: on the first run they buried the rows worth a look.
+  Brokerage words joined the mask's vocabulary ("Exchanges" printed as
+  "Xxxxxxxxx"), and `pdf:layout --pages-with` finds pages by their REAL
+  text, so a page can be asked for by a word the mask hides.
   SHARING A LAYOUT WITHOUT SHARING A STATEMENT. Parsers were written from
   `npm run pdf:layout` dumps the operator pasted. Masking digits alone was not
   enough: a statement prints the holder's name and address and the people paid

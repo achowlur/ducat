@@ -180,6 +180,14 @@ describe('fidelityReport', () => {
     );
   });
 
+  // A whole year in one summary overlaps every monthly report of that year.
+  it('refuses the year-end report by name', () => {
+    const lines = report().map((l) =>
+      l.cells[0].text === 'INVESTMENT REPORT' ? { ...l, cells: [{ ...l.cells[0], text: '2026 YEAR-END INVESTMENT REPORT' }], text: '2026 YEAR-END INVESTMENT REPORT' } : l,
+    );
+    expect(() => fidelityReport.parse(lines)).toThrow('a year-end report, one summary of the whole year; the monthly reports carry its months');
+  });
+
   it('recognises its own reports only', () => {
     expect(fidelityReport.detect(report())).toBe(true);
     expect(fidelityReport.detect(report().filter((l) => !/INVESTMENT REPORT/.test(l.text)))).toBe(false);

@@ -173,6 +173,53 @@ describe('planStatementImport', () => {
   });
 });
 
+describe('an investment statement', () => {
+  // It lists only money crossing the account, so trades and dividends are never on it.
+  it('lists no trade or dividend among the stored rows it does not explain', async () => {
+    const brokerage = await prisma.account.create({
+      data: {
+        externalId: 'ext-brokerage',
+        connectorType: 'SIMPLEFIN',
+        institution: 'Example Brokerage',
+        name: 'Brokerage (0003)',
+        type: 'INVESTMENT',
+        currency: 'USD',
+        balance: 5123.89,
+        balanceDate: utc(3, 20),
+        isStale: false,
+      },
+    });
+    const row = (externalId: string, date: Date, amount: number, description: string) => ({
+      accountId: brokerage.id,
+      externalId,
+      date,
+      amount,
+      description,
+      normalizedMerchant: description.toLowerCase(),
+      flow: 'TRANSFER' as const,
+      categorySource: 'AGGREGATOR' as const,
+      source: 'SIMPLEFIN' as const,
+    });
+    await prisma.transaction.createMany({
+      data: [
+        row('feed-dividend', utc(2, 20), 12.47, 'DIVIDEND RECEIVED EXAMPLE INDEX FUND'),
+        row('feed-buy', utc(2, 21), -318.06, 'YOU BOUGHT EXAMPLE INDEX FUND'),
+        row('feed-out', utc(3, 1), -246.91, 'TRANSFERRED TO EXAMPLE BANK'),
+      ],
+    });
+    const report = statement({
+      institution: 'Example Brokerage',
+      accountType: 'INVESTMENT',
+      accountLast4: '0003',
+      openingBalance: 5123.89,
+      closingBalance: 5123.89,
+      rows: [],
+    });
+    const { plan } = await verdictOf([file('brokerage.pdf', 'b1', report)]);
+    expect(plan.storedOnly.get(brokerage.id)?.map((r) => r.description)).toEqual(['TRANSFERRED TO EXAMPLE BANK']);
+  });
+});
+
 describe('the dry run and the write agree', () => {
   it('previews exactly the rows the write then adds, and writes nothing itself', async () => {
     const plan = await planStatementImport(prisma, [file('a.pdf', 'aa')], { windowDays: 4 });

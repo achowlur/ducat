@@ -34,6 +34,8 @@ import {
  * 18 points further left than the layout dump it was written from).
  */
 
+/** Fidelity's year-end report: one summary of the whole year, beside that December's monthly report. */
+const YEAR_END = /\bYEAR-END INVESTMENT REPORT\b/i;
 const PERIOD = /([A-Za-z]{3,9}\.? \d{1,2}, \d{4})\s*-\s*([A-Za-z]{3,9}\.? \d{1,2}, \d{4})/;
 const ACCOUNT = /^Account #\s*([A-Z0-9]+-\d+)$/i;
 const ROW_DATE = /^\d{1,2}\/\d{1,2}$/;
@@ -248,6 +250,9 @@ export const fidelityReport: StatementLayout = {
   },
 
   parse(lines) {
+    if (lines.some((l) => YEAR_END.test(l.text))) {
+      throw new Error('a year-end report, one summary of the whole year; the monthly reports carry its months');
+    }
     const period = lines.map((l) => PERIOD.exec(l.text)).find((m) => m !== null);
     const periodStart = period ? parseLongDate(period[1]) : null;
     const periodEnd = period ? parseLongDate(period[2]) : null;

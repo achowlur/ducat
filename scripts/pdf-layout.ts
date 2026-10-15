@@ -5,7 +5,7 @@ import { maskDigits, maskLayoutText } from './layoutMask';
 
 /**
  * Usage:
- *   npm run pdf:layout -- <statement.pdf> [--pages=1-3] [--keep-words | --unmasked]
+ *   npm run pdf:layout -- <statement.pdf> [--pages=1-3 | --pages-with=<phrase>] [--keep-words | --unmasked]
  *
  * Prints a statement's text as the import reads it: one line per row of the
  * page, each cell with the x positions it starts and ends at. Writing a parser for a new
@@ -18,6 +18,9 @@ import { maskDigits, maskLayoutText } from './layoutMask';
  * Xxxxx Xxxxxx; headings, column labels and transaction types survive, which is
  * all a parser keys on. --keep-words masks digits only (names included: read
  * it first); --unmasked prints the real text, for your own eyes only.
+ *
+ * --pages-with prints only the pages whose text holds a phrase (any case). It
+ * searches the REAL text, so a page can be found by a word the mask hides.
  */
 
 function pageRange(spec: string | undefined, total: number): Set<number> {
@@ -30,7 +33,7 @@ function pageRange(spec: string | undefined, total: number): Set<number> {
 async function main(): Promise<void> {
   const file = process.argv[2];
   if (file === undefined || file.startsWith('--')) {
-    console.error('Usage: npm run pdf:layout -- <statement.pdf> [--pages=1-3] [--keep-words | --unmasked]');
+    console.error('Usage: npm run pdf:layout -- <statement.pdf> [--pages=1-3 | --pages-with=<phrase>] [--keep-words | --unmasked]');
     process.exit(1);
   }
   const mask = hasFlag('unmasked') ? (s: string) => s : hasFlag('keep-words') ? maskDigits : maskLayoutText;
@@ -40,7 +43,15 @@ async function main(): Promise<void> {
     console.log('No text layer: this PDF is a scan, and the import cannot read it.');
     return;
   }
-  const pages = pageRange(arg('pages'), Math.max(...lines.map((l) => l.page)));
+  const phrase = arg('pages-with')?.toLowerCase();
+  const pages =
+    phrase === undefined
+      ? pageRange(arg('pages'), Math.max(...lines.map((l) => l.page)))
+      : new Set(lines.filter((l) => l.text.toLowerCase().includes(phrase)).map((l) => l.page));
+  if (pages.size === 0) {
+    console.log('No page holds that phrase.');
+    return;
+  }
 
   let page = 0;
   for (const line of lines) {

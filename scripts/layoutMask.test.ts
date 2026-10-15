@@ -16,6 +16,8 @@ describe('maskLayoutText', () => {
     expect(maskLayoutText('Purchase authorized on 01/03 CORNER CAFE')).toBe('Purchase authorized on ##/## XXXXXX XXXX');
     expect(maskLayoutText('Opening/Closing Date 12/03/24 - 01/02/25')).toBe('Opening/Closing Date ##/##/## - ##/##/##');
     expect(maskLayoutText('$1,234.56')).toBe('$#,###.##');
+    expect(maskLayoutText('Change in Investment Value')).toBe('Change in Investment Value');
+    expect(maskLayoutText('Exchanges In')).toBe('Exchanges In');
   });
 
   it('masks a word that only CONTAINS vocabulary', () => {

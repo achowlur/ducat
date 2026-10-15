@@ -4,6 +4,7 @@ import type { PrismaClient } from '../../generated/prisma/client';
 import { matchAccount } from '../connectors/matchAccount';
 import { PdfStatementConnector, type PdfImportRow } from '../connectors/pdf/connector';
 import { transactionDateNote, type ParsedStatement, type StatementRow } from '../connectors/pdf/statement';
+import { crossesTheBoundary } from './closedBox';
 import { matchOverlap, type OverlapVerdict } from './overlap';
 import { runSync, transactionKey, type SyncResult } from './sync';
 
@@ -288,10 +289,13 @@ export async function planStatementImport(
 
     // Stored rows inside a planned period that nothing on a statement explains:
     // worth seeing, since a statement is the bank's own record of the period.
+    // An investment statement lists only money crossing the account, so the
+    // trades and dividends a feed stored inside it are never on one.
     const inAPeriod = (date: Date) =>
       mine.some((m) => date.getTime() >= m.file.statement.periodStart.getTime() && date.getTime() <= m.file.statement.periodEnd.getTime() + DAY_MS - 1);
+    const listed = (description: string) => mine[0].account.type !== 'INVESTMENT' || crossesTheBoundary(description);
     const unexplained = storedHere
-      .filter((t) => !claimed.has(t.id) && !presentIds.has(t.id) && inAPeriod(t.date))
+      .filter((t) => !claimed.has(t.id) && !presentIds.has(t.id) && inAPeriod(t.date) && listed(t.description))
       .sort((a, b) => a.date.getTime() - b.date.getTime());
     if (unexplained.length > 0) {
       storedOnly.set(

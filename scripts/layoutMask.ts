@@ -36,6 +36,10 @@ const VOCABULARY = new Set(
   authorized online mobile recurring thank thanks web autopay auto pay
   ach atm pos zelle ppd ccd id ref reference ret return returned reversal refund
   service overdraft item items deposited direct
+  investment value change market exchange exchanges cost costs core fund funds
+  securities bought sold income dividend dividends reinvestment contribution
+  contributions distribution distributions taxes withheld advisory managed
+  program report
   `
     .split(/\s+/)
     .filter(Boolean),
