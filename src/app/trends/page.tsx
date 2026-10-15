@@ -1,14 +1,13 @@
 import { cookies } from "next/headers";
-import { NetWorthChart } from "../../components/charts/NetWorthChart";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 import { ChangeCard, type LateAccount } from "../../components/trends/ChangeCard";
 import { ExploreCard, type ExploreData } from "../../components/trends/ExploreCard";
 import { MonthSoFarCard } from "../../components/trends/MonthSoFarCard";
+import { NetWorthCard } from "../../components/trends/NetWorthCard";
 import type { SelectOption } from "../../components/trends/ReportSelect";
-import { PageTitle, SectionTitle } from "../../components/ui/headings";
+import { PageTitle } from "../../components/ui/headings";
 import { periodKey } from "../../lib/insights/periods";
 import { P2P_UNREVIEWED_ID, P2P_UNREVIEWED_NAME } from "../../lib/p2p";
-import { shortMonthLabel } from "../../lib/ui/format";
 import {
   compare,
   compareSpans,
@@ -146,13 +145,6 @@ async function renderTrends({ searchParams }: { searchParams: Promise<RawSearch>
       : []),
   ];
 
-  const estimatedMonths = source.netWorth.filter((m) => m.estimated).length;
-  // Each account any month leaves out, with the LAST month it is missing from.
-  const leftOut = [...new Set(source.netWorth.flatMap((m) => m.leftOut))].map((name) => ({
-    name,
-    through: source.netWorth.filter((m) => m.leftOut.includes(name)).at(-1)?.period ?? "",
-  }));
-
   return (
     <div className="grid gap-10 py-5">
       <PageTitle>Trends</PageTitle>
@@ -178,60 +170,7 @@ async function renderTrends({ searchParams }: { searchParams: Promise<RawSearch>
         initialView={params.e.view}
       />
 
-      <section className="min-w-0">
-        <SectionTitle>Net worth</SectionTitle>
-        <p className="mb-3 text-[0.75rem] text-faint">
-          Month-end, {leftOut.length === 0 ? "all accounts" : "every account with a value that month"}
-          {source.netWorth.length > 0 && (
-            <>
-              ,{" "}
-              <span className="text-ink">{shortMonthLabel(source.netWorth[0].period)}</span> to{" "}
-              <span className="text-ink">{shortMonthLabel(source.netWorth[source.netWorth.length - 1].period)}</span>
-            </>
-          )}
-          . Hover or tap a month for exact figures. A dashed line and a hollow point mark a month to discount: partly
-          estimated (an investment account&apos;s value carried from an earlier month, its market movement since
-          unseen, or a balance worked out from transactions), or leaving an account out.
-          {/* How MANY are estimated is a fact about the whole line, not a
-              per-point footnote: six of seven is a reason to discount the
-              slope, and it was reachable only by hovering each month in turn. */}
-          {estimatedMonths > 0 && (
-            <>
-              {" "}
-              <span className="text-ink">
-                {estimatedMonths} of {source.netWorth.length} month
-                {source.netWorth.length === 1 ? "" : "s"} {estimatedMonths === 1 ? "is" : "are"} partly estimated
-              </span>
-              .
-            </>
-          )}
-          {/* A month missing an account is SMALLER than the truth, so the
-              account is named in text, with the last month it is missing from:
-              never left for a hover to reveal. */}
-          {leftOut.length > 0 && (
-            <>
-              {" "}
-              <span className="text-ink">
-                Left out where it has no value yet:{" "}
-                {leftOut.map((l) => `${l.name} (through ${shortMonthLabel(l.through)})`).join(", ")}
-              </span>
-              .
-            </>
-          )}
-          {source.netWorth.length > 0 && first !== null && source.netWorth[0].period > first && (
-            <> Shorter than the spending history above: a month appears once some account has a value in it.</>
-          )}
-        </p>
-        {source.netWorth.length < 3 && (
-          <p className="mb-3 border-l-2 border-warn bg-chip/50 px-2.5 py-1.5 text-[0.75rem] text-faint">
-            <span className="font-semibold text-acc">History starts here.</span> A month appears once an account has a
-            value in it. Imported transactions can&apos;t give a brokerage one: its value moves with the market, which
-            leaves no transaction to reconstruct from. Statement imports and month-end balances supply earlier months,
-            and each sync records a value, so this line grows from today forward.
-          </p>
-        )}
-        <NetWorthChart months={source.netWorth} />
-      </section>
+      <NetWorthCard months={source.netWorth} initialRange={params.n.range} spendingFrom={first} />
     </div>
   );
 }

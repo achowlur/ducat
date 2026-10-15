@@ -77,7 +77,9 @@ category you set by hand is never overridden.
   and what is typical by the same day, what changed since the month before
   (by category, merchant or card), a report you build yourself (spending,
   income or both, over the months you pick, as bars, a line, a pie or a
-  table), and net worth over time. Every figure opens its transactions.
+  table), and net worth over the last one, three or five years or all of it,
+  with how much of the growth you saved and how much the markets added, year
+  by year. Every figure opens its transactions.
 - **Insights** (`/insights`) — am I on track: where this month is heading,
   what changed and what it costs if it holds, upcoming commitments, savings
   goals. Projections are labelled as projections.
@@ -95,10 +97,11 @@ category you set by hand is never overridden.
 - **Providers** (`/providers`) — can I trust the data: per-connector health,
   what each provider can see, and how to revoke it.
 
-Some panels stay quiet on purpose: net worth history draws nothing for months
-it cannot fully know (investment accounts need a balance snapshot inside the
-month — see [csv-import.md](csv-import.md)), and pace projections wait until
-enough of the month has elapsed. An empty panel early on is normal.
+Some panels stay quiet or hedge on purpose: net worth history marks a month it
+can only estimate (an investment account without a balance snapshot inside the
+month carries its last one, see [csv-import.md](csv-import.md)) and names any
+account it has to leave out, and pace projections wait until enough of the
+month has elapsed. An empty panel early on is normal.
 
 ## Where to next
 
