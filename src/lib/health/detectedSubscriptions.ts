@@ -102,6 +102,24 @@ export function missedCharge(charge: DetectedCharge, asOf: Date): Date | null {
   return projectNextPayment(last, charge.cadence, null, last);
 }
 
+/**
+ * A live plan's next charge, as the commitments window projects it: from its
+ * last real charge, stepped past the start of today (so a date already gone
+ * by is never offered), at the raised price when the last charge raised it.
+ * The caller decides whether the plan is live: a lapsed or MISSED one has no
+ * next charge to promise.
+ */
+export function nextChargeOf(charge: DetectedCharge, now: Date): { date: Date; daysAway: number; amount: number } {
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const date = projectNextPayment(new Date(`${charge.lastDate}T12:00:00Z`), charge.cadence, null, new Date(today - 1));
+  const dueDay = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  return {
+    date,
+    daysAway: Math.max(0, Math.round((dueDay - today) / 86_400_000)),
+    amount: Math.round((charge.priceIncreased ? charge.lastAmount : charge.averageAmount) * 100) / 100,
+  };
+}
+
 export function mergeDetectedSubscriptions(
   detected: DetectedCharge[],
   trackedNames: string[] = [],

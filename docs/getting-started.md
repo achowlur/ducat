@@ -80,11 +80,13 @@ category you set by hand is never overridden.
   table), and net worth over time: pinch it (or Ctrl and scroll) to zoom into
   any stretch, see how much of that growth you saved and how much the markets
   added, and compare years in a table. Every figure opens its transactions.
-- **Insights** (`/insights`) — am I on track: where this month is heading,
-  what changed and what it costs if it holds, upcoming commitments, savings
-  goals, and a net worth goal dated two ways: by saving alone, and with a
-  market return you choose (its target and return are set right on the
-  page). Projections are labelled as projections.
+- **Insights** (`/insights`) — am I on track, in three parts. This month:
+  where spending is heading and what is worth a look. Goals: a net worth
+  goal dated two ways (by saving alone, and with a market return you choose,
+  both set right on the page), then each savings goal, each with its date
+  and a chart of its path you can tap for any month. Recurring charges: one
+  list with each plan's next charge and what is due in the next 30 days.
+  Projections are labelled as projections.
 - **Transactions** (`/transactions`) — the ledger. Every row, paginated,
   filterable; categorize, group-review, and link reimbursements here. Group
   review ("Group by payee") opens each payee with a suggested category where

@@ -2,11 +2,12 @@ import Link from "next/link";
 import { CoverageNotice } from "../../components/CoverageNotice";
 import { DismissButton } from "../../components/DismissButton";
 import { getInsightsPageData, type InsightRow } from "../../lib/ui/insights";
-import { GOAL_RATE_MIN_MONTHS, type GoalAssessment } from "../../lib/insights/goals";
+import { GOAL_RATE_MIN_MONTHS } from "../../lib/insights/goals";
 import { type ReadinessAssessment } from "../../lib/insights/readiness";
 import { money, monthLabel, shortDate, titleCase } from "../../lib/ui/format";
-import { ASSUMED_CHIP, CHIP, FIELD_LABEL, PageTitle, PROJECTED_CHIP, SectionTitle } from "../../components/ui/headings";
+import { ASSUMED_CHIP, CHIP, FIELD_LABEL, PageTitle, PROJECTED_CHIP, SectionTitle, SubsectionTitle } from "../../components/ui/headings";
 import { NetWorthGoalPanel } from "../../components/NetWorthGoalPanel";
+import { SavingsGoalCard } from "../../components/goals/SavingsGoalCard";
 import { Fig, Lead } from "../../components/ui/figure";
 import type { Pace } from "../../lib/insights/pace";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
@@ -32,133 +33,52 @@ const TONE_MARK: Record<Exclude<InsightRow["tone"], "neutral">, string> = {
   pos: "bg-pos",
 };
 
-/**
- * One declared goal against the observed savings rate. Every refusal renders
- * rather than hides, and the facts either side of the projection — saved,
- * target, the rate itself — survive all of them.
- */
-function GoalRow({ g }: { g: GoalAssessment }) {
-  const monthsWord = (n: number) => (n === 1 ? "month" : "months");
+/** A live plan's next charge: "in 20d · Nov 5" inside the window, the date beyond it, then the amount. */
+function NextCharge({ next }: { next: { date: Date; daysAway: number; amount: number } }) {
   return (
-    <div className="border-b border-rule py-2.5 text-[0.85rem] last:border-b-0 max-md:py-3">
-      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-        <span className="font-semibold">{g.goal.name}</span>
-        <span className="font-money tabular">
-          <span className="font-semibold">{money(g.saved)}</span>
-          <span className="text-faint"> of {money(g.goal.target)}</span>
+    <span className="whitespace-nowrap font-money text-[0.78rem] tabular">
+      <span className="text-faint">
+        {next.daysAway <= 30
+          ? `${next.daysAway === 0 ? "today" : `in ${next.daysAway}d`} · ${shortDate(next.date)}`
+          : `next ${shortDate(next.date)}`}
+      </span>{" "}
+      {money(next.amount)}
+    </span>
+  );
+}
+
+/**
+ * An archive row: a NAME plus a column of FACTS, a chip only where it carries
+ * a fact, and Dismiss. A live recurring plan's next charge LEADS its facts;
+ * its amount is already the price fact, so it is not printed twice.
+ */
+function InsightRowView({ row }: { row: InsightRow }) {
+  const next = row.next;
+  const facts =
+    next === undefined
+      ? row.facts
+      : [
+          `next ${shortDate(next.date)}${next.daysAway <= 30 ? `, ${next.daysAway === 0 ? "today" : `in ${next.daysAway}d`}` : ""}`,
+          ...row.facts,
+        ];
+  return (
+    <div
+      className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-rule py-2 text-[0.85rem] last:border-b-0 max-md:py-3 ${
+        row.dismissed ? "opacity-50" : ""
+      }`}
+    >
+      {row.chip !== null ? (
+        <span className={`${CHIP} ${CHIP_CLASS[row.tone]}`}>{row.chip}</span>
+      ) : row.tone !== "neutral" ? (
+        <span aria-hidden="true" className={`inline-block h-[10px] w-[10px] rounded-[2px] ${TONE_MARK[row.tone]}`} />
+      ) : null}
+      <span className="min-w-0 flex-1">{row.text}</span>
+      {facts.length > 0 && (
+        <span className="whitespace-nowrap font-money text-[0.78rem] tabular text-faint max-md:order-last max-md:basis-full max-md:whitespace-normal">
+          {facts.join(" · ")}
         </span>
-        <span className="text-faint">
-          {Math.floor(g.progress * 100)}%
-          {g.goal.targetMonth === undefined ? "" : ` · by ${monthLabel(g.goal.targetMonth)}`}
-        </span>
-        {g.accountNames.length > 0 && (
-          <span className="ml-auto text-[0.72rem] text-faint">
-            {g.accountNames.join(" + ")}
-          </span>
-        )}
-      </div>
-      {/* Progress as FORM, not only figure — the % is scannable without
-          reading; honest width, no minimum, so 1% looks like 1%. */}
-      <div className="mt-1.5 h-[3px] w-full rounded-[1px] bg-chip">
-        <div
-          className={`h-full rounded-[1px] ${g.reached ? "bg-pos" : "bg-acc"}`}
-          // Floor, matching the printed % beside it — a bar one point wider
-          // than its own figure is the two-totals bug class in miniature.
-          style={{ width: `${Math.min(100, Math.floor(g.progress * 100))}%` }}
-        />
-      </div>
-      <div className="pt-1 leading-relaxed text-faint">
-        {g.reached ? (
-          <>
-            <span
-              className={`${CHIP} ${CHIP_CLASS.pos}`}
-            >
-              Reached
-            </span>{" "}
-            <span className="font-money tabular text-ink">{money(g.saved)}</span> against the{" "}
-            <span className="font-money tabular">{money(g.goal.target)}</span> target.
-          </>
-        ) : g.refusal === "NO_ACCOUNTS" ? (
-          g.goal.cash === true ? (
-            <>
-              Nothing counts as cash right now. Declare cash accounts with{" "}
-              <span className="font-money">npm run accounts:cash</span>.
-            </>
-          ) : (
-            <>
-              None of the accounts this goal nominates exist any more. Re-point it with{" "}
-              <span className="font-money">npm run goals</span>.
-            </>
-          )
-        ) : g.refusal === "TOO_FEW_MONTHS" ? (
-          g.basisMonths === 0 ? (
-            "No complete months of cash-flow history yet, so there is nothing to project a landing date from."
-          ) : (
-            `Only ${g.basisMonths} complete ${monthsWord(g.basisMonths)} of cash-flow history, too few to project a landing date (${GOAL_RATE_MIN_MONTHS} needed).`
-          )
-        ) : g.refusal === "RATE_NOT_POSITIVE" ? (
-          <>
-            Averaged over your last {g.basisMonths} complete months you are not saving (
-            <span className="font-money tabular">{money(g.monthlyRate ?? 0)}</span>/mo net), so there is
-            no landing date worth printing.
-          </>
-        ) : (
-          // The landing is the DECISION line and leads; the rate that produced
-          // it and the reconciliation each get their own quiet line below —
-          // same facts as before, ranked instead of run together.
-          <>
-            <p>
-              <span className={PROJECTED_CHIP}>Projected</span>{" "}
-              <span className="text-ink">
-                {(g.monthsToTarget ?? 0) > 600 ? (
-                  // deltaMonths still decides ahead/behind out here — a
-                  // far-future aspiration can sit BEYOND a 50-year landing,
-                  // and asserting "behind" against it would be false.
-                  g.deltaMonths === null
-                    ? "lands more than 50 years out at this rate."
-                    : g.deltaMonths > 0
-                      ? "lands more than 50 years out at this rate, far behind target."
-                      : "lands more than 50 years out at this rate, and still not past the declared month."
-                ) : (
-                  <>
-                    lands <span className="font-semibold">~{monthLabel(g.landsMonth ?? "")}</span>
-                    {g.deltaMonths === null ? (
-                      "."
-                    ) : (
-                      <>
-                        {", "}
-                        {g.deltaMonths === 0
-                          ? "on target."
-                          : g.deltaMonths < 0
-                            ? `${-g.deltaMonths} ${monthsWord(-g.deltaMonths)} ahead of target.`
-                            : `${g.deltaMonths} ${monthsWord(g.deltaMonths)} behind target.`}
-                      </>
-                    )}
-                  </>
-                )}
-              </span>
-            </p>
-            <p className="pt-0.5">
-              Saving <span className="font-money tabular text-ink">~{money(g.monthlyRate ?? 0)}</span>
-              /mo over your last {g.basisMonths} complete months
-            </p>
-            {g.observedFundGrowth !== null && (
-              <p className="pt-0.5">
-                Cash itself grew{" "}
-                <span className="font-money tabular">~{money(g.observedFundGrowth)}</span>/mo over the
-                same window; the landing assumes the full rate reaches it.
-              </p>
-            )}
-          </>
-        )}
-        {g.missingAccounts > 0 && g.refusal !== "NO_ACCOUNTS" && (
-          <span className="text-neg">
-            {" "}
-            {g.missingAccounts} nominated {g.missingAccounts === 1 ? "account" : "accounts"} no longer{" "}
-            {g.missingAccounts === 1 ? "exists" : "exist"}, so saved is understated.
-          </span>
-        )}
-      </div>
+      )}
+      <DismissButton insightId={row.id} dismissed={row.dismissed} />
     </div>
   );
 }
@@ -403,8 +323,8 @@ function MonthHeadline({
     const projected = pace.projected;
     const due = pace.committedRemaining > 0 ? pace.committedRemaining : null;
     return (
-      <section>
-        <SectionTitle>Spending</SectionTitle>
+      <div>
+        <div className={FIELD_LABEL}>Spending</div>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="font-money text-[2.1rem] tabular">
             {projected !== null ? `~${money(projected)}` : money(pace.spentSoFar)}
@@ -446,13 +366,13 @@ function MonthHeadline({
             </>
           )}
         </p>
-      </section>
+      </div>
     );
   }
   if (spent === null) return null;
   return (
-    <section>
-      <SectionTitle>Spending</SectionTitle>
+    <div>
+      <div className={FIELD_LABEL}>Spending</div>
       <div className="font-money text-[2.1rem] tabular">{money(spent.total)}</div>
       <p className="mt-1 text-[0.78rem] leading-relaxed text-faint">
         <Lead>Spent in {periodLabel}</Lead>
@@ -463,7 +383,7 @@ function MonthHeadline({
         )}
         .
       </p>
-    </section>
+    </div>
   );
 }
 
@@ -490,9 +410,16 @@ async function renderInsights({
     );
   }
 
-  const visibleGroups = data.groups
-    .map((g) => ({ ...g, rows: showDismissed ? g.rows : g.rows.filter((r) => !r.dismissed) }))
-    .filter((g) => g.rows.length > 0);
+  const shown = (title: string) =>
+    (data.groups.find((g) => g.title === title)?.rows ?? []).filter((r) => showDismissed || !r.dismissed);
+  const anomalies = shown("Anomalies");
+  const recurringGroup = data.groups.find((g) => g.title === "Recurring charges");
+  const recurring = shown("Recurring charges");
+  const recurringNote = recurringGroup?.note ?? null;
+  const lapsed = shown("No longer charging");
+  // A plan the operator declared by hand that the detector has not seen has
+  // no row of its own, only its place in the next 30 days.
+  const declared = data.commitments?.items.filter((c) => c.source === "REGISTERED") ?? [];
 
   return (
     // The Trends scaffold: every section a child of one grid, spaced by the
@@ -547,177 +474,119 @@ async function renderInsights({
       </div>
       </div>
 
-      <MonthHeadline pace={data.pace} spent={data.spent} periodLabel={data.periodLabel} />
-
-      {/* The lead: a few things ranked by what they cost over a year, rather
-          than five streams grouped by insight type with equal weight. The
-          stake is shown because it IS the running order — a reader who
-          disagrees with the ranking can see what it was based on. */}
-      {data.digest.length > 0 ? (
-        <section>
-          <SectionTitle>Worth your attention</SectionTitle>
+      {/* THIS MONTH: where spending lands, then what is worth a look. The
+          anomalies the digest did not lead with follow it in the same list,
+          so the month's findings read as one thing, not two sections. */}
+      <section>
+        <SectionTitle>{data.isCurrentPeriod ? "This month" : data.periodLabel}</SectionTitle>
+        <MonthHeadline pace={data.pace} spent={data.spent} periodLabel={data.periodLabel} />
+        <div className="mt-6">
+          <SubsectionTitle>Worth your attention</SubsectionTitle>
           {data.digest.map((row, i) => (
             <div
               key={`${row.chip}-${i}`}
               className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-b border-rule py-2 text-[0.85rem] last:border-b-0 max-md:py-3"
             >
-              <span
-                className={`${CHIP} ${CHIP_CLASS[row.tone]}`}
-              >
-                {row.chip}
-              </span>
-              {/* `flex-1 min-w-0` beside a `whitespace-nowrap` consequence let
-                  the SENTENCE take all the shrinkage: at 375px the row's text
-                  got a 44.1px column and stacked seven lines tall, three
-                  characters wide, so the page's lead — the thing it opens with
-                  — was the least readable block on it. Below md the sentence
-                  takes its own line and the consequence follows, which is the
-                  same treatment the dismiss button and the period arrows
-                  already got. */}
+              <span className={`${CHIP} ${CHIP_CLASS[row.tone]}`}>{row.chip}</span>
               <span className="min-w-0 flex-1 max-md:basis-full">{row.text}</span>
-              <span className="whitespace-nowrap font-money text-[0.78rem] tabular text-faint">
-                {row.consequence}
-              </span>
+              <span className="whitespace-nowrap font-money text-[0.78rem] tabular text-faint">{row.consequence}</span>
             </div>
           ))}
-        </section>
-      ) : data.emptyPeriod ? (
-        /* A month nothing has synced into yet — reachable so the forward
-           panels below can render on day 1. "Nothing needs your attention"
-           would claim the engine looked, and it has not: all clear cannot be
-           told from not checked if the difference is never stated. */
-        <p className="text-[0.85rem] text-faint">
-          Nothing recorded for {data.periodLabel} yet. Spending appears with the month&apos;s first
-          sync.
-        </p>
-      ) : data.coverage?.hasUnknownShortfall === true ? (
-        /* Same epistemic state as the empty month, reached by a different
-           route: an account with NO data for the period means the engine could
-           not look, so "nothing needs your attention" is the stronger claim it
-           has not earned — and it was printing 16px under an amber notice
-           saying 0 of 21 accounts reach this month, which is the contradiction
-           stated outright. Only the NO_DATA case; a mid-period start is
-           complete data and keeps the ordinary line. */
-        <p className="text-[0.85rem] text-faint">
-          Nothing to report for {data.periodLabel}. The notice above says why this month cannot be
-          judged.
-        </p>
-      ) : (
-        /* Saying so is the point, not an empty state to be hidden: most months
-           should be quiet, and a digest that always finds four things is one
-           nobody will read by March. */
-        <p className="text-[0.85rem] text-faint">
-          Nothing needs your attention in {data.periodLabel}.
-        </p>
-      )}
-
-      {/* The only forward-looking figure in the app, and the only thing on this
-          tab that appears nowhere else. Chipped "projected" because a forecast
-          that reads like an observation is the app asserting what it does not
-          know — cadence and amount are observed, the charge itself has not
-          happened. */}
-      {data.commitments !== null && (
-        <section className="border-l-2 border-acc bg-chip px-3 py-2.5">
-          {/* Title FIRST: at 0.85rem it no longer fits a phone line beside the
-              chip, and chip-first stacked chip, title and total on three
-              lines; this way the chip and the total share the second. */}
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <SectionTitle>Committed in the next {data.commitments.windowDays} days</SectionTitle>
-            <span className={PROJECTED_CHIP}>
-              Projected
-            </span>
-            <span className="ml-auto font-money text-[0.95rem] font-semibold tabular">
-              {money(data.commitments.total)}
-            </span>
-          </div>
-
-          {data.commitments.items.length === 0 ? (
-            <p className="pt-1.5 text-[0.85rem] text-faint">
-              Nothing recurring falls due in the next {data.commitments.windowDays} days.
-            </p>
-          ) : (
-            <ul className="grid gap-1 pt-2">
-              {data.commitments.items.map((c) => (
-                <li
-                  key={`${c.merchant}-${c.dueDate.toISOString()}`}
-                  className="grid grid-cols-[1fr_auto_auto] items-baseline gap-x-3 text-[0.85rem] max-md:py-1"
-                >
-                  {/* The chips are shrink-0 siblings, so on a phone the NAME truncates
-                      and the chip, which carries the fact, survives whole. */}
-                  <span className="flex min-w-0 items-baseline gap-1.5">
-                    <span className="truncate">{titleCase(c.merchant)}</span>
-                    {c.priceIncreased && (
-                      <span className={`${CHIP} shrink-0 border border-neg text-neg`}>
-                        price up
-                      </span>
-                    )}
-                    {/* The section's claim is that cadence and amount are both
-                        observed. For one you registered by hand they are what
-                        you said they were, so it says which. */}
-                    {c.source === "REGISTERED" && (
-                      <span className={`${CHIP} shrink-0 border border-rule text-faint`}>
-                        declared
-                      </span>
-                    )}
-                  </span>
-                  <span className="whitespace-nowrap font-money text-[0.72rem] text-faint">
-                    {c.daysAway === 0 ? "today" : `in ${c.daysAway}d`} · {shortDate(c.dueDate)}
-                  </span>
-                  <span className="text-right font-money tabular">{money(c.amount)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
-
-      {/* Declared targets against the observed savings rate. Gated to the
-          month being lived in like the two projections above — saved and the
-          rate are measured from now, so under a historical heading the panel
-          would lie. The rate is the app-wide CASH_FLOW_TREND net rather than
-          the fund's own growth: transfers are excluded from cash flow, so
-          moving money into a nominated account cannot inflate the rate that
-          projects it. Absent entirely when no goal is declared — opt-in
-          config, not a health question every instance has. */}
-      {data.goals.length > 0 && (
-        <section>
-          <SectionTitle>Savings goals</SectionTitle>
-          {data.goals.map((g) => (
-            <GoalRow key={g.goal.id} g={g} />
+          {anomalies.map((row) => (
+            <InsightRowView key={row.id} row={row} />
           ))}
-          {/* Two dates from one rate are each honest alone and optimistic
-              together; the assumption gets said once, not hidden. */}
+          {data.digest.length === 0 && anomalies.length === 0 && (
+            <p className="text-[0.85rem] text-faint">
+              {data.emptyPeriod
+                ? `Nothing recorded for ${data.periodLabel} yet. Spending appears with the month's first sync.`
+                : data.coverage?.hasUnknownShortfall === true
+                  ? `Nothing to report for ${data.periodLabel}. The notice above says why this month cannot be judged.`
+                  : `Nothing needs your attention in ${data.periodLabel}.`}
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* GOALS: every declared target in one place. The net worth goal leads,
+          the long view; house readiness rides directly under the goal that
+          funds it. */}
+      {(data.netWorthGoal !== null || data.goals.length > 0) && (
+        <section>
+          <SectionTitle>Goals</SectionTitle>
+          {data.netWorthGoal !== null && (
+            <div className="border-b border-rule pb-4">
+              <NetWorthGoalPanel g={data.netWorthGoal} />
+            </div>
+          )}
+          {data.goals.map((g, i) => (
+            <div key={g.goal.id} className="border-b border-rule py-4 last:border-b-0">
+              <SavingsGoalCard g={g} history={data.goalHistory[g.goal.id] ?? []} anchor={data.period} />
+              {i === 0 && data.readiness !== null && (
+                <div className="mt-4 border-l-2 border-rule pl-3">
+                  <SubsectionTitle>House readiness</SubsectionTitle>
+                  <ReadinessBlock
+                    r={data.readiness}
+                    fundName={g.goal.name}
+                    targetHousePrice={g.goal.housePrice ?? null}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
           {data.goals.filter((g) => g.landsMonth !== null).length >= 2 && (
             <p className="pt-1.5 text-[0.72rem] text-faint">
-              Each date assumes the full savings rate goes to that goal.
+              Each savings date assumes the full savings rate goes to that goal.
             </p>
           )}
         </section>
       )}
 
-      {/* House readiness — "am I close enough to start looking?". Gated like
-          goals: the month being lived in only, absent entirely without the
-          declared config (readiness.house) and a declared goal to be the
-          fund. A readiness signal, not lender math: no approval claims live
-          here, deliberately. */}
-      {data.readiness !== null && (
+      {/* RECURRING: one list. Each live plan carries its next charge, the
+          next 30 days are totalled at the top, and plans that stopped fold
+          away at the foot. Three sections said this before. */}
+      {(recurring.length > 0 || lapsed.length > 0 || declared.length > 0) && (
         <section>
-          <SectionTitle>House readiness</SectionTitle>
-          <ReadinessBlock
-            r={data.readiness}
-            fundName={data.goals.length > 0 ? data.goals[0].goal.name : null}
-            targetHousePrice={data.goals.length > 0 ? (data.goals[0].goal.housePrice ?? null) : null}
-          />
-        </section>
-      )}
-
-      {/* The net worth goal — gated like goals: the month being lived in only,
-          absent entirely when none is declared. Its dates are projections and
-          its market return is an assumption, and the panel says which is which. */}
-      {data.netWorthGoal !== null && (
-        <section>
-          <SectionTitle>Net worth goal</SectionTitle>
-          <NetWorthGoalPanel g={data.netWorthGoal} />
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+            <SectionTitle>Recurring charges</SectionTitle>
+            {recurringNote !== null && (
+              <span className="font-money text-[0.75rem] tabular text-faint">{recurringNote}</span>
+            )}
+          </div>
+          {data.commitments !== null && (
+            <p className="flex flex-wrap items-baseline gap-x-2 pb-1 text-[0.85rem]">
+              <span className="text-faint">Due in the next {data.commitments.windowDays} days</span>
+              <span className="font-money font-semibold tabular">{money(data.commitments.total)}</span>
+              <span className={PROJECTED_CHIP}>Projected</span>
+            </p>
+          )}
+          {recurring.map((row) => (
+            <InsightRowView key={row.id} row={row} />
+          ))}
+          {declared.map((c) => (
+            <div
+              key={`${c.merchant}-${c.dueDate.toISOString()}`}
+              className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-rule py-2 text-[0.85rem] last:border-b-0 max-md:py-3"
+            >
+              <span className="min-w-0 flex-1">
+                {titleCase(c.merchant)}{" "}
+                <span className={`${CHIP} border border-rule text-faint`}>declared</span>
+              </span>
+              <NextCharge next={{ date: c.dueDate, daysAway: c.daysAway, amount: c.amount }} />
+            </div>
+          ))}
+          {lapsed.length > 0 && (
+            <details className="group pt-2 text-[0.85rem]">
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[0.78rem] text-faint max-md:min-h-[44px] [&::-webkit-details-marker]:hidden">
+                No longer charging ({lapsed.length})
+                <span aria-hidden="true" className="text-[0.7rem] transition-transform group-open:rotate-90">
+                  ›
+                </span>
+              </summary>
+              {lapsed.map((row) => (
+                <InsightRowView key={row.id} row={row} />
+              ))}
+            </details>
+          )}
         </section>
       )}
 
@@ -734,8 +603,6 @@ async function renderInsights({
               key={t.label}
               className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-b border-rule py-2 text-[0.85rem] last:border-b-0 max-md:py-3"
             >
-              {/* Missed by the 44px sweep: measured 43.4 × 20.4 at 375px, the
-                  only control on this page still under the bar. */}
               <Link href={t.href} className="tap44 font-semibold text-acc hover:underline">
                 {t.label}
               </Link>
@@ -743,19 +610,12 @@ async function renderInsights({
                 {shortDate(t.firstDate)} – {shortDate(t.lastDate)}
               </span>
               <span className="min-w-0">
-                {data.periodLabel}:{" "}
-                <span className="font-money tabular">{money(t.periodNet)}</span>
+                {data.periodLabel}: <span className="font-money tabular">{money(t.periodNet)}</span>
                 <span className="text-faint">
                   {" "}
                   ({t.periodRowCount} row{t.periodRowCount === 1 ? "" : "s"})
                 </span>
               </span>
-              {/* The running total is only worth printing when it DIFFERS from
-                  the period's. A trip that fits inside the month on screen
-                  produced "July 2026: −$667.03 (2 rows)" and "running −$667.03
-                  · 2 rows" on the same line — one figure twice, in two
-                  formats. The transfer count is a separate fact and survives
-                  either way. */}
               <span className="ml-auto whitespace-nowrap font-money text-[0.78rem] tabular text-faint">
                 {(t.runningNet !== t.periodNet || t.rowCount !== t.periodRowCount) && (
                   <>
@@ -768,56 +628,20 @@ async function renderInsights({
             </div>
           ))}
           <p className="pt-1.5 text-[0.72rem] text-faint">
-            The signed net of each trip&apos;s tagged rows, exactly as its ledger lists them.
-            Transfers ride along when tagged, and spending analytics still exclude them.
+            The signed net of each trip&apos;s tagged rows, exactly as its ledger lists them. Transfers ride along
+            when tagged, and spending analytics still exclude them.
           </p>
         </section>
       )}
 
-      {/* Suppressed for the empty current month: the line above already says
-          why there is nothing, and two quiet lines saying it reads broken. */}
-      {visibleGroups.length === 0 && !data.emptyPeriod && (
-        <p className="py-6 text-[0.85rem] text-faint">Nothing to show for {data.periodLabel}.</p>
-      )}
-
-      {visibleGroups.map((group) => (
-        <section key={group.title}>
-          <div className="flex items-baseline justify-between gap-3">
-            <SectionTitle>{group.title}</SectionTitle>
-            {group.note !== null && (
-              <span className="font-money text-[0.75rem] tabular text-faint">{group.note}</span>
-            )}
-          </div>
-          {group.rows.map((row) => (
-            <div
-              key={row.id}
-              className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-rule py-2 text-[0.85rem] last:border-b-0 max-md:py-3 ${
-                row.dismissed ? "opacity-50" : ""
-              }`}
-            >
-              {row.chip !== null ? (
-                <span
-                  className={`${CHIP} ${CHIP_CLASS[row.tone]}`}
-                >
-                  {row.chip}
-                </span>
-              ) : row.tone !== "neutral" ? (
-                <span aria-hidden="true" className={`inline-block h-[10px] w-[10px] rounded-[2px] ${TONE_MARK[row.tone]}`} />
-              ) : null}
-              <span className="min-w-0 flex-1">{row.text}</span>
-              {/* The facts take their own line below md, as the digest's
-                  consequence does; beside a 44px control the sentence would
-                  otherwise get the shrinkage. */}
-              {row.facts.length > 0 && (
-                <span className="whitespace-nowrap font-money text-[0.78rem] tabular text-faint max-md:order-last max-md:basis-full max-md:whitespace-normal">
-                  {row.facts.join(" · ")}
-                </span>
-              )}
-              <DismissButton insightId={row.id} dismissed={row.dismissed} />
-            </div>
-          ))}
-        </section>
-      ))}
+      {/* What used to close the page, one row a month each for net worth,
+          cash flow and spending, is drawn properly on Trends. */}
+      <p className="border-t border-rule pt-3 text-[0.78rem] text-faint">
+        Net worth, cash flow and spending, month by month:{" "}
+        <Link href="/trends" className="tap44 text-acc hover:underline">
+          Trends
+        </Link>
+      </p>
     </div>
   );
 }

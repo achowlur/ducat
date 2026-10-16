@@ -12,12 +12,13 @@ import {
   isActive,
   mergeDetectedSubscriptions,
   missedCharge,
+  nextChargeOf,
   type DetectedCharge,
 } from "../health/detectedSubscriptions";
 import { upcomingCommitments, type UpcomingCommitments } from "../health/commitments";
 import { getSubscriptionStatuses, matchesSubscription } from "../health/subscriptions";
 import { computePace, isComparableBaseline, type Pace } from "../insights/pace";
-import { anomalyDedupeKey, computeDigest, type DigestItem } from "../insights/digest";
+import { anomalyDedupeKey, computeDigest, explainedByOneOffs, type DigestItem } from "../insights/digest";
 import { assessGoals, GOAL_RATE_MONTHS, parseGoals, SAVINGS_GOALS_KEY, type GoalAssessment } from "../insights/goals";
 import {
   assessReadiness,
@@ -33,6 +34,7 @@ import { periodCoverage, type PeriodCoverage } from "../insights/coverage";
 import { periodEndExclusive, periodStart } from "../insights/periods";
 import { tripsForPeriod, type TripRow } from "./trips";
 import { countsAsCash, readCashAccountIds } from "./liquidity";
+import { fundGrowthOver, fundHistory } from "./goalFunds";
 import {
   assessNetWorthGoal,
   NET_WORTH_GOAL_KEY,
@@ -42,7 +44,7 @@ import {
 import { getAccountCoverage, getPeriodCoverage } from "./coverage";
 import { monthlyRows, ofType } from "./insightRows";
 import { selectPeriod } from "./periodNav";
-import { higherThan, money, monthLabel, pct, shortDate, shortDateYear, titleCase } from "./format";
+import { higherThan, money, monthLabel, shortDate, shortDateYear, titleCase } from "./format";
 
 export interface InsightRow {
   id: string;
@@ -59,6 +61,12 @@ export interface InsightRow {
   text: string;
   /** The figures beside it, in reading order; the page sets them in a column. */
   facts: string[];
+  /**
+   * A live recurring plan's next charge, while the month on screen is the one
+   * being lived in: projected from its last real charge, as the commitments
+   * window projects it. Absent on every other row.
+   */
+  next?: { date: Date; daysAway: number; amount: number };
 }
 
 export interface InsightsPageData {
@@ -68,6 +76,8 @@ export interface InsightsPageData {
   nextPeriod: string | null;
   /** A `?period=` the admission rule refused; null when honoured or absent. */
   clampedFrom: string | null;
+  /** The month on screen is the one being lived in: the forward-looking panels speak only then. */
+  isCurrentPeriod: boolean;
   /**
    * Grouped in display order; empty groups omitted. `note` is a figure for the
    * group as a whole, right-aligned against its heading.
@@ -120,6 +130,8 @@ export interface InsightsPageData {
    * the one being lived in: the same opt-in-and-current gate as `goals`.
    */
   netWorthGoal: NetWorthGoalAssessment | null;
+  /** Each savings goal's fund at past month-ends, by goal id, for its chart; empty for a past month. */
+  goalHistory: Record<string, { period: string; value: number }[]>;
   /**
    * Trip/project groups with activity in the VIEWED period — facts (portion,
    * running net, span, link), never analytics: the figures are plain sums of
@@ -254,52 +266,22 @@ function renderRecurring(p: RecurringChargePayload, tracked: boolean, state: Rec
   };
 }
 
-function renderNetWorth(p: NetWorthGrowthPayload): RowBody {
-  const growth = p.growthRate === null ? "no growth comparable with the prior month" : `${pct(p.growthRate)} vs prior month`;
-  const markets = p.marketGains !== null && p.marketGains !== 0 ? [`markets ${money(p.marketGains)}`] : [];
-  // A figure the reader must discount says so beside it: estimated balances
-  // (carried or reconstructed), and accounts left out, which make it smaller.
-  const estimated = p.estimatedAccountIds.length;
-  const discount = estimated === 0 ? [] : [`${estimated === 1 ? "1 balance" : `${estimated} balances`} estimated`];
-  const leftOut = p.excludedAccountIds?.length ?? 0;
-  const missing = leftOut === 0 ? [] : [`leaves out ${leftOut === 1 ? "1 account" : `${leftOut} accounts`} with no value then`];
-  return { text: `Net worth ${money(p.netWorth)}`, facts: [growth, ...markets, ...discount, ...missing] };
-}
-
-function renderSpending(p: SpendingByCategoryPayload): RowBody {
-  const top = p.categories.slice(0, 3).map((c) => `${c.categoryName ?? "Uncategorized"} ${money(c.spending)}`);
-  // The empty-series guard belongs on the SERIES, not on the payload holding
-  // it: a month can own a spending row whose category list is empty, and the
-  // page gate that admits the row says nothing about what is inside it. June
-  // 2024 rendered the literal "Total $0.00 — top: ", a sentence stopping
-  // mid-clause, because the join produced an empty string.
-  const leaders = top.length === 0 ? "" : `. Top: ${top.join(", ")}`;
-  return {
-    text: `Total ${money(p.totalSpending)}${leaders}`,
-    facts: p.previousTotalSpending === null ? [] : [`prior ${money(p.previousTotalSpending)}`],
-  };
-}
-
-function renderCashFlow(p: CashFlowTrendPayload): RowBody {
-  return {
-    text: `Income ${money(p.income)}, spending ${money(p.spending)}, net ${money(p.net)}`,
-    facts: p.spendingDeltaPct === null ? [] : [`spending ${pct(p.spendingDeltaPct)} vs prior month`],
-  };
-}
-
 /** Named because the annualised total is hung off this group by title. */
 const RECURRING_TITLE = "Recurring charges";
 
 /** Named because the digest suppresses rows from this group by title. */
 const ANOMALY_TITLE = "Anomalies";
 
-const GROUPS: { type: InsightType; title: string }[] = [
+/**
+ * The archive rows /insights still prints. Net worth, cash flow and spending
+ * by category each printed one row a month that /trends draws better, with a
+ * Dismiss that meant nothing; the page now links there instead.
+ */
+const GROUPS: { type: "ANOMALY" | "RECURRING_CHARGE"; title: string }[] = [
   { type: "ANOMALY", title: ANOMALY_TITLE },
   { type: "RECURRING_CHARGE", title: RECURRING_TITLE },
-  { type: "NET_WORTH_GROWTH", title: "Net worth" },
-  { type: "CASH_FLOW_TREND", title: "Cash flow" },
-  { type: "SPENDING_BY_CATEGORY", title: "Spending by category" },
 ];
+const SHOWN_TYPES = new Set<string>(["ANOMALY", "RECURRING_CHARGE"]);
 
 const LAPSED_TITLE = "No longer charging";
 
@@ -308,44 +290,31 @@ function toRow(
   isRegistered: (merchant: string) => boolean,
   asOf: Date,
   year: number,
+  /** Now, while the month on screen is the one being lived in; null for a past month. */
+  now: Date | null,
 ): InsightRow {
-  const type = row.type as InsightType;
-  switch (type) {
-    case "ANOMALY": {
-      const p = row.payload as AnomalyPayload;
-      return { id: row.id, type, dismissed: row.dismissed, chip: null, tone: "neg", text: renderAnomaly(p), facts: [] };
-    }
-    case "RECURRING_CHARGE": {
-      const p = row.payload as RecurringChargePayload;
-      const lapsed = !isActive(p, asOf);
-      // A lapsed row has already moved under "No longer charging", which
-      // says more than "missed" could.
-      const missed = lapsed ? null : missedCharge(p, asOf);
-      return {
-        id: row.id,
-        type,
-        dismissed: row.dismissed,
-        // MISSED outranks PRICE UP: a raised price that is no longer being
-        // charged is the lesser news, and the price fact still says it.
-        chip: missed !== null ? "Missed" : p.priceIncreased ? "Price up" : null,
-        tone: missed === null && p.priceIncreased ? "neg" : "neutral",
-        ...renderRecurring(p, isRegistered(p.merchant), { lapsed, missed, year }),
-      };
-    }
-    case "NET_WORTH_GROWTH": {
-      const p = row.payload as NetWorthGrowthPayload;
-      const tone = p.growthRate !== null && p.growthRate > 0 ? "pos" : p.growthRate !== null && p.growthRate < 0 ? "neg" : "neutral";
-      return { id: row.id, type, dismissed: row.dismissed, chip: null, tone, ...renderNetWorth(p) };
-    }
-    case "CASH_FLOW_TREND": {
-      const p = row.payload as CashFlowTrendPayload;
-      return { id: row.id, type, dismissed: row.dismissed, chip: null, tone: "neutral", ...renderCashFlow(p) };
-    }
-    case "SPENDING_BY_CATEGORY": {
-      const p = row.payload as SpendingByCategoryPayload;
-      return { id: row.id, type, dismissed: row.dismissed, chip: null, tone: "neutral", ...renderSpending(p) };
-    }
+  if (row.type === "ANOMALY") {
+    const p = row.payload as AnomalyPayload;
+    return { id: row.id, type: "ANOMALY", dismissed: row.dismissed, chip: null, tone: "neg", text: renderAnomaly(p), facts: [] };
   }
+  const p = row.payload as RecurringChargePayload;
+  const lapsed = !isActive(p, asOf);
+  // A lapsed row has already moved under "No longer charging", which
+  // says more than "missed" could.
+  const missed = lapsed ? null : missedCharge(p, asOf);
+  // A plan that lapsed or missed its date has no next charge to promise.
+  const next = now !== null && !lapsed && missed === null ? nextChargeOf(p, now) : undefined;
+  return {
+    id: row.id,
+    type: "RECURRING_CHARGE",
+    dismissed: row.dismissed,
+    // MISSED outranks PRICE UP: a raised price that is no longer being
+    // charged is the lesser news, and the price fact still says it.
+    chip: missed !== null ? "Missed" : p.priceIncreased ? "Price up" : null,
+    tone: missed === null && p.priceIncreased ? "neg" : "neutral",
+    ...renderRecurring(p, isRegistered(p.merchant), { lapsed, missed, year }),
+    ...(next !== undefined ? { next } : {}),
+  };
 }
 
 export async function getInsightsPageData(requestedPeriod?: string): Promise<InsightsPageData | null> {
@@ -408,6 +377,10 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // A day in this year prints without one (renderRecurring).
   const year = Number(period.slice(0, 4));
 
+  // Read before the rows are built: a live plan's next charge is only
+  // projected for the month being lived in.
+  const viewingNow = now >= periodStart(period) && now < periodEndExclusive(period);
+
   // Built here because the rows lose their payload the moment they become
   // InsightRows, and the suppression below needs the identity, not the prose.
   const anomalyKeyByRowId = new Map<string, string | null>(
@@ -421,7 +394,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     note: null as string | null,
     rows: inPeriod
       .filter((r) => r.type === g.type && !lapsed(r))
-      .map((r) => toRow(r, isRegistered, asOf, year))
+      .map((r) => toRow(r, isRegistered, asOf, year, viewingNow ? now : null))
       .sort((a, b) => Number(a.dismissed) - Number(b.dismissed)),
   }));
   groups.push({
@@ -429,7 +402,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     note: null,
     rows: inPeriod
       .filter(lapsed)
-      .map((r) => toRow(r, isRegistered, asOf, year))
+      .map((r) => toRow(r, isRegistered, asOf, year, null))
       .sort((a, b) => Number(a.dismissed) - Number(b.dismissed)),
   });
 
@@ -561,6 +534,22 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     });
   }
 
+  // A category total the digest's ONE-OFF explains is the same money told
+  // twice: once the redesign set the anomalies directly under the digest,
+  // "Brightline Electronics $1,249.00, one-off" sat on the line above
+  // "Shopping total $1,249.00, higher than all prior months". Left out when
+  // the category, without the one-offs the digest leads with, is no higher
+  // than its median; a total still unusual without them keeps its row.
+  if (anomalyGroup !== undefined && promoted.size > 0) {
+    const explained = explainedByOneOffs(
+      inPeriod
+        .filter((r) => r.type === "ANOMALY")
+        .map((r) => ({ id: r.id, payload: r.payload as unknown as AnomalyPayload })),
+      promoted,
+    );
+    anomalyGroup.rows = anomalyGroup.rows.filter((r) => !explained.has(r.id));
+  }
+
   let pace: Pace | null = null;
   if (viewingCurrentPeriod && thisPeriod !== undefined) {
     // Committed to the END OF THIS MONTH, which is a different window from the
@@ -589,15 +578,40 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     (r) => r.period < period,
   );
 
+  // Complete month-ends as the NET_WORTH_GROWTH rows record them, each
+  // account's value included: the net worth goal reads them, and so do the
+  // savings goals' charts and the cash reconciliation below.
+  const netWorthMonths = ofType<NetWorthGrowthPayload>(monthly, "NET_WORTH_GROWTH")
+    .filter((r) => r.period < period)
+    .map(({ period: p, payload }) => ({
+      period: p,
+      value: payload.netWorth,
+      estimated: payload.estimatedAccountIds.length > 0,
+      leftOut: payload.excludedAccountIds ?? [],
+      marketGains: payload.marketGains ?? null,
+      byAccount: payload.byAccount ?? null,
+      flowsByAccount: payload.investmentFlowsByAccount ?? null,
+    }));
+
   // The reconciliation a cash goal's projection owes: the rate assumes every
   // saved dollar stays in cash, and a standing transfer out makes the landing
   // optimistic — so measure what cash ACTUALLY did over the SAME window the
-  // rate averages. Transactions fully explain cash accounts (the netWorth
-  // exemption), so the sum of their signed amounts IS the growth. A gated
-  // round trip, only paid when a cash goal is declared on the current month.
+  // rate averages. Measured from the fund's month-end BALANCES, the figures
+  // its chart draws. Summing its transactions was right only while every
+  // cash account was a bank account: an investment account counted as cash
+  // books its trades and sweeps as rows, and the sum said a fund that was
+  // growing had been shrinking every month. The transaction sum
+  // remains only for rows stored before per-account values existed.
   let observedCashGrowth: number | null = null;
   const basisKeys = completeCashFlow.map((r) => r.period).slice(-GOAL_RATE_MONTHS);
-  if (viewingCurrentPeriod && declaredGoals.some((g) => g.cash === true) && basisKeys.length > 0) {
+  const cashFundIds = cashAccountRows.map((a) => a.id);
+  const fromBalances =
+    viewingCurrentPeriod && declaredGoals.some((g) => g.cash === true)
+      ? fundGrowthOver(netWorthMonths, cashFundIds, basisKeys)
+      : null;
+  if (fromBalances !== null) {
+    observedCashGrowth = fromBalances;
+  } else if (viewingCurrentPeriod && declaredGoals.some((g) => g.cash === true) && basisKeys.length > 0) {
     const grown = await prisma.transaction.aggregate({
       _sum: { amount: true },
       where: {
@@ -633,17 +647,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
           goal: declaredNetWorthGoal,
           // Overview's headline, the signed sum of every balance.
           liveNetWorth: accountRows.reduce((sum, a) => sum + Number(a.balance), 0),
-          months: ofType<NetWorthGrowthPayload>(monthly, "NET_WORTH_GROWTH")
-            .filter((r) => r.period < period)
-            .map(({ period: p, payload }) => ({
-              period: p,
-              value: payload.netWorth,
-              estimated: payload.estimatedAccountIds.length > 0,
-              leftOut: payload.excludedAccountIds ?? [],
-              marketGains: payload.marketGains ?? null,
-              byAccount: payload.byAccount ?? null,
-              flowsByAccount: payload.investmentFlowsByAccount ?? null,
-            })),
+          months: netWorthMonths,
           // Invested money is what a market return applies to: investment
           // accounts OUTSIDE the cash definition, so an account the operator
           // counts as cash is never credited with a stock return.
@@ -654,6 +658,21 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
           ),
         })
       : null;
+
+  // Each savings goal's fund, month-end by month-end, for its chart: the
+  // per-account values the net worth rows carry, summed over the fund's
+  // accounts (the cash definition TODAY for a cash goal, as its balance is).
+  // Only the months the saving pace is measured over, plus the month-end
+  // before them: the definition is today's, and further back it draws a
+  // history the fund never had. An account counted as cash now held a
+  // brokerage's shares until a reshuffle, and a longer line climbed to many
+  // times the fund and fell off a cliff that was never the fund's.
+  const goalHistory: Record<string, { period: string; value: number }[]> = {};
+  if (viewingCurrentPeriod) {
+    for (const g of declaredGoals) {
+      goalHistory[g.id] = fundHistory(netWorthMonths, g.cash === true ? cashFundIds : g.accountIds, GOAL_RATE_MONTHS + 1);
+    }
+  }
 
   // House readiness: the residual form, built PER MONTH before averaging.
   // Income comes from the same complete cash-flow months the goal rate uses;
@@ -716,8 +735,9 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     prevPeriod,
     nextPeriod,
     clampedFrom,
+    isCurrentPeriod: viewingCurrentPeriod,
     groups: groups.filter((g) => g.rows.length > 0),
-    dismissedCount: inPeriod.filter((r) => r.dismissed).length,
+    dismissedCount: inPeriod.filter((r) => r.dismissed && SHOWN_TYPES.has(r.type)).length,
     commitments,
     pace,
     coverage: shown !== null && !shown.complete ? shown : null,
@@ -725,6 +745,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     goals,
     readiness,
     netWorthGoal,
+    goalHistory,
     trips,
     emptyPeriod: inPeriod.length === 0,
     spent:

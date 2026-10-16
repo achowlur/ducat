@@ -84,6 +84,37 @@ export function anomalyDedupeKey(a: {
   return `cat:${keyOf(a)}`;
 }
 
+/**
+ * The CATEGORY TOTAL anomalies a promoted one-off explains: the same money
+ * told twice. Once /insights set the anomalies directly under the digest, a
+ * one-off purchase sat on the line above "that category's total, higher
+ * than all prior months", the total high only because of the purchase. A
+ * total is explained when, without the one-offs the digest leads with in its
+ * category, it is no higher than its median; a total still unusual without
+ * them is a finding of its own and stays. Returns the explained anomalies'
+ * ids.
+ */
+export function explainedByOneOffs(
+  anomalies: { id: string; payload: AnomalyPayload }[],
+  promoted: ReadonlySet<string>,
+): Set<string> {
+  const oneOffs = new Map<string, number>();
+  for (const { payload: p } of anomalies) {
+    const key = anomalyDedupeKey(p);
+    if (p.kind === 'TRANSACTION' && p.categoryId !== null && key !== null && promoted.has(key)) {
+      oneOffs.set(p.categoryId, (oneOffs.get(p.categoryId) ?? 0) + p.amount);
+    }
+  }
+  return new Set(
+    anomalies
+      .filter(({ payload: p }) => {
+        const promotedHere = p.categoryId === null ? undefined : oneOffs.get(p.categoryId);
+        return p.kind === 'CATEGORY_TOTAL' && promotedHere !== undefined && p.amount - promotedHere <= p.typicalAmount;
+      })
+      .map(({ id }) => id),
+  );
+}
+
 /** /insights reads monthly periods, so a period is a month. */
 const PERIODS_PER_YEAR = 12;
 

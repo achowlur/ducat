@@ -69,6 +69,18 @@ Overview:
   exactly, and no ratio is printed from the first month on record.
 
 /insights, /accounts, /providers:
+- /insights is THREE questions, in order: This month (the spending figure,
+  then what is worth a look, anomalies the digest did not lead with in the
+  same list), Goals (net worth first, house readiness under the goal that
+  funds it), Recurring charges (ONE list: a live plan's next charge leads
+  its facts, the next 30 days totalled on top, lapsed plans folded away).
+  Net worth, cash flow and spending rows belong to /trends, linked from
+  the foot, never printed here.
+- A goal leads with WHEN: a date band that is its chart's legend, then its
+  path (record solid in ink, each projection dashed in Trends' saved or
+  markets colour, ending in a dot at the target), readable by tap or drag
+  at any month; the working-out folds, anything to discount stays in view.
+  A savings goal's record spans only its pace window (goalFunds.ts).
 - /insights LEADS with one figure, the month's spending: projected (with
   its chip) for the month being lived in, spent so far while pace refuses
   (said in words), the analyzer's total for a closed month. Its context

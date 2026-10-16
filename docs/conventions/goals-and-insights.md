@@ -237,7 +237,27 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   cash-account transactions across the rate's own window — transactions
   fully explain cash accounts (the netWorth exemption), so the signed sum IS
   the growth; nominated funds get null because theirs can hold investment
-  accounts, where that arithmetic would fabricate.
+  accounts, where that arithmetic would fabricate. SUPERSEDED 2026-10-16,
+  next entry: the cash definition can hold an investment account too.
+- RECONCILIATION FROM BALANCES (2026-10-16). The cash definition admits an
+  investment account the operator counts as cash (accounts:cash), and the
+  transaction sum above then fabricated exactly as the entry warned for
+  nominated funds: a money-market account books its trades and sweeps as
+  rows, and the line read "Cash itself grew ~−$N/mo" for a fund whose
+  balances had risen every month. Found by the Insights redesign, whose
+  savings-goal chart drew the fund's month-end balances beside that line
+  and contradicted it on the same screen. The growth is now read from the
+  same balances the chart draws (goalFunds.ts, fundGrowthOver: month-end
+  before the window to its last, per month, from NET_WORTH_GROWTH
+  `byAccount`), which also spends one fewer round trip; the transaction sum
+  remains only for rows stored before per-account values existed. The
+  wording became "Cash itself grew / shrank ~$N/mo", never "~−$N".
+  The same chart showed why a savings goal's record spans only its PACE
+  WINDOW: the fund is the cash definition TODAY, and the account it now
+  counts as cash held a brokerage's shares until a reshuffle, so a five-year
+  line climbed to several times the fund and fell off a cliff that was never
+  the fund's. Six months is the window the date is measured from, so the
+  line shows exactly what the date stands on.
 - The house-readiness panel (BUILT 2026-08-01, design in docs/backlog.md):
   `insights/readiness.ts` is a pure function over the same complete-month
   window goals and runway average (readiness.test.ts pins the parity), and
