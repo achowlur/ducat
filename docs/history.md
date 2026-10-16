@@ -815,6 +815,40 @@ blocker; all are the kind of thing that is invisible until someone looks.
 
 ### Built since the 2026-10-04 cut
 
+- **A NET-WORTH GOAL: "reach $X, and when at this rate" — raised 2026-08-04,
+  DISCUSS BEFORE BUILDING.** The idea: declare a target net worth and have the
+  app say how long it takes at observed growth, the way a savings goal already
+  projects a landing month.
+  It is not the savings goal with a bigger number, and the difference is the
+  whole design question. A cash goal projects from money SAVED — income not
+  spent — and the existing panel already prints a reconciliation line beside
+  it because even that assumes every saved dollar stays in cash. Net worth
+  moves for a second reason the operator does not control: July 2026 alone
+  moved the portfolio -$18,935.72 on market movement. A single "growth rate"
+  that blends saving with market returns would project a landing date built
+  half on a decision and half on a guess, and would read as a promise. The
+  engine already keeps these apart on purpose — `marketGains` is reported
+  separately from income, `investmentNetFlows` counts only money crossing the
+  account boundary, and the readiness panel refuses liquidation-funded
+  deposits outright because after-tax proceeds are `known:false`.
+  So the open questions, all worth answering before any code: does the
+  projection split contributed dollars from market movement and say so, or
+  refuse a single rate entirely? What return assumption is honest for the
+  market half — and does a TYPED assumption belong behind the same ASSUMED
+  disclosure the readiness panel uses, with its as-of date? How much history
+  is enough, given net worth needs SNAPSHOTS and only seven months exist, six
+  of them partly estimated? What does it print when the rate is negative, or
+  when a bad quarter puts the target further away than last month — a goal
+  that silently moves its own date is worse than one that refuses?
+  Related and already built: `goals-and-insights.md` (cash goals, the
+  reconciliation line, house readiness, the typed-first rate resolution) and
+  `money-and-analytics.md` (net worth requires snapshots; never reconstruct an
+  investment balance from transactions).
+  BUILT 2026-10-16: a net worth goal on /insights (`npm run goals --
+  --net-worth`), projected two ways and never blended: by saving alone, and
+  with a real return the operator typed, applied to invested money only.
+  Evidence in docs/conventions/goals-and-insights.md, NET WORTH GOAL.
+
 - **Action feedback on the ledger.** A refused action (an empty merchant, a
   rule value too short, a category name that cannot be made) throws to the
   error boundary, and production replaces the message with Next's

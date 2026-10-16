@@ -36,7 +36,7 @@ export async function reseedDemo(
   await prisma.setting.deleteMany({
     where: {
       OR: [
-        { key: { in: ['goals.savings', 'readiness.house', 'cash.additionalAccountIds', 'backup.lastRun'] } },
+        { key: { in: ['goals.savings', 'goals.netWorth', 'readiness.house', 'cash.additionalAccountIds', 'backup.lastRun'] } },
         { key: { startsWith: 'lastSync:' } },
       ],
     },

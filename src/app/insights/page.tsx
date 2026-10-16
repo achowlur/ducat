@@ -5,7 +5,8 @@ import { getInsightsPageData, type InsightRow } from "../../lib/ui/insights";
 import { GOAL_RATE_MIN_MONTHS, type GoalAssessment } from "../../lib/insights/goals";
 import { type ReadinessAssessment } from "../../lib/insights/readiness";
 import { money, monthLabel, shortDate, titleCase } from "../../lib/ui/format";
-import { CHIP, FIELD_LABEL, PageTitle, SectionTitle } from "../../components/ui/headings";
+import { ASSUMED_CHIP, CHIP, FIELD_LABEL, PageTitle, PROJECTED_CHIP, SectionTitle } from "../../components/ui/headings";
+import { NetWorthGoalPanel } from "../../components/NetWorthGoalPanel";
 import { Fig, Lead } from "../../components/ui/figure";
 import type { Pace } from "../../lib/insights/pace";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
@@ -30,27 +31,6 @@ const TONE_MARK: Record<Exclude<InsightRow["tone"], "neutral">, string> = {
   neg: "bg-neg",
   pos: "bg-pos",
 };
-
-/**
- * One definition for the chip every forecast on this page wears. Three panels
- * carry it now (pace, commitments, goals), and the moment a forecast reads
- * like an observation the app is asserting what it does not know.
- */
-// inline-block, so the box survives an inline parent: the same class string
-// measured 76.1 × 19.8 inside a flex row and 76.1 × 14.0 inside a bare <p>,
-// i.e. one chip at two heights on one page.
-const PROJECTED_CHIP =
-  `${CHIP} inline-block bg-chip text-acc`;
-
-/**
- * The ASSUMED variant of the same chip family: for numbers the operator TYPED
- * (the readiness panel's rate, term, tax, insurance, PMI, closing) rather than
- * numbers projected from observation. Outlined where PROJECTED is filled, so
- * the two claims stay distinguishable at a glance — a typed rate is a weaker
- * claim than an observed cadence, and it should not wear the stronger chip.
- */
-const ASSUMED_CHIP =
-  `${CHIP} inline-block border border-rule text-faint`;
 
 /**
  * One declared goal against the observed savings rate. Every refusal renders
@@ -728,6 +708,16 @@ async function renderInsights({
             fundName={data.goals.length > 0 ? data.goals[0].goal.name : null}
             targetHousePrice={data.goals.length > 0 ? (data.goals[0].goal.housePrice ?? null) : null}
           />
+        </section>
+      )}
+
+      {/* The net worth goal — gated like goals: the month being lived in only,
+          absent entirely when none is declared. Its dates are projections and
+          its market return is an assumption, and the panel says which is which. */}
+      {data.netWorthGoal !== null && (
+        <section>
+          <SectionTitle>Net worth goal</SectionTitle>
+          <NetWorthGoalPanel g={data.netWorthGoal} />
         </section>
       )}
 

@@ -78,3 +78,20 @@ export const CONTROL = "rounded-[2px] border px-1.5 py-0.5 font-ledger text-[0.7
 /** A status chip. Fill and text colour per use. */
 export const CHIP =
   "whitespace-nowrap rounded-[2px] px-1.5 py-0.5 font-ledger text-[0.62rem] font-semibold uppercase tracking-[0.06em]";
+
+/**
+ * The chip every forecast wears (pace, commitments, goals): the moment a
+ * forecast reads like an observation the app is asserting what it does not
+ * know. inline-block, so the box survives an inline parent: the same class
+ * string measured 76.1 × 19.8 inside a flex row and 76.1 × 14.0 inside a bare
+ * <p>, one chip at two heights on one page.
+ */
+export const PROJECTED_CHIP = `${CHIP} inline-block bg-chip text-acc`;
+
+/**
+ * The ASSUMED variant, for numbers the operator SET (the readiness rate, the
+ * net worth goal's market return) rather than projected from observation.
+ * Outlined where PROJECTED is filled: a chosen number is a weaker claim than
+ * an observed cadence, and it should not wear the stronger chip.
+ */
+export const ASSUMED_CHIP = `${CHIP} inline-block border border-rule text-faint`;

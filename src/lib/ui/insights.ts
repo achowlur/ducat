@@ -33,6 +33,12 @@ import { periodCoverage, type PeriodCoverage } from "../insights/coverage";
 import { periodEndExclusive, periodStart } from "../insights/periods";
 import { tripsForPeriod, type TripRow } from "./trips";
 import { countsAsCash, readCashAccountIds } from "./liquidity";
+import {
+  assessNetWorthGoal,
+  NET_WORTH_GOAL_KEY,
+  parseNetWorthGoal,
+  type NetWorthGoalAssessment,
+} from "./netWorthGoal";
 import { getAccountCoverage, getPeriodCoverage } from "./coverage";
 import { monthlyRows, ofType } from "./insightRows";
 import { selectPeriod } from "./periodNav";
@@ -108,6 +114,12 @@ export interface InsightsPageData {
    * now and the fund is a live balance.
    */
   readiness: ReadinessAssessment | null;
+  /**
+   * The declared net worth target, its live progress and two landing dates
+   * (ui/netWorthGoal.ts). Null unless declared AND the period on screen is
+   * the one being lived in: the same opt-in-and-current gate as `goals`.
+   */
+  netWorthGoal: NetWorthGoalAssessment | null;
   /**
    * Trip/project groups with activity in the VIEWED period — facts (portion,
    * running net, span, link), never analytics: the figures are plain sums of
@@ -341,10 +353,10 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     prisma.insight.findMany(),
     getSubscriptionStatuses(prisma),
     // Goals, readiness config and the stored rate observation in ONE
-    // statement — on Turso the count of round trips is the cost, so three
-    // findUniques would pay for two reads nobody needs.
+    // statement — on Turso the count of round trips is the cost, so four
+    // findUniques would pay for three reads nobody needs.
     prisma.setting.findMany({
-      where: { key: { in: [SAVINGS_GOALS_KEY, HOUSE_READINESS_KEY, MORTGAGE_RATE_KEY] } },
+      where: { key: { in: [SAVINGS_GOALS_KEY, NET_WORTH_GOAL_KEY, HOUSE_READINESS_KEY, MORTGAGE_RATE_KEY] } },
     }),
     // Balances for the goal funds. Unconditional rather than gated on the
     // setting existing: a gate costs about its own round trip anyway, and
@@ -611,6 +623,38 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
         })
       : [];
 
+  // The net worth goal: live progress against the target, dates from the
+  // last complete month-end. Everything it reads is already loaded (the
+  // NET_WORTH_GROWTH rows, the balances, the cash definition): no round trip.
+  const declaredNetWorthGoal = parseNetWorthGoal(settingValue(NET_WORTH_GOAL_KEY));
+  const netWorthGoal =
+    viewingCurrentPeriod && declaredNetWorthGoal !== null
+      ? assessNetWorthGoal({
+          goal: declaredNetWorthGoal,
+          // Overview's headline, the signed sum of every balance.
+          liveNetWorth: accountRows.reduce((sum, a) => sum + Number(a.balance), 0),
+          months: ofType<NetWorthGrowthPayload>(monthly, "NET_WORTH_GROWTH")
+            .filter((r) => r.period < period)
+            .map(({ period: p, payload }) => ({
+              period: p,
+              value: payload.netWorth,
+              estimated: payload.estimatedAccountIds.length > 0,
+              leftOut: payload.excludedAccountIds ?? [],
+              marketGains: payload.marketGains ?? null,
+              byAccount: payload.byAccount ?? null,
+              flowsByAccount: payload.investmentFlowsByAccount ?? null,
+            })),
+          // Invested money is what a market return applies to: investment
+          // accounts OUTSIDE the cash definition, so an account the operator
+          // counts as cash is never credited with a stock return.
+          investedIds: new Set(
+            accountRows
+              .filter((a) => a.type === "INVESTMENT" && !countsAsCash({ id: a.id, type: a.type, balance: Number(a.balance) }, cashIds))
+              .map((a) => a.id),
+          ),
+        })
+      : null;
+
   // House readiness: the residual form, built PER MONTH before averaging.
   // Income comes from the same complete cash-flow months the goal rate uses;
   // non-housing is that month's totalSpending minus its Rent & Housing row
@@ -680,6 +724,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     digest,
     goals,
     readiness,
+    netWorthGoal,
     trips,
     emptyPeriod: inPeriod.length === 0,
     spent:

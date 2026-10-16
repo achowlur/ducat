@@ -18,6 +18,84 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   surfaces. Detected subscriptions also lapse: the recurring detector has no
   recency bound, so a service cancelled years ago billed forever in the
   annualised total until charges older than two cadence cycles were dropped.
+- NET WORTH GOAL (2026-10-16). Raised 2026-08-04 and held for discussion,
+  because the design question was the whole feature: net worth grows for two
+  reasons, saving (a decision, observed) and markets (not controlled, and only
+  guessable forward). A single growth rate learned from the past blends the
+  two, and in a strong stretch it projects that stretch forever, reading as a
+  promise. So the goal prints TWO dates and refuses to blend them. By saving
+  alone uses the "saved" half of the /trends split (growthBetween: change
+  minus the months' own marketGains), so the pace is a figure the reader can
+  find on another screen, not a second definition. With markets adds a yearly
+  return the OPERATOR TYPES, after inflation: long-run US stock history is
+  about 7% a year real, while the large firms' 10-15 year forecasts sit lower
+  (roughly 6-7% nominal, so about 4% real), and the gap between those is
+  exactly why the number is the operator's, carried behind the ASSUMED chip
+  with the day it was typed, as the readiness rate is. Absent, there is no
+  markets date and no default in code.
+  Everything is in today's dollars: the target is buying power, the pace is
+  held level in real terms, cash is assumed to keep pace with inflation, and
+  of what is saved only a typical month's deposit into invested money
+  compounds (below); the rest is counted as cash. The return applies to INVESTED
+  money only, the investment accounts outside the operator's cash definition,
+  so an account the operator counts as cash is never credited with a stock
+  return. That split needs each account's month-end value, which the account
+  type cannot give, so NET_WORTH_GROWTH rows now carry `byAccount`; a row
+  stored before it prints no markets date until regeneration fills it in.
+  The monthly deposit was added the same day, at the operator's ask: the
+  first cut counted every new dollar as cash, ignoring a steady monthly
+  deposit the history plainly shows, and lump sums must not pass for it. It
+  is the MIDDLE of the last three complete months of money crossing into
+  invested accounts (per account, so the cash definition draws the line;
+  rows carry `investmentFlowsByAccount`). Not a mean: a history mixing a
+  steady deposit with savings moved in from another bank, a yearly IRA
+  contribution and a reshuffle between accounts worth many months of saving
+  averages to a habit nobody has. Not a fixed cutoff, the first suggestion
+  ("leave out anything over $5,000"): it throws away every month for a
+  reader whose ordinary deposit is above it. And not the median of the
+  twelve-month pace window, the second cut: the operator asked what happens
+  when the deposit goes UP, and the answer was that the median would keep
+  the old amount for about six months, saying nothing. Three months is the
+  least that still has a middle: one month (a lump sum, a missed deposit, a
+  first month at a new amount) never sets it, and two do, so a raise counts
+  the moment it repeats. A deposit never changes silently: the anchor
+  month's own deposit is named when it does not match ("a new amount counts
+  once it repeats"), and a changed deposit says what it was a month before.
+  On the history that prompted it the deposit landed exactly on the standing
+  transfer.
+  The target and the return became CONTROLS on the panel the same day, at
+  the operator's ask, instead of numbers set from the command line: a
+  slider for the return and a field for the target. The slider runs 0 to
+  100% (the operator asked for the full range, for fun) on a SQUARE scale, so
+  a quarter of its travel covers 0 to about 7% and 5% does not sit a few
+  pixels from the edge of a phone; it snaps to half points below 20% and
+  whole points above, with tick marks at the decade's forecasts and at a
+  century of history. The
+  dates re-project in the browser as they move, through projectGoal, the
+  very function the server ran, from a serializable GoalBasis per month-end,
+  so a slider never waits on a round trip and never disagrees with a reload.
+  Each saves when it settles (the slider on release, the target on Enter or
+  leaving the field) through one validation, nextNetWorthGoal: a CHANGED
+  return is dated that day and an unchanged one keeps its day, so the as-of
+  date stays the day the assumption was made. Zero clears the return, and an
+  unset return puts the slider at zero, "no market growth assumed", which is
+  not a rate, so still no return lives in code. A shift compares the same
+  target and return a month apart, so dragging a control never reads as the
+  data moving. The command still writes the same Setting.
+  Dates are projected from the last COMPLETE month-end, not the live
+  balance: a live anchor would move the date with every day's markets, and
+  the shift since last month would compare a month-end with a Tuesday.
+  Progress stays live, Overview's headline. The pace window is twelve
+  complete months (a bonus or a big bill moves six too far) and never crosses
+  a change in which accounts are counted, since an account entering the sum
+  is not saving; under six months there is no date.
+  A FAR target is sensitive to pace: saving a tenth faster brings a
+  twenty-year landing about two years nearer, and one month entering a
+  twelve-month window can do that. That is honest, and a goal that moves
+  its own date silently is worse than one that refuses, so each date says how
+  far it moved since last month and the pace line says what the pace was a
+  month before. The demo declares one, with a typed return, and its test
+  asserts both dates land and the markets date comes first.
 - ONE PLAN, SEVERAL DESCRIPTORS (2026-10-16). Banks rename a biller's
   descriptor mid-plan, and the detector keyed on the merchant string, so one
   monthly plan reached it as several merchants: each name long enough to pass

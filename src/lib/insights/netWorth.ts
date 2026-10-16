@@ -198,6 +198,7 @@ export function computeNetWorthGrowth(
     total: number;
     invTotal: number;
     byType: Partial<Record<AccountType, number>>;
+    byAccount: Record<string, number>;
     estimated: string[];
     carried: string[];
     excluded: string[];
@@ -208,6 +209,7 @@ export function computeNetWorthGrowth(
     let total = 0;
     let invTotal = 0;
     const byType: Partial<Record<AccountType, number>> = {};
+    const byAccount: Record<string, number> = {};
     const estimated: string[] = [];
     const carried: string[] = [];
     const excluded: string[] = [];
@@ -222,22 +224,32 @@ export function computeNetWorthGrowth(
       total += balance;
       if (account.type === 'INVESTMENT') invTotal += balance;
       byType[account.type] = round2((byType[account.type] ?? 0) + balance);
+      byAccount[account.id] = round2(balance);
       if (isEstimated) estimated.push(account.id);
       if (isCarried === true) carried.push(account.id);
     }
     if (excluded.length === accounts.length) return null;
-    return { total: round2(total), invTotal: round2(invTotal), byType, estimated, carried, excluded };
+    return { total: round2(total), invTotal: round2(invTotal), byType, byAccount, estimated, carried, excluded };
   };
 
   const investmentAccountIds = new Set(accounts.filter((a) => a.type === 'INVESTMENT').map((a) => a.id));
-  /** Net money CROSSING an investment account's boundary in the period (see crossingAmount). */
-  const investmentFlows = (key: string, leftOut: string[]): number => {
+  /**
+   * Net money CROSSING each investment account's boundary in the period (see
+   * crossingAmount), by account, and in total. By account because the net
+   * worth goal counts contributions into INVESTED money only, a line drawn
+   * by the operator's cash definition rather than by account type.
+   */
+  const investmentFlows = (key: string, leftOut: string[]): { total: number; byAccount: Record<string, number> } => {
     let sum = 0;
+    const byAccount: Record<string, number> = {};
     for (const t of txns) {
       if (!investmentAccountIds.has(t.accountId) || leftOut.includes(t.accountId) || !inPeriod(t.date, key)) continue;
-      sum += crossingAmount(t);
+      const crossing = crossingAmount(t);
+      if (crossing === 0) continue;
+      sum += crossing;
+      byAccount[t.accountId] = round2((byAccount[t.accountId] ?? 0) + crossing);
     }
-    return round2(sum);
+    return { total: round2(sum), byAccount };
   };
 
   const result = new Map<string, NetWorthGrowthPayload>();
@@ -254,15 +266,17 @@ export function computeNetWorthGrowth(
     const growthRate =
       comparable && previous.total !== 0 ? round4((current.total - previous.total) / Math.abs(previous.total)) : null;
     const flows = investmentFlows(key, current.excluded);
-    const marketGains = comparable ? round2(current.invTotal - previous.invTotal - flows) : null;
+    const marketGains = comparable ? round2(current.invTotal - previous.invTotal - flows.total) : null;
     result.set(key, {
       granularity,
       netWorth: current.total,
       previousNetWorth: previous === null ? null : previous.total,
       growthRate,
       byAccountType: current.byType,
+      byAccount: current.byAccount,
       marketGains,
-      investmentNetFlows: flows,
+      investmentNetFlows: flows.total,
+      investmentFlowsByAccount: flows.byAccount,
       estimatedAccountIds: current.estimated,
       carriedAccountIds: current.carried,
       excludedAccountIds: current.excluded,

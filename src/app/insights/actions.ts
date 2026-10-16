@@ -3,6 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "../../lib/prisma";
 import { requireSession } from "../../lib/auth/requireSession";
+import type { ActionResult } from "../../lib/actionResult";
+import {
+  NET_WORTH_GOAL_KEY,
+  nextNetWorthGoal,
+  parseNetWorthGoal,
+  type NetWorthGoal,
+} from "../../lib/ui/netWorthGoal";
 
 /**
  * Dismiss or restore an insight. Dismissals survive regeneration: the
@@ -17,4 +24,27 @@ export async function setInsightDismissed(insightId: string, dismissed: boolean)
   });
   revalidatePath("/insights");
   revalidatePath("/");
+}
+
+/**
+ * Save the net worth goal's target and market return from the panel's
+ * controls (the goals command writes the same Setting). Refusals come back
+ * as values, shown beside the control (lib/actionResult.ts).
+ */
+export async function saveNetWorthGoal(input: {
+  target: number;
+  realReturnPct: number;
+}): Promise<ActionResult<{ goal: NetWorthGoal }>> {
+  await requireSession();
+  const row = await prisma.setting.findUnique({ where: { key: NET_WORTH_GOAL_KEY } });
+  const next = nextNetWorthGoal(parseNetWorthGoal(row?.value ?? null), input, new Date().toISOString().slice(0, 10));
+  if (!next.ok) return next;
+  const value = JSON.stringify(next.goal);
+  await prisma.setting.upsert({
+    where: { key: NET_WORTH_GOAL_KEY },
+    create: { key: NET_WORTH_GOAL_KEY, value },
+    update: { value },
+  });
+  revalidatePath("/insights");
+  return next;
 }
