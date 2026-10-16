@@ -48,6 +48,16 @@ const CADENCE_BANDS: { cadence: RecurringCadence; min: number; max: number }[] =
   { cadence: 'YEARLY', min: 330, max: 400 },
 ];
 
+/**
+ * The longest gap the detector itself still reads as `cadence`. A charge
+ * absent for longer than this has MISSED its billing date by the detector's
+ * own measure (health/detectedSubscriptions.ts, missedCharge), so "missed"
+ * needs no second tolerance of its own.
+ */
+export function longestGapDays(cadence: RecurringCadence): number {
+  return CADENCE_BANDS.find((b) => b.cadence === cadence)!.max;
+}
+
 function cadenceOf(medianGapDays: number): RecurringCadence | null {
   const band = CADENCE_BANDS.find((b) => medianGapDays >= b.min && medianGapDays <= b.max);
   return band?.cadence ?? null;
@@ -63,7 +73,12 @@ export function detectRecurringCharges(
   options: RecurringOptions = DEFAULT_RECURRING_OPTIONS,
 ): Map<string, RecurringChargePayload> {
   const byMerchant = new Map<string, TxnData[]>();
+  // How far each account's records reach, over EVERY row (an inflow or a
+  // transfer proves the account was still being recorded as well as a charge).
+  const newestByAccount = new Map<string, number>();
   for (const t of txns) {
+    const newest = newestByAccount.get(t.accountId);
+    if (newest === undefined || t.date.getTime() > newest) newestByAccount.set(t.accountId, t.date.getTime());
     if (t.flow !== 'OUTFLOW') continue;
     if (t.categoryName !== null && NOT_SUBSCRIPTION_CATEGORIES.has(t.categoryName)) continue;
     const merchant = t.normalizedMerchant.trim().toLowerCase();
@@ -110,6 +125,7 @@ export function detectRecurringCharges(
       occurrences: sorted.length,
       previousAverageAmount: round2(previousAverage),
       priceIncreased: lastAmount > previousAverage * (1 + options.priceIncreaseThreshold),
+      accountThrough: new Date(newestByAccount.get(last.accountId) ?? last.date.getTime()).toISOString().slice(0, 10),
     });
   }
   return result;

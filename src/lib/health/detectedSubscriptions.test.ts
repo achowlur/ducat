@@ -3,6 +3,7 @@ import {
   annualisedTotal,
   isActive,
   mergeDetectedSubscriptions,
+  missedCharge,
   type DetectedCharge,
 } from './detectedSubscriptions';
 
@@ -55,6 +56,15 @@ describe('mergeDetectedSubscriptions', () => {
     expect(merged.map((m) => m.merchant)).toEqual(['raised', 'costly', 'cheap']);
   });
 
+  it("keeps the NEWEST charge's account coverage, where the next charge is expected", () => {
+    const newer = charge({ merchant: 'verizon', lastDate: '2026-07-01', accountThrough: '2026-07-20' });
+    const older = charge({ merchant: 'verizon paymentrec urring', lastDate: '2026-05-01', accountThrough: '2026-05-30' });
+    for (const order of [[newer, older], [older, newer]]) {
+      const [merged] = mergeDetectedSubscriptions(order);
+      expect(merged).toMatchObject({ lastDate: '2026-07-01', accountThrough: '2026-07-20' });
+    }
+  });
+
   it('marks charges already covered by a registered subscription', () => {
     const merged = mergeDetectedSubscriptions([charge({ merchant: 'netflix' })], ['Netflix']);
     expect(merged[0].tracked).toBe(true);
@@ -85,5 +95,47 @@ describe('isActive', () => {
 
   it('allows a yearly subscription its longer cycle', () => {
     expect(isActive(charge({ merchant: 'domain', cadence: 'YEARLY', lastDate: '2025-09-01' }), now)).toBe(true);
+  });
+});
+
+describe('missedCharge', () => {
+  const now = new Date('2026-07-25T12:00:00Z');
+  const iso = (d: Date | null) => (d === null ? null : d.toISOString().slice(0, 10));
+
+  it('names the billing date that passed once the account kept recording past it', () => {
+    const missed = missedCharge(charge({ merchant: 'gym', lastDate: '2026-06-01', accountThrough: '2026-07-20' }), now);
+    expect(iso(missed)).toBe('2026-07-01');
+  });
+
+  it("allows the detector's own longest monthly gap (35 days) before calling it missed", () => {
+    expect(missedCharge(charge({ merchant: 'gym', lastDate: '2026-06-01', accountThrough: '2026-07-06' }), now)).toBeNull();
+    expect(iso(missedCharge(charge({ merchant: 'gym', lastDate: '2026-06-01', accountThrough: '2026-07-07' }), now))).toBe('2026-07-01');
+  });
+
+  // A statement-imported card, or a feed that stopped syncing, has no rows past
+  // the date yet. No charge in records that stop is not a missed charge.
+  it('says nothing when the account records stop before the date could be judged', () => {
+    expect(missedCharge(charge({ merchant: 'gym', lastDate: '2026-06-01', accountThrough: '2026-06-28' }), now)).toBeNull();
+  });
+
+  it('says nothing for a row generated before account coverage was recorded', () => {
+    expect(missedCharge(charge({ merchant: 'gym', lastDate: '2026-01-01' }), now)).toBeNull();
+  });
+
+  it('judges a past month by its own end, not by records that came later', () => {
+    const asOf = new Date('2026-06-30T23:59:59Z');
+    expect(missedCharge(charge({ merchant: 'gym', lastDate: '2026-06-01', accountThrough: '2026-07-20' }), asOf)).toBeNull();
+  });
+
+  it('clamps a 31st billing day into a short month', () => {
+    const missed = missedCharge(charge({ merchant: 'gym', lastDate: '2026-01-31', accountThrough: '2026-03-20' }), now);
+    expect(iso(missed)).toBe('2026-02-28');
+  });
+
+  it('gives a yearly plan its longer tolerance', () => {
+    const domain = (accountThrough: string) =>
+      charge({ merchant: 'domain', cadence: 'YEARLY', lastDate: '2025-06-10', accountThrough });
+    expect(missedCharge(domain('2026-07-14'), now)).toBeNull(); // 399 days
+    expect(iso(missedCharge(domain('2026-07-16'), now))).toBe('2026-06-10');
   });
 });

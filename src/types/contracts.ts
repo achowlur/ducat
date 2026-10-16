@@ -109,6 +109,13 @@ export interface RecurringChargePayload {
   /** Median of all occurrences before the most recent one. */
   previousAverageAmount: number | null;
   priceIncreased: boolean;
+  /**
+   * ISO date of the newest transaction of ANY kind on the account that carried
+   * the most recent occurrence: how far that account's records reach, so a
+   * charge that never came can be told from records that simply stop. Absent
+   * on rows generated before it existed (regeneration fills it in).
+   */
+  accountThrough?: string;
 }
 
 export interface AnomalyPayload {

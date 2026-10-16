@@ -11,6 +11,7 @@ import {
   annualisedTotal,
   isActive,
   mergeDetectedSubscriptions,
+  missedCharge,
   type DetectedCharge,
 } from "../health/detectedSubscriptions";
 import { upcomingCommitments, type UpcomingCommitments } from "../health/commitments";
@@ -35,7 +36,7 @@ import { countsAsCash, readCashAccountIds } from "./liquidity";
 import { getAccountCoverage, getPeriodCoverage } from "./coverage";
 import { monthlyRows, ofType } from "./insightRows";
 import { selectPeriod } from "./periodNav";
-import { higherThan, money, monthLabel, pct, shortDate, titleCase } from "./format";
+import { higherThan, money, monthLabel, pct, shortDate, shortDateYear, titleCase } from "./format";
 
 export interface InsightRow {
   id: string;
@@ -204,19 +205,34 @@ function renderAnomaly(p: AnomalyPayload): InsightRow["text"] {
 // commitments panel already used.
 type RowBody = Pick<InsightRow, "text" | "facts">;
 
-function renderRecurring(p: RecurringChargePayload, tracked: boolean): RowBody {
+/** Where a recurring row stands as of the month on screen. */
+interface RecurringState {
+  /** Under "No longer charging": two cycles with no charge. */
+  lapsed: boolean;
+  /** The billing date it missed while still listed (missedCharge), or null. */
+  missed: Date | null;
+  /** The year of the month on screen. */
+  year: number;
+}
+
+function renderRecurring(p: RecurringChargePayload, tracked: boolean, state: RecurringState): RowBody {
   const price = p.priceIncreased
     ? `raised to ${money(p.lastAmount)} (was ${money(p.previousAverageAmount ?? p.averageAmount)})`
     : `${money(p.averageAmount)} ${p.cadence.toLowerCase()}`;
   // shortDate, not the raw ISO string: this line sits among "Jul 9 – Jul 20",
   // "in 3d · Aug 6" and "~September 2028", so a bare 2026-07-06 was the only
-  // machine-shaped date on the page.
+  // machine-shaped date on the page. It carries its YEAR under "No longer
+  // charging", whose last charges can be any year (a bare "last Mar 3" there
+  // could be years old), and wherever the day falls outside the year on screen
+  // (a yearly plan, December's charge read in January).
+  const day = (d: Date) => (state.lapsed || d.getUTCFullYear() !== state.year ? shortDateYear(d) : shortDate(d));
   return {
     text: titleCase(p.merchant),
     facts: [
       price,
       `${p.occurrences} charges`,
-      `last ${shortDate(new Date(`${p.lastDate}T12:00:00Z`))}`,
+      `last ${day(new Date(`${p.lastDate}T12:00:00Z`))}`,
+      ...(state.missed !== null ? [`missed ${day(state.missed)}`] : []),
       ...(tracked ? ["registered"] : []),
     ],
   };
@@ -274,6 +290,8 @@ const LAPSED_TITLE = "No longer charging";
 function toRow(
   row: { id: string; type: string; payload: unknown; dismissed: boolean },
   isRegistered: (merchant: string) => boolean,
+  asOf: Date,
+  year: number,
 ): InsightRow {
   const type = row.type as InsightType;
   switch (type) {
@@ -283,13 +301,19 @@ function toRow(
     }
     case "RECURRING_CHARGE": {
       const p = row.payload as RecurringChargePayload;
+      const lapsed = !isActive(p, asOf);
+      // A lapsed row has already moved under "No longer charging", which
+      // says more than "missed" could.
+      const missed = lapsed ? null : missedCharge(p, asOf);
       return {
         id: row.id,
         type,
         dismissed: row.dismissed,
-        chip: p.priceIncreased ? "Price up" : null,
-        tone: p.priceIncreased ? "neg" : "neutral",
-        ...renderRecurring(p, isRegistered(p.merchant)),
+        // MISSED outranks PRICE UP: a raised price that is no longer being
+        // charged is the lesser news, and the price fact still says it.
+        chip: missed !== null ? "Missed" : p.priceIncreased ? "Price up" : null,
+        tone: missed === null && p.priceIncreased ? "neg" : "neutral",
+        ...renderRecurring(p, isRegistered(p.merchant), { lapsed, missed, year }),
       };
     }
     case "NET_WORTH_GROWTH": {
@@ -365,6 +389,8 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   );
   const lapsed = (row: { type: string; payload: unknown }) =>
     row.type === "RECURRING_CHARGE" && !isActive(row.payload as RecurringChargePayload, asOf);
+  // A day in this year prints without one (renderRecurring).
+  const year = Number(period.slice(0, 4));
 
   // Built here because the rows lose their payload the moment they become
   // InsightRows, and the suppression below needs the identity, not the prose.
@@ -379,7 +405,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     note: null as string | null,
     rows: inPeriod
       .filter((r) => r.type === g.type && !lapsed(r))
-      .map((r) => toRow(r, isRegistered))
+      .map((r) => toRow(r, isRegistered, asOf, year))
       .sort((a, b) => Number(a.dismissed) - Number(b.dismissed)),
   }));
   groups.push({
@@ -387,7 +413,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     note: null,
     rows: inPeriod
       .filter(lapsed)
-      .map((r) => toRow(r, isRegistered))
+      .map((r) => toRow(r, isRegistered, asOf, year))
       .sort((a, b) => Number(a.dismissed) - Number(b.dismissed)),
   });
 
@@ -413,9 +439,14 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // rows but one bill, and the sum of the rows would be triple the truth. The
   // two agree on this database (2 active charges, 2 after merge) and the merge
   // is what keeps them agreeing when they stop.
+  //
+  // A charge that MISSED its billing date stays listed, flagged, but is not
+  // projected for a year: the commitments panel already stopped counting it,
+  // and the two projections on one page must agree on what is still billing.
   const activeThisPeriod = inPeriod
     .filter((r) => r.type === "RECURRING_CHARGE" && !lapsed(r))
-    .map((r) => r.payload as unknown as DetectedCharge);
+    .map((r) => r.payload as unknown as DetectedCharge)
+    .filter((c) => missedCharge(c, asOf) === null);
   const recurringGroup = groups.find((g) => g.title === RECURRING_TITLE);
   if (recurringGroup !== undefined && viewingCurrentPeriod && activeThisPeriod.length > 0) {
     recurringGroup.note = `${money(annualisedTotal(mergeDetectedSubscriptions(activeThisPeriod)))}/yr`;

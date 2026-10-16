@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { upcomingCommitments } from './commitments';
-import type { DetectedSubscription } from './detectedSubscriptions';
+import { isActive, type DetectedSubscription } from './detectedSubscriptions';
 import type { SubscriptionStatus } from './types';
 import type { RecurringCadence } from '../../types/contracts';
 
@@ -67,6 +67,19 @@ describe('upcomingCommitments', () => {
     expect(items).toHaveLength(1);
     expect(items[0].dueDate.getTime()).toBeGreaterThanOrEqual(utc(2026, 7, 10).getTime() - 86_400_000);
     expect(iso(items[0].dueDate)).toBe('2026-08-05');
+  });
+
+  it('excludes a charge that MISSED its billing date while its account kept recording', () => {
+    // Last charged 2026-06-01; the card recorded through 2026-07-09 with no
+    // 2026-07-01 charge, 38 days past the last one.
+    const missed = sub({ lastDate: '2026-06-01', accountThrough: '2026-07-09' });
+    expect(isActive(missed, now)).toBe(true);
+    expect(upcomingCommitments([missed], [], now).items).toHaveLength(0);
+  });
+
+  it('keeps one whose account records stop too early to tell', () => {
+    const unknown = sub({ lastDate: '2026-06-01', accountThrough: '2026-07-04' });
+    expect(upcomingCommitments([unknown], [], now).items).toHaveLength(1);
   });
 
   it('quotes the RAISED price, since that is what the next charge costs', () => {
@@ -160,6 +173,43 @@ describe('upcomingCommitments', () => {
       expect(items).toHaveLength(1);
       expect(items[0].source).toBe('DETECTED');
       expect(total).toBe(49);
+    });
+
+    // A cancelled plan the operator had also registered: once its detected
+    // twin missed a date, the declaration must not bill the window instead.
+    it('excludes one whose detected twin missed its date, with no newer charge of its own', () => {
+      const missed = sub({ merchant: 'learnhub.com', lastDate: '2026-06-01', accountThrough: '2026-07-09' });
+      const declared = registered({
+        name: 'LearnHub',
+        merchantPattern: 'learnhub',
+        nextPaymentDate: utc(2026, 8, 1),
+        lastCharge: { transactionId: 't1', date: utc(2026, 6, 1), amount: 29 },
+      });
+      expect(upcomingCommitments([missed], [declared], now).items).toHaveLength(0);
+    });
+
+    it('excludes one whose detected twin LAPSED, for the same reason', () => {
+      const lapsed = sub({ merchant: 'learnhub.com', lastDate: '2026-03-01' });
+      const declared = registered({
+        name: 'LearnHub',
+        merchantPattern: 'learnhub',
+        nextPaymentDate: utc(2026, 8, 1),
+        lastCharge: { transactionId: 't1', date: utc(2026, 3, 1), amount: 29 },
+      });
+      expect(upcomingCommitments([lapsed], [declared], now).items).toHaveLength(0);
+    });
+
+    // The bank renamed the descriptor: the detector's string went quiet, but
+    // the declared pattern still finds the service billing under the new one.
+    it('keeps one whose own pattern found a NEWER charge than its quiet twin', () => {
+      const quiet = sub({ merchant: 'learnhub.com', lastDate: '2026-06-01', accountThrough: '2026-07-09' });
+      const declared = registered({
+        name: 'LearnHub',
+        merchantPattern: 'learnhub',
+        nextPaymentDate: utc(2026, 8, 1),
+        lastCharge: { transactionId: 't2', date: utc(2026, 7, 1), amount: 29 },
+      });
+      expect(upcomingCommitments([quiet], [declared], now).items.map((i) => i.source)).toEqual(['REGISTERED']);
     });
 
     it('excludes a disabled one', () => {

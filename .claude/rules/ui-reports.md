@@ -19,6 +19,8 @@ Every page:
 - An /insights archive row is a NAME plus a column of FACTS
   (`InsightRow.facts`), never a punctuated sentence, and a chip that only
   repeats its group heading is null, the tone carried by a mark.
+- A recurring row's day prints without its year only inside the year on
+  screen; under "No longer charging" it always carries it (shortDateYear).
 
 Charts:
 - Any axis whose length grows with history always names its NEWEST month

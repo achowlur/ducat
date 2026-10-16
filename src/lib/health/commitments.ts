@@ -1,6 +1,6 @@
 import type { RecurringCadence } from '../../types/contracts';
 import { round2 } from '../insights/stats';
-import { isActive, type DetectedSubscription } from './detectedSubscriptions';
+import { isActive, missedCharge, type DetectedSubscription } from './detectedSubscriptions';
 import { matchesSubscription, projectNextPayment } from './subscriptions';
 import type { SubscriptionStatus } from './types';
 
@@ -64,7 +64,9 @@ function startOfUtcDay(d: Date): Date {
  * several merchant strings ("verizon" and "verizon paymentrec urring …"), and
  * billing the window three times for one phone plan would be worse than
  * useless. Lapsed charges are excluded on the same rule the rest of the app
- * uses — a service cancelled last year is not a commitment.
+ * uses — a service cancelled last year is not a commitment — and so are
+ * charges that MISSED their last billing date: the money this panel calls
+ * spoken for is money a biller is still taking.
  *
  * `registered` is REQUIRED rather than defaulted, because forgetting it is not
  * a harmless omission: a subscription the operator declared by hand but which
@@ -85,8 +87,15 @@ export function upcomingCommitments(
     Math.max(0, Math.round((startOfUtcDay(d).getTime() - today.getTime()) / DAY_MS));
 
   const items: Commitment[] = [];
+  // Detected charges the detector has stopped expecting: lapsed, or past a
+  // missed billing date. Kept so a declared subscription for the same service
+  // cannot bill the window in their place (below).
+  const silenced: DetectedSubscription[] = [];
   for (const sub of subscriptions) {
-    if (!isActive(sub, now)) continue;
+    if (!isActive(sub, now) || missedCharge(sub, now) !== null) {
+      silenced.push(sub);
+      continue;
+    }
 
     const last = new Date(`${sub.lastDate}T12:00:00Z`);
     if (Number.isNaN(last.getTime())) continue;
@@ -120,6 +129,14 @@ export function upcomingCommitments(
   for (const sub of registered) {
     if (!sub.enabled) continue;
     if (detectedMerchants.some((m) => matchesSubscription(sub.merchantPattern, m))) continue;
+    // The detector stopped expecting this service, and the declared pattern
+    // has found no charge newer than the one the detector last saw. Without
+    // this a cancelled plan the operator had also registered came straight
+    // back as committed the moment its detected twin went quiet. A NEWER
+    // charge under the declared pattern means the bank changed the descriptor
+    // and the service is still billing, so the declaration stands.
+    const quiet = silenced.find((d) => matchesSubscription(sub.merchantPattern, d.merchant));
+    if (quiet !== undefined && (sub.lastCharge === null || sub.lastCharge.date.getTime() <= new Date(`${quiet.lastDate}T23:59:59Z`).getTime())) continue;
     if (sub.nextPaymentDate.getTime() > horizon) continue;
 
     // Same rule as a detected rise: what you will pay next is the price it
