@@ -385,15 +385,19 @@ export interface TxnRestore {
 }
 
 /**
- * Everything one bulk decision changed, so it can be taken back: the rule as
- * it was (or absent), and each transaction's categorization before rules ran.
+ * Everything one review decision changed, so it can be taken back: each rule
+ * it wrote as that rule was before (null: it did not exist), and each
+ * transaction's categorization before rules ran. One decision or a batch of
+ * them ("apply all") is the same shape, so one undo takes either back whole.
  * Lives here rather than beside the action because a "use server" module may
  * only export async functions.
  */
 export interface GroupUndo {
-  matchValue: string;
-  matchField: "MERCHANT" | "DESCRIPTION";
-  previousRule: { categoryId: string | null; flow: "TRANSFER" | null } | null;
+  rules: {
+    matchValue: string;
+    matchField: "MERCHANT" | "DESCRIPTION";
+    previousRule: { categoryId: string | null; flow: "TRANSFER" | null } | null;
+  }[];
   restore: TxnRestore[];
 }
 
@@ -413,12 +417,19 @@ export async function restoreTransactions(
   prisma: PrismaClient,
   restore: TxnRestore[],
 ): Promise<void> {
+  // Rows going back to the same three values are written together: undoing a
+  // batch of decisions restores hundreds of rows, and on Turso each statement
+  // is a round trip.
+  const batches = new Map<string, { data: Omit<TxnRestore, "id">; ids: string[] }>();
   for (const t of restore) {
     if (!RESTORE_FLOWS.has(t.flow) || !RESTORE_SOURCES.has(t.categorySource)) continue;
-    await prisma.transaction.update({
-      where: { id: t.id },
-      data: { categoryId: t.categoryId, categorySource: t.categorySource, flow: t.flow },
-    });
+    const key = `${t.categoryId ?? ""}|${t.categorySource}|${t.flow}`;
+    const batch = batches.get(key) ?? { data: { categoryId: t.categoryId, categorySource: t.categorySource, flow: t.flow }, ids: [] };
+    batch.ids.push(t.id);
+    batches.set(key, batch);
+  }
+  for (const { data, ids } of batches.values()) {
+    await prisma.transaction.updateMany({ where: { id: { in: ids } }, data });
   }
 }
 
@@ -433,25 +444,39 @@ export async function restoreTransactions(
  * snapshot so the group undo reverses it. Rows already categorized (by hand or
  * by an older rule) are not touched, and future payments still arrive as
  * suggestions. Does not regenerate insights; the caller does, once.
+ *
+ * Takes one decision or a batch ("apply all"): one read of the waiting rows
+ * serves every rule, and a row two rules both match takes the first.
  */
 export async function confirmP2PMatches(
   prisma: PrismaClient,
-  rule: Pick<RuleData, "matchField" | "matchOperator" | "matchValue" | "setCategoryId" | "setFlow">,
+  decided:
+    | Pick<RuleData, "matchField" | "matchOperator" | "matchValue" | "setCategoryId" | "setFlow">
+    | Pick<RuleData, "matchField" | "matchOperator" | "matchValue" | "setCategoryId" | "setFlow">[],
 ): Promise<TxnRestore[]> {
-  if (rule.setCategoryId === null || rule.setFlow !== null) return [];
-  const probe: RuleData = { ...rule, id: "confirm", priority: 1, enabled: true };
+  const probes: RuleData[] = (Array.isArray(decided) ? decided : [decided])
+    .filter((rule) => rule.setCategoryId !== null && rule.setFlow === null)
+    .map((rule, i) => ({ ...rule, id: `confirm-${i}`, priority: 1, enabled: true }));
+  if (probes.length === 0) return [];
   const rows = await prisma.transaction.findMany({
     where: { categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" }, categorySource: { not: "MANUAL" } },
     include: { account: true },
   });
-  const matched = rows.filter(
-    (t) => isUnreviewedP2P(t) && userCategoryRuleFor([probe], toRuleTxns([t])[0]) !== null,
-  );
+  const byCategory = new Map<string, typeof rows>();
+  for (const t of rows) {
+    if (!isUnreviewedP2P(t)) continue;
+    const hit = userCategoryRuleFor(probes, toRuleTxns([t])[0]);
+    if (hit === null || hit.setCategoryId === null) continue;
+    byCategory.set(hit.setCategoryId, [...(byCategory.get(hit.setCategoryId) ?? []), t]);
+  }
+  const matched = [...byCategory.values()].flat();
   if (matched.length === 0) return [];
-  await prisma.transaction.updateMany({
-    where: { id: { in: matched.map((t) => t.id) } },
-    data: { categoryId: rule.setCategoryId, categorySource: "MANUAL" },
-  });
+  for (const [categoryId, list] of byCategory) {
+    await prisma.transaction.updateMany({
+      where: { id: { in: list.map((t) => t.id) } },
+      data: { categoryId, categorySource: "MANUAL" },
+    });
+  }
   return matched.map((t) => ({
     id: t.id,
     categoryId: t.categoryId,

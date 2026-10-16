@@ -192,7 +192,10 @@ export function buildDemoData(now: Date): DemoPlan {
     spend(15 + Math.floor(rand() * 13), between(26, 64), 'SUMMIT FUEL', 'summit fuel', 'Gas');
     // Holiday shopping in December, and a pricier summer.
     if (mo.m0 === 11) spend(jitter(12), between(280, 420), 'ORBITMART ONLINE', 'orbitmart', 'Gifts');
-    if (mo.m0 === 6 || mo.m0 === 7) spend(jitter(27), between(90, 160), 'LAKESIDE OUTFITTERS', 'lakeside outfitters', 'Shopping');
+    // The summer splurge is the pottery studio the review panel's last
+    // purchase comes back to under another spelling, so grouped review has a
+    // payee to SUGGEST for (lib/sync/groupSuggest.ts, "like ...").
+    if (mo.m0 === 6 || mo.m0 === 7) spend(jitter(27), between(90, 160), 'LANTERN POTTERY STUDIO #2', 'lantern pottery studio #2', 'Shopping');
     spend(11, between(12, 26), 'METRORIDE TRANSIT', 'metroride', 'Transport');
     spend(19, between(24, 140), 'ORBITMART ONLINE', 'orbitmart', 'Shopping');
     if (mo.index % 3 === 1) spend(26, between(18, 44), 'WELLSPRING PHARMACY', 'wellspring pharmacy', 'Health');

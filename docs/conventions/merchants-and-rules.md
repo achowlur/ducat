@@ -362,3 +362,43 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   The ceiling is the long tail: most of the payees still missed appear once
   (a local bakery, a bar), with no word in the name a rule could read. Rules
   cannot reach those; making the review queue fast is the next lever.
+- GROUPED REVIEW SUGGESTS, AND APPLIES IN ONE BATCH (2026-10-16). Rules end
+  where a payee's name says nothing a rule can read, so for a new user the
+  long tail is the review queue, and a queue decided one payee at a time is
+  what turns a ten-thousand-row import into an afternoon. Each payee now
+  opens with a suggested category and the words of its evidence, and "Apply
+  all" writes every payee with a choice at once.
+  SCORED BEFORE SHIPPING. Each candidate source was run over one operator's
+  own categorized payees that the pack does not claim, with that payee's rows
+  hidden from what it learns from, against the category the operator chose
+  (from rows reviewed as they arrived, not a history categorized in bulk).
+  Right every time it fired: the same payee categorized before; the same
+  payee spelled another way, met on a SKELETON (its first two words of
+  letters, so store numbers, punctuation and phone digits fall away);
+  money IN described as interest or a deposit (Income; the pack cannot say
+  this, as it cannot see the sign); the same amount every month
+  (Subscriptions); and a P2P memo read by the pack's own generic words
+  ("pizza"). These PRE-FILL the choice. Right about three times in four: a
+  distinctive word of the payee's NAME shared with payees categorized one
+  way. Right about six times in ten: a person's past payments, the per-row
+  P2P suggestion, because a friend is paid back for dinner one month and a
+  trip the next. Those two are GUESSES: a one-tap button beside the payee,
+  never pre-filled, so "apply all" never applies a guess nobody looked at.
+  WHAT FAILED FIRST. Shared words across the whole descriptor misfired on
+  towns: a descriptor ends where it was bought, and a shared town name filed a
+  dentist as Income. Words now come from the name only (its first two, past
+  the bank's bookkeeping, never a place word). A skeleton shared by many
+  payees is a generic phrase ("main street ..."), not one store: a twin needs
+  at most two siblings. A P2P payee is never matched by spelling or by word,
+  since a person's name says nothing about what they were paid for.
+  ONE BATCH. `categorizeGroups` checks every decision as a single one is
+  checked and refuses the whole batch naming the first bad payee, reads the
+  existing rules once, creates the new ones in one write, confirms waiting
+  P2P rows for every payee in ONE read (confirmP2PMatches takes a batch), and
+  re-reads the stored rows ONCE; a single "Apply" is a batch of one. The undo
+  (GroupUndo now lists every rule it wrote) restores each rule and every row,
+  rows going back to the same values written together. Verified on a copy of
+  a real backup: a batch of three applied, and undone, left every rule and
+  every transaction identical to before.
+  The queue also stopped opening zoomed out on a phone: five columns measured
+  wider than 375px, so below md the flow and total ride under the payee name.

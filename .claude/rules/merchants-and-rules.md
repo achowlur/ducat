@@ -17,6 +17,10 @@ anything below; several entries record "tried and failed, don't retry".
 
 - Grouped-review keys are ≥3 characters — they become priority-50 CONTAINS
   rules that outrank the pack.
+- Grouped review SUGGESTS per payee (groupSuggest.ts), and only a source
+  scored near-always right PRE-FILLS; a person's P2P history and a shared
+  word are guesses, never pre-filled, and a P2P payee is never matched by
+  spelling or word. "Apply all" is one batch (categorizeGroups), one undo.
 - A P2P row keys on its description's payee only when that key names the
   rail or the merchant names no one (keysOnDescription, ONE test for
   groupByPayee and merchantLabel); a card-network payment keys on its MERCHANT.

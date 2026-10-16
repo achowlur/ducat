@@ -101,6 +101,31 @@ describe("reapplyRules restore snapshot", () => {
     ]);
   });
 
+  it("confirms a whole batch of payees in one pass, each into its own category, and undoes it whole", async () => {
+    const account = await prisma.account.findFirstOrThrow();
+    await prisma.transaction.create({
+      data: {
+        accountId: account.id, externalId: "t-other-payee", date: utc(2026, 7, 6), amount: -25,
+        description: "ZELLE TO SAM ROE ON 07/06", normalizedMerchant: "zelle to sam roe",
+        flow: "OUTFLOW", source: "SIMPLEFIN", categorySource: "AGGREGATOR",
+      },
+    });
+    const restore = await confirmP2PMatches(prisma, [
+      { matchField: "DESCRIPTION", matchOperator: "CONTAINS", matchValue: "zelle to jane doe", setCategoryId: diningId, setFlow: null },
+      { matchField: "DESCRIPTION", matchOperator: "CONTAINS", matchValue: "zelle to sam roe", setCategoryId: groceriesId, setFlow: null },
+      // A transfer decision in the same batch confirms nothing.
+      { matchField: "DESCRIPTION", matchOperator: "CONTAINS", matchValue: "zelle to nobody", setCategoryId: null, setFlow: "TRANSFER" },
+    ]);
+    expect(restore).toHaveLength(2);
+    const by = async (externalId: string) => prisma.transaction.findFirstOrThrow({ where: { externalId } });
+    expect([(await by("t-uncategorized")).categoryId, (await by("t-other-payee")).categoryId]).toEqual([diningId, groceriesId]);
+
+    await restoreTransactions(prisma, restore);
+    expect([(await by("t-uncategorized")).categoryId, (await by("t-other-payee")).categoryId]).toEqual([null, null]);
+    expect((await by("t-uncategorized")).categorySource).toBe("AGGREGATOR");
+    await prisma.transaction.deleteMany({ where: { externalId: "t-other-payee" } });
+  });
+
   it("confirms nothing for a TRANSFER decision, which the rule itself applies", async () => {
     const restore = await confirmP2PMatches(prisma, {
       matchField: "DESCRIPTION", matchOperator: "CONTAINS", matchValue: "zelle to jane doe",

@@ -14,7 +14,12 @@
  *               counted apart and never in the denominator);
  *   AGREEMENT   of those rows the operator has categorized since, how many
  *               the pack put in the same category. A change that lifts
- *               coverage and drops agreement is a guess, not a rule;
+ *               coverage and drops agreement is a guess, not a rule. Split
+ *               by where each row came from, because they are not equally
+ *               trustworthy: rows reviewed as they arrived from the live feed
+ *               are the operator's considered decisions, while a history
+ *               imported in bulk was categorized in bulk, and there a
+ *               disagreement may be the operator's slip, not the pack's;
  *   DISAGREEMENTS and MISSED payees, most rows first: where the next rule
  *               would pay off, and where the last one is wrong.
  *
@@ -54,6 +59,7 @@ async function main(): Promise<void> {
         description: true,
         normalizedMerchant: true,
         categoryId: true,
+        source: true,
         account: { select: { name: true, type: true } },
       },
     }),
@@ -96,6 +102,13 @@ async function main(): Promise<void> {
   console.log(`  P2P payments, held for review by design:                          ${p2p.length}`);
   console.log(`COVERAGE   the pack alone categorizes ${claimed.length} of ${eligible.length} (${percent(claimed.length, eligible.length)})`);
   console.log(`AGREEMENT  of the ${judged.length} of those you have categorized, ${agreed.length} match yours (${percent(agreed.length, judged.length)})`);
+  const SOURCE_NAMES: Record<string, string> = { SIMPLEFIN: 'live feed', CSV: 'CSV import', PDF: 'statement import' };
+  for (const source of ['SIMPLEFIN', 'CSV', 'PDF']) {
+    const mine = judged.filter((t) => t.source === source);
+    if (mine.length === 0) continue;
+    const ok = mine.filter((t) => yours(t) === byPack.get(t.id)?.categoryId).length;
+    console.log(`  from the ${SOURCE_NAMES[source].padEnd(16)} ${ok} of ${mine.length} (${percent(ok, mine.length)})`);
+  }
 
   const tally = (list: typeof eligible, key: (t: (typeof eligible)[number]) => string) => {
     const counts = new Map<string, number>();
@@ -105,7 +118,7 @@ async function main(): Promise<void> {
 
   const wrong = tally(
     judged.filter((t) => yours(t) !== byPack.get(t.id)?.categoryId),
-    (t) => `${merchantKey(t)}: pack says ${byPack.get(t.id)?.categoryId}, you said ${yours(t)}`,
+    (t) => `${merchantKey(t)}: pack says ${byPack.get(t.id)?.categoryId}, you said ${yours(t)} (${SOURCE_NAMES[t.source] ?? t.source})`,
   );
   console.log(`\nDISAGREEMENTS (${wrong.reduce((n, [, c]) => n + c, 0)} rows)`);
   for (const [line, n] of wrong.slice(0, TOP)) console.log(`  ${String(n).padStart(4)}  ${line}`);
