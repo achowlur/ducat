@@ -49,6 +49,14 @@ export function shortDate(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
+/**
+ * "2021-03-03" → "Mar 3, 2021": a day whose year the reader cannot assume,
+ * such as a subscription's last charge years before the month on screen.
+ */
+export function shortDateYear(d: Date): string {
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
 export function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }

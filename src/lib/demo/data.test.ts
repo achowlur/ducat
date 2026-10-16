@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '../../generated/prisma/client';
 import { generateInsights } from '../insights/engine';
+import { detectRecurringCharges } from '../insights/recurring';
+import { isActive, missedCharge } from '../health/detectedSubscriptions';
 import { periodKey } from '../insights/periods';
 import { isP2P, isUnreviewedP2P } from '../p2p';
 import { groupByPayee } from '../sync/grouping';
@@ -109,6 +111,30 @@ describe.each(NOWS)('buildDemoData at %s', (iso) => {
     );
     expect([...found.values()].map((s) => s.reason.kind).sort()).toEqual(['RULE', 'SAME_AMOUNT']);
     expect(found.size).toBe(2);
+  });
+
+  it('flags the cancelled gym MISSED, never lapsed, whatever the day', () => {
+    const detected = detectRecurringCharges(
+      plan.txns.map((t) => ({
+        id: t.id,
+        accountId: t.accountKey,
+        date: t.date,
+        amount: t.amount,
+        description: t.description,
+        normalizedMerchant: t.merchant,
+        flow: t.flow,
+        categoryId: t.category,
+        categoryName: t.category,
+        categoryIsIncome: t.category === 'Income',
+        reimbursesId: t.reimburses ?? null,
+      })),
+    );
+    const gym = detected.get('ironleaf fitness');
+    expect(gym?.cadence).toBe('MONTHLY');
+    expect(isActive(gym!, now)).toBe(true);
+    expect(missedCharge(gym!, now)).not.toBeNull();
+    // The rest of the subscriptions are still billing.
+    for (const merchant of ['streamflix', 'tunebox']) expect(missedCharge(detected.get(merchant)!, now), merchant).toBeNull();
   });
 
   it('carries only invented account identifiers', () => {

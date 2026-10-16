@@ -17,6 +17,11 @@ anything below; several entries record "tried and failed, don't retry".
   Date.UTC normalises impossible days instead of clamping.
 - Subscription charge matching prefers charges NEAR the expected amount;
   detected subscriptions LAPSE after two silent cadence cycles.
+- Before it lapses, a detected charge is MISSED once its ACCOUNT's records run
+  past the detector's longest gap for the cadence with no charge
+  (missedCharge), never by the clock alone: it stays listed, flagged, and
+  leaves the commitments and the /yr, as does a registered twin with no newer
+  charge of its own.
 - Registered subscriptions fold to charges by their OWN merchantPattern
   (matchesSubscription) — never brandOf; detected wins ties.
 - Subscription thresholds are TUNED: run subs:audit before touching one and

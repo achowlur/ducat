@@ -447,6 +447,16 @@ describe('detectRecurringCharges', () => {
     expect(detectRecurringCharges(irregular).size).toBe(0);
   });
 
+  it("records how far the charging account's records reach, over every kind of row", () => {
+    const txns = [
+      ...monthly([15.99, 15.99, 15.99]),
+      // Later rows: an inflow on the same account, and a charge on another.
+      txn({ date: utc(2026, 4, 22), amount: 40 }),
+      txn({ date: utc(2026, 5, 30), amount: -8, accountId: 'acc2' }),
+    ];
+    expect(detectRecurringCharges(txns).get('netflix')?.accountThrough).toBe('2026-04-22');
+  });
+
   it('detects weekly cadence', () => {
     const txns = [1, 8, 15, 22, 29].map((d) =>
       txn({ date: utc(2026, 6, d), amount: -12.5, normalizedMerchant: 'car wash club' }),

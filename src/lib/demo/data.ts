@@ -126,6 +126,10 @@ export function buildDemoData(now: Date): DemoPlan {
   };
 
   const cardSpendByMonth: number[] = [];
+  // The cancelled gym's last charge (see the subscriptions below). Day 28 at
+  // most, so it bills in every month.
+  const gymLast = new Date(today.getTime() - 40 * DAY_MS);
+  const gymDay = Math.min(28, gymLast.getUTCDate());
   const lastComplete = months[months.length - 2];
 
   for (const mo of months) {
@@ -173,7 +177,12 @@ export function buildDemoData(now: Date): DemoPlan {
     const streaming = mo.index >= DEMO_HISTORY_MONTHS - 2 ? 17.99 : 15.49;
     spend(9, streaming, 'STREAMFLIX.COM', 'streamflix', 'Subscriptions');
     spend(14, 10.99, 'TUNEBOX MUSIC', 'tunebox', 'Subscriptions');
-    spend(4, 34.99, 'IRONLEAF FITNESS', 'ironleaf fitness', 'Subscriptions');
+    // The gym was cancelled: its last charge landed about forty days before
+    // today and the next never came, while the card kept recording, so
+    // Insights flags it MISSED (health/detectedSubscriptions.ts) without it
+    // lapsing. Its billing day follows today so that holds on any date.
+    const gymDate = on(mo, gymDay);
+    if (gymDate !== null && gymDate.getTime() <= gymLast.getTime()) spend(gymDay, 34.99, 'IRONLEAF FITNESS', 'ironleaf fitness', 'Subscriptions');
 
     // Everyday spending lands on uneven days, as it does in life — on fixed
     // days the recurring detector reads a grocery store as a subscription.

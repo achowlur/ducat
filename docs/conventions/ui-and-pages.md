@@ -1343,3 +1343,10 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   21.9, all passing). VERIFIED on a copy of the operator's data at 1280px and
   375px, in sepia and dark: every year of the history labelled on a phone
   without touching, quarters and points when zoomed, nothing scrolls sideways.
+- RECURRING DAYS CARRY THEIR YEAR (2026-10-16). "No longer charging" printed
+  a month and a day ("last Mar 3") for plans whose last charges were years
+  old, each from a different year, and nothing on the row said which. A lapsed row
+  is history by definition, so its days always carry the year; a live row's
+  day carries it only when it falls outside the year on screen (a yearly
+  plan, or December's charge read in January), since "last Sep 4" in the year
+  being read is unambiguous and the year would be noise on a phone line.

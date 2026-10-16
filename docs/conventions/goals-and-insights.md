@@ -18,6 +18,29 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   surfaces. Detected subscriptions also lapse: the recurring detector has no
   recency bound, so a service cancelled years ago billed forever in the
   annualised total until charges older than two cadence cycles were dropped.
+- MISSED BEFORE LAPSED (2026-10-16). Two cycles is the right wait for calling
+  a plan gone, because billing dates wander, but it left a cancelled monthly
+  plan reading as live for two months: weeks after its last charge, with the
+  next billing date well past and the card syncing daily, the page
+  still listed it as recurring, counted it in the next 30 days and billed it
+  in the yearly total. Shortening the lapse was rejected: one late or skipped
+  charge would then call a live plan cancelled and drop it from every total.
+  Missed is the step between, and borrows its tolerance from the detector
+  itself: absent for longer than the longest gap the detector still reads as
+  the cadence (35 days for monthly), so there is no second threshold to tune.
+  It is judged against how far the charging ACCOUNT's records reach
+  (`accountThrough` on the payload, newest row of any kind), never the clock:
+  a card imported from statements, or a feed that stopped syncing, has no rows
+  past the date yet, and no charge in records that stop is not a missed one.
+  Rows generated before the field existed are never called missed; the next
+  sync's regeneration fills it in. A missed plan stays listed with its chip
+  and "missed <date>", and leaves BOTH projections (commitments and the /yr),
+  which must agree on what is still billing. A registered subscription for the
+  same service is held out with it unless its own pattern found a NEWER
+  charge (the bank changed the descriptor and the service still bills);
+  without that a cancelled plan the operator had also registered came straight
+  back as committed the moment its detected twin went quiet, and it did the
+  same after a lapse, so the hold covers lapsed twins too.
 - Two different notions of "the same service" exist and only one is right for
   matching a REGISTERED subscription to a charge. `brandOf` takes the leading
   word, which is correct for folding detector output ("verizon" vs "verizon

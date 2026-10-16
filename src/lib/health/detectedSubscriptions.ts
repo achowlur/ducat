@@ -1,4 +1,6 @@
 import type { RecurringCadence } from '../../types/contracts';
+import { longestGapDays } from '../insights/recurring';
+import { projectNextPayment } from './subscriptions';
 
 /**
  * Turns detected recurring charges into a subscription list.
@@ -19,6 +21,8 @@ export interface DetectedCharge {
   lastDate: string;
   occurrences: number;
   priceIncreased: boolean;
+  /** How far the charging account's records reach (RecurringChargePayload). */
+  accountThrough?: string;
 }
 
 export interface DetectedSubscription extends DetectedCharge {
@@ -68,6 +72,36 @@ export function isActive(charge: DetectedCharge, now: Date): boolean {
   return now.getTime() - last <= grace;
 }
 
+/**
+ * The billing date a still-listed charge MISSED, or null while none has.
+ *
+ * Lapsing waits two cycles because billing dates wander, which left a
+ * cancelled monthly plan reading as live for two months: six weeks after its
+ * last charge the page still listed it as recurring, counted it among the
+ * next 30 days' charges and billed it in the yearly total. Missed
+ * is the step between. It needs no tolerance of its own: the charge is missed
+ * once it has been absent for longer than the detector's own longest gap for
+ * the cadence (35 days for monthly).
+ *
+ * Judged against how far the charging ACCOUNT's records reach, never against
+ * the clock alone. A card imported from statements, or a feed that stopped
+ * syncing, simply has no rows yet past the date, and absence of a charge from
+ * records that stop is not evidence it was missed. Rows generated before
+ * `accountThrough` existed are never called missed.
+ */
+export function missedCharge(charge: DetectedCharge, asOf: Date): Date | null {
+  if (charge.accountThrough === undefined) return null;
+  const last = new Date(`${charge.lastDate}T12:00:00Z`);
+  const through = new Date(`${charge.accountThrough}T12:00:00Z`);
+  if (Number.isNaN(last.getTime()) || Number.isNaN(through.getTime())) return null;
+  const seen = Math.min(through.getTime(), asOf.getTime());
+  if (seen - last.getTime() <= longestGapDays(charge.cadence) * 86_400_000) return null;
+  // The first billing date after the last charge, stepped from it with the
+  // same calendar arithmetic renewals use (a charge on the 31st is due on the
+  // 30th of a 30-day month, not on the 1st after it).
+  return projectNextPayment(last, charge.cadence, null, last);
+}
+
 export function mergeDetectedSubscriptions(
   detected: DetectedCharge[],
   trackedNames: string[] = [],
@@ -89,7 +123,10 @@ export function mergeDetectedSubscriptions(
       merchant: charge.merchant.length < existing.merchant.length ? charge.merchant : existing.merchant,
       occurrences: Math.max(existing.occurrences, charge.occurrences),
       priceIncreased: existing.priceIncreased || charge.priceIncreased,
-      lastDate: charge.lastDate > existing.lastDate ? charge.lastDate : existing.lastDate,
+      // The newest charge's account is where the next one is expected.
+      ...(charge.lastDate > existing.lastDate
+        ? { lastDate: charge.lastDate, accountThrough: charge.accountThrough }
+        : {}),
     });
   }
 
