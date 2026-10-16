@@ -84,8 +84,11 @@ category you set by hand is never overridden.
   what changed and what it costs if it holds, upcoming commitments, savings
   goals. Projections are labelled as projections.
 - **Transactions** (`/transactions`) — the ledger. Every row, paginated,
-  filterable; categorize, group-review, and link reimbursements here. The
-  Account filter takes several accounts at once. To add a category of your
+  filterable; categorize, group-review, and link reimbursements here. Group
+  review ("Group by payee") opens each payee with a suggested category where
+  the evidence is strong, offers a guess where it is not, and applies every
+  choice at once with one undo. The Account filter takes several accounts at
+  once. To add a category of your
   own, type its name into the category picker and choose one of the two "add"
   rows, as spending or as income; to rename or delete one you made, follow
   the link at the foot of the picker (`/categories`). Deleting asks where its

@@ -19,7 +19,9 @@ import {
 import { groupByPayee } from "../../lib/sync/grouping";
 import { P2PSuggestion } from "../../components/P2PSuggestion";
 import { isP2P, isUnreviewedP2P, P2P_PREFILTER_WORDS, P2P_UNREVIEWED_ID, P2P_UNREVIEWED_NAME } from "../../lib/p2p";
+import { suggestGroupCategories } from "../../lib/sync/groupSuggest";
 import { suggestP2PCategories } from "../../lib/sync/p2pSuggest";
+import { groupReasonText } from "../../lib/ui/groupSuggestion";
 import { USER_PRIORITY_MAX } from "../../lib/sync/rules";
 import { amount, isoDate, money, monthLabel, shortDate, titleCase } from "../../lib/ui/format";
 import { periodKey } from "../../lib/insights/periods";
@@ -715,20 +717,57 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
   const groupMode = params.payees === "1";
   let groups: PayeeGroupView[] = [];
   if (groupMode) {
-    const uncategorized = await prisma.transaction.findMany({
-      where: { ...where, categoryId: null, flow: { not: "TRANSFER" }, reimbursesId: null },
-      select: { id: true, amount: true, description: true, normalizedMerchant: true, flow: true },
+    // The waiting rows, and what the suggestions learn from: every categorized
+    // row outside a transfer or an investment account, and the user rules a
+    // P2P payee's suggestion reads. One round of queries, in this mode only.
+    const [uncategorized, historyRows, userRules] = await Promise.all([
+      prisma.transaction.findMany({
+        where: { ...where, categoryId: null, flow: { not: "TRANSFER" }, reimbursesId: null },
+        select: { id: true, amount: true, date: true, description: true, normalizedMerchant: true, flow: true },
+      }),
+      prisma.transaction.findMany({
+        where: { categoryId: { not: null }, flow: { not: "TRANSFER" }, account: { type: { not: "INVESTMENT" } } },
+        select: { amount: true, date: true, description: true, normalizedMerchant: true, categoryId: true },
+      }),
+      prisma.rule.findMany({
+        where: { enabled: true, priority: { lt: USER_PRIORITY_MAX }, setCategoryId: { not: null }, setFlow: null },
+      }),
+    ]);
+    const waiting = uncategorized.filter(isMerchant).map((t) => ({ ...t, amount: Number(t.amount) }));
+    const byId = new Map(waiting.map((t) => [t.id, t]));
+    const payeeGroups = groupByPayee(waiting);
+    const suggested = suggestGroupCategories(
+      payeeGroups.map((g) => ({ key: g.key, isP2P: g.isP2P, rows: g.transactionIds.flatMap((id) => byId.get(id) ?? []) })),
+      historyRows.map((h) => ({
+        amount: Number(h.amount),
+        date: h.date,
+        description: h.description,
+        normalizedMerchant: h.normalizedMerchant,
+        categoryId: h.categoryId as string,
+        isP2P: isP2P(h),
+      })),
+      userRules,
+      new Map(categories.map((c) => [c.name, c.id])),
+    );
+    groups = payeeGroups.map((g) => {
+      const s = suggested.get(g.key);
+      const name = s === undefined ? undefined : categoryNameById.get(s.categoryId);
+      return {
+        key: g.key,
+        label: titleCase(g.key),
+        matchField: g.matchField,
+        isP2P: g.isP2P,
+        count: g.count,
+        total: money(g.total),
+        samples: g.samples,
+        flow: g.flow,
+        // A suggestion naming a category since deleted suggests nothing.
+        suggestion:
+          s === undefined || name === undefined
+            ? null
+            : { categoryId: s.categoryId, categoryName: name, reason: groupReasonText(s.reason), strength: s.strength },
+      };
     });
-    groups = groupByPayee(uncategorized.filter(isMerchant).map((t) => ({ ...t, amount: Number(t.amount) }))).map((g) => ({
-      key: g.key,
-      label: titleCase(g.key),
-      matchField: g.matchField,
-      isP2P: g.isP2P,
-      count: g.count,
-      total: money(g.total),
-      samples: g.samples,
-      flow: g.flow,
-    }));
   }
   const groupedTxnCount = groups.reduce((sum, g) => sum + g.count, 0);
 

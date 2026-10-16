@@ -6,7 +6,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '../../generated/prisma/client';
 import { generateInsights } from '../insights/engine';
 import { periodKey } from '../insights/periods';
-import { isUnreviewedP2P } from '../p2p';
+import { isP2P, isUnreviewedP2P } from '../p2p';
+import { groupByPayee } from '../sync/grouping';
+import { suggestGroupCategories } from '../sync/groupSuggest';
 import { suggestP2PCategories } from '../sync/p2pSuggest';
 import { installRulePack, pendingPackRules } from '../sync/rulePack';
 import type { AnomalyPayload, NetWorthGrowthPayload, RecurringChargePayload } from '../../types/contracts';
@@ -169,6 +171,27 @@ describe('the demo through the real pipeline', () => {
     expect(waiting.map((t) => t.description.split(' ON ')[0]).sort()).toEqual(
       ['SQ *LANTERN POTTERY STUDIO', 'VENMO PAYMENT 1000000007 CASEY MORGAN', 'ZELLE TO ALEX RIVERA', 'ZELLE TO SAM LEE'].sort(),
     );
+  });
+
+  it('gives grouped review a suggestion to show: the pottery studio, by its other spelling', async () => {
+    const [waiting, history, categories] = await Promise.all([
+      prisma.transaction.findMany({ where: { categoryId: null, flow: { not: 'TRANSFER' }, reimbursesId: null } }),
+      prisma.transaction.findMany({ where: { categoryId: { not: null }, flow: { not: 'TRANSFER' } } }),
+      prisma.category.findMany(),
+    ]);
+    const rows = waiting.map((t) => ({ ...t, amount: Number(t.amount) }));
+    const byId = new Map(rows.map((t) => [t.id, t]));
+    const groups = groupByPayee(rows).map((g) => ({ key: g.key, isP2P: g.isP2P, rows: g.transactionIds.map((id) => byId.get(id)!) }));
+    const suggested = suggestGroupCategories(
+      groups,
+      history.map((h) => ({ ...h, amount: Number(h.amount), categoryId: h.categoryId!, isP2P: isP2P(h) })),
+      [],
+      new Map(categories.map((c) => [c.name, c.id])),
+    );
+    const pottery = suggested.get('lantern pottery studio');
+    expect(pottery?.strength).toBe('strong');
+    expect(pottery?.reason).toEqual({ kind: 'TWIN', like: 'lantern pottery studio #2' });
+    expect(categories.find((c) => c.id === pottery?.categoryId)?.name).toBe('Shopping');
   });
 
   it('knows net worth for every complete month — no account reconstructed', async () => {

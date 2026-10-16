@@ -90,92 +90,124 @@ export async function createCategory(
   return { ok: true, id: made.id, name: made.name };
 }
 
+/** A user rule a decision writes: a category, or (setFlow TRANSFER) no category. */
+interface RuleDecision {
+  matchValue: string;
+  matchField: "MERCHANT" | "DESCRIPTION";
+  categoryId: string | null;
+  setFlow: "TRANSFER" | null;
+}
+
+const ruleKey = (r: { matchField: string; matchValue: string }) => `${r.matchField}|${r.matchValue}`;
+
+/** Rules matched by field and value, the identity a review decision writes under. */
+function ruleIdentities(rules: { matchField: "MERCHANT" | "DESCRIPTION"; matchValue: string }[]) {
+  return {
+    matchOperator: "CONTAINS" as const,
+    OR: rules.map((r) => ({ matchField: r.matchField, matchValue: r.matchValue })),
+  };
+}
+
 /**
- * Upsert a user rule (priority band 1-99, so it outranks the pack and may
- * categorize P2P) and apply it retroactively to all non-MANUAL transactions.
+ * Upsert user rules (priority band 1-99, so they outrank the pack and may
+ * categorize P2P) and apply them retroactively to all non-MANUAL transactions.
+ * One decision or a batch: existing rules are read in one query, new ones made
+ * in one write, and the stored rows re-read once for the whole batch.
  */
-async function upsertRule(
-  matchValue: string,
-  matchField: "MERCHANT" | "DESCRIPTION",
-  categoryId: string | null,
-  setFlow: "TRANSFER" | null = null,
-): Promise<{ recategorized: number; undo: GroupUndo }> {
-  const existing = await prisma.rule.findFirst({
-    where: { matchField, matchOperator: "CONTAINS", matchValue },
-  });
-  if (existing === null) {
-    await prisma.rule.create({
-      data: {
+async function upsertRules(decisions: RuleDecision[]): Promise<{ recategorized: number; undo: GroupUndo }> {
+  // The same payee twice in one batch: the later choice is the decision.
+  const unique = [...new Map(decisions.map((d) => [ruleKey(d), d])).values()];
+  const existing = await prisma.rule.findMany({ where: ruleIdentities(unique) });
+  const existingByKey = new Map(existing.map((r) => [ruleKey(r), r]));
+
+  const toCreate = unique.filter((d) => !existingByKey.has(ruleKey(d)));
+  if (toCreate.length > 0) {
+    await prisma.rule.createMany({
+      data: toCreate.map((d) => ({
         priority: 50,
-        matchField,
-        matchOperator: "CONTAINS",
-        matchValue,
-        setCategoryId: categoryId,
-        setFlow,
+        matchField: d.matchField,
+        matchOperator: "CONTAINS" as const,
+        matchValue: d.matchValue,
+        setCategoryId: d.categoryId,
+        setFlow: d.setFlow,
         enabled: true,
-      },
+      })),
     });
-  } else {
+  }
+  for (const d of unique) {
+    const was = existingByKey.get(ruleKey(d));
+    if (was === undefined) continue;
     await prisma.rule.update({
-      where: { id: existing.id },
-      data: { setCategoryId: categoryId, setFlow, enabled: true },
+      where: { id: was.id },
+      data: { setCategoryId: d.categoryId, setFlow: d.setFlow, enabled: true },
     });
   }
 
-  // P2P rows first: reapplyRules only SUGGESTS for them now, so the payee's
+  // P2P rows first: reapplyRules only SUGGESTS for them now, so each payee's
   // waiting payments are confirmed as the decision this is. They are MANUAL
   // afterwards, which the reapply below then leaves alone.
-  const confirmed = await confirmP2PMatches(prisma, {
-    matchField,
-    matchOperator: "CONTAINS",
-    matchValue,
-    setCategoryId: categoryId,
-    setFlow,
-  });
+  const confirmed = await confirmP2PMatches(
+    prisma,
+    unique.map((d) => ({
+      matchField: d.matchField,
+      matchOperator: "CONTAINS" as const,
+      matchValue: d.matchValue,
+      setCategoryId: d.categoryId,
+      setFlow: d.setFlow,
+    })),
+  );
   const reapplied = await reapplyRules(prisma);
   // reapplyRules regenerates insights only when IT changed rows.
   if (confirmed.length > 0 && reapplied.changed === 0) await generateInsights(prisma);
-  const changed = confirmed.length + reapplied.changed;
-  const restore = [...confirmed, ...reapplied.restore];
   revalidatePath("/transactions");
   revalidateInsightPages();
   return {
-    recategorized: changed,
+    recategorized: confirmed.length + reapplied.changed,
     undo: {
-      matchValue,
-      matchField,
-      previousRule:
-        existing === null
-          ? null
-          : { categoryId: existing.setCategoryId, flow: existing.setFlow === "TRANSFER" ? "TRANSFER" : null },
-      restore,
+      rules: unique.map((d) => {
+        const was = existingByKey.get(ruleKey(d));
+        return {
+          matchValue: d.matchValue,
+          matchField: d.matchField,
+          previousRule:
+            was === undefined
+              ? null
+              : { categoryId: was.setCategoryId, flow: was.setFlow === "TRANSFER" ? ("TRANSFER" as const) : null },
+        };
+      }),
+      restore: [...confirmed, ...reapplied.restore],
     },
   };
 }
 
 /**
- * Reverse the last bulk categorization. Deleting the rule is not enough on its
- * own — rules only write to rows they match, so the rows it already
- * categorized would keep their new category with nothing left to explain it.
- * The row writes live in `restoreTransactions` (rulePack.ts) so the tests pin
- * the exact write the action performs — three fields, never the trip tag.
+ * Reverse the last review decision, one payee's or a whole batch's. Deleting
+ * the rules is not enough on its own — rules only write to rows they match, so
+ * the rows they already categorized would keep their new category with
+ * nothing left to explain it. The row writes live in `restoreTransactions`
+ * (rulePack.ts) so the tests pin the exact write the action performs — three
+ * fields, never the trip tag.
  */
 export async function undoCategorizeGroup(undo: GroupUndo): Promise<void> {
   await requireSession();
-  const rule = await prisma.rule.findFirst({
-    where: { matchField: undo.matchField, matchOperator: "CONTAINS", matchValue: undo.matchValue },
-  });
-  if (rule !== null) {
-    if (undo.previousRule === null) {
-      await prisma.rule.delete({ where: { id: rule.id } });
-    } else {
+  // The snapshot arrives from the client: keep only well-formed rule entries.
+  const rules = (Array.isArray(undo?.rules) ? undo.rules : []).filter(
+    (r) => (r.matchField === "MERCHANT" || r.matchField === "DESCRIPTION") && typeof r.matchValue === "string" && r.matchValue !== "",
+  );
+  if (rules.length > 0) {
+    const stored = new Map((await prisma.rule.findMany({ where: ruleIdentities(rules) })).map((r) => [ruleKey(r), r]));
+    const toDelete = rules.filter((r) => r.previousRule === null).flatMap((r) => stored.get(ruleKey(r))?.id ?? []);
+    if (toDelete.length > 0) await prisma.rule.deleteMany({ where: { id: { in: toDelete } } });
+    for (const r of rules) {
+      const rule = stored.get(ruleKey(r));
+      if (rule === undefined || r.previousRule === null) continue;
       await prisma.rule.update({
         where: { id: rule.id },
-        data: { setCategoryId: undo.previousRule.categoryId, setFlow: undo.previousRule.flow },
+        data: { setCategoryId: r.previousRule.categoryId, setFlow: r.previousRule.flow },
       });
     }
   }
-  await restoreTransactions(prisma, undo.restore);
+  await restoreTransactions(prisma, Array.isArray(undo?.restore) ? undo.restore : []);
   await generateInsights(prisma);
   revalidatePath("/transactions");
   revalidateInsightPages();
@@ -281,7 +313,7 @@ export async function createRuleFromMerchant(
   if (matchField !== "MERCHANT" && matchField !== "DESCRIPTION") {
     return refuse("Unknown match field.");
   }
-  const { recategorized } = await upsertRule(matchValue, matchField, categoryId);
+  const { recategorized } = await upsertRules([{ matchValue, matchField, categoryId, setFlow: null }]);
   return { ok: true, recategorized };
 }
 
@@ -298,23 +330,57 @@ export async function categorizeGroup(
   /** A category id, or TRANSFER_TARGET to mark the payee as a transfer. */
   target: string,
 ): Promise<ActionResult<{ recategorized: number; undo: GroupUndo }>> {
+  return categorizeGroups([{ matchValue, matchField, target }]);
+}
+
+/** One payee's decision in the grouped review. */
+export interface GroupDecision {
+  matchValue: string;
+  matchField: "MERCHANT" | "DESCRIPTION";
+  /** A category id, or TRANSFER_TARGET to mark the payee as a transfer. */
+  target: string;
+}
+
+/** A batch past this is not a review: refuse it rather than hold a request open. */
+const MAX_GROUP_DECISIONS = 500;
+
+/**
+ * Resolve many payees at once ("apply all" in the grouped review): every
+ * decision is checked exactly as a single one is, and if any fails, nothing is
+ * written and the refusal names the payee. The rules are written together and
+ * the stored rows re-read ONCE, not once per payee, because on Turso each
+ * pass is a round trip over the whole table.
+ */
+export async function categorizeGroups(
+  decisions: GroupDecision[],
+): Promise<ActionResult<{ recategorized: number; undo: GroupUndo }>> {
   await requireSession();
-  const value = matchValue.trim().toLowerCase();
-  if (value === "") return refuse("Payee is empty; categorize these transactions individually instead.");
-  // A CONTAINS rule at user priority outranks the whole pack and is exempt from
-  // the P2P guard, so a one- or two-character key is a wrecking ball: a Fidelity
-  // dividend on Realty Income normalizes its merchant to the ticker "o", and
-  // MERCHANT CONTAINS "o" then recategorizes costco, doordash, every Zelle…
-  if (value.length < 3) {
-    return refuse(
-      `"${value}" is too short to make a rule from; it would match unrelated merchants. Categorize these individually instead.`,
+  if (!Array.isArray(decisions) || decisions.length === 0) return refuse("Pick a category first.");
+  if (decisions.length > MAX_GROUP_DECISIONS) {
+    return refuse(`That is ${decisions.length} payees at once; apply at most ${MAX_GROUP_DECISIONS} at a time.`);
+  }
+  const rules: RuleDecision[] = [];
+  for (const d of decisions) {
+    const value = String(d.matchValue ?? "").trim().toLowerCase();
+    if (value === "") return refuse("Payee is empty; categorize these transactions individually instead.");
+    // A CONTAINS rule at user priority outranks the whole pack and is exempt from
+    // the P2P guard, so a one- or two-character key is a wrecking ball: a Fidelity
+    // dividend on Realty Income normalizes its merchant to the ticker "o", and
+    // MERCHANT CONTAINS "o" then recategorizes costco, doordash, every Zelle…
+    if (value.length < 3) {
+      return refuse(
+        `"${value}" is too short to make a rule from; it would match unrelated merchants. Categorize these individually instead.`,
+      );
+    }
+    if (d.matchField !== "MERCHANT" && d.matchField !== "DESCRIPTION") return refuse("Unknown match field.");
+    if (typeof d.target !== "string" || d.target === "") return refuse(`Pick a category for "${value}" first.`);
+    rules.push(
+      d.target === TRANSFER_TARGET
+        ? { matchValue: value, matchField: d.matchField, categoryId: null, setFlow: "TRANSFER" }
+        : { matchValue: value, matchField: d.matchField, categoryId: d.target, setFlow: null },
     );
   }
-  if (target === "") return refuse("Pick a category first.");
-  const applied =
-    target === TRANSFER_TARGET
-      ? await upsertRule(value, matchField, null, "TRANSFER")
-      : await upsertRule(value, matchField, target);
+  const applied = await upsertRules(rules);
   return { ok: true, ...applied };
 }
 
@@ -457,7 +523,7 @@ export async function registerSubscription(
   }
 
   // Re-registering the same merchant updates it rather than listing it twice,
-  // the same shape `upsertRule` uses — the pattern is the identity.
+  // the same shape `upsertRules` uses — the pattern is the identity.
   const existing = await prisma.trackedSubscription.findFirst({
     where: { merchantPattern: draft.merchantPattern },
   });
