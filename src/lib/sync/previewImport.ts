@@ -2,6 +2,7 @@ import type { Connector, TransactionFlow } from '../../types/contracts';
 import type { PrismaClient } from '../../generated/prisma/client';
 import { groupByPayee, type GroupTxn, type PayeeGroup } from './grouping';
 import { applyRules, type RuleTxn } from './rules';
+import { sourceCategoryToApply } from './sourceCategory';
 import { existingTransactionKeys, findExistingAccount, transactionKey } from './sync';
 
 /**
@@ -86,6 +87,8 @@ export interface ImportPreview {
   rulesApplied: number;
   /** Rows a rule would give a category to. */
   categorized: number;
+  /** Rows given the category their source assigned, where no rule would; counted as `SyncResult.sourceCategorized` is. */
+  sourceCategorized: number;
   /** Rows that would reach the grouped review: no category, not a transfer. */
   reviewRows: number;
   /**
@@ -193,6 +196,13 @@ export async function previewImport(
   const applications = fresh.length > 0 ? applyRules(ruleRows, ruleTxns) : [];
   const appliedByRow = new Map(applications.map((a) => [a.txnId, a]));
 
+  // The source's own category where no rule spoke, decided by the import's
+  // own function, and only for a category this database holds by that name.
+  const categoryNames = fresh.some((t) => t.sourceCategory !== undefined)
+    ? new Set((await prisma.category.findMany({ select: { name: true } })).map((c) => c.name))
+    : new Set<string>();
+  let sourceCategorized = 0;
+
   // Exactly the queue /transactions?payees=1 builds: no category, not a
   // transfer, not a reimbursement — the last of which no new row can be.
   const queue: GroupTxn[] = [];
@@ -201,6 +211,11 @@ export async function previewImport(
     const flow: TransactionFlow = applied?.flow ?? t.flow;
     if (applied !== undefined && applied.categoryId !== null) return;
     if (flow === 'TRANSFER') return;
+    const fromSource = sourceCategoryToApply(t, typeByExternalId.get(t.accountExternalId), applied !== undefined);
+    if (fromSource !== null && categoryNames.has(fromSource)) {
+      sourceCategorized += 1;
+      return;
+    }
     queue.push({
       id: String(i),
       amount: t.amount,
@@ -257,6 +272,7 @@ export async function previewImport(
     accounts: [...accountPlans.values()],
     rulesApplied: applications.length,
     categorized: applications.filter((a) => a.categoryId !== null).length,
+    sourceCategorized,
     reviewRows: queue.length,
     decisions,
     decisionsJoiningExisting: decisions.filter((d) => waiting.has(d.key)).length,

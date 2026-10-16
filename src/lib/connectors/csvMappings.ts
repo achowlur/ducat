@@ -42,7 +42,34 @@ export interface CsvMapping {
    * leave a phantom behind. Same reason the SimpleFIN connector skips them.
    */
   skipRowWhen?: { column: string | number; pattern: RegExp };
+  /** The bank's own per-row category column, read through `categoryMap`. */
+  category?: string | number;
+  /**
+   * The bank's category name → a Ducat category name. A bank name absent here
+   * is never applied: only names measured to agree with a person's own
+   * choices as often as the rule pack does belong in a map.
+   */
+  categoryMap?: Record<string, string>;
 }
+
+/**
+ * Chase card categories Ducat takes from the export. Each was scored against
+ * the categories an operator chose for the same purchases, on the purchases
+ * the rule pack does NOT already claim, which is where it matters: "Food &
+ * Drink" named the operator's category every time (it is most of a card
+ * statement), "Shopping" and "Fees & Adjustments" likewise.
+ *
+ * Deliberately left out, so those rows still reach review: "Groceries" (a
+ * grocery store sells a deli lunch, and that operator filed it as Dining about
+ * half the time), "Travel" (Chase files transit, parking and rideshare there,
+ * which the pack calls Transport), "Entertainment", "Personal" and "Bills &
+ * Utilities" (mixed), and every name not yet seen on a real export.
+ */
+export const CHASE_CARD_CATEGORIES: Record<string, string> = {
+  'Food & Drink': 'Dining',
+  Shopping: 'Shopping',
+  'Fees & Adjustments': 'Fees & Charges',
+};
 
 export const CSV_MAPPINGS: Record<string, CsvMapping> = {
   'chase-checking': {
@@ -66,6 +93,8 @@ export const CSV_MAPPINGS: Record<string, CsvMapping> = {
     description: ['Description'],
     dateFormat: 'MDY',
     transferPatterns: [/\bpayment thank you\b/i],
+    category: 'Category',
+    categoryMap: CHASE_CARD_CATEGORIES,
   },
   'wells-fargo': {
     id: 'wells-fargo',

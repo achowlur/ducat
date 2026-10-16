@@ -815,3 +815,30 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   the cloud syncs after the copy. A manual Sync now can land at any hour, so no
   slot makes local current at every instant; what the mirror promises is the
   cloud AS OF its copy, and /providers already names that copy's time.
+- A CARD EXPORT'S OWN CATEGORY FILLS IN WHERE NO RULE SPOKE (2026-10-16).
+  Chase's card CSV carries a Category column on every purchase, and the
+  importer dropped it, so a new user importing a card history had every row
+  the rule pack missed land in review, most of them local restaurants. The
+  connector now maps the bank's name through the mapping's `categoryMap` into
+  `NormalizedTransaction.sourceCategory`, and the sync, after rules, gives a
+  fresh row that category when no rule matched, it is not P2P, not a transfer
+  and not inside an investment account. It stays an AGGREGATOR category, so
+  any rule made or reapplied later still outranks it, and no MANUAL row is in
+  reach (a fresh row has none). A mapped name this database holds no
+  category for is skipped, not created.
+  MEASURED, NOT ASSUMED. Each Chase category was scored against an operator's
+  own categories for the same purchases, on the purchases the pack does NOT
+  claim, which is where a bank category matters. "Food & Drink" named the
+  operator's category every time and is most of a card statement; "Shopping"
+  and "Fees & Adjustments" likewise. Left OUT: "Groceries" (a grocery store
+  sells a deli lunch, filed as Dining about half the time), "Travel" (Chase
+  files transit, parking and rideshare there, which the pack calls
+  Transport), "Entertainment", "Personal" and "Bills & Utilities" (mixed), and
+  every name not seen on a real export. Imported into an empty database with
+  only the pack, a real card export left a small fraction of its rows for
+  review that would otherwise have left several times as many, and every
+  bank-categorized row that could be matched to the operator's own agreed.
+  The dry run counts it through the same function (sourceCategoryToApply),
+  pinned by previewImport.test.ts against a real runSync. Other banks' category
+  columns (Amex, Capital One, Discover) wait for a real export to measure:
+  a map written from a guess at their names is the "assumed" this avoids.

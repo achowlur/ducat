@@ -4,6 +4,7 @@ import { generateInsights, type GenerateResult } from '../insights/engine';
 import { refreshMortgageRate } from '../rates/mortgageRate';
 import { crossesTheBoundary } from './closedBox';
 import { applyRules, toRuleTxns } from './rules';
+import { sourceCategoryToApply } from './sourceCategory';
 import { detectTransferPairs } from './transfers';
 
 export interface SyncOptions {
@@ -23,6 +24,8 @@ export interface SyncResult {
   transactionsImported: number;
   transactionsSkipped: number;
   rulesApplied: number;
+  /** Rows given the category their source assigned (a card export's), where no rule matched. */
+  sourceCategorized: number;
   transfersLinked: number;
   feedWarnings: string[];
   insights: GenerateResult | null;
@@ -241,6 +244,7 @@ async function runPipeline(
   // account's type (closedBox.ts), which needs none.
   const ruleRows = await prisma.rule.findMany({ where: { enabled: true } });
   let rulesApplied = 0;
+  let sourceCategorized = 0;
   if (fresh.length > 0) {
     const freshRows = await prisma.transaction.findMany({
       where: {
@@ -261,6 +265,37 @@ async function runPipeline(
       });
     }
     rulesApplied = applications.length;
+
+    // Then the source's own category (a card export's), on rows no rule spoke
+    // for. It stays an AGGREGATOR category: a rule made or reapplied later
+    // still outranks it, and the operator's MANUAL choice is never in reach,
+    // as no fresh row carries one. Rows headed for one category go together.
+    const ruled = new Set(applications.map((a) => a.txnId));
+    const hinted = new Map(
+      fresh
+        .filter((t) => t.sourceCategory !== undefined)
+        .map((t) => [`${accountIdByExternalId.get(t.accountExternalId)}|${t.externalId}`, t.sourceCategory as string]),
+    );
+    if (hinted.size > 0) {
+      const categoryIdByName = new Map(
+        (await prisma.category.findMany({ select: { id: true, name: true } })).map((c) => [c.name, c.id]),
+      );
+      const byCategory = new Map<string, string[]>();
+      for (const row of freshRows) {
+        const name = sourceCategoryToApply(
+          { ...row, sourceCategory: hinted.get(`${row.accountId}|${row.externalId}`) },
+          row.account.type,
+          ruled.has(row.id),
+        );
+        const categoryId = name === null ? undefined : categoryIdByName.get(name);
+        if (categoryId === undefined) continue;
+        byCategory.set(categoryId, [...(byCategory.get(categoryId) ?? []), row.id]);
+      }
+      for (const [categoryId, ids] of byCategory) {
+        await prisma.transaction.updateMany({ where: { id: { in: ids } }, data: { categoryId } });
+        sourceCategorized += ids.length;
+      }
+    }
   }
 
   // Transfer detection spans ALL accounts (a transfer's two sides usually
@@ -346,6 +381,7 @@ async function runPipeline(
     transactionsImported: fresh.length,
     transactionsSkipped: mappable.length - fresh.length,
     rulesApplied,
+    sourceCategorized,
     transfersLinked: pairs.length,
     feedWarnings: connector.feedWarnings?.() ?? [],
     insights,

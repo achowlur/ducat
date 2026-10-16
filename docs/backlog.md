@@ -46,15 +46,12 @@ Each item checked against the code after PR #29.
   `npm run pdf:layout` dump as the shipped ones were. For Fidelity, the
   sections it refuses by name (exchanges, transfers between accounts) once a
   statement shows one.
-- **Bank-supplied categories from card exports** (raised 2026-10-16, the
-  third step after the pack's second pass and grouped-review suggestions;
-  merchants-and-rules.md). Chase, Amex and Capital One card CSVs carry the
-  bank's own category column, which the importer drops today. Mapped to the
-  pack's categories it would categorize nearly every imported card row for a
-  CSV user (SimpleFIN sends none). Wanted: a per-mapping category column, a
-  mapping table from each bank's names, the bank's category applied only
-  where no rule matched and never over MANUAL, and `rules:coverage` run
-  before and after on an import.
+- **Bank-supplied categories from other card exports** (raised 2026-10-16;
+  Chase shipped, sync-and-data-ops.md). Amex, Capital One and Discover card
+  CSVs also carry the bank's own category column. Each needs a real export
+  first: a mapping for its columns, and a `categoryMap` holding only the
+  names measured to agree with a person's own choices on purchases the pack
+  misses, as Chase's was.
 
 ### Needs a decision before any code
 

@@ -137,6 +137,9 @@ function reportPreview(
       `  Rules: ${preview.rulesApplied} would fire (${preview.categorized} giving a category);` +
         ` ${preview.reviewRows} row(s) left for review`,
     );
+    if (preview.sourceCategorized > 0) {
+      console.log(`  Bank categories: ${preview.sourceCategorized} row(s) would take the category the export gives them`);
+    }
     console.log(
       `  Review queue: ${preview.decisions.length} payee decision(s),` +
         ` ${preview.decisionsJoiningExisting} joining a group already waiting`,
@@ -274,6 +277,9 @@ async function main(): Promise<void> {
   console.log(`  Accounts: ${result.accountsCreated} created, ${result.accountsUpdated} updated`);
   console.log(`  Transactions: ${result.transactionsImported} imported, ${result.transactionsSkipped} already present`);
   console.log(`  Rules applied: ${result.rulesApplied}, transfers linked: ${result.transfersLinked}`);
+  if (result.sourceCategorized > 0) {
+    console.log(`  Bank categories applied: ${result.sourceCategorized} row(s) took the category the export gives them`);
+  }
   if (result.insights !== null) {
     console.log(`  Insights regenerated: ${result.insights.created} across ${result.insights.periods.length} periods`);
   }
