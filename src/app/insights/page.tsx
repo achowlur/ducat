@@ -273,24 +273,43 @@ function NetWorthGoalBlock({ g }: { g: NetWorthGoalAssessment }) {
               .
             </p>
             {g.invested !== null && pct !== undefined && g.markets !== null && (
-              // What compounds, said in full: the balance, plus a TYPICAL
-              // month's deposit (the median month, so a lump sum cannot pass
-              // for a habit); everything else saved is counted as cash.
-              <p className="pt-0.5">
-                {g.contribution !== null && g.contribution > 0 ? (
-                  <>
-                    Investing <span className="font-money tabular text-ink">~{money(g.contribution)}</span>/mo in a
-                    typical month, lump sums left out. That and the{" "}
-                    <span className="font-money tabular">{money(g.invested)}</span> invested earn the return; the
-                    rest of what you save is counted as cash.
-                  </>
-                ) : (
-                  <>
-                    No regular monthly investing in a typical month, so new savings are counted as cash; the return
-                    applies to the <span className="font-money tabular">{money(g.invested)}</span> invested.
-                  </>
+              // What compounds, said in full: the balance, plus the monthly
+              // deposit (the middle of the last three months, so a new amount
+              // counts once it repeats and a lump sum never does); everything
+              // else saved is counted as cash. A deposit that changed says
+              // what it was, and one that does not match yet says so: it
+              // never changes silently.
+              <>
+                <p className="pt-0.5">
+                  {g.contribution !== null && g.contribution > 0 ? (
+                    <>
+                      Investing <span className="font-money tabular text-ink">~{money(g.contribution)}</span>/mo, your
+                      usual deposit over the last three months
+                      {g.previousContribution !== null && g.previousContribution !== g.contribution && (
+                        <>
+                          , {g.contribution > g.previousContribution ? "up" : "down"} from{" "}
+                          <span className="font-money tabular">~{money(g.previousContribution)}</span> a month before
+                        </>
+                      )}
+                      . That and the <span className="font-money tabular">{money(g.invested)}</span> invested earn the
+                      return; the rest of what you save is counted as cash.
+                    </>
+                  ) : (
+                    <>
+                      No regular monthly investing over your last three months, so new savings are counted as cash;
+                      the return applies to the <span className="font-money tabular">{money(g.invested)}</span>{" "}
+                      invested.
+                    </>
+                  )}
+                </p>
+                {g.unmatchedDeposit !== null && (
+                  <p className="pt-0.5">
+                    {monthLabel(g.anchor ?? "")}&apos;s deposits came to{" "}
+                    <span className="font-money tabular">{money(g.unmatchedDeposit)}</span>, unlike the usual; a new
+                    amount counts once it repeats.
+                  </p>
                 )}
-              </p>
+              </>
             )}
           </>
         )}

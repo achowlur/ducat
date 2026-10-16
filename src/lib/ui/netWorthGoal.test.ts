@@ -97,17 +97,35 @@ describe("assessNetWorthGoal", () => {
     expect(g.saving?.lands).toBeNull();
   });
 
-  it("takes a TYPICAL month's investing, so a lump sum of any size cannot pass for a habit", () => {
-    const months = history({
-      count: 14,
-      last: "2026-09",
-      start: 80000,
-      saved: 1000,
-      // 400 a month into invested money; one month also moves 30,000 in, and
-      // the account counted as cash takes 250 a month that is not investing.
-      flows: (i) => ({ invested: i === 7 ? 30400 : 400, cashInvested: 250 }),
+  const deposits = (flows: (i: number) => Record<string, number>) =>
+    assessNetWorthGoal({
+      goal: { target: 250000, realReturnPct: 5 },
+      liveNetWorth: 93000,
+      months: history({ count: 14, last: "2026-09", start: 80000, saved: 1000, flows }),
+      investedIds,
     });
-    const g = assessNetWorthGoal({ goal: { target: 250000, realReturnPct: 5 }, liveNetWorth: 93000, months, investedIds });
+
+  it("never lets a lump sum pass for a habit, and names the month that did not match", () => {
+    // 400 a month into invested money; the newest month also moves 30,000 in,
+    // and the account counted as cash takes 250 a month that is not investing.
+    const g = deposits((i) => ({ invested: i === 13 ? 30400 : 400, cashInvested: 250 }));
+    expect(g.contribution).toBe(400);
+    expect(g.unmatchedDeposit).toBe(30400);
+  });
+
+  it("counts a RAISE once it repeats, and says what the deposit was before", () => {
+    const first = deposits((i) => ({ invested: i === 13 ? 700 : 400 }));
+    expect(first.contribution).toBe(400); // one month is not a pattern
+    expect(first.unmatchedDeposit).toBe(700); // but it is not silent either
+    const repeated = deposits((i) => ({ invested: i >= 12 ? 700 : 400 }));
+    expect(repeated.contribution).toBe(700);
+    expect(repeated.previousContribution).toBe(400);
+    expect(repeated.unmatchedDeposit).toBeNull();
+  });
+
+  it("carries a deposit that slipped into the next month, rather than reading a skip and a double", () => {
+    // The usual deposit lands on the 31st one month and the 1st the next.
+    const g = deposits((i) => ({ invested: i === 12 ? 0 : i === 13 ? 800 : 400 }));
     expect(g.contribution).toBe(400);
   });
 

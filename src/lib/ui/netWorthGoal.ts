@@ -22,16 +22,19 @@ import { growthBetween, type NetWorthPoint } from "./netWorthGrowth";
  * target is buying power, the pace is held level in real terms, and cash is
  * assumed to keep pace with inflation.
  *
- * The monthly CONTRIBUTION is the median month of money crossing into
- * invested accounts over the pace window. A median, not a mean and not a
- * cutoff: a real history mixes a steady monthly deposit with lump sums
- * (savings moved in from another bank, a yearly IRA contribution, a
- * reshuffle between accounts worth many months of saving), and any average
- * those touch reads as a monthly habit nobody has. A fixed cutoff ("leave out
- * anything over $5,000") was the first suggestion and fails the reader whose
- * ordinary deposit is above it, where every month would be thrown out. The
- * typical month needs no threshold. That much compounds with the invested
- * balance; the rest of the pace is counted as cash.
+ * The monthly CONTRIBUTION is the middle of the LAST THREE complete months
+ * of money crossing into invested accounts. A real history mixes a steady
+ * monthly deposit with lump sums (savings moved in from another bank, a
+ * yearly IRA contribution, a reshuffle between accounts worth many months of
+ * saving), and any average those touch reads as a habit nobody has; a fixed
+ * cutoff ("leave out anything over $5,000") fails the reader whose ordinary
+ * deposit is above it. A median needs no threshold. Over twelve months it
+ * would also ignore a RAISE for half a year, saying nothing; over three, one
+ * month is never the middle, so a lump sum cannot move it, and a new amount
+ * counts the moment it repeats. Until then the panel names the month that
+ * did not match, and once it counts, what it was before: the deposit never
+ * changes silently. That much compounds with the invested balance; the rest
+ * of the pace is counted as cash.
  *
  * Dates are projected from the last COMPLETE month-end, never the live
  * balance, so they hold still through a month instead of moving with every
@@ -120,8 +123,16 @@ export interface NetWorthGoalAssessment {
   paceUncertainMonths: number;
   /** Invested money at the anchor, the part a return applies to; null when the row predates per-account values. */
   invested: number | null;
-  /** A typical month's money into invested accounts over the pace window (the median month); null when the rows predate it. */
+  /** The monthly deposit into invested money: the middle of the last three months; null without three months of flows. */
   contribution: number | null;
+  /** The same, a month earlier; null when it cannot be measured. */
+  previousContribution: number | null;
+  /**
+   * The anchor month's own deposit when it does NOT match `contribution`: a
+   * new amount, a lump sum or a missed month, which counts only once it
+   * repeats. Null when it matches.
+   */
+  unmatchedDeposit: number | null;
   saving: Projection | null;
   /** Null when no return is typed, or `invested` is unknown. */
   markets: Projection | null;
@@ -162,26 +173,33 @@ function paceAt(months: readonly NetWorthMonth[], end: number) {
   return { base, months: span, perMonth: round2(growth.saved / span), uncertain: growth.uncertainMonths };
 }
 
-const median = (xs: number[]): number => {
-  const s = [...xs].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 === 1 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-};
+/** Months the deposit is read over: its middle is the monthly amount. */
+export const DEPOSIT_MONTHS = 3;
+
+/** Money into invested accounts in one month; null when the row predates per-account flows. */
+function depositIn(m: NetWorthMonth, investedIds: ReadonlySet<string>): number | null {
+  const flows = m.flowsByAccount;
+  return flows === null ? null : round2([...investedIds].reduce((sum, id) => sum + (flows[id] ?? 0), 0));
+}
 
 /**
- * A typical month's money into invested accounts over (base, end]: the
- * median month, so a lump sum of any size cannot pass for a habit. Null when
- * any month in the window predates per-account flows.
+ * The monthly deposit as of `months[end]`: the middle of its last three
+ * months, so one month (a lump sum, a missed deposit, a first month at a new
+ * amount) never sets it, and two do. Null without three months of flows.
  */
-function contributionOver(months: readonly NetWorthMonth[], base: number, end: number, investedIds: ReadonlySet<string>): number | null {
-  const totals: number[] = [];
-  for (let i = base + 1; i <= end; i += 1) {
-    const flows = months[i].flowsByAccount;
-    if (flows === null) return null;
-    totals.push([...investedIds].reduce((sum, id) => sum + (flows[id] ?? 0), 0));
+function depositAt(months: readonly NetWorthMonth[], end: number, investedIds: ReadonlySet<string>): number | null {
+  if (end < DEPOSIT_MONTHS - 1) return null;
+  const recent: number[] = [];
+  for (let i = end - DEPOSIT_MONTHS + 1; i <= end; i += 1) {
+    const d = depositIn(months[i], investedIds);
+    if (d === null) return null;
+    recent.push(d);
   }
-  return totals.length === 0 ? null : round2(median(totals));
+  return recent.sort((a, b) => a - b)[Math.floor(DEPOSIT_MONTHS / 2)];
 }
+
+/** Two deposits are the same amount within a cent or 2%: a transfer's amount is set, not estimated. */
+const sameDeposit = (a: number, b: number) => Math.abs(a - b) <= Math.max(0.01, 0.02 * Math.max(Math.abs(a), Math.abs(b)));
 
 /**
  * The first month, after `anchor`, that net worth reaches `target`. Each
@@ -233,6 +251,8 @@ export function assessNetWorthGoal(input: {
     paceUncertainMonths: 0,
     invested: null,
     contribution: null,
+    previousContribution: null,
+    unmatchedDeposit: null,
     saving: null,
     markets: null,
     refusal: null,
@@ -252,7 +272,7 @@ export function assessNetWorthGoal(input: {
     if (pace === null) return null;
     const m = months[end];
     const invested = investedAt(m);
-    const contribution = contributionOver(months, pace.base, end, investedIds);
+    const contribution = depositAt(months, end, investedIds);
     return {
       pace,
       invested,
@@ -281,6 +301,11 @@ export function assessNetWorthGoal(input: {
     paceUncertainMonths: now.pace.uncertain,
     invested: now.invested,
     contribution: now.contribution,
+    previousContribution: before?.contribution ?? null,
+    unmatchedDeposit: (() => {
+      const latest = depositIn(months[end], investedIds);
+      return latest === null || now.contribution === null || sameDeposit(latest, now.contribution) ? null : latest;
+    })(),
     saving: { lands: now.saving, shift: shift(now.saving, before?.saving) },
     markets: now.markets === undefined ? null : { lands: now.markets, shift: shift(now.markets, before?.markets) },
   };

@@ -45,15 +45,24 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   The monthly deposit was added the same day, at the operator's ask: the
   first cut counted every new dollar as cash, ignoring a steady monthly
   deposit the history plainly shows, and lump sums must not pass for it. It
-  is the MEDIAN month of money crossing into invested accounts over the pace
-  window (per account, so the cash definition draws the line; rows carry
-  `investmentFlowsByAccount`). Not a mean: a history mixing a steady deposit
-  with savings moved in from another bank, a yearly IRA contribution and a
-  reshuffle between accounts worth many months of saving averages to a habit
-  nobody has. Not a fixed cutoff either, the first suggestion ("leave out
-  anything over $5,000"): it throws away every month for a reader whose
-  ordinary deposit is above it. The typical month needs no threshold, and on
-  the history that prompted it landed exactly on the deposit.
+  is the MIDDLE of the last three complete months of money crossing into
+  invested accounts (per account, so the cash definition draws the line;
+  rows carry `investmentFlowsByAccount`). Not a mean: a history mixing a
+  steady deposit with savings moved in from another bank, a yearly IRA
+  contribution and a reshuffle between accounts worth many months of saving
+  averages to a habit nobody has. Not a fixed cutoff, the first suggestion
+  ("leave out anything over $5,000"): it throws away every month for a
+  reader whose ordinary deposit is above it. And not the median of the
+  twelve-month pace window, the second cut: the operator asked what happens
+  when the deposit goes UP, and the answer was that the median would keep
+  the old amount for about six months, saying nothing. Three months is the
+  least that still has a middle: one month (a lump sum, a missed deposit, a
+  first month at a new amount) never sets it, and two do, so a raise counts
+  the moment it repeats. A deposit never changes silently: the anchor
+  month's own deposit is named when it does not match ("a new amount counts
+  once it repeats"), and a changed deposit says what it was a month before.
+  On the history that prompted it the deposit landed exactly on the standing
+  transfer.
   Dates are projected from the last COMPLETE month-end, not the live
   balance: a live anchor would move the date with every day's markets, and
   the shift since last month would compare a month-end with a Tuesday.

@@ -265,8 +265,9 @@ describe('the demo through the real pipeline', () => {
     expect(g.saving?.lands).not.toBeNull();
     expect(g.markets?.lands).not.toBeNull();
     expect(g.markets!.lands! < g.saving!.lands!).toBe(true);
-    // The demo's monthly brokerage and IRA contributions are its typical month.
+    // The demo's monthly brokerage and IRA contributions are its monthly deposit.
     expect(g.contribution).toBe(550);
+    expect(g.unmatchedDeposit).toBeNull();
   });
 
   it('shows a price rise, a one-off this month, and no groceries or fuel mistaken for subscriptions', async () => {
