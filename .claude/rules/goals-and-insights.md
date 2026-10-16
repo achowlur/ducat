@@ -43,13 +43,16 @@ anything below; several entries record "tried and failed, don't retry".
 - The NET WORTH goal (ui/netWorthGoal.ts, Setting goals.netWorth) prints
   TWO dates and never one blended rate: by saving alone (the /trends "saved"
   pace over 12 complete months, never across a change in counted accounts)
-  and with markets (a real return the operator TYPED, applied to invested
+  and with markets (a real return the operator SETS, applied to invested
   money outside the cash definition and to the monthly deposit into it, the
   MIDDLE of the last three months: never a mean, a fixed cutoff or a long
   window, and a month that does not match is named; no return lives in
   code). Today's
   dollars; dates from the last complete month-end, each with its shift and
-  the pace a month before.
+  the pace a month before. Target and return are CONTROLS on the panel:
+  they re-project in the browser through projectGoal (the server's own
+  arithmetic) and save when they settle; a shift always compares the SAME
+  target and return a month apart; with no return set the slider sits at 0.
 - "Counts as cash" is a Setting (cash.additionalAccountIds via
   accounts:cash), never an account-type change — retyping breaks net worth.
 - npm run goals --add is NOT idempotent (slugs dedupe, content does not):

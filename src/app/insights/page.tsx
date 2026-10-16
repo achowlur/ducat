@@ -4,9 +4,9 @@ import { DismissButton } from "../../components/DismissButton";
 import { getInsightsPageData, type InsightRow } from "../../lib/ui/insights";
 import { GOAL_RATE_MIN_MONTHS, type GoalAssessment } from "../../lib/insights/goals";
 import { type ReadinessAssessment } from "../../lib/insights/readiness";
-import { money, monthLabel, shortDate, shortDateYear, titleCase } from "../../lib/ui/format";
-import { NET_WORTH_PACE_MIN_MONTHS, type NetWorthGoalAssessment, type Projection } from "../../lib/ui/netWorthGoal";
-import { CHIP, FIELD_LABEL, PageTitle, SectionTitle } from "../../components/ui/headings";
+import { money, monthLabel, shortDate, titleCase } from "../../lib/ui/format";
+import { ASSUMED_CHIP, CHIP, FIELD_LABEL, PageTitle, PROJECTED_CHIP, SectionTitle } from "../../components/ui/headings";
+import { NetWorthGoalPanel } from "../../components/NetWorthGoalPanel";
 import { Fig, Lead } from "../../components/ui/figure";
 import type { Pace } from "../../lib/insights/pace";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
@@ -31,27 +31,6 @@ const TONE_MARK: Record<Exclude<InsightRow["tone"], "neutral">, string> = {
   neg: "bg-neg",
   pos: "bg-pos",
 };
-
-/**
- * One definition for the chip every forecast on this page wears. Three panels
- * carry it now (pace, commitments, goals), and the moment a forecast reads
- * like an observation the app is asserting what it does not know.
- */
-// inline-block, so the box survives an inline parent: the same class string
-// measured 76.1 × 19.8 inside a flex row and 76.1 × 14.0 inside a bare <p>,
-// i.e. one chip at two heights on one page.
-const PROJECTED_CHIP =
-  `${CHIP} inline-block bg-chip text-acc`;
-
-/**
- * The ASSUMED variant of the same chip family: for numbers the operator TYPED
- * (the readiness panel's rate, term, tax, insurance, PMI, closing) rather than
- * numbers projected from observation. Outlined where PROJECTED is filled, so
- * the two claims stay distinguishable at a glance — a typed rate is a weaker
- * claim than an observed cadence, and it should not wear the stronger chip.
- */
-const ASSUMED_CHIP =
-  `${CHIP} inline-block border border-rule text-faint`;
 
 /**
  * One declared goal against the observed savings rate. Every refusal renders
@@ -180,167 +159,6 @@ function GoalRow({ g }: { g: GoalAssessment }) {
           </span>
         )}
       </div>
-    </div>
-  );
-}
-
-/**
- * The net worth goal: live progress, then TWO dates, never one blended rate.
- * By saving alone is observed; with markets adds a return the operator typed,
- * so it wears ASSUMED beside PROJECTED and keeps its as-of day in view. Every
- * refusal renders, and progress survives all of them.
- */
-function NetWorthGoalBlock({ g }: { g: NetWorthGoalAssessment }) {
-  const monthsWord = (n: number) => (n === 1 ? "month" : "months");
-  const shiftText = (p: Projection) =>
-    p.shift === null
-      ? "."
-      : p.shift === 0
-        ? ", unchanged since last month."
-        : `, ${Math.abs(p.shift)} ${monthsWord(Math.abs(p.shift))} ${p.shift > 0 ? "later" : "sooner"} than last month.`;
-  const landsText = (p: Projection) =>
-    p.lands === null ? (
-      " more than 50 years out at this pace."
-    ) : (
-      <>
-        {" "}
-        <span className="font-semibold">~{monthLabel(p.lands)}</span>
-        {shiftText(p)}
-      </>
-    );
-  const pct = g.goal.realReturnPct;
-  return (
-    <div className="py-2.5 text-[0.85rem] max-md:py-3">
-      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-        <span className="font-semibold">Net worth</span>
-        <span className="font-money tabular">
-          <span className="font-semibold">{money(g.netWorth)}</span>
-          <span className="text-faint"> of {money(g.goal.target)}</span>
-        </span>
-        <span className="text-faint">{Math.floor(g.progress * 100)}%</span>
-      </div>
-      <div className="mt-1.5 h-[3px] w-full rounded-[1px] bg-chip">
-        <div
-          className={`h-full rounded-[1px] ${g.reached ? "bg-pos" : "bg-acc"}`}
-          style={{ width: `${Math.min(100, Math.floor(g.progress * 100))}%` }}
-        />
-      </div>
-      <div className="pt-1 leading-relaxed text-faint">
-        {g.reached ? (
-          <>
-            <span className={`${CHIP} ${CHIP_CLASS.pos}`}>Reached</span>{" "}
-            <span className="font-money tabular text-ink">{money(g.netWorth)}</span> against the{" "}
-            <span className="font-money tabular">{money(g.goal.target)}</span> target.
-          </>
-        ) : g.refusal === "TOO_FEW_MONTHS" || g.saving === null ? (
-          `Fewer than ${NET_WORTH_PACE_MIN_MONTHS} complete months of net worth history over the same accounts, too few to project a date.`
-        ) : (
-          <>
-            <p>
-              <span className={PROJECTED_CHIP}>Projected</span>{" "}
-              <span className="text-ink">
-                By saving alone,
-                {(g.pace ?? 0) <= 0 ? " not reached: the saved part of your net worth did not grow." : landsText(g.saving)}
-              </span>
-            </p>
-            {pct !== undefined && g.markets !== null && (
-              <p className="pt-0.5">
-                <span className={PROJECTED_CHIP}>Projected</span>{" "}
-                <span className="text-ink">
-                  With markets at {pct}% a year after inflation,
-                  {landsText(g.markets)}
-                </span>
-              </p>
-            )}
-            {pct !== undefined && g.invested === null && (
-              <p className="pt-0.5">
-                The date with markets needs each account&apos;s month-end value, which the next sync records.
-              </p>
-            )}
-            <p className="pt-0.5">From the end of {monthLabel(g.anchor ?? "")}, in today&apos;s dollars.</p>
-            {/* The pace a month ago sits beside today's: against a far target
-                a modest change in pace moves the date by years, and a date
-                that moves must say what moved it. */}
-            <p className="pt-0.5">
-              Saving <span className="font-money tabular text-ink">~{money(g.pace ?? 0)}</span>/mo over your last{" "}
-              {g.paceMonths} complete months{g.paceUncertainMonths > 0 ? " (partly estimated)" : ""}
-              {g.previousPace !== null && g.previousPace !== g.pace && (
-                <>
-                  , {(g.pace ?? 0) > g.previousPace ? "up" : "down"} from{" "}
-                  <span className="font-money tabular">~{money(g.previousPace)}</span> a month before
-                </>
-              )}
-              .
-            </p>
-            {g.invested !== null && pct !== undefined && g.markets !== null && (
-              // What compounds, said in full: the balance, plus the monthly
-              // deposit (the middle of the last three months, so a new amount
-              // counts once it repeats and a lump sum never does); everything
-              // else saved is counted as cash. A deposit that changed says
-              // what it was, and one that does not match yet says so: it
-              // never changes silently.
-              <>
-                <p className="pt-0.5">
-                  {g.contribution !== null && g.contribution > 0 ? (
-                    <>
-                      Investing <span className="font-money tabular text-ink">~{money(g.contribution)}</span>/mo, your
-                      usual deposit over the last three months
-                      {g.previousContribution !== null && g.previousContribution !== g.contribution && (
-                        <>
-                          , {g.contribution > g.previousContribution ? "up" : "down"} from{" "}
-                          <span className="font-money tabular">~{money(g.previousContribution)}</span> a month before
-                        </>
-                      )}
-                      . That and the <span className="font-money tabular">{money(g.invested)}</span> invested earn the
-                      return; the rest of what you save is counted as cash.
-                    </>
-                  ) : (
-                    <>
-                      No regular monthly investing over your last three months, so new savings are counted as cash;
-                      the return applies to the <span className="font-money tabular">{money(g.invested)}</span>{" "}
-                      invested.
-                    </>
-                  )}
-                </p>
-                {g.unmatchedDeposit !== null && (
-                  <p className="pt-0.5">
-                    {monthLabel(g.anchor ?? "")}&apos;s deposits came to{" "}
-                    <span className="font-money tabular">{money(g.unmatchedDeposit)}</span>, unlike the usual; a new
-                    amount counts once it repeats.
-                  </p>
-                )}
-              </>
-            )}
-          </>
-        )}
-      </div>
-      {pct === undefined ? (
-        !g.reached && (
-          <p className="pt-1.5 text-[0.72rem] text-faint">
-            For a date with markets, type a yearly return after inflation:{" "}
-            <span className="font-money">npm run goals -- --net-worth --real-return=5</span>
-          </p>
-        )
-      ) : (
-        <details className="group pt-2.5 text-[0.78rem] text-faint">
-          <summary className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-2 max-md:min-h-[44px] max-md:items-center [&::-webkit-details-marker]:hidden">
-            <span className={ASSUMED_CHIP}>Assumed</span>
-            <span>
-              {pct}% a year after inflation
-              {g.goal.returnSetOn !== undefined && ` · set ${shortDateYear(new Date(`${g.goal.returnSetOn}T12:00:00Z`))}`}
-            </span>
-            <span aria-hidden="true" className="text-[0.7rem] transition-transform group-open:rotate-90">
-              ›
-            </span>
-          </summary>
-          <p className="pt-1.5">
-            Your figure, not an observation: applied to invested money only, never to accounts you count as cash.
-            US stocks returned about 7% a year after inflation over the last century, and forecasters expect less
-            for the decade ahead. Change it with{" "}
-            <span className="font-money">npm run goals -- --net-worth --real-return=…</span>
-          </p>
-        </details>
-      )}
     </div>
   );
 }
@@ -899,7 +717,7 @@ async function renderInsights({
       {data.netWorthGoal !== null && (
         <section>
           <SectionTitle>Net worth goal</SectionTitle>
-          <NetWorthGoalBlock g={data.netWorthGoal} />
+          <NetWorthGoalPanel g={data.netWorthGoal} />
         </section>
       )}
 

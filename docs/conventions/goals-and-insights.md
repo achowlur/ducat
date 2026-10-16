@@ -63,6 +63,21 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   once it repeats"), and a changed deposit says what it was a month before.
   On the history that prompted it the deposit landed exactly on the standing
   transfer.
+  The target and the return became CONTROLS on the panel the same day, at
+  the operator's ask, instead of numbers set from the command line: a
+  slider for the return (0 to 10% in half points, tick marks at the decade's
+  forecasts and at a century of history) and a field for the target. The
+  dates re-project in the browser as they move, through projectGoal, the
+  very function the server ran, from a serializable GoalBasis per month-end,
+  so a slider never waits on a round trip and never disagrees with a reload.
+  Each saves when it settles (the slider on release, the target on Enter or
+  leaving the field) through one validation, nextNetWorthGoal: a CHANGED
+  return is dated that day and an unchanged one keeps its day, so the as-of
+  date stays the day the assumption was made. Zero clears the return, and an
+  unset return puts the slider at zero, "no market growth assumed", which is
+  not a rate, so still no return lives in code. A shift compares the same
+  target and return a month apart, so dragging a control never reads as the
+  data moving. The command still writes the same Setting.
   Dates are projected from the last COMPLETE month-end, not the live
   balance: a live anchor would move the date with every day's markets, and
   the shift since last month would compare a month-end with a Tuesday.

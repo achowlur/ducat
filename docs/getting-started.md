@@ -83,7 +83,8 @@ category you set by hand is never overridden.
 - **Insights** (`/insights`) — am I on track: where this month is heading,
   what changed and what it costs if it holds, upcoming commitments, savings
   goals, and a net worth goal dated two ways: by saving alone, and with a
-  market return you choose. Projections are labelled as projections.
+  market return you choose (its target and return are set right on the
+  page). Projections are labelled as projections.
 - **Transactions** (`/transactions`) — the ledger. Every row, paginated,
   filterable; categorize, group-review, and link reimbursements here. Group
   review ("Group by payee") opens each payee with a suggested category where

@@ -137,6 +137,10 @@ export interface NetWorthGoalAssessment {
   /** Null when no return is typed, or `invested` is unknown. */
   markets: Projection | null;
   refusal: "TOO_FEW_MONTHS" | null;
+  /** The month-end the dates come from, for the panel to re-project as its controls move; null when too little history. */
+  basis: GoalBasis | null;
+  /** The month-end before, for the shift; null when it cannot be measured. */
+  previousBasis: GoalBasis | null;
 }
 
 /** "2026-09" moved by n months. */
@@ -229,6 +233,88 @@ function landing(
   return null;
 }
 
+/**
+ * What one month-end gives the projection. Plain data, so the panel can
+ * re-project in the browser as its target and return controls move, with
+ * the same arithmetic the server used (projectGoal).
+ */
+export interface GoalBasis {
+  /** The month-end projected from ("2026-09"). */
+  anchor: string;
+  /** Net worth at that month-end. */
+  netWorth: number;
+  /** Saved per month over the pace window; may be negative. */
+  pace: number;
+  paceMonths: number;
+  /** Months in the window partly estimated or leaving an account out. */
+  paceUncertainMonths: number;
+  /** Invested money at the month-end; null when the row predates per-account values. */
+  invested: number | null;
+  /** The monthly deposit into it (depositAt); null without three months of flows. */
+  contribution: number | null;
+}
+
+/** Months later (+) or sooner (−); null when either landing is missing. */
+const shiftBetween = (now: string | null | undefined, before: string | null | undefined) =>
+  now === null || now === undefined || before === null || before === undefined ? null : monthsFrom(before, now);
+
+/**
+ * Both dates for a target and a return, from `now`, each with how far it
+ * moved against the same target and return from the month-end `before`: the
+ * shift says what the DATA did, never what a control did. A return of zero
+ * or none means no markets date.
+ */
+export function projectGoal(
+  now: GoalBasis,
+  before: GoalBasis | null,
+  target: number,
+  realReturnPct: number | undefined,
+): { saving: Projection; markets: Projection | null } {
+  const at = (b: GoalBasis) => ({
+    saving: landing(b.anchor, b.netWorth, 0, b.pace, 0, 0, target),
+    markets:
+      realReturnPct === undefined || realReturnPct <= 0 || b.invested === null
+        ? undefined
+        : landing(b.anchor, b.netWorth, b.invested, b.pace, b.contribution ?? 0, realReturnPct, target),
+  });
+  const n = at(now);
+  const p = before === null ? null : at(before);
+  return {
+    saving: { lands: n.saving, shift: shiftBetween(n.saving, p?.saving) },
+    markets: n.markets === undefined ? null : { lands: n.markets, shift: shiftBetween(n.markets, p?.markets) },
+  };
+}
+
+/** The highest real return the controls offer and a save accepts, in percent a year. */
+export const MAX_REAL_RETURN_PCT = 15;
+
+/**
+ * What saving the panel's controls writes, or why it refuses. A return of
+ * zero clears it (no markets date); a CHANGED return is dated today, an
+ * unchanged one keeps the day it was set, so the as-of date means when the
+ * assumption was made, not when the target last moved.
+ */
+export function nextNetWorthGoal(
+  stored: NetWorthGoal | null,
+  input: { target: number; realReturnPct: number },
+  today: string,
+): { ok: true; goal: NetWorthGoal } | { ok: false; message: string } {
+  if (!Number.isFinite(input.target) || input.target <= 0) {
+    return { ok: false, message: "The target has to be a dollar amount above zero." };
+  }
+  if (input.target > 1e12) return { ok: false, message: "That target is too large to project." };
+  if (!Number.isFinite(input.realReturnPct) || input.realReturnPct < 0 || input.realReturnPct > MAX_REAL_RETURN_PCT) {
+    return { ok: false, message: `The market return has to be between 0% and ${MAX_REAL_RETURN_PCT}% a year.` };
+  }
+  const target = round2(input.target);
+  if (input.realReturnPct === 0) return { ok: true, goal: { target } };
+  const unchanged = stored?.realReturnPct === input.realReturnPct && stored.returnSetOn !== undefined;
+  return {
+    ok: true,
+    goal: { target, realReturnPct: input.realReturnPct, returnSetOn: unchanged ? stored!.returnSetOn! : today },
+  };
+}
+
 export function assessNetWorthGoal(input: {
   goal: NetWorthGoal;
   liveNetWorth: number;
@@ -239,74 +325,55 @@ export function assessNetWorthGoal(input: {
 }): NetWorthGoalAssessment {
   const { goal, liveNetWorth, months, investedIds } = input;
   const netWorth = round2(liveNetWorth);
-  const base: NetWorthGoalAssessment = {
-    goal,
-    netWorth,
-    progress: Math.min(1, Math.max(0, netWorth / goal.target)),
-    reached: netWorth >= goal.target,
-    anchor: null,
-    pace: null,
-    previousPace: null,
-    paceMonths: 0,
-    paceUncertainMonths: 0,
-    invested: null,
-    contribution: null,
-    previousContribution: null,
-    unmatchedDeposit: null,
-    saving: null,
-    markets: null,
-    refusal: null,
-  };
-  // Reached is a fact, checked before any question of pace.
-  if (base.reached) return base;
 
   const investedAt = (m: NetWorthMonth): number | null =>
     m.byAccount === null
       ? null
       : round2([...investedIds].reduce((sum, id) => sum + (m.byAccount?.[id] ?? 0), 0));
 
-  /** Both projections from the month-end at `end`, or null with too little behind it. */
-  const projectFrom = (end: number) => {
+  const basisAt = (end: number): GoalBasis | null => {
     if (end < 0) return null;
     const pace = paceAt(months, end);
     if (pace === null) return null;
-    const m = months[end];
-    const invested = investedAt(m);
-    const contribution = depositAt(months, end, investedIds);
     return {
-      pace,
-      invested,
-      contribution,
-      saving: landing(m.period, m.value, 0, pace.perMonth, 0, 0, goal.target),
-      markets:
-        goal.realReturnPct === undefined || invested === null
-          ? undefined
-          : landing(m.period, m.value, invested, pace.perMonth, contribution ?? 0, goal.realReturnPct, goal.target),
+      anchor: months[end].period,
+      netWorth: months[end].value,
+      pace: pace.perMonth,
+      paceMonths: pace.months,
+      paceUncertainMonths: pace.uncertain,
+      invested: investedAt(months[end]),
+      contribution: depositAt(months, end, investedIds),
     };
   };
 
+  // The basis is measured even for a goal already reached: the panel's
+  // target control can raise the target past today's net worth.
   const end = months.length - 1;
-  const now = projectFrom(end);
-  if (now === null) return { ...base, refusal: "TOO_FEW_MONTHS" };
-  const before = projectFrom(end - 1);
-  const shift = (a: string | null | undefined, b: string | null | undefined) =>
-    a === null || a === undefined || b === null || b === undefined ? null : monthsFrom(b, a);
+  const basis = basisAt(end);
+  const previousBasis = basis === null ? null : basisAt(end - 1);
+  const reached = netWorth >= goal.target;
+  const projection = basis === null || reached ? null : projectGoal(basis, previousBasis, goal.target, goal.realReturnPct);
+  const latest = end < 0 ? null : depositIn(months[end], investedIds);
 
   return {
-    ...base,
-    anchor: months[end].period,
-    pace: now.pace.perMonth,
-    previousPace: before?.pace.perMonth ?? null,
-    paceMonths: now.pace.months,
-    paceUncertainMonths: now.pace.uncertain,
-    invested: now.invested,
-    contribution: now.contribution,
-    previousContribution: before?.contribution ?? null,
-    unmatchedDeposit: (() => {
-      const latest = depositIn(months[end], investedIds);
-      return latest === null || now.contribution === null || sameDeposit(latest, now.contribution) ? null : latest;
-    })(),
-    saving: { lands: now.saving, shift: shift(now.saving, before?.saving) },
-    markets: now.markets === undefined ? null : { lands: now.markets, shift: shift(now.markets, before?.markets) },
+    goal,
+    netWorth,
+    progress: Math.min(1, Math.max(0, netWorth / goal.target)),
+    reached,
+    basis,
+    previousBasis,
+    anchor: basis?.anchor ?? null,
+    pace: basis?.pace ?? null,
+    previousPace: previousBasis?.pace ?? null,
+    paceMonths: basis?.paceMonths ?? 0,
+    paceUncertainMonths: basis?.paceUncertainMonths ?? 0,
+    invested: basis?.invested ?? null,
+    contribution: basis?.contribution ?? null,
+    previousContribution: previousBasis?.contribution ?? null,
+    unmatchedDeposit:
+      latest === null || basis?.contribution == null || sameDeposit(latest, basis.contribution) ? null : latest,
+    saving: projection?.saving ?? null,
+    markets: projection?.markets ?? null,
+    refusal: basis === null ? "TOO_FEW_MONTHS" : null,
   };
 }

@@ -3,7 +3,9 @@ import {
   addMonths,
   assessNetWorthGoal,
   NET_WORTH_PACE_MIN_MONTHS,
+  nextNetWorthGoal,
   parseNetWorthGoal,
+  projectGoal,
   type NetWorthMonth,
 } from "./netWorthGoal";
 
@@ -202,5 +204,67 @@ describe("assessNetWorthGoal", () => {
     const months = history({ count: 14, last: "2026-09", start: 80000, saved: 10 });
     const g = assessNetWorthGoal({ goal: { target: 900000 }, liveNetWorth: 80130, months, investedIds });
     expect(g.saving?.lands).toBeNull();
+  });
+});
+
+describe('projectGoal, as the panel re-projects while its controls move', () => {
+  const months = history({ count: 15, last: '2026-09', start: 80000, saved: 1000, flows: () => ({ invested: 400 }) });
+  const g = assessNetWorthGoal({ goal: { target: 150000 }, liveNetWorth: 94000, months, investedIds });
+
+  it("gives the server's dates for the same target and return", () => {
+    expect(projectGoal(g.basis!, g.previousBasis, 150000, undefined)).toEqual({ saving: g.saving, markets: null });
+  });
+
+  it('shows no markets date at a return of zero, and an earlier one as the return rises', () => {
+    expect(projectGoal(g.basis!, g.previousBasis, 150000, 0).markets).toBeNull();
+    const four = projectGoal(g.basis!, g.previousBasis, 150000, 4).markets!.lands!;
+    const seven = projectGoal(g.basis!, g.previousBasis, 150000, 7).markets!.lands!;
+    expect(seven <= four).toBe(true);
+  });
+
+  // The shift compares the SAME target and return a month apart: moving a
+  // control must never read as the data moving.
+  it('measures the shift at the target and return on screen', () => {
+    const near = projectGoal(g.basis!, g.previousBasis, 120000, 5);
+    const far = projectGoal(g.basis!, g.previousBasis, 400000, 5);
+    // A steady pace lands on the same month from either month-end, whatever
+    // target the control is set to: the data did not move, so neither does the date.
+    expect(near.saving.shift).toBe(0);
+    expect(far.saving.shift).toBe(0);
+  });
+});
+
+describe('nextNetWorthGoal, what a save from the panel writes', () => {
+  const stored = { target: 1000000, realReturnPct: 5, returnSetOn: '2026-03-02' };
+
+  it('keeps the day a return was set while only the target moves', () => {
+    expect(nextNetWorthGoal(stored, { target: 750000, realReturnPct: 5 }, '2026-10-16')).toEqual({
+      ok: true,
+      goal: { target: 750000, realReturnPct: 5, returnSetOn: '2026-03-02' },
+    });
+  });
+
+  it('dates a changed return today, and clears it at zero', () => {
+    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 6.5 }, '2026-10-16')).toEqual({
+      ok: true,
+      goal: { target: 1000000, realReturnPct: 6.5, returnSetOn: '2026-10-16' },
+    });
+    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 0 }, '2026-10-16')).toEqual({
+      ok: true,
+      goal: { target: 1000000 },
+    });
+  });
+
+  it('refuses what it cannot project, with a sentence for the person', () => {
+    for (const input of [
+      { target: 0, realReturnPct: 5 },
+      { target: Number.NaN, realReturnPct: 5 },
+      { target: 1000000, realReturnPct: -1 },
+      { target: 1000000, realReturnPct: 22 },
+    ]) {
+      const r = nextNetWorthGoal(stored, input, '2026-10-16');
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.message.length).toBeGreaterThan(10);
+    }
   });
 });
