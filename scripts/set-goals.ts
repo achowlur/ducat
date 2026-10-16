@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { prisma } from '../src/lib/prisma';
 import { parseGoals, SAVINGS_GOALS_KEY, type SavingsGoal } from '../src/lib/insights/goals';
 import { countsAsCash, readCashAccountIds } from '../src/lib/ui/liquidity';
+import { NET_WORTH_GOAL_KEY, parseNetWorthGoal, type NetWorthGoal } from '../src/lib/ui/netWorthGoal';
 import { arg, hasFlag } from './args';
 import { databaseLabel } from './database-label';
 
@@ -20,6 +21,8 @@ import { databaseLabel } from './database-label';
  *   npm run goals -- --add --name="House deposit" --target=60000 --by=2028-06 --accounts="savings,money market"
  *   npm run goals -- --add --name="House deposit" --house-price=500000 --accounts=cash
  *   npm run goals -- --remove=house
+ *   npm run goals -- --net-worth --target=1000000 --real-return=5
+ *   npm run goals -- --net-worth --remove
  *
  * `--accounts=cash` nominates the operator's cash DEFINITION (DEPOSITORY
  * accounts plus `accounts:cash` extras), resolved fresh at every render.
@@ -34,6 +37,14 @@ import { databaseLabel } from './database-label';
  * the resulting number. The percentages are flags, not constants, because a
  * down payment is market- and loan-product-specific; what is stored is the
  * dollar figure the operator saw and confirmed, never the formula.
+ *
+ * `--net-worth` declares the ONE net worth goal instead (its own Setting,
+ * goals.netWorth: a different shape in the savings array would be dropped by
+ * an older checkout's parser, and then refuse every edit). `--target` is in
+ * today's dollars; `--real-return` is a yearly return AFTER inflation, in
+ * percent, the operator's own assumption and never a default (omit it for the
+ * saving-alone date only; `--real-return=none` clears it). Each flag left out
+ * keeps the stored value, so the return can be changed alone.
  */
 
 const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -59,8 +70,75 @@ function fail(message: string): void {
   process.exitCode = 1;
 }
 
+/** Declare, change or remove the net worth goal, then list it. */
+async function netWorthGoal(): Promise<void> {
+  for (const f of ['target', 'real-return'] as const) {
+    if (arg(f) === undefined && hasFlag(f)) return fail(`--${f} takes the equals form: --${f}=VALUE.`);
+  }
+  const row = await prisma.setting.findUnique({ where: { key: NET_WORTH_GOAL_KEY } });
+  const stored = parseNetWorthGoal(row?.value ?? null);
+  if (row !== null && stored === null) {
+    return fail('The stored goals.netWorth value cannot be read by this checkout. Update the checkout, or inspect the Setting by hand.');
+  }
+
+  if (hasFlag('remove')) {
+    if (row === null) return fail('No net worth goal is declared.');
+    await prisma.setting.delete({ where: { key: NET_WORTH_GOAL_KEY } });
+    console.log('Removed the net worth goal.\n');
+    return;
+  }
+
+  const targetArg = arg('target');
+  const returnArg = arg('real-return');
+  if (targetArg !== undefined || returnArg !== undefined) {
+    const target = targetArg !== undefined ? Number(targetArg) : stored?.target;
+    if (target === undefined) return fail("--target is required for a new net worth goal (dollars, in today's money).");
+    if (!Number.isFinite(target) || target <= 0) return fail('--target must be a positive dollar amount.');
+    let goal: NetWorthGoal = { target };
+    if (returnArg === undefined) {
+      // Untouched: the stored return and the day it was typed both stand.
+      if (stored?.realReturnPct !== undefined) {
+        goal = {
+          ...goal,
+          realReturnPct: stored.realReturnPct,
+          ...(stored.returnSetOn !== undefined ? { returnSetOn: stored.returnSetOn } : {}),
+        };
+      }
+    } else if (returnArg.toLowerCase() !== 'none') {
+      const pct = Number(returnArg);
+      if (!Number.isFinite(pct) || pct <= 0 || pct > 15) {
+        return fail('--real-return is a yearly return after inflation in percent, above 0 and at most 15 (or "none" to clear it).');
+      }
+      goal = { ...goal, realReturnPct: pct, returnSetOn: new Date().toISOString().slice(0, 10) };
+    }
+    const value = JSON.stringify(goal);
+    await prisma.setting.upsert({
+      where: { key: NET_WORTH_GOAL_KEY },
+      create: { key: NET_WORTH_GOAL_KEY, value },
+      update: { value },
+    });
+    console.log('Saved.\n');
+  }
+
+  const current = parseNetWorthGoal(
+    (await prisma.setting.findUnique({ where: { key: NET_WORTH_GOAL_KEY } }))?.value ?? null,
+  );
+  if (current === null) {
+    console.log('No net worth goal declared.');
+    return;
+  }
+  console.log('Net worth goal:');
+  console.log(`  target   ${current.target.toFixed(2)} in today's dollars`);
+  console.log(
+    current.realReturnPct === undefined
+      ? '  markets  no return typed: /insights shows the saving-alone date only'
+      : `  markets  ${current.realReturnPct}% a year after inflation, your assumption${current.returnSetOn !== undefined ? `, set ${current.returnSetOn}` : ''}`,
+  );
+}
+
 async function main(): Promise<void> {
   console.log(`\nDatabase: ${databaseLabel()}\n`);
+  if (hasFlag('net-worth')) return netWorthGoal();
 
   const accounts = await prisma.account.findMany({ orderBy: { institution: 'asc' } });
   const row = await prisma.setting.findUnique({ where: { key: SAVINGS_GOALS_KEY } });

@@ -18,6 +18,44 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   surfaces. Detected subscriptions also lapse: the recurring detector has no
   recency bound, so a service cancelled years ago billed forever in the
   annualised total until charges older than two cadence cycles were dropped.
+- NET WORTH GOAL (2026-10-16). Raised 2026-08-04 and held for discussion,
+  because the design question was the whole feature: net worth grows for two
+  reasons, saving (a decision, observed) and markets (not controlled, and only
+  guessable forward). A single growth rate learned from the past blends the
+  two, and in a strong stretch it projects that stretch forever, reading as a
+  promise. So the goal prints TWO dates and refuses to blend them. By saving
+  alone uses the "saved" half of the /trends split (growthBetween: change
+  minus the months' own marketGains), so the pace is a figure the reader can
+  find on another screen, not a second definition. With markets adds a yearly
+  return the OPERATOR TYPES, after inflation: long-run US stock history is
+  about 7% a year real, while the large firms' 10-15 year forecasts sit lower
+  (roughly 6-7% nominal, so about 4% real), and the gap between those is
+  exactly why the number is the operator's, carried behind the ASSUMED chip
+  with the day it was typed, as the readiness rate is. Absent, there is no
+  markets date and no default in code.
+  Everything is in today's dollars: the target is buying power, the pace is
+  held level in real terms, cash is assumed to keep pace with inflation, and
+  new savings are counted as cash (the cautious reading; invested, the date
+  comes sooner, and the panel says which). The return applies to INVESTED
+  money only, the investment accounts outside the operator's cash definition,
+  so an account the operator counts as cash is never credited with a stock
+  return. That split needs each account's month-end value, which the account
+  type cannot give, so NET_WORTH_GROWTH rows now carry `byAccount`; a row
+  stored before it prints no markets date until regeneration fills it in.
+  Dates are projected from the last COMPLETE month-end, not the live
+  balance: a live anchor would move the date with every day's markets, and
+  the shift since last month would compare a month-end with a Tuesday.
+  Progress stays live, Overview's headline. The pace window is twelve
+  complete months (a bonus or a big bill moves six too far) and never crosses
+  a change in which accounts are counted, since an account entering the sum
+  is not saving; under six months there is no date.
+  A FAR target is sensitive to pace: saving a tenth faster brings a
+  twenty-year landing about two years nearer, and one month entering a
+  twelve-month window can do that. That is honest, and a goal that moves
+  its own date silently is worse than one that refuses, so each date says how
+  far it moved since last month and the pace line says what the pace was a
+  month before. The demo declares one, with a typed return, and its test
+  asserts both dates land and the markets date comes first.
 - ONE PLAN, SEVERAL DESCRIPTORS (2026-10-16). Banks rename a biller's
   descriptor mid-plan, and the detector keyed on the merchant string, so one
   monthly plan reached it as several merchants: each name long enough to pass

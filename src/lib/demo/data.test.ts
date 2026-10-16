@@ -9,6 +9,7 @@ import { detectRecurringCharges } from '../insights/recurring';
 import { isActive, missedCharge } from '../health/detectedSubscriptions';
 import { periodKey } from '../insights/periods';
 import { isP2P, isUnreviewedP2P } from '../p2p';
+import { assessNetWorthGoal, parseNetWorthGoal } from '../ui/netWorthGoal';
 import { groupByPayee } from '../sync/grouping';
 import { suggestGroupCategories } from '../sync/groupSuggest';
 import { suggestP2PCategories } from '../sync/p2pSuggest';
@@ -233,6 +234,36 @@ describe('the demo through the real pipeline', () => {
       const p = (typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload) as NetWorthGrowthPayload;
       expect(p.estimatedAccountIds, r.period).toEqual([]);
     }
+  });
+
+  it('shows a net worth goal with both dates, the return applied to invested money', async () => {
+    const [rows, accounts, setting] = await Promise.all([
+      prisma.insight.findMany({ where: { type: 'NET_WORTH_GROWTH', period: { lt: '2026-09' } }, orderBy: { period: 'asc' } }),
+      prisma.account.findMany(),
+      prisma.setting.findUnique({ where: { key: 'goals.netWorth' } }),
+    ]);
+    const goal = parseNetWorthGoal(setting?.value ?? null);
+    expect(goal).not.toBeNull();
+    const g = assessNetWorthGoal({
+      goal: goal!,
+      liveNetWorth: accounts.reduce((s, a) => s + Number(a.balance), 0),
+      months: rows.map((r) => {
+        const p = (typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload) as NetWorthGrowthPayload;
+        return {
+          period: r.period,
+          value: p.netWorth,
+          estimated: p.estimatedAccountIds.length > 0,
+          leftOut: p.excludedAccountIds ?? [],
+          marketGains: p.marketGains,
+          byAccount: p.byAccount ?? null,
+        };
+      }),
+      investedIds: new Set(accounts.filter((a) => a.type === 'INVESTMENT').map((a) => a.id)),
+    });
+    expect(g.refusal).toBeNull();
+    expect(g.saving?.lands).not.toBeNull();
+    expect(g.markets?.lands).not.toBeNull();
+    expect(g.markets!.lands! < g.saving!.lands!).toBe(true);
   });
 
   it('shows a price rise, a one-off this month, and no groceries or fuel mistaken for subscriptions', async () => {

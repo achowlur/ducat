@@ -198,6 +198,7 @@ export function computeNetWorthGrowth(
     total: number;
     invTotal: number;
     byType: Partial<Record<AccountType, number>>;
+    byAccount: Record<string, number>;
     estimated: string[];
     carried: string[];
     excluded: string[];
@@ -208,6 +209,7 @@ export function computeNetWorthGrowth(
     let total = 0;
     let invTotal = 0;
     const byType: Partial<Record<AccountType, number>> = {};
+    const byAccount: Record<string, number> = {};
     const estimated: string[] = [];
     const carried: string[] = [];
     const excluded: string[] = [];
@@ -222,11 +224,12 @@ export function computeNetWorthGrowth(
       total += balance;
       if (account.type === 'INVESTMENT') invTotal += balance;
       byType[account.type] = round2((byType[account.type] ?? 0) + balance);
+      byAccount[account.id] = round2(balance);
       if (isEstimated) estimated.push(account.id);
       if (isCarried === true) carried.push(account.id);
     }
     if (excluded.length === accounts.length) return null;
-    return { total: round2(total), invTotal: round2(invTotal), byType, estimated, carried, excluded };
+    return { total: round2(total), invTotal: round2(invTotal), byType, byAccount, estimated, carried, excluded };
   };
 
   const investmentAccountIds = new Set(accounts.filter((a) => a.type === 'INVESTMENT').map((a) => a.id));
@@ -261,6 +264,7 @@ export function computeNetWorthGrowth(
       previousNetWorth: previous === null ? null : previous.total,
       growthRate,
       byAccountType: current.byType,
+      byAccount: current.byAccount,
       marketGains,
       investmentNetFlows: flows,
       estimatedAccountIds: current.estimated,

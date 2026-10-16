@@ -40,6 +40,14 @@ export interface NetWorthGrowthPayload {
   growthRate: number | null;
   byAccountType: Partial<Record<AccountType, number>>;
   /**
+   * Each account's period-end value counted into `netWorth`, by account id
+   * (an account left out is absent). Lets a reader split net worth by a line
+   * the account type cannot draw, such as the operator's cash definition (the
+   * net worth goal applies a market return to invested money only). Absent on
+   * payloads stored before 2026-10-16.
+   */
+  byAccount?: Record<string, number>;
+  /**
    * INVESTMENT-account value change not explained by transactions —
    * unrealized market movement. Deliberately NOT income (see cash flow):
    * it decomposes net worth growth into "markets" vs "everything else".

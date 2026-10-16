@@ -368,6 +368,8 @@ export function buildDemoData(now: Date): DemoPlan {
           { id: 'emergency-fund', name: 'Emergency fund', target: 30000, accountIds: ['{account:savings}'] },
         ],
       },
+      // The net worth goal, with a typed return so both dates show.
+      { key: 'goals.netWorth', value: { target: 250000, realReturnPct: 5, returnSetOn: isoDay(new Date(today.getTime() - 6 * DAY_MS)) } },
       {
         key: 'readiness.house',
         value: { savingsFloor: 900, termYears: 30, taxPctYr: 1.1, insurancePctYr: 0.35, pmiPctYr: 0.5, closingPct: 3, downPct: 20, ratePct: 6.4, asOf: isoDay(new Date(today.getTime() - 6 * DAY_MS)) },

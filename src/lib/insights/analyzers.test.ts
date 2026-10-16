@@ -209,6 +209,23 @@ describe('computeNetWorthGrowth', () => {
     expect(result.get('2026-03')).toMatchObject({ netWorth: 5941.94, excludedAccountIds: [], growthRate: null, marketGains: null });
   });
 
+  // The net worth goal splits net worth by the operator's cash definition,
+  // a line the account type cannot draw, so each account's value travels.
+  it("records each account's month-end value, adding up to net worth, a left-out account absent", () => {
+    const cash: AccountData = { id: 'acc7', type: 'DEPOSITORY', balance: 2914.06, balanceDate: utc(2026, 3, 31) };
+    const late: AccountData = { id: 'acc6', type: 'INVESTMENT', balance: 3027.88, balanceDate: utc(2026, 3, 31) };
+    const snapshots: SnapshotData[] = [
+      { accountId: 'acc7', date: utc(2026, 2, 28), balance: 2914.06 },
+      { accountId: 'acc7', date: utc(2026, 3, 31), balance: 2914.06 },
+      { accountId: 'acc6', date: utc(2026, 3, 31), balance: 3027.88 },
+    ];
+    const result = computeNetWorthGrowth([cash, late], snapshots, [], ['2026-02', '2026-03'], 'MONTH');
+    expect(result.get('2026-02')?.byAccount).toEqual({ acc7: 2914.06 });
+    expect(result.get('2026-03')?.byAccount).toEqual({ acc7: 2914.06, acc6: 3027.88 });
+    const march = result.get('2026-03')!;
+    expect(Object.values(march.byAccount!).reduce((s, v) => s + v, 0)).toBeCloseTo(march.netWorth, 2);
+  });
+
   it('computes growth rate between consecutive periods', () => {
     const account: AccountData = {
       id: 'acc1', type: 'DEPOSITORY', balance: 1100, balanceDate: utc(2026, 7, 12),

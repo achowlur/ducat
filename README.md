@@ -177,7 +177,7 @@ and shipping a pull request.
 | `npm run rules:audit` | Report rules that match more merchants than the one they were built from (read-only) |
 | `npm run rules:simulate` | Report every disagreement between the current and the retired CONTAINS matcher, over real rows plus generated probes (read-only) |
 | `npm run rules:coverage` | Report how much the shipped rule pack categorizes on its own over this database's history, how often it agrees with your own categories, and the payees it misses (`-- --top=N`; read-only, and its output is yours: keep it out of commits and PRs) |
-| `npm run goals` | List or declare savings goals shown on /insights (`-- --add --name=… --target=…` or `--house-price=… [--down=20 --closing=3]`, `--accounts=<list>` or `--accounts=cash`, optional `--by=YYYY-MM`; `--remove=…`) |
+| `npm run goals` | List or declare savings goals shown on /insights (`-- --add --name=… --target=…` or `--house-price=… [--down=20 --closing=3]`, `--accounts=<list>` or `--accounts=cash`, optional `--by=YYYY-MM`; `--remove=…`), and the net worth goal (`-- --net-worth --target=… [--real-return=<% a year after inflation>]`; `--net-worth --remove`) |
 | `npm run readiness` | List or declare the house-readiness config behind /insights' readiness panel (`-- --floor=… --rate=… --term=… --tax=… --insurance=… --pmi=… --closing=… --down=…`, all equals-form; `--as-of=YYYY-MM-DD` dates a typed rate, `--fetched-rate` uses the stored FRED observation instead, `--clear` removes the panel) |
 | `npm run accounts:cash` | List which accounts count as spendable cash, and mark non-checking ones (`-- --add=…` / `-- --remove=…`) |
 | `npm run health` | Print the provider-health panel and the tracked-subscription reconciliation (read-only, no network) |

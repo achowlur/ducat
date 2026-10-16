@@ -53,15 +53,6 @@ Each item checked against the code after PR #29.
   names measured to agree with a person's own choices on purchases the pack
   misses, as Chase's was.
 
-### Needs a decision before any code
-
-- **A net-worth goal** (full entry below). Its premise improved since it was
-  written: the closed box keeps dividends and sales inside an investment
-  account out of income, so the cash-flow net and `marketGains`
-  (`src/lib/insights/netWorth.ts`) no longer overlap, and saved dollars and
-  market movement now split cleanly. The entry's snapshot count ("only seven
-  months") is out of date; recount it before the discussion.
-
 ### Watching, not work
 
 - **Shattered merchant strings: LEAVE IT** (full entry below). No trigger has
@@ -243,36 +234,6 @@ Each was decided where it is recorded; listed here so none is rediscovered.
   argument against building it — new code with no miles on it, landing
   immediately before the import it is meant to protect — is real, and it is
   what the branch-not-reimplementation bar answers.
-
-- **A NET-WORTH GOAL: "reach $X, and when at this rate" — raised 2026-08-04,
-  DISCUSS BEFORE BUILDING.** The idea: declare a target net worth and have the
-  app say how long it takes at observed growth, the way a savings goal already
-  projects a landing month.
-  It is not the savings goal with a bigger number, and the difference is the
-  whole design question. A cash goal projects from money SAVED — income not
-  spent — and the existing panel already prints a reconciliation line beside
-  it because even that assumes every saved dollar stays in cash. Net worth
-  moves for a second reason the operator does not control: July 2026 alone
-  moved the portfolio -$18,935.72 on market movement. A single "growth rate"
-  that blends saving with market returns would project a landing date built
-  half on a decision and half on a guess, and would read as a promise. The
-  engine already keeps these apart on purpose — `marketGains` is reported
-  separately from income, `investmentNetFlows` counts only money crossing the
-  account boundary, and the readiness panel refuses liquidation-funded
-  deposits outright because after-tax proceeds are `known:false`.
-  So the open questions, all worth answering before any code: does the
-  projection split contributed dollars from market movement and say so, or
-  refuse a single rate entirely? What return assumption is honest for the
-  market half — and does a TYPED assumption belong behind the same ASSUMED
-  disclosure the readiness panel uses, with its as-of date? How much history
-  is enough, given net worth needs SNAPSHOTS and only seven months exist, six
-  of them partly estimated? What does it print when the rate is negative, or
-  when a bad quarter puts the target further away than last month — a goal
-  that silently moves its own date is worse than one that refuses?
-  Related and already built: `goals-and-insights.md` (cash goals, the
-  reconciliation line, house readiness, the typed-first rate resolution) and
-  `money-and-analytics.md` (net worth requires snapshots; never reconstruct an
-  investment balance from transactions).
 
 - **The cloud-mode DATABASE-UNREACHABLE page has never been SEEN — open, and
   the reason is structural.** The classifier, the copy and the local-mode
