@@ -1250,9 +1250,9 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   restoring it).
 
 - NET WORTH ZOOMS, AND SAYS WHAT GREW IT (2026-10-15). Once statement history
-  reached back years, the net worth line spanned a first month of a few
-  hundred dollars and a last of a few hundred thousand: the axis that fits
-  both flattens every recent month into a few pixels. The operator asked to
+  reached back years, the net worth line spanned a first month near zero and
+  a last many times larger: the axis that fits both flattens every recent
+  month into a few pixels. The operator asked to
   zoom in, and to see how much growth came from investing rather than saving,
   and each year's growth against the years before.
   PRESET RANGES WERE REJECTED. The first build offered 1Y, 3Y, 5Y and All as
@@ -1285,9 +1285,9 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   The markets' share is printed only when both parts grew: a share of a whole
   that one part shrank is not a share of anything.
   NO RATIO FROM THE FIRST MONTH. From the first month on record the base is
-  wherever the records begin, which was a first account holding a few hundred
-  dollars: its growth rate came out in the tens of thousands of percent, a
-  fact about the records, not the growth. Zoomed past it, the base is a real
+  wherever the records begin, often a first account holding very little:
+  its growth rate came out in five figures of percent, a fact about the
+  records, not the growth. Zoomed past it, the base is a real
   month-end and the rate is printed.
   BY YEAR, newest first: each calendar year from the December before it to its
   last month on record ("so far" while it runs), with its growth against where
@@ -1304,3 +1304,42 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   zoom with it, one finger still read a month, and nothing scrolls sideways.
   The README's Trends picture and the walkthrough stop above this card, so
   neither changes.
+  THE DESIGN PASS (2026-10-16), at the operator's request once the zoom had
+  settled. What was wrong, read off the page at 1280px and 375px: the month
+  labels stepped from the end by thirteen months, so a phone's full history
+  read "Mar Apr May ... Oc" (each label a different year), and the clip cut
+  the edge labels to fragments ("Oc" for "Oct"); a hollow point on nearly
+  every month, most of them estimated, made the line a string of beads; a
+  paragraph of caption sat above the chart on a phone; twelve percent of
+  headroom left a quarter of the plot above the line's highest month; the year table starred every row, so the star
+  meant nothing, and nothing in it showed saved against markets.
+  What changed. The axis (lib/ui/timeAxis.ts, tested) names months on
+  calendar steps (every month, every other, quarters, halves) so moving along
+  never makes them hop, always names the NEWEST month on show, and names
+  years alone when even halves would crowd; the newest year is always named,
+  the label before it giving way only if they touch; labels sit outside the
+  clip and never print past an edge. Points appear on every month only once
+  months are 14 units apart (filled when known, hollow when estimated);
+  dense, a hollow point marks only an estimated month whose neighbours are
+  not, the one case a dash cannot show. A wash under the line at 8%, and only
+  when the axis starts at zero, because area reads as amount. Headroom is six
+  percent. Year guides are hairlines in the grid colour with a tick through
+  the label band. The newest point carries a 2px paper ring.
+  The card now reads top to bottom: the change and its rate; ONE bar split
+  saved against markets, its two parts named under it with figures and
+  shares (the labels are the legend, so the context line no longer repeats
+  the figures; a share is drawn only when both parts grew); the line; a
+  one-line key (the solid and dashed line drawn as the chart draws them, the
+  estimated count beside the dash, how to zoom for the device); then the
+  small print. By year gains a bar per year on ONE scale shared by every row,
+  so a longer bar is a bigger year, growth right of a zero line and a fall
+  left, saved beside the line; a column of its own from md, a line under its
+  year below md, where a sixth column does not fit. Growth rates print whole
+  from 100% up ("+917%"), one decimal below. A star marks a year only when
+  some year is free of estimates; when none is, the note says so once.
+  Negative figures wear the negative tone in every column. Saved is the
+  first categorical colour and markets the second, validated as a pair
+  against each theme's paper (sepia, light, dark: CVD separation 19.9 to
+  21.9, all passing). VERIFIED on a copy of the operator's data at 1280px and
+  375px, in sepia and dark: every year of the history labelled on a phone
+  without touching, quarters and points when zoomed, nothing scrolls sideways.

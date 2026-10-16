@@ -21,8 +21,9 @@ Every page:
   repeats its group heading is null, the tone carried by a mark.
 
 Charts:
-- Any axis whose length grows with history thins labels from the END and
-  carries a year band.
+- Any axis whose length grows with history always names its NEWEST month
+  (and year), thins the rest (from the end, or on calendar steps where it
+  zooms: lib/ui/timeAxis.ts) and carries a year band; no label is clipped.
 - Two charts with different ranges: the shorter one names its own range and
   the reason, always.
 - niceTicks guarantees last tick ≥ max; value labels are collision-checked.
