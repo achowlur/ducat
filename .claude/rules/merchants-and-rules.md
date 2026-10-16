@@ -41,6 +41,10 @@ anything below; several entries record "tried and failed, don't retry".
 - Rule bands: 1-99 user, 200-299 structural, 500-529 brands, 900-999
   generic, 995 payment rail. Card-payment patterns require a card token AND
   a payment token; short brands are word-bounded regexes, never CONTAINS.
+- A pack change is MEASURED three ways: `rules:coverage` (what a fresh
+  install claims on a real history AND how often it agrees with the
+  operator; never published), the corpus in rulePack.test.ts with
+  look-alikes, and `rules:audit` at zero on a copy with the change installed.
 - normalizeMerchant truncates at OBSERVED TRANSACTION_TYPE markers only
   (≥3 chars must precede); adding a marker can WIDEN existing rule
   matchValues — measure what the shortened values newly match first.

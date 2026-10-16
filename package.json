@@ -38,6 +38,7 @@
     "db:fingerprint": "tsx scripts/fingerprint-db.ts",
     "rules:audit": "tsx scripts/audit-rules.ts",
     "rules:simulate": "tsx scripts/simulate-rule-matching.ts",
+    "rules:coverage": "tsx scripts/rules-coverage.ts",
     "accounts:cash": "tsx scripts/set-cash-accounts.ts",
     "readiness": "tsx scripts/set-readiness.ts",
     "goals": "tsx scripts/set-goals.ts",

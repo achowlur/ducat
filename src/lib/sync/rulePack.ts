@@ -214,12 +214,31 @@ export const PACK_RULES: PackRule[] = [
   regex(525, "Health", "\\bone medical\\b"),
   regex(525, "Subscriptions", "\\bcanva\\b"),
 
+  // A second pass of common names the pack above never reached (measure the
+  // next one with `npm run rules:coverage`). Transit agencies by the short
+  // names their fare systems bill under, word-bounded because three and four
+  // letters hide in longer words.
+  // "marta" is absent: it is a given name ("MARTA'S BAKERY") as often as
+  // Atlanta's transit.
+  regex(526, "Transport", "\\b(mta|omny|nyct|mbta|wmata|septa|lirr|trimet|caltrain|metrolink)\\b"),
+  // Game stores and studios. Bare "steam" is absent: it is a carpet cleaner
+  // and a sauna too; the store bills as "steamgames.com".
+  ...contains(526, "Entertainment", "steamgames", "steam games", "square enix", "supercell", "humble bundle", "battle.net"),
+  // Discord bills Nitro, a monthly subscription, under its own name; Chegg
+  // bills its study subscription the same way.
+  ...contains(526, "Subscriptions", "discord", "chegg"),
+  ...contains(526, "Groceries", "foodtown", "food town"),
+
   // --- Generic-word heuristics: catch "Local Thai Kitchen" without knowing the brand
   regex(900, "Dining", "\\b(restaurant|cafe|coffee|espresso|pizza|pizzeria|sushi|thai|pho|ramen|taco|taqueria|burrito|grill|bistro|diner|bbq|barbecue|bakery|brewery|brewing|taphouse|pub|cantina|eatery|deli|steakhouse|wings?|donut|doughnut|ice cream|gelato|boba)\\b"),
   // A second pass rather than an edit to the line above: installRulePack
   // matches existing rules by their matchValue, so changing one leaves the
   // old row behind in every database that already ran the pack.
   regex(901, "Dining", "\\b(creamery|frozen yogurt|churro|empanada|arepa|shawarma|falafel|kebab|dumpling|noodles?|udon|poke|acai|smoothie|patisserie|creperie|trattoria|osteria|izakaya|hibachi|teriyaki|dim sum|halal|cheesecake|juice bar|food truck)\\b"),
+  // Plurals the first pass's word boundary shut out ("taco" never reached
+  // "TACOS"), and "restaurant" as a bank truncates it: a fixed-width
+  // descriptor column cuts "RESTAURANT" to "RESTAURA" as often as not.
+  regex(902, "Dining", "\\b(restaura\\w*|tacos|bagels?|burgers?)\\b"),
   regex(910, "Groceries", "\\b(grocery|grocer|supermarket|supermercado|mercado|farmers market|food mart)\\b"),
   regex(911, "Groceries", "\\b(food center|food bazaar|produce market|fish market|butcher)\\b"),
   regex(920, "Gas", "\\b(gas station|fuel|gasoline)\\b"),
@@ -229,6 +248,11 @@ export const PACK_RULES: PackRule[] = [
   regex(951, "Entertainment", "\\b(museum|aquarium|zoo|mini golf|escape room|karaoke|planetarium|botanic)\\b"),
   regex(960, "Fees & Charges", "\\b(overdraft|atm fee|service charge|monthly fee|late fee|interest charge[ds]?)\\b"),
   regex(970, "Income", "\\b(payroll|salary|direct deposit)\\b", "DESCRIPTION"),
+  // The same paycheck as banks abbreviate it ("ACME CORP DIRECT DEP", "DIR
+  // DEP"), which the line above never reached because its word ends there.
+  // "interest paid" is deliberately NOT here: on a savings account it is
+  // money in, on a loan the identical words are money out.
+  regex(971, "Income", "\\b(direct dep|dir dep|dirdep)\\b", "DESCRIPTION"),
   // Rent reaches a landlord's own name far more often than a recognizable
   // brand, so this is all the pack can honestly claim; the rest is what the
   // grouped review is for. "realty" is deliberately absent — it is a REIT

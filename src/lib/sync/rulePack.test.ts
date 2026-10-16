@@ -202,6 +202,55 @@ describe("starter pack: the long tail of chains", () => {
 });
 
 /**
+ * The second pass of common names, as invented descriptors in the shapes
+ * banks bill them under, with the look-alikes each new value must leave alone.
+ */
+describe("starter pack: transit agencies, game stores and a second pass of names", () => {
+  const FOUND: [raw: string, expected: string | null][] = [
+    ["MTA*NYCT PAYGO NEW YORK NY", "Transport"],
+    ["MTA OMNY 0000000000 NY", "Transport"],
+    ["MBTA-MTICKET BOSTON MA", "Transport"],
+    ["WMATA SMARTRIP 0000", "Transport"],
+    ["SEPTA KEY CARD PHILADELPHIA", "Transport"],
+    ["CALTRAIN TVM SAN CARLOS", "Transport"],
+    ["STEAMGAMES.COM 0000000000 WA", "Entertainment"],
+    ["SQUARE ENIX 000-000-0000 CA", "Entertainment"],
+    ["SUPERCELL CLASH 0000", "Entertainment"],
+    ["HUMBLE BUNDLE SAN FRANCISCO", "Entertainment"],
+    ["BLIZZARD ENT BATTLE.NET 0000", "Entertainment"],
+    ["DISCORD* NITRO 0000000000 CA", "Subscriptions"],
+    ["CHEGG ORDER 000-000-0000 CA", "Subscriptions"],
+    ["FOODTOWN #0123 ANYTOWN", "Groceries"],
+    ["FOOD TOWN OF RIVERSIDE", "Groceries"],
+    ["BLUE HERON RESTAURA", "Dining"], // the descriptor column cut the word
+    ["LA PALOMA TACOS", "Dining"],
+    ["CORNER BAGELS 0012", "Dining"],
+    ["BURGERS AND BREWS CO", "Dining"],
+
+    // Look-alikes the new values must leave alone.
+    ["STEAM CLEANING SERVICES", null], // bare "steam" is not the store
+    ["SMTA LOGISTICS INC", null], // "mta" inside a longer word
+    ["DISCORDANT RECORDS", null], // "discord" running on into a word
+    ["SEPTARIAN STONE SHOP", null], // "septa" likewise
+    ["SQUARE FOOT FLOORING", null], // the "square" of Square Enix alone
+  ];
+
+  it.each(FOUND)("%s → %s", (raw, expected) => {
+    expect(categorize(raw)).toBe(expected);
+  });
+
+  it("reads a paycheck the bank abbreviated, and only that", () => {
+    expect(categorize("ACME CORP", "ACME CORP DIRECT DEP 260101 0000000000 DOE,JANE", 2500)).toBe("Income");
+    expect(categorize("ACME CORP", "ACME CORP DIR DEP 0000000000", 2500)).toBe("Income");
+    expect(categorize("DIRECT DEPOT SUPPLY", "DIRECT DEPOT SUPPLY 0000")).toBeNull();
+  });
+
+  it("leaves interest unfiled: the same words are money in on savings and money out on a loan", () => {
+    expect(categorize("INTEREST PAYMENT", "INTEREST PAYMENT", 12)).toBeNull();
+  });
+});
+
+/**
  * Bank and brokerage bookkeeping, which arrives as a descriptor rather than a
  * merchant. Strings are the real shapes seen on Wells Fargo, Chase and
  * Fidelity statements, with names and numbers replaced.

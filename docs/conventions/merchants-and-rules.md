@@ -329,3 +329,36 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   `payeeKey` itself is unchanged: its truncate-not-delete is load-bearing.
   On the real queue only the card-network P2P rows changed key; every
   Zelle and every non-P2P row kept its own.
+- COVERAGE IS MEASURED, AND AGREEMENT WITH IT (2026-10-16). The operator
+  asked what a new user importing ten thousand rows would face, so the first
+  question was how much the pack claims on its own. `npm run rules:coverage`
+  answers it: the code's PACK_RULES (never the database's installed rules,
+  which lag the code until `upgrade`, nor the operator's own) through the real
+  matcher over every row that is not a transfer, not inside an investment
+  account and not P2P (held for review by design, counted apart), as if none
+  had been categorized. On one real history the shipped pack claimed about
+  half of those rows and agreed with the operator's own choices almost every
+  time: accurate, but too few names. Coverage alone would reward a greedy
+  rule, so the same run reports AGREEMENT on the rows the operator has
+  categorized since; a change that lifts coverage and drops agreement is a
+  guess, not a rule. The output names the operator's payees and figures, so
+  it stays on the machine that ran it.
+  The second pass of names it led to: transit agencies by the short names
+  their fare systems bill under (word-bounded; "marta" left out as a given
+  name), game stores ("steamgames", not bare "steam", which is also a carpet
+  cleaner), two subscription services, a grocery chain, the plurals the first
+  Dining pass's word boundary shut out ("tacos", "bagels", "burgers"),
+  "restaura" as fixed-width descriptor columns truncate "restaurant", and
+  paychecks the bank abbreviated ("DIRECT DEP", "DIR DEP"). Interest stays
+  unfiled on purpose: "INTEREST PAYMENT" is money in on a savings account and
+  money out on a loan, and a pack rule cannot see the sign. Together they lift
+  that history's coverage to about seven rows in ten, with agreement still
+  high. Where an operator files a pack name differently, a judgment call the
+  pack cannot know, their own rule outranks the pack and their rows do not
+  move.
+  Simulated as `npm run upgrade` on a copy of a verified backup: a handful of
+  rows changed, every one previously uncategorized; `rules:audit` on that
+  copy reports no rule matching mid-word.
+  The ceiling is the long tail: most of the payees still missed appear once
+  (a local bakery, a bar), with no word in the name a rule could read. Rules
+  cannot reach those; making the review queue fast is the next lever.
