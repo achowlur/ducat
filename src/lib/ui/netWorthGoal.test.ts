@@ -6,6 +6,8 @@ import {
   nextNetWorthGoal,
   parseNetWorthGoal,
   projectGoal,
+  returnToSlider,
+  sliderToReturn,
   type NetWorthMonth,
 } from "./netWorthGoal";
 
@@ -66,7 +68,7 @@ describe("parseNetWorthGoal", () => {
     expect(parseNetWorthGoal("not json")).toBeNull();
     expect(parseNetWorthGoal('{"target":0}')).toBeNull();
     expect(parseNetWorthGoal('{"target":250000,"realReturnPct":0}')).toBeNull();
-    expect(parseNetWorthGoal('{"target":250000,"realReturnPct":22}')).toBeNull();
+    expect(parseNetWorthGoal('{"target":250000,"realReturnPct":120}')).toBeNull();
     expect(parseNetWorthGoal('{"target":250000,"returnSetOn":"March"}')).toBeNull();
   });
 });
@@ -260,11 +262,35 @@ describe('nextNetWorthGoal, what a save from the panel writes', () => {
       { target: 0, realReturnPct: 5 },
       { target: Number.NaN, realReturnPct: 5 },
       { target: 1000000, realReturnPct: -1 },
-      { target: 1000000, realReturnPct: 22 },
+      { target: 1000000, realReturnPct: 120 },
     ]) {
       const r = nextNetWorthGoal(stored, input, '2026-10-16');
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.message.length).toBeGreaterThan(10);
+    }
+  });
+});
+
+describe('the return slider', () => {
+  it('runs from no growth to 100%, on a scale that gives the realistic few percent room', () => {
+    expect(sliderToReturn(0)).toBe(0);
+    expect(sliderToReturn(1000)).toBe(100);
+    // About a quarter of the travel reaches 7%.
+    expect(sliderToReturn(265)).toBe(7);
+    expect(returnToSlider(7)).toBeLessThan(300);
+  });
+
+  it('snaps to half points below 20% and whole points above, and shows what it saved', () => {
+    for (const pct of [0.5, 4, 4.5, 7, 12.5, 25, 60, 100]) {
+      expect(sliderToReturn(returnToSlider(pct))).toBe(pct);
+    }
+    expect(sliderToReturn(500) % 1).toBe(0); // 25%: whole points up there
+  });
+
+  it('lets the panel save anything the slider can reach', () => {
+    for (let position = 0; position <= 1000; position += 37) {
+      const r = nextNetWorthGoal(null, { target: 1000000, realReturnPct: sliderToReturn(position) }, '2026-10-16');
+      expect(r.ok).toBe(true);
     }
   });
 });

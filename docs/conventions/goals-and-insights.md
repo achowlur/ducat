@@ -65,8 +65,12 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   transfer.
   The target and the return became CONTROLS on the panel the same day, at
   the operator's ask, instead of numbers set from the command line: a
-  slider for the return (0 to 10% in half points, tick marks at the decade's
-  forecasts and at a century of history) and a field for the target. The
+  slider for the return and a field for the target. The slider runs 0 to
+  100% (the operator asked for the full range, for fun) on a SQUARE scale, so
+  a quarter of its travel covers 0 to about 7% and 5% does not sit a few
+  pixels from the edge of a phone; it snaps to half points below 20% and
+  whole points above, with tick marks at the decade's forecasts and at a
+  century of history. The
   dates re-project in the browser as they move, through projectGoal, the
   very function the server ran, from a serializable GoalBasis per month-end,
   so a slider never waits on a round trip and never disagrees with a reload.

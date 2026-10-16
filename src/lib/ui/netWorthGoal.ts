@@ -60,6 +60,14 @@ export interface NetWorthGoal {
   returnSetOn?: string;
 }
 
+/**
+ * The highest real return the controls offer and a save accepts, in percent
+ * a year. A hundred is not a forecast, it is the operator's wish to play
+ * ("for fun"): the panel keeps saying where the evidence sits, and the slider
+ * gives the realistic few percent most of its travel (sliderToReturn).
+ */
+export const MAX_REAL_RETURN_PCT = 100;
+
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** The stored Setting → the goal, or null. Tolerant: a corrupted value must not take the page down. */
@@ -71,7 +79,7 @@ export function parseNetWorthGoal(raw: string | null): NetWorthGoal | null {
     const g = v as Record<string, unknown>;
     if (typeof g.target !== "number" || !Number.isFinite(g.target) || g.target <= 0) return null;
     const pct = g.realReturnPct;
-    const validPct = typeof pct === "number" && Number.isFinite(pct) && pct > 0 && pct <= 15;
+    const validPct = typeof pct === "number" && Number.isFinite(pct) && pct > 0 && pct <= MAX_REAL_RETURN_PCT;
     if (pct !== undefined && !validPct) return null;
     if (g.returnSetOn !== undefined && (typeof g.returnSetOn !== "string" || !DAY.test(g.returnSetOn))) return null;
     return {
@@ -285,8 +293,25 @@ export function projectGoal(
   };
 }
 
-/** The highest real return the controls offer and a save accepts, in percent a year. */
-export const MAX_REAL_RETURN_PCT = 15;
+/** Positions on the slider, which runs 0..SLIDER_STEPS. */
+export const SLIDER_STEPS = 1000;
+
+/**
+ * Slider position → return, on a SQUARE scale: a quarter of the travel
+ * covers 0 to about 7%, where every forecast and a century of history sit,
+ * and the rest runs on to 100%. Linear, 5% would sit a few pixels from the
+ * left edge of a phone-width slider. Snapped to half a point below 20%,
+ * whole points above, so a drag lands on numbers a person would type.
+ */
+export function sliderToReturn(position: number): number {
+  const raw = MAX_REAL_RETURN_PCT * Math.pow(Math.min(SLIDER_STEPS, Math.max(0, position)) / SLIDER_STEPS, 2);
+  return raw < 20 ? Math.round(raw * 2) / 2 : Math.round(raw);
+}
+
+/** Return → the slider position that shows it (the inverse of sliderToReturn, before snapping). */
+export function returnToSlider(pct: number): number {
+  return Math.round(SLIDER_STEPS * Math.sqrt(Math.min(MAX_REAL_RETURN_PCT, Math.max(0, pct)) / MAX_REAL_RETURN_PCT));
+}
 
 /**
  * What saving the panel's controls writes, or why it refuses. A return of

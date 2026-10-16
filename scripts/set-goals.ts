@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { prisma } from '../src/lib/prisma';
 import { parseGoals, SAVINGS_GOALS_KEY, type SavingsGoal } from '../src/lib/insights/goals';
 import { countsAsCash, readCashAccountIds } from '../src/lib/ui/liquidity';
-import { NET_WORTH_GOAL_KEY, parseNetWorthGoal, type NetWorthGoal } from '../src/lib/ui/netWorthGoal';
+import { MAX_REAL_RETURN_PCT, NET_WORTH_GOAL_KEY, parseNetWorthGoal, type NetWorthGoal } from '../src/lib/ui/netWorthGoal';
 import { arg, hasFlag } from './args';
 import { databaseLabel } from './database-label';
 
@@ -106,8 +106,8 @@ async function netWorthGoal(): Promise<void> {
       }
     } else if (returnArg.toLowerCase() !== 'none') {
       const pct = Number(returnArg);
-      if (!Number.isFinite(pct) || pct <= 0 || pct > 15) {
-        return fail('--real-return is a yearly return after inflation in percent, above 0 and at most 15 (or "none" to clear it).');
+      if (!Number.isFinite(pct) || pct <= 0 || pct > MAX_REAL_RETURN_PCT) {
+        return fail(`--real-return is a yearly return after inflation in percent, above 0 and at most ${MAX_REAL_RETURN_PCT} (or "none" to clear it).`);
       }
       goal = { ...goal, realReturnPct: pct, returnSetOn: new Date().toISOString().slice(0, 10) };
     }

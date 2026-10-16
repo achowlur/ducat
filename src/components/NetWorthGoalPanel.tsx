@@ -7,15 +7,13 @@ import { money, monthLabel, shortDateYear } from "../lib/ui/format";
 import {
   NET_WORTH_PACE_MIN_MONTHS,
   projectGoal,
+  returnToSlider,
+  SLIDER_STEPS,
+  sliderToReturn,
   type NetWorthGoalAssessment,
   type Projection,
 } from "../lib/ui/netWorthGoal";
 import { ASSUMED_CHIP, CHIP, FIELD_LABEL, PROJECTED_CHIP } from "./ui/headings";
-
-/** The slider's right end: ten percent a year after inflation is already past a century of US stocks. */
-const RETURN_MAX = 10;
-/** Half a point: finer than any forecast can honestly claim. */
-const RETURN_STEP = 0.5;
 
 const wholeDollars = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 const monthsWord = (n: number) => (n === 1 ? "month" : "months");
@@ -247,13 +245,13 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
             id="nw-goal-return"
             type="range"
             min={0}
-            max={RETURN_MAX}
-            step={RETURN_STEP}
-            value={pct}
+            max={SLIDER_STEPS}
+            step={1}
+            value={returnToSlider(pct)}
             list="nw-goal-return-marks"
             aria-valuetext={pct === 0 ? "no market growth" : `${pct}% a year after inflation`}
             onChange={(e) => {
-              setPct(Number(e.target.value));
+              setPct(sliderToReturn(Number(e.target.value)));
               setFailure(null);
             }}
             onPointerUp={commitReturn}
@@ -261,11 +259,11 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
             onBlur={commitReturn}
             className="tap44 w-full max-w-[15rem] flex-1 accent-acc"
           />
-          {/* Tick marks where the evidence sits: the decade's forecasts and
-              a century of history. */}
+          {/* Tick marks where the evidence sits, the decade's forecasts and
+              a century of history, at their places on the square scale. */}
           <datalist id="nw-goal-return-marks">
-            <option value="4" />
-            <option value="7" />
+            <option value={returnToSlider(4)} />
+            <option value={returnToSlider(7)} />
           </datalist>
           <span className="font-money tabular text-ink">{pct}%</span>
           {pct > 0 && <span className={ASSUMED_CHIP}>Assumed</span>}
