@@ -1350,3 +1350,41 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   day carries it only when it falls outside the year on screen (a yearly
   plan, or December's charge read in January), since "last Sep 4" in the year
   being read is unambiguous and the year would be noise on a phone line.
+- INSIGHTS REGROUPED (2026-10-16). The page had grown to eleven sections
+  doing two jobs: a forward-looking top (projection, digest, commitments,
+  goals, readiness) and an archive that mostly repeated other screens. Net
+  worth, cash flow and spending by category each printed one row a month
+  that /trends draws better, with a Dismiss that meant nothing; recurring
+  plans were split across "Committed in the next 30 days", "Recurring
+  charges" and "No longer charging", the same plan in two of them; and the
+  anomalies the digest did not lead with sat five sections below it. It now
+  answers three questions in order. THIS MONTH: the spending figure, then
+  "Worth your attention" with those anomalies in the same list. GOALS: the
+  net worth goal first (the long view, at the operator's choice), then each
+  savings goal, house readiness indented under the goal that funds it.
+  RECURRING CHARGES: one list, each live plan leading its facts with its
+  next charge ("next Nov 5, in 20d"), projected exactly as the commitments
+  window projects it (nextChargeOf), whose 30-day total heads the section;
+  its amount is already the price fact, so it is not printed twice. Lapsed
+  plans fold behind "No longer charging (N)". A plan declared by hand and
+  never detected keeps a row with its DECLARED chip. The history rows link
+  to /trends from the foot. Setting the anomalies directly under the digest
+  exposed one duplicate the old distance hid: a ONE-OFF purchase on the line
+  above its own category's total, "higher than all prior months" only
+  because of it. A total the promoted one-offs explain (no higher than its
+  median without them) is left out (digest.ts, explainedByOneOffs); a total
+  still unusual without them stays.
+  Every goal now has one anatomy, shaped after the question it answers:
+  WHEN. Progress, then a date band (each date in the colour of its line, so
+  the band is the chart's legend and no date is printed twice), then the
+  path: the record solid in ink, each projection dashed in Trends' colours
+  for saved and markets, ending in a dot on the target line. Tap or drag
+  reads any month, the record for one that happened and each projection's
+  value for one that has not; a finger drag moves it while vertical
+  scrolling still scrolls (touch-action pan-y), because hover does not
+  exist on the device this is read on. The working-out folds behind one
+  tap; what the reader must discount does not (an unmatched deposit, rows
+  too old to split, a cash goal's reconciliation). Verified on a copy of the
+  operator's data at 1280px and 375px: no sideways scroll, the chart's dots
+  on the printed dates (goalPath, pinned by test), readouts on both sides of
+  the record's end.

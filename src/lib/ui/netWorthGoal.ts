@@ -149,7 +149,12 @@ export interface NetWorthGoalAssessment {
   basis: GoalBasis | null;
   /** The month-end before, for the shift; null when it cannot be measured. */
   previousBasis: GoalBasis | null;
+  /** The last few years of month-end net worth, oldest first: the solid line the projections continue. */
+  recent: { period: string; value: number }[];
 }
+
+/** Years of history the goal's chart draws before the projections take over. */
+export const GOAL_CHART_HISTORY_MONTHS = 60;
 
 /** "2026-09" moved by n months. */
 export function addMonths(key: string, n: number): string {
@@ -212,6 +217,27 @@ function depositAt(months: readonly NetWorthMonth[], end: number, investedIds: R
 
 /** Two deposits are the same amount within a cent or 2%: a transfer's amount is set, not estimated. */
 const sameDeposit = (a: number, b: number) => Math.abs(a - b) <= Math.max(0.01, 0.02 * Math.max(Math.abs(a), Math.abs(b)));
+
+/**
+ * Net worth month by month from the basis, `months` long (index 0 is the
+ * month-end itself), by the arithmetic `landing` uses: invested money earns
+ * the real return and takes the monthly deposit, the rest of the pace lands
+ * in cash. What the goal's chart draws, so its line and the date beside it
+ * can never disagree.
+ */
+export function goalPath(b: GoalBasis, realReturnPct: number | undefined, months: number): number[] {
+  const monthly = realReturnPct === undefined || realReturnPct <= 0 ? 0 : Math.pow(1 + realReturnPct / 100, 1 / 12) - 1;
+  const contribution = monthly === 0 ? 0 : (b.contribution ?? 0);
+  let inv = monthly === 0 || b.invested === null ? 0 : b.invested;
+  let rest = b.netWorth - inv;
+  const out = [b.netWorth];
+  for (let t = 1; t <= months; t += 1) {
+    inv = inv * (1 + monthly) + contribution;
+    rest += b.pace - contribution;
+    out.push(inv + rest);
+  }
+  return out;
+}
 
 /**
  * The first month, after `anchor`, that net worth reaches `target`. Each
@@ -400,5 +426,6 @@ export function assessNetWorthGoal(input: {
     saving: projection?.saving ?? null,
     markets: projection?.markets ?? null,
     refusal: basis === null ? "TOO_FEW_MONTHS" : null,
+    recent: months.slice(-GOAL_CHART_HISTORY_MONTHS).map((m) => ({ period: m.period, value: m.value })),
   };
 }

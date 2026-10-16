@@ -65,6 +65,9 @@ anything below; several entries record "tried and failed, don't retry".
   observed cash growth over the same window the rate averages — because the
   rate assumes every saved dollar stays in cash, and with a single goal
   nothing else states that assumption. Never remove it to "declutter".
+  It is measured from the fund's month-end BALANCES (goalFunds.ts), never
+  a sum of its transactions: an investment account counted as cash books
+  trades and sweeps as rows.
 - House readiness is a READINESS signal, never lender math: the residual
   form (income − non-housing − declared floor) is canonical, non-housing is
   built PER MONTH before averaging, the binding ceiling is named

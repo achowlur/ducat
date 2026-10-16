@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anomalyDedupeKey, computeDigest } from './digest';
+import { anomalyDedupeKey, computeDigest, explainedByOneOffs } from './digest';
 import type {
   AnomalyPayload,
   RecurringChargePayload,
@@ -358,5 +358,28 @@ describe('computeDigest and a one-off inside its own category', () => {
       anomalies: [anomaly({ amount: 1249, categoryId: 'cat-shopping', categoryName: 'Shopping', transactionId: 't-laptop' })],
     });
     expect(items.find((i) => i.kind === 'CATEGORY_DRIFT')).toMatchObject({ subject: 'Dining', stake: 2640 });
+  });
+});
+
+describe('explainedByOneOffs: a category total the one-off already told', () => {
+  // Invented: a 640 purchase in Shopping, promoted as the digest's ONE-OFF.
+  const purchase = anomaly({ kind: 'TRANSACTION', transactionId: 't9', categoryId: 'cat-shop', categoryName: 'Shopping', amount: 640, typicalAmount: 60 });
+  const promoted = new Set([anomalyDedupeKey(purchase)!]);
+  const total = (amount: number) =>
+    anomaly({ kind: 'CATEGORY_TOTAL', transactionId: null, categoryId: 'cat-shop', categoryName: 'Shopping', amount, typicalAmount: 90 });
+
+  it('leaves out a total that is ordinary once the one-off is taken away', () => {
+    const explained = explainedByOneOffs([{ id: 'a', payload: purchase }, { id: 'b', payload: total(700) }], promoted);
+    expect([...explained]).toEqual(['b']);
+  });
+
+  it('keeps a total still unusual without the one-off: that is a finding of its own', () => {
+    expect(explainedByOneOffs([{ id: 'a', payload: purchase }, { id: 'b', payload: total(1100) }], promoted).size).toBe(0);
+  });
+
+  it('explains nothing when the one-off was not promoted, or sits in another category', () => {
+    expect(explainedByOneOffs([{ id: 'a', payload: purchase }, { id: 'b', payload: total(700) }], new Set()).size).toBe(0);
+    const elsewhere = anomaly({ kind: 'TRANSACTION', transactionId: 't9', categoryId: 'cat-travel', amount: 640 });
+    expect(explainedByOneOffs([{ id: 'a', payload: elsewhere }, { id: 'b', payload: total(700) }], new Set([anomalyDedupeKey(elsewhere)!])).size).toBe(0);
   });
 });

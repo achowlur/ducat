@@ -3,6 +3,7 @@ import {
   addMonths,
   assessNetWorthGoal,
   NET_WORTH_PACE_MIN_MONTHS,
+  goalPath,
   nextNetWorthGoal,
   parseNetWorthGoal,
   projectGoal,
@@ -292,5 +293,28 @@ describe('the return slider', () => {
       const r = nextNetWorthGoal(null, { target: 1000000, realReturnPct: sliderToReturn(position) }, '2026-10-16');
       expect(r.ok).toBe(true);
     }
+  });
+});
+
+describe('goalPath, what the goal chart draws', () => {
+  const months = history({ count: 15, last: '2026-09', start: 80000, saved: 1000, flows: () => ({ invested: 400 }) });
+  const g = assessNetWorthGoal({ goal: { target: 150000, realReturnPct: 5 }, liveNetWorth: 94000, months, investedIds });
+  const index = (k: string) => Number(k.slice(0, 4)) * 12 + Number(k.slice(5, 7)) - 1;
+
+  // A line and the date printed beside it can never disagree: each path
+  // first reaches the target in exactly the month the date names.
+  it('crosses the target in the month each printed date names', () => {
+    for (const [pct, lands] of [[undefined, g.saving!.lands!], [5, g.markets!.lands!]] as const) {
+      const t = index(lands) - index(g.basis!.anchor);
+      const path = goalPath(g.basis!, pct, t);
+      expect(path[t]).toBeGreaterThanOrEqual(150000);
+      expect(path[t - 1]).toBeLessThan(150000);
+    }
+  });
+
+  it('starts from the anchor month-end, and carries the last few years before it', () => {
+    expect(goalPath(g.basis!, 5, 3)[0]).toBe(g.basis!.netWorth);
+    expect(g.recent.at(-1)).toEqual({ period: '2026-09', value: months.at(-1)!.value });
+    expect(g.recent.length).toBe(15);
   });
 });

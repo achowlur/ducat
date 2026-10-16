@@ -4,6 +4,7 @@ import {
   isActive,
   mergeDetectedSubscriptions,
   missedCharge,
+  nextChargeOf,
   type DetectedCharge,
 } from './detectedSubscriptions';
 
@@ -137,5 +138,27 @@ describe('missedCharge', () => {
       charge({ merchant: 'domain', cadence: 'YEARLY', lastDate: '2025-06-10', accountThrough });
     expect(missedCharge(domain('2026-07-14'), now)).toBeNull(); // 399 days
     expect(iso(missedCharge(domain('2026-07-16'), now))).toBe('2026-06-10');
+  });
+});
+
+describe('nextChargeOf', () => {
+  const now = new Date('2026-07-10T15:00:00Z');
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+  it('projects from the last real charge, in whole days from today', () => {
+    const next = nextChargeOf(charge({ merchant: 'gym', lastDate: '2026-06-20', averageAmount: 29 }), now);
+    expect(iso(next.date)).toBe('2026-07-20');
+    expect(next.daysAway).toBe(10);
+    expect(next.amount).toBe(29);
+  });
+
+  it('quotes the raised price, which is what the next charge costs', () => {
+    const raised = charge({ merchant: 'gym', lastDate: '2026-06-20', averageAmount: 29, lastAmount: 34, priceIncreased: true });
+    expect(nextChargeOf(raised, now).amount).toBe(34);
+  });
+
+  it('never offers a date already gone by, and clamps a 31st into a short month', () => {
+    expect(iso(nextChargeOf(charge({ merchant: 'gym', lastDate: '2026-06-05' }), now).date)).toBe('2026-08-05');
+    expect(iso(nextChargeOf(charge({ merchant: 'gym', lastDate: '2026-01-31' }), new Date('2026-02-10T12:00:00Z')).date)).toBe('2026-02-28');
   });
 });

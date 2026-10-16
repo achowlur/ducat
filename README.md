@@ -44,12 +44,14 @@ the things waiting for your review.
 
 ### Insights
 
-<img src="docs/assets/screenshots/insights.png" alt="Insights: a one-off purchase, month-end projection, commitments, savings goals and house readiness" width="100%">
+<img src="docs/assets/screenshots/insights.png" alt="Insights: where this month's spending lands and what is worth a look, then each goal with its date and path" width="100%">
 
-The month, read once: what is worth your attention, where spending lands if
-the rest of the month is ordinary, what is already committed, each savings
-goal with the date it lands, and a house-readiness estimate that names its
-assumptions.
+Three questions, in order. This month: where spending lands if the rest of
+the month is ordinary, and what is worth your attention. Goals: a net worth
+goal dated two ways (by saving alone, and with a market return you set on
+the page), each savings goal with the date it lands and its path, and a
+house-readiness estimate that names its assumptions. Recurring charges: one
+list, each plan with its next charge, and what is due in the next 30 days.
 
 ### Trends
 
