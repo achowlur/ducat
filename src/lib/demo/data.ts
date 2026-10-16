@@ -176,7 +176,11 @@ export function buildDemoData(now: Date): DemoPlan {
     // Subscriptions: the streaming price rose two months before the current one.
     const streaming = mo.index >= DEMO_HISTORY_MONTHS - 2 ? 17.99 : 15.49;
     spend(9, streaming, 'STREAMFLIX.COM', 'streamflix', 'Subscriptions');
-    spend(14, 10.99, 'TUNEBOX MUSIC', 'tunebox', 'Subscriptions');
+    // The music plan's descriptor changed eight months ago, as banks do
+    // mid-plan; the detector follows it, so Insights lists ONE plan "billed
+    // under 2 names" (recurring.ts, continues).
+    if (mo.index < DEMO_HISTORY_MONTHS - 8) spend(14, 10.99, 'TUNEBOX MUSIC', 'tunebox', 'Subscriptions');
+    else spend(14, 10.99, 'TUNEBOX PREMIUM', 'tunebox premium', 'Subscriptions');
     // The gym was cancelled: its last charge landed about forty days before
     // today and the next never came, while the card kept recording, so
     // Insights flags it MISSED (health/detectedSubscriptions.ts) without it

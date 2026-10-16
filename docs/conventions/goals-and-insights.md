@@ -18,6 +18,32 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   surfaces. Detected subscriptions also lapse: the recurring detector has no
   recency bound, so a service cancelled years ago billed forever in the
   annualised total until charges older than two cadence cycles were dropped.
+- ONE PLAN, SEVERAL DESCRIPTORS (2026-10-16). Banks rename a biller's
+  descriptor mid-plan, and the detector keyed on the merchant string, so one
+  monthly plan reached it as several merchants: each name long enough to pass
+  the gates became its own subscription row, and a name only one charge long
+  was listed nowhere. `brandOf` already folded such names for the yearly
+  TOTAL, but by first word only, which cannot relate a product name to the
+  brand that later replaced it, and never for the rows. The detector now
+  follows a plan across names: a later name continues an earlier one when it
+  starts after the earlier's last charge (overlapping names are two plans),
+  on the same account, within the amount tolerance, sharing a word of the
+  payee's NAME, and the joined series passes every gate with the handover gap
+  inside the regular band (a pause and a restart are two plans). The first
+  cut matched on ANY distinctive word, and `subs:audit` on a real history
+  showed what that costs: a gas station and a restaurant in one town, a few
+  months apart at a similar price, joined into a quarterly "plan" through the
+  town's name. Two guards came out of it, and both stay. Words are the NAME
+  words grouped review already settled on (its first two past the bank's
+  bookkeeping, four letters or more, never a place; now shared from
+  payeeWords.ts so the two cannot drift), and a chain is emitted only when one
+  of its names is recurring on its own: following a plan never discovers one.
+  On that history the audit's detections were otherwise unchanged. The plan
+  keys on its NEWEST name, so a dismissal or a registered pattern written
+  against the current descriptor still finds it, names the earlier ones in
+  `aliases`, and its row says "billed under N names" so a charge count
+  covering every name does not surprise beside one name. `subs:audit` reports
+  such a plan once, under its newest name, as the detector does.
 - MISSED BEFORE LAPSED (2026-10-16). Two cycles is the right wait for calling
   a plan gone, because billing dates wander, but it left a cancelled monthly
   plan reading as live for two months: weeks after its last charge, with the

@@ -457,6 +457,78 @@ describe('detectRecurringCharges', () => {
     expect(detectRecurringCharges(txns).get('netflix')?.accountThrough).toBe('2026-04-22');
   });
 
+  describe('a plan billed under a renamed descriptor', () => {
+    // Invented: a $7.99 monthly plan whose bank descriptor changed twice,
+    // with a single charge under the middle name.
+    const plan = [
+      ...[1, 2, 3, 4].map((m) => txn({ date: utc(2025, m, 6), amount: -7.99, normalizedMerchant: 'pixelvault plus' })),
+      txn({ date: utc(2025, 5, 7), amount: -7.99, normalizedMerchant: 'pixelvault httpspixelvault ca' }),
+      ...[6, 7, 8, 9, 10].map((m) => txn({ date: utc(2025, m, 6), amount: -7.99, normalizedMerchant: 'pv* pixelvault plus' })),
+    ];
+
+    it('follows it into ONE plan, keyed by the newest name, naming the earlier ones', () => {
+      const result = detectRecurringCharges(plan);
+      expect([...result.keys()]).toEqual(['pv* pixelvault plus']);
+      expect(result.get('pv* pixelvault plus')).toMatchObject({
+        occurrences: 10,
+        cadence: 'MONTHLY',
+        lastDate: '2025-10-06',
+        aliases: ['pixelvault plus', 'pixelvault httpspixelvault ca'],
+      });
+    });
+
+    it('keeps two plans that OVERLAP apart, however alike their names', () => {
+      const overlapping = [
+        ...[1, 2, 3, 4, 5].map((m) => txn({ date: utc(2025, m, 6), amount: -7.99, normalizedMerchant: 'pixelvault plus' })),
+        ...[3, 4, 5, 6, 7].map((m) => txn({ date: utc(2025, m, 20), amount: -7.99, normalizedMerchant: 'pixelvault family' })),
+      ];
+      expect([...detectRecurringCharges(overlapping).keys()].sort()).toEqual(['pixelvault family', 'pixelvault plus']);
+    });
+
+    it('keeps them apart on different accounts, at a different price, or with no word in common', () => {
+      const before = [1, 2, 3, 4].map((m) => txn({ date: utc(2025, m, 6), amount: -7.99, normalizedMerchant: 'pixelvault plus' }));
+      const after = (partial: Partial<TxnData>) =>
+        [5, 6, 7, 8].map((m) => txn({ date: utc(2025, m, 6), amount: -7.99, normalizedMerchant: 'pv* pixelvault plus', ...partial }));
+      expect(detectRecurringCharges([...before, ...after({ accountId: 'acc2' })]).size).toBe(2);
+      expect(detectRecurringCharges([...before, ...after({ amount: -19.99 })]).size).toBe(2);
+      expect(detectRecurringCharges([...before, ...after({ normalizedMerchant: 'streamly' })]).size).toBe(2);
+    });
+
+    // A plan that stopped and a new one that started months later share a
+    // name but not a cadence: the handover has to read like any other cycle.
+    it('keeps a pause and a restart apart', () => {
+      const paused = [
+        ...[1, 2, 3, 4].map((m) => txn({ date: utc(2025, m, 6), amount: -7.99, normalizedMerchant: 'pixelvault plus' })),
+        ...[9, 10, 11, 12].map((m) => txn({ date: utc(2025, m, 6), amount: -7.99, normalizedMerchant: 'pv* pixelvault plus' })),
+      ];
+      expect(detectRecurringCharges(paused).size).toBe(2);
+    });
+
+    // Invented, in the shape the audit caught: a gas station and a restaurant
+    // in one town, a few months apart at a similar price.
+    it('never joins two businesses that only share a town, nor assembles a plan from one-offs', () => {
+      const town = [
+        txn({ date: utc(2025, 1, 9), amount: -24.1, normalizedMerchant: 'fuelstop palm springs fl' }),
+        txn({ date: utc(2025, 4, 11), amount: -26.4, normalizedMerchant: 'fuelstop palm springs fl' }),
+        txn({ date: utc(2025, 7, 10), amount: -25.3, normalizedMerchant: 'lotus garden palm springs fl' }),
+      ];
+      expect(detectRecurringCharges(town).size).toBe(0);
+      // Same name, two charges under each spelling: a match, but neither is
+      // recurring on its own, so nothing is detected.
+      const pieces = [
+        ...[1, 2].map((m) => txn({ date: utc(2025, m, 6), amount: -7.99, normalizedMerchant: 'pixelvault plus' })),
+        ...[3, 4].map((m) => txn({ date: utc(2025, m, 6), amount: -7.99, normalizedMerchant: 'pv* pixelvault plus' })),
+      ];
+      expect(detectRecurringCharges(pieces).size).toBe(0);
+    });
+
+    it('never joins on a word that only says how the bank billed it', () => {
+      const before = [1, 2, 3, 4].map((m) => txn({ date: utc(2025, m, 6), amount: -7.99, normalizedMerchant: 'recurring payment pixelvault' }));
+      const after = [5, 6, 7, 8].map((m) => txn({ date: utc(2025, m, 6), amount: -7.99, normalizedMerchant: 'recurring payment streamly' }));
+      expect(detectRecurringCharges([...before, ...after]).size).toBe(2);
+    });
+  });
+
   it('detects weekly cadence', () => {
     const txns = [1, 8, 15, 22, 29].map((d) =>
       txn({ date: utc(2026, 6, d), amount: -12.5, normalizedMerchant: 'car wash club' }),

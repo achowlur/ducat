@@ -233,6 +233,10 @@ function renderRecurring(p: RecurringChargePayload, tracked: boolean, state: Rec
       `${p.occurrences} charges`,
       `last ${day(new Date(`${p.lastDate}T12:00:00Z`))}`,
       ...(state.missed !== null ? [`missed ${day(state.missed)}`] : []),
+      // The charges above are the whole plan's, under every descriptor the
+      // bank used for it (recurring.ts, continues), so the count is not a
+      // surprise beside a name that only covers the newest of them.
+      ...(p.aliases !== undefined ? [`billed under ${p.aliases.length + 1} names`] : []),
       ...(tracked ? ["registered"] : []),
     ],
   };
