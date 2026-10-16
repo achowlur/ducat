@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { fullWindow, isFull, shownMonths, type ChartWindow } from "../../lib/ui/chartZoom";
-import { money, monthAbbrev, pct, shortMonthLabel } from "../../lib/ui/format";
-import { growthBetween, growthByYear, type YearGrowth } from "../../lib/ui/netWorthGrowth";
-import { wholePercents } from "../../lib/ui/spendingBreakdown";
+import { money, shortMonthLabel } from "../../lib/ui/format";
+import { growthBetween, growthByYear } from "../../lib/ui/netWorthGrowth";
 import { NetWorthChart } from "../charts/NetWorthChart";
-import { COLUMN_HEADER, SubsectionTitle } from "../ui/headings";
 import { CardFrame, Fig, Hero, Lead, Note } from "./CardFrame";
+import { GrowthSplit } from "./GrowthSplit";
+import { growthRate, NetWorthYears } from "./NetWorthYears";
 
 export interface NetWorthMonth {
   period: string;
@@ -18,20 +18,16 @@ export interface NetWorthMonth {
   marketGains: number | null;
 }
 
-/** Whole dollars with a true minus: the by-year columns fit a phone only without cents. */
-function dollars(n: number): string {
-  const whole = Math.round(n);
-  const text = Math.abs(whole).toLocaleString("en-US");
-  return whole < 0 ? `−${text}` : text;
-}
-
 const signedMoney = (n: number) => (n > 0 ? `+${money(n)}` : money(n));
 const toneOf = (n: number): "pos" | "neg" | undefined => (n > 0 ? "pos" : n < 0 ? "neg" : undefined);
 
-/** "2024", "2026 so far", "2018 from Nov": the span a year's row measures. */
-function yearLabel(y: YearGrowth): string {
-  if (y.fromInside) return `${y.year} from ${monthAbbrev(y.from)}`;
-  return y.soFar ? `${y.year} so far` : y.year;
+/** The chart's two line styles, drawn as the line draws them, for the key under it. */
+function LineKey({ dashed }: { dashed: boolean }) {
+  return (
+    <svg aria-hidden width="22" height="8" className="shrink-0">
+      <line x1="1" y1="4" x2="21" y2="4" stroke="var(--chart1)" strokeWidth="2" strokeLinecap="round" strokeDasharray={dashed ? "5,3" : undefined} />
+    </svg>
+  );
 }
 
 /**
@@ -39,6 +35,11 @@ function yearLabel(y: YearGrowth): string {
  * over the months on show: the markets, or money kept. The window lives here,
  * not in the chart, because the figures above the line follow it. Every month
  * is already on the page, so zooming asks the server nothing.
+ *
+ * Read top to bottom: the change and its rate, what it was made of (one bar,
+ * its parts named), the line, a one-line key to the line, then the small
+ * print. The key replaced a nine-line paragraph that sat ABOVE the chart on a
+ * phone, so the line began below the fold.
  */
 export function NetWorthCard({
   months,
@@ -80,19 +81,12 @@ export function NetWorthCard({
   const { first, last } = shownMonths(shownWindow);
   const shown = months.slice(first, last + 1);
   const growth = last > first ? growthBetween(months, first, last) : null;
-  const years = growthByYear(months);
   const estimatedMonths = shown.filter((m) => m.estimated).length;
   // Each account a shown month leaves out, with the LAST month it is missing from.
   const leftOut = [...new Set(shown.flatMap((m) => m.leftOut))].map((name) => ({
     name,
     through: shown.filter((m) => m.leftOut.includes(name)).at(-1)?.period ?? "",
   }));
-  // The markets' share is stated only when both parts grew: a share of a
-  // whole that one part shrank is not a share of anything.
-  const [savedShare, marketShare] =
-    growth !== null && growth.saved > 0 && growth.markets > 0
-      ? wholePercents([growth.saved / growth.change, growth.markets / growth.change])
-      : [null, null];
 
   const reset = zoomed ? (
     <button
@@ -107,52 +101,58 @@ export function NetWorthCard({
   return (
     <CardFrame id="net-worth" title="Net worth" switcher={reset}>
       {growth !== null && (
-        <Hero figure={signedMoney(growth.change)} tone={toneOf(growth.change)}>
-          <Lead>
-            {shortMonthLabel(growth.from)} to {shortMonthLabel(growth.to)}
-          </Lead>
-          {/* From the first month on record the base is wherever the records
-              happen to begin, often a near-empty first account, so its ratio
-              describes the records, not the growth. Zoomed past it, the base
-              is a real month-end. */}
-          {growth.pct !== null && first > 0 && (
-            <>
-              {" "}
-              · <Fig tone={toneOf(growth.pct)}>{`${growth.pct >= 0 ? "▲" : "▼"} ${pct(Math.abs(growth.pct)).slice(1)}`}</Fig>
-            </>
-          )}{" "}
-          · saved <Fig>{money(growth.saved)}</Fig> · markets <Fig>{money(growth.markets)}</Fig>
-          {marketShare !== null && savedShare !== null && (
-            <>
-              {" "}
-              · <Fig>{marketShare}%</Fig> of it from markets
-            </>
-          )}
-        </Hero>
+        <>
+          <Hero figure={signedMoney(growth.change)} tone={toneOf(growth.change)}>
+            <Lead>
+              {shortMonthLabel(growth.from)} to {shortMonthLabel(growth.to)}
+            </Lead>
+            {/* From the first month on record the base is wherever the records
+                happen to begin, often a near-empty first account, so its ratio
+                describes the records, not the growth. Zoomed past it, the base
+                is a real month-end. */}
+            {growth.pct !== null && first > 0 && (
+              <>
+                {" "}
+                · <Fig tone={toneOf(growth.pct)}>{`${growth.pct >= 0 ? "▲" : "▼"} ${growthRate(Math.abs(growth.pct)).slice(1)}`}</Fig>
+              </>
+            )}
+          </Hero>
+          <GrowthSplit saved={growth.saved} markets={growth.markets} />
+        </>
       )}
 
-      <p className="mb-3 text-[0.75rem] text-faint">
-        Month-end, {leftOut.length === 0 ? "all accounts" : "every account with a value that month"},{" "}
-        <span className="text-ink">{shortMonthLabel(shown[0].period)}</span> to{" "}
-        <span className="text-ink">{shortMonthLabel(shown[shown.length - 1].period)}</span>. Hover or tap a month for
-        exact figures. Pinch to zoom in anywhere and slide two fingers to move along; on a computer, Ctrl and scroll
-        (or pinch the trackpad) and drag. The figures above follow the months on show. A dashed line and a hollow
-        point mark a month to discount: partly estimated (an investment account&apos;s value carried from an earlier
-        month, its market movement since unseen, or a balance worked out from transactions), or leaving an account
-        out.
-        {/* How MANY are estimated is a fact about the whole line, not a
-            per-point footnote: six of seven is a reason to discount the
-            slope, and it was reachable only by hovering each month in turn. */}
-        {estimatedMonths > 0 && (
-          <>
-            {" "}
-            <span className="text-ink">
-              {estimatedMonths} of {shown.length} month{shown.length === 1 ? "" : "s"}{" "}
-              {estimatedMonths === 1 ? "is" : "are"} partly estimated
-            </span>
-            .
-          </>
+      {months.length < 3 && historyStartsHere}
+      <NetWorthChart months={months} window={shownWindow} onWindow={setWindow} />
+
+      {/* The key to the line, and how to move it, in one line under it. How
+          MANY months are estimated is a fact about the whole line, not a
+          per-point footnote, so it rides the key. */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.72rem] text-faint">
+        {estimatedMonths < shown.length && (
+          <span className="inline-flex items-center gap-1.5">
+            <LineKey dashed={false} />
+            From balances on record
+          </span>
         )}
+        {estimatedMonths > 0 && (
+          <span className="inline-flex items-center gap-1.5">
+            <LineKey dashed />
+            <span>
+              Partly estimated,{" "}
+              <span className="text-ink">
+                {estimatedMonths} of {shown.length} month{shown.length === 1 ? "" : "s"}
+              </span>
+            </span>
+          </span>
+        )}
+        <span className="md:hidden">Pinch to zoom, two fingers to move</span>
+        <span className="hidden md:inline">Ctrl and scroll, or pinch, to zoom; drag to move; double-click for all</span>
+      </div>
+      <Note>
+        Month-end, {leftOut.length === 0 ? "all accounts" : "every account with a value that month"}, from{" "}
+        {shortMonthLabel(shown[0].period)} to {shortMonthLabel(shown[shown.length - 1].period)}. Tap or hover a month
+        for its figures. Partly estimated means an investment account&apos;s value carried from an earlier month, its
+        market movement since unseen, or a balance worked out from transactions.
         {/* A month missing an account is SMALLER than the truth, so the
             account is named in text, with the last month it is missing from:
             never left for a hover to reveal. */}
@@ -169,69 +169,9 @@ export function NetWorthCard({
         {!zoomed && spendingFrom !== null && months[0].period > spendingFrom && (
           <> Shorter than the spending history above: a month appears once some account has a value in it.</>
         )}
-      </p>
-      {months.length < 3 && historyStartsHere}
-      <NetWorthChart months={months} window={shownWindow} onWindow={setWindow} />
+      </Note>
 
-      {years.length > 0 && (
-        <div className="mt-6">
-          <SubsectionTitle>By year</SubsectionTitle>
-          <table className="mt-2 w-full max-w-[640px] text-[0.85rem]">
-            <thead>
-              <tr className="border-b border-rule">
-                <th scope="col" className={`${COLUMN_HEADER} py-1 pr-2 text-left`}>
-                  Year
-                </th>
-                <th scope="col" className={`${COLUMN_HEADER} py-1 pr-2 text-right`}>
-                  Change
-                </th>
-                <th scope="col" className={`${COLUMN_HEADER} py-1 pr-2 text-right`}>
-                  Growth
-                </th>
-                <th scope="col" className={`${COLUMN_HEADER} py-1 pr-2 text-right`}>
-                  Saved
-                </th>
-                <th scope="col" className={`${COLUMN_HEADER} py-1 text-right`}>
-                  Markets
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {years.map((y) => {
-                // Rounded to dollars, saved is what is left of the rounded
-                // change, so every row still adds up as printed.
-                const change = Math.round(y.change);
-                const markets = Math.round(y.markets);
-                return (
-                  <tr key={y.year} className="border-b border-rule/60 align-top">
-                    <th scope="row" className="py-1.5 pr-2 text-left font-normal">
-                      {yearLabel(y)}
-                      {y.uncertainMonths > 0 ? "*" : ""}
-                    </th>
-                    <td className={`py-1.5 pr-2 text-right font-money tabular ${change < 0 ? "text-neg" : ""}`}>
-                      {dollars(change)}
-                    </td>
-                    <td className="py-1.5 pr-2 text-right font-money tabular">
-                      {y.pct === null ? "—" : pct(y.pct)}
-                    </td>
-                    <td className="py-1.5 pr-2 text-right font-money tabular">{dollars(change - markets)}</td>
-                    <td className="py-1.5 text-right font-money tabular">{dollars(markets)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <Note>
-            Each year runs from the December before it to its last month on record, in whole dollars. Markets is how
-            much your investment accounts moved beyond the money put in or taken out; saved is everything else that
-            moved your balances, which is income left after spending, interest included. Growth is the change against
-            where the year started, and none is printed when that start was zero or below.
-            {years.some((y) => y.uncertainMonths > 0) && (
-              <> A year marked * includes partly estimated months, so its split is too.</>
-            )}
-          </Note>
-        </div>
-      )}
+      <NetWorthYears years={growthByYear(months)} />
     </CardFrame>
   );
 }

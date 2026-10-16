@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { clampWindow, fullWindow, isFull, MIN_SPAN, panBy, pinchWindow, shownMonths, zoomAround } from "./chartZoom";
 
-const N = 95; // a long history: indices 0..94
+const N = 120; // a long history: indices 0..119
 
 describe("zoomAround", () => {
   it("keeps the month under the pointer under it", () => {
     const w = zoomAround(fullWindow(N), 0.5, 0.25, N);
-    expect(w.end - w.start).toBeCloseTo(47);
-    // 0.25 across the full window was month 23.5; it is still 0.25 across.
-    expect(w.start + 0.25 * (w.end - w.start)).toBeCloseTo(23.5);
+    expect(w.end - w.start).toBeCloseTo(59.5);
+    // 0.25 across the full window was month 29.75; it is still 0.25 across.
+    expect(w.start + 0.25 * (w.end - w.start)).toBeCloseTo(29.75);
   });
 
   it("never zooms in past MIN_SPAN months, nor out past the whole series", () => {
@@ -20,9 +20,9 @@ describe("zoomAround", () => {
   });
 
   it("stays inside the series when zooming at an edge", () => {
-    const w = zoomAround({ start: 80, end: 94 }, 1.5, 1, N);
-    expect(w.end).toBe(94);
-    expect(w.start).toBeCloseTo(73);
+    const w = zoomAround({ start: 105, end: 119 }, 1.5, 1, N);
+    expect(w.end).toBe(119);
+    expect(w.start).toBeCloseTo(98);
   });
 });
 
@@ -30,15 +30,15 @@ describe("panBy", () => {
   it("moves along the series and stops at either end, its width kept", () => {
     expect(panBy({ start: 10, end: 22 }, 5, N)).toEqual({ start: 15, end: 27 });
     expect(panBy({ start: 10, end: 22 }, -40, N)).toEqual({ start: 0, end: 12 });
-    expect(panBy({ start: 80, end: 92 }, 40, N)).toEqual({ start: 82, end: 94 });
+    expect(panBy({ start: 100, end: 112 }, 40, N)).toEqual({ start: 107, end: 119 });
   });
 });
 
 describe("pinchWindow", () => {
   it("halves the width when the fingers spread to twice their distance", () => {
     const w = pinchWindow(fullWindow(N), 100, 200, 0.5, 0.5, N);
-    expect(w.end - w.start).toBeCloseTo(47);
-    expect((w.start + w.end) / 2).toBeCloseTo(47);
+    expect(w.end - w.start).toBeCloseTo(59.5);
+    expect((w.start + w.end) / 2).toBeCloseTo(59.5);
   });
 
   it("moves along the line when both fingers slide, spread unchanged", () => {

@@ -10,7 +10,12 @@ import {
   type ChartWindow,
 } from "../../lib/ui/chartZoom";
 import { money } from "../../lib/ui/format";
-import { axisMoney, labelStepFor, monthWithYear, niceTicks } from "./scale";
+import { monthStep, monthTicks, yearLabels, yearSpans } from "../../lib/ui/timeAxis";
+import { axisMoney, monthWithYear, niceTicks } from "./scale";
+
+/** Room a month label needs, and a year label, in viewBox units at 10px type. */
+const MONTH_LABEL = 34;
+const YEAR_LABEL = 28;
 
 interface MonthValue {
   period: string;
@@ -129,7 +134,9 @@ function Plot({
   // The scale fits the months on show, so zooming in reveals the moves a
   // whole-history axis flattens into a few pixels.
   const values = months.slice(lo, hi + 1).map((m) => m.value);
-  const pad = (Math.max(...values) - Math.min(...values)) * 0.12 || 1;
+  // Six percent of headroom: twelve could push the top tick a whole step
+  // above the line, a quarter of the plot drawn over nothing.
+  const pad = (Math.max(...values) - Math.min(...values)) * 0.06 || 1;
   // Padding must not invent a NEGATIVE band no month reaches: a history that
   // starts near zero padded a "−$100k" tick under a line that never went below
   // zero. Below zero is drawn only when a month is.
@@ -140,14 +147,40 @@ function Plot({
   const y = (v: number) => PLOT_BOTTOM - ((v - yLo) / (yHi - yLo)) * (PLOT_BOTTOM - PLOT_TOP);
   const x = (i: number) => (count === 1 ? (PLOT_LEFT + PLOT_RIGHT) / 2 : PLOT_LEFT + ((i - shown.start) / span) * PLOT_W);
 
-  // Labels are thinned by the spacing on show and counted from the series'
-  // END, so moving along the line never makes them hop.
-  const labelStep = labelStepFor(count < 2 ? PLOT_W : PLOT_W / span, 34);
-  const yearOf = (i: number) => months[i].period.slice(0, 4);
-  const yearStarts = months.map((_, i) => i).filter((i) => i === 0 || yearOf(i) !== yearOf(i - 1));
-  const yearSpans = yearStarts
-    .map((start, n) => ({ year: yearOf(start), start, end: n + 1 < yearStarts.length ? yearStarts[n + 1] - 1 : last }))
-    .filter((s) => s.end >= shown.start - 0.5 && s.start <= shown.end + 0.5);
+  // The time axis. Months are named on CALENDAR steps (every month, every
+  // other, quarters, halves) so moving along never makes a label hop, and the
+  // newest month on show is always named, its nearest calendar label giving
+  // way; when even halves would crowd, the axis names years alone. Labels sit
+  // outside the clip and never print past an edge: the old axis cut a year
+  // and "Oct" to fragments at the plot's edges.
+  const unitsPerMonth = count < 2 ? PLOT_W : PLOT_W / span;
+  const periods = months.map((m) => m.period);
+  const step = monthStep(unitsPerMonth, MONTH_LABEL);
+  const monthLabels = (() => {
+    if (step === null) return [];
+    const newest = lastShown;
+    const room = MONTH_LABEL / unitsPerMonth;
+    const calendar = monthTicks(periods, firstShown, lastShown, step).filter((i) => i === newest || newest - i >= room);
+    return calendar.includes(newest) ? calendar : [...calendar, newest];
+  })();
+  const anchorAt = (px: number): "start" | "middle" | "end" =>
+    px < PLOT_LEFT + 10 ? "start" : px > PLOT_RIGHT - 10 ? "end" : "middle";
+  const spans = yearSpans(periods);
+  const years = yearLabels(spans, shown, unitsPerMonth, YEAR_LABEL);
+  // A year's left boundary, where one is on show: a hairline guide through
+  // the plot and a tick through the label band.
+  const boundaries = spans.filter((s) => s.start > 0 && s.start - 0.5 > shown.start && s.start - 0.5 < shown.end);
+  const yearRow = step === null ? PLOT_BOTTOM + 15 : PLOT_BOTTOM + 29;
+  // Every month gets a point only when the months are far enough apart to
+  // read one: at full history a hollow point on nearly every month (most
+  // were estimated) turned the line into a string of beads. Dense, a point marks only
+  // an estimated month whose neighbours are not, which a dash cannot show.
+  const pointsAll = unitsPerMonth >= 14;
+  const isolated = (i: number) =>
+    uncertain(months[i]) && (i === 0 || !uncertain(months[i - 1])) && (i === last || !uncertain(months[i + 1]));
+  // A wash under the line only when the axis starts at zero: area reads as
+  // amount, and over a cut axis it would overstate every month.
+  const washed = yLo === 0 && count > 1;
 
   // The caption told the reader to look for "months marked estimated" and
   // nothing was marked: one solid confident line, the flag reachable only by
@@ -317,8 +350,10 @@ function Plot({
         }}
       >
         <defs>
+          {/* The plot only: the line runs in from either edge and is trimmed
+              there, while every label sits outside and is never cut. */}
           <clipPath id={clipId}>
-            <rect x={PLOT_LEFT - 4} y={0} width={PLOT_W + 8} height={PLOT_BOTTOM + 34} />
+            <rect x={PLOT_LEFT - 6} y={0} width={PLOT_W + 12} height={PLOT_BOTTOM + 6} />
           </clipPath>
         </defs>
         {ticks.map((t) => (
@@ -329,9 +364,29 @@ function Plot({
             </text>
           </g>
         ))}
-        <line x1={PLOT_LEFT} y1={PLOT_BOTTOM} x2={PLOT_RIGHT} y2={PLOT_BOTTOM} stroke="var(--ink)" strokeWidth="1" />
 
         <g clipPath={`url(#${clipId})`}>
+          {boundaries.map((s) => (
+            <line
+              key={`guide-${s.year}`}
+              x1={x(s.start - 0.5)}
+              y1={PLOT_TOP}
+              x2={x(s.start - 0.5)}
+              y2={PLOT_BOTTOM}
+              stroke="var(--grid)"
+              strokeWidth="1"
+            />
+          ))}
+          {washed && (
+            <path
+              d={`M${x(lo)},${PLOT_BOTTOM} ${months
+                .slice(lo, hi + 1)
+                .map((m, k) => `L${x(lo + k)},${y(m.value)}`)
+                .join(" ")} L${x(hi)},${PLOT_BOTTOM} Z`}
+              fill="var(--chart1)"
+              fillOpacity="0.08"
+            />
+          )}
           {segments.map((s) => (
             <line
               key={s.key}
@@ -345,68 +400,74 @@ function Plot({
               strokeDasharray={s.estimated ? "5,3" : undefined}
             />
           ))}
-          {/* A hollow point on each estimated month, so the mark survives a
-              single estimated month with no neighbour to dash against. */}
-          {months.slice(lo, hi + 1).map((m, k) =>
-            uncertain(m) ? (
+          {/* A hollow point marks an estimated month a dash cannot show (one
+              with no estimated neighbour); zoomed in, every month gets a
+              point, filled when known and hollow when estimated. */}
+          {months.slice(lo, hi + 1).map((m, k) => {
+            const i = lo + k;
+            if (i === last || !(pointsAll || isolated(i))) return null;
+            const hollow = uncertain(m);
+            return (
               <circle
-                key={`est-${m.period}`}
-                cx={x(lo + k)}
+                key={`pt-${m.period}`}
+                cx={x(i)}
                 cy={y(m.value)}
-                r="2.5"
-                fill="var(--paper)"
+                r={hollow ? 2.5 : 2.25}
+                fill={hollow ? "var(--paper)" : "var(--chart1)"}
                 stroke="var(--chart1)"
-                strokeWidth="1.5"
+                strokeWidth={hollow ? 1.5 : 0}
               />
-            ) : null,
-          )}
+            );
+          })}
 
           {point !== null && (
             <line x1={x(point)} y1={PLOT_TOP} x2={x(point)} y2={PLOT_BOTTOM} stroke="var(--faint)" strokeWidth="1" strokeDasharray="3,3" />
           )}
-          {point !== null && <circle cx={x(point)} cy={y(months[point].value)} r="4" fill="var(--chart1)" />}
-
-          {lastShown === last && <circle cx={x(last)} cy={y(months[last].value)} r="3.5" fill="var(--chart1)" />}
-
-          {/* Year band + thinned labels, the treatment the cash-flow axis has
-              had since the 26-month squeeze. This axis grows with history too and
-              had neither: it labelled every month unconditionally, which was
-              comfortable at seven points and stops being so at thirteen — mobile
-              spacing is 246/(n−1) against 17-18px labels, touching at n=13. */}
-          {months.map((m, i) =>
-            i >= firstShown && i <= lastShown && (last - i) % labelStep === 0 ? (
-              <text key={m.period} x={x(i)} y={PLOT_BOTTOM + 15} textAnchor="middle" className="fill-[var(--faint)] font-money text-[10px]">
-                {m.label}
-              </text>
-            ) : null,
+          {point !== null && (
+            <circle cx={x(point)} cy={y(months[point].value)} r="4.5" fill="var(--chart1)" stroke="var(--paper)" strokeWidth="2" />
           )}
-          {yearSpans.map((s) => {
-            const from = Math.max(s.start, shown.start);
-            const to = Math.min(s.end, shown.end);
-            return (
-              <g key={s.year}>
-                {s.start > 0 && s.start - 0.5 >= shown.start && (
-                  <line
-                    x1={x(s.start - 0.5)}
-                    y1={PLOT_TOP}
-                    x2={x(s.start - 0.5)}
-                    y2={PLOT_BOTTOM + 19}
-                    stroke="var(--rule)"
-                    strokeWidth="1"
-                  />
-                )}
-                <text
-                  x={(x(from) + x(to)) / 2}
-                  y={PLOT_BOTTOM + 29}
-                  textAnchor="middle"
-                  className="fill-[var(--faint)] font-money text-[10px] font-semibold"
-                >
-                  {s.year}
-                </text>
-              </g>
-            );
-          })}
+
+          {/* The newest month, ringed in the paper colour so it stays a dot
+              where it sits on the line. */}
+          {lastShown === last && (
+            <circle cx={x(last)} cy={y(months[last].value)} r="4.5" fill="var(--chart1)" stroke="var(--paper)" strokeWidth="2" />
+          )}
         </g>
+        <line x1={PLOT_LEFT} y1={PLOT_BOTTOM} x2={PLOT_RIGHT} y2={PLOT_BOTTOM} stroke="var(--ink)" strokeWidth="1" />
+
+        {boundaries.map((s) => (
+          <line
+            key={`tick-${s.year}`}
+            x1={x(s.start - 0.5)}
+            y1={PLOT_BOTTOM}
+            x2={x(s.start - 0.5)}
+            y2={yearRow + 3}
+            stroke="var(--rule)"
+            strokeWidth="1"
+          />
+        ))}
+        {monthLabels.map((i) => (
+          <text
+            key={`m-${months[i].period}`}
+            x={x(i)}
+            y={PLOT_BOTTOM + 15}
+            textAnchor={anchorAt(x(i))}
+            className="fill-[var(--faint)] font-money text-[10px]"
+          >
+            {months[i].label}
+          </text>
+        ))}
+        {years.map((l) => (
+          <text
+            key={`y-${l.year}`}
+            x={Math.min(PLOT_RIGHT - 12, Math.max(PLOT_LEFT + 12, x(l.at)))}
+            y={yearRow}
+            textAnchor="middle"
+            className="fill-[var(--faint)] font-money text-[10px] font-semibold"
+          >
+            {l.year}
+          </text>
+        ))}
         {point === null && lastShown === last && (
           <text x={x(last) - 10} y={y(months[last].value) - 10} textAnchor="end" className="fill-[var(--ink)] font-money text-[10.5px]">
             {money(months[last].value)}
