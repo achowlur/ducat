@@ -21,6 +21,10 @@ skill; backups and the mirror: `backup-mirror`.
 
 Import and sync:
 - CSV running-balance ties break by FILE POSITION, not date alone.
+- A SOURCE's own category (a card export's, `sourceCategory`) applies only
+  where no rule matched, never to P2P, a transfer or a closed box, and only
+  for names in a mapping's MEASURED `categoryMap`; the import and its dry run
+  decide it through one function (sync/sourceCategory.ts).
 - SimpleFIN timestamps are deliberately left alone — any "fix" moves
   correct dates too.
 - CSV backfill: --external-id targets an existing account, --until stops at

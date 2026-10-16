@@ -11,7 +11,7 @@ Pass `--mapping=<id>` to say which bank's export shape the file has:
 | Mapping | Export |
 | --- | --- |
 | `chase-checking` | Chase checking/savings |
-| `chase-credit` | Chase credit card |
+| `chase-credit` | Chase credit card (Chase's own category is read for "Food & Drink", "Shopping" and "Fees & Adjustments", and given to purchases no rule categorizes; see below) |
 | `wells-fargo` | Wells Fargo checking/savings/credit card (pending rows are skipped) |
 | `wells-fargo-headerless` | Wells Fargo's older headerless variant |
 | `fidelity` | Fidelity brokerage history (trades, reinvestments and internal transfers are flagged TRANSFER; the disclaimer footer is skipped) |
@@ -121,7 +121,19 @@ Details worth knowing:
 ## After an import
 
 Rules categorize what they recognize; the rest lands in the grouped review on
-the Transactions tab. One caveat on balances: only exports with a
+the Transactions tab.
+
+A card export that carries the bank's own category column helps here. Where
+no rule matched a purchase, the import gives it the bank's category, but only
+for the bank categories measured to agree with a person's own choices as often
+as the rule pack does (for Chase: "Food & Drink" as Dining, "Shopping",
+"Fees & Adjustments"). It never categorizes a Zelle or Venmo payment, never
+touches a row you categorized yourself, and any rule, yours or the pack's,
+still outranks it. The dry run prints how many rows it would categorize this
+way ("Bank categories: N"). Other banks' category columns are not read yet:
+each needs a real export to measure against first.
+
+One caveat on balances: only exports with a
 running-balance column (of the shipped mappings, `chase-checking`) can state
 the account's current balance — under the other mappings the true balance is
 unknown and the account says so rather than guessing. A live feed, or

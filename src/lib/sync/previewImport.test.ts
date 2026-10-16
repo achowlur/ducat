@@ -166,6 +166,57 @@ describe('previewImport agrees with the import it previews', () => {
   });
 });
 
+/** A card export that names its own category per row. Merchants are invented. */
+const CARD_CSV = [
+  'Transaction Date,Post Date,Description,Category,Type,Amount,Memo',
+  '03/14/2025,03/15/2025,MARIGOLD BISTRO,Food & Drink,Sale,-23.40,',
+  '03/13/2025,03/14/2025,NETFLIX.COM,Bills & Utilities,Sale,-15.49,',
+  '03/12/2025,03/13/2025,HARBOR GROCERY CO,Groceries,Sale,-48.10,',
+  '03/11/2025,03/12/2025,VENMO *JANE DOE,Shopping,Sale,-30.00,',
+  '03/10/2025,03/10/2025,Payment Thank You-Mobile,,Payment,500.00,',
+  '03/09/2025,03/10/2025,TIDEWATER OUTFITTERS,Shopping,Return,25.00,',
+  '03/08/2025,03/08/2025,LATE FEE,Fees & Adjustments,Fee,-39.00,',
+  '',
+].join('\n');
+
+const cardConnector = () =>
+  new CsvConnector(CARD_CSV, CSV_MAPPINGS['chase-credit'], { ...descriptor(), externalId: 'ext-card', name: 'Card', type: 'CREDIT' as const });
+
+describe('a card export carrying the bank\'s own categories', () => {
+  let prisma: PrismaClient;
+  beforeAll(async () => {
+    prisma = await freshDb();
+    await seedRule(prisma); // Subscriptions, and a user rule for netflix
+    await prisma.category.create({ data: { name: 'Dining' } });
+    await prisma.category.create({ data: { name: 'Shopping' } });
+    // No "Fees & Charges" here: a mapped category this database lacks is not applied.
+  });
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  it('previews exactly what the import then applies', async () => {
+    const preview = await previewImport(prisma, cardConnector(), new Date(0));
+    const result = await runSync(prisma, cardConnector(), { since: new Date(0), skipInsights: true });
+    expect(preview.sourceCategorized).toBe(2);
+    expect(result.sourceCategorized).toBe(2);
+    expect(preview.reviewRows).toBe(3);
+  });
+
+  it('uses the bank\'s category only where no rule matched, never for P2P, never unmapped', async () => {
+    const rows = await prisma.transaction.findMany({ include: { category: true }, orderBy: { date: 'desc' } });
+    expect(rows.map((t) => [t.description, t.category?.name ?? null, t.categorySource, t.flow])).toEqual([
+      ['MARIGOLD BISTRO', 'Dining', 'AGGREGATOR', 'OUTFLOW'], // the bank's Food & Drink
+      ['NETFLIX.COM', 'Subscriptions', 'RULE', 'OUTFLOW'], // a rule outranks the bank
+      ['HARBOR GROCERY CO', null, 'AGGREGATOR', 'OUTFLOW'], // Groceries is not in the map
+      ['VENMO *JANE DOE', null, 'AGGREGATOR', 'OUTFLOW'], // P2P waits for a person
+      ['Payment Thank You-Mobile', null, 'AGGREGATOR', 'TRANSFER'],
+      ['TIDEWATER OUTFITTERS', 'Shopping', 'AGGREGATOR', 'INFLOW'], // a return nets against Shopping
+      ['LATE FEE', null, 'AGGREGATOR', 'OUTFLOW'], // mapped, but this database has no Fees & Charges
+    ]);
+  });
+});
+
 describe('previewImport on the first look at a file', () => {
   let prisma: PrismaClient;
   beforeAll(async () => {

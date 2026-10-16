@@ -65,7 +65,7 @@ function parseAmount(raw: string): number | null {
 export class CsvConnector implements Connector {
   readonly type = 'CSV';
 
-  private readonly rows: { date: Date; amount: number; description: string; merchant: string; flow: TransactionFlow; balance: number | null; externalId: string; account: CsvAccountDescriptor }[];
+  private readonly rows: { date: Date; amount: number; description: string; merchant: string; flow: TransactionFlow; balance: number | null; externalId: string; account: CsvAccountDescriptor; sourceCategory?: string }[];
   /** Accounts actually seen in the file, in first-seen order. */
   private readonly accounts: CsvAccountDescriptor[] = [];
   /** Raw account values the resolver rejected, and how many rows each cost. */
@@ -167,6 +167,9 @@ export class CsvConnector implements Connector {
       const flow: TransactionFlow = isTransfer ? 'TRANSFER' : signed >= 0 ? 'INFLOW' : 'OUTFLOW';
 
       const balanceRaw = mapping.balance === undefined ? null : parseAmount(col(row, mapping.balance));
+      // The bank's own category, kept only where the mapping vouches for it.
+      const sourceCategory =
+        mapping.category === undefined ? undefined : mapping.categoryMap?.[col(row, mapping.category).trim()];
 
       const fingerprint = `${date.toISOString().slice(0, 10)}|${signed.toFixed(2)}|${description}`;
       // Counter is scoped per account so a transaction's id is the same whether
@@ -178,7 +181,7 @@ export class CsvConnector implements Connector {
       occurrences.set(counterKey, nth);
       const externalId = `csv-${createHash('sha256').update(`${fingerprint}|${nth}`).digest('hex').slice(0, 24)}`;
 
-      this.rows.push({ date, amount: signed, description, merchant, flow, balance: balanceRaw, externalId, account: target });
+      this.rows.push({ date, amount: signed, description, merchant, flow, balance: balanceRaw, externalId, account: target, sourceCategory });
     }
   }
 
@@ -246,6 +249,7 @@ export class CsvConnector implements Connector {
           normalizedMerchant: r.merchant,
           flow: r.flow,
           source: this.type,
+          ...(r.sourceCategory === undefined ? {} : { sourceCategory: r.sourceCategory }),
         })),
     );
   }

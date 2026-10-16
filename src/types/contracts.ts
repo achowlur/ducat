@@ -177,6 +177,13 @@ export interface NormalizedTransaction {
   source: ConnectorType;
   /** The ImportBatch (statement file) the row came from; feeds and CSVs set none. */
   importBatchId?: string;
+  /**
+   * A category the SOURCE itself assigned, already mapped to one of Ducat's
+   * category names (a card issuer's export carries one per purchase). The
+   * pipeline uses it only where no rule matched, and never for a P2P payment
+   * or a row inside an investment account (sync/sourceCategory.ts).
+   */
+  sourceCategory?: string;
 }
 
 export interface Connector {
