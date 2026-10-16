@@ -72,3 +72,39 @@ export function yearLabels(
   const room = minLabelUnits / unitsPerMonth;
   return labels.filter((l, i) => i !== labels.length - 2 || labels[i + 1].at - l.at >= room);
 }
+
+/**
+ * The x-axis labels of a goal's chart, from `start` to `end` (month keys),
+ * as month offsets from `start`. A chart spanning three years or less is
+ * labelled by quarter (Apr, Jul, Oct, and the year itself on January):
+ * labelled by year alone, a goal fifteen months long carried one label in
+ * the middle and nothing to read the rest by. Longer charts keep calendar
+ * years, stepped so they never crowd. A label never sits on the first month,
+ * where it would print half off the left edge.
+ */
+export function goalAxisTicks(start: string, end: string): { at: number; label: string }[] {
+  const index = (k: string) => Number(k.slice(0, 4)) * 12 + Number(k.slice(5, 7)) - 1;
+  const first = index(start);
+  const last = index(end);
+  const ticks: { at: number; label: string }[] = [];
+  if (last - first <= 36) {
+    for (let i = first + 1; i <= last; i += 1) {
+      const month = i % 12;
+      if (month % 3 !== 0) continue;
+      const year = Math.floor(i / 12);
+      ticks.push({
+        at: i - first,
+        label: month === 0 ? String(year) : new Date(Date.UTC(year, month, 1)).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" }),
+      });
+    }
+    return ticks;
+  }
+  const firstYear = Math.floor(first / 12) + 1;
+  const lastYear = Math.floor(last / 12);
+  const span = lastYear - firstYear;
+  const step = span <= 6 ? 1 : span <= 12 ? 2 : span <= 30 ? 5 : 10;
+  for (let yr = Math.ceil(firstYear / step) * step; yr <= lastYear; yr += step) {
+    ticks.push({ at: yr * 12 - first, label: String(yr) });
+  }
+  return ticks;
+}

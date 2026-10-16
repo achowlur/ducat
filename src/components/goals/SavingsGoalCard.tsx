@@ -2,6 +2,7 @@
 
 import { GOAL_RATE_MIN_MONTHS, type GoalAssessment } from "../../lib/insights/goals";
 import { money, monthLabel } from "../../lib/ui/format";
+import { recordThroughToday } from "../../lib/ui/goalFunds";
 import { CHIP, FIELD_LABEL, PROJECTED_CHIP } from "../ui/headings";
 import { GoalPathChart, type GoalProjectionLine } from "./GoalPathChart";
 
@@ -121,7 +122,7 @@ export function SavingsGoalCard({
           {projections.length > 0 && (
             <div className="mt-3">
               <GoalPathChart
-                recent={history}
+                recent={recordThroughToday(history, anchor, g.saved)}
                 recentLabel={g.goal.name}
                 anchor={anchor}
                 target={g.goal.target}
