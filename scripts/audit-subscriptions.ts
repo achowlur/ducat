@@ -6,7 +6,9 @@
  * (monthly = 26-35 days). Every one of those is a place a real subscription can
  * fall through, and the thresholds are not worth moving on a hunch — this
  * reports each near-miss with the gate that rejected it, so a change can be
- * argued from the list rather than from a guess.
+ * argued from the list rather than from a guess. A plan the detector followed
+ * across renamed descriptors (`aliases`) is reported once, under its newest
+ * name, rather than each name being judged alone.
  *
  * Run: npm run subs:audit
  *
@@ -29,6 +31,7 @@ import {
 import { median } from '../src/lib/insights/stats';
 import { isActive, type DetectedCharge } from '../src/lib/health/detectedSubscriptions';
 import type { TxnData } from '../src/lib/insights/types';
+import type { RecurringChargePayload } from '../src/types/contracts';
 
 const DAY_MS = 86_400_000;
 const opts = DEFAULT_RECURRING_OPTIONS;
@@ -205,9 +208,33 @@ async function main(): Promise<void> {
     byMerchant.set(m, [...(byMerchant.get(m) ?? []), t]);
   }
 
+  // Every name of a plan billed under more than one, mapped to that plan.
+  const planOf = new Map<string, RecurringChargePayload>();
+  for (const p of detected.values()) {
+    if (p.aliases === undefined) continue;
+    for (const name of [...p.aliases, p.merchant]) planOf.set(name, p);
+  }
+
   const verdicts = [...byMerchant]
-    .filter(([, list]) => list.length >= 2)
-    .map(([m, list]) => classify(m, list));
+    .filter(([m, list]) => list.length >= 2 || planOf.has(m))
+    .flatMap(([m, list]): Verdict[] => {
+      const plan = planOf.get(m);
+      if (plan === undefined) return [classify(m, list)];
+      if (plan.merchant !== m) return []; // reported under its newest name
+      const perYear = CADENCE_BANDS.find((b) => b.cadence === plan.cadence)!.perYear;
+      return [
+        {
+          merchant: m,
+          occurrences: plan.occurrences,
+          medianAmount: plan.averageAmount,
+          medianGap: null,
+          lastDate: plan.lastDate,
+          rejectedBy: null,
+          detail: `${plan.cadence.toLowerCase()}, under ${plan.aliases!.length + 1} names (${plan.aliases!.join(' > ')} > ${m})`,
+          annualised: plan.averageAmount * perYear,
+        },
+      ];
+    });
 
   const missed = verdicts.filter((v) => v.rejectedBy !== null).sort((a, b) => b.annualised - a.annualised);
   const found = verdicts.filter((v) => v.rejectedBy === null);

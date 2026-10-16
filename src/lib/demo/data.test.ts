@@ -134,7 +134,10 @@ describe.each(NOWS)('buildDemoData at %s', (iso) => {
     expect(isActive(gym!, now)).toBe(true);
     expect(missedCharge(gym!, now)).not.toBeNull();
     // The rest of the subscriptions are still billing.
-    for (const merchant of ['streamflix', 'tunebox']) expect(missedCharge(detected.get(merchant)!, now), merchant).toBeNull();
+    for (const merchant of ['streamflix', 'tunebox premium']) expect(missedCharge(detected.get(merchant)!, now), merchant).toBeNull();
+    // The music plan's renamed descriptor is followed: one plan, both names.
+    expect(detected.get('tunebox premium')?.aliases).toEqual(['tunebox']);
+    expect(detected.has('tunebox')).toBe(false);
   });
 
   it('carries only invented account identifiers', () => {

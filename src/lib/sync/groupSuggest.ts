@@ -1,3 +1,4 @@
+import { BOOKKEEPING, letterWords, nameWords } from '../payeeWords';
 import { payeeKey } from './grouping';
 import { suggestP2PCategories, type SuggestionReason } from './p2pSuggest';
 import { PACK_RULES } from './rulePack';
@@ -73,16 +74,6 @@ export interface GroupSuggestion {
   strength: 'strong' | 'guess';
 }
 
-/** Words that are the bank's bookkeeping rather than the payee's name. */
-const BOOKKEEPING = new Set([
-  'purchase', 'authorized', 'recurring', 'payment', 'debit', 'credit', 'card', 'online', 'transfer', 'check',
-  'deposit', 'withdrawal', 'atm', 'pos', 'ach', 'web', 'pmts', 'llc', 'inc', 'corp', 'company', 'the', 'and',
-  'store', 'https', 'www', 'com', 'net', 'org',
-]);
-
-const words = (s: string): string[] =>
-  s.toLowerCase().replace(/[^a-z]+/g, ' ').trim().split(' ').filter((w) => w.length > 1);
-
 /**
  * A payee with its decoration stripped: its first two words of letters. Two
  * spellings of one store ("marigold cafe llc", "marigold cafe,llc"; a store number
@@ -90,7 +81,7 @@ const words = (s: string): string[] =>
  * first word is the bank's own bookkeeping ("purchase authorized on ...").
  */
 export function skeleton(key: string): string | null {
-  const w = words(key);
+  const w = letterWords(key);
   if (w.length === 0 || BOOKKEEPING.has(w[0])) return null;
   const s = w.slice(0, 2).join(' ');
   return s.replace(/ /g, '').length >= 5 ? s : null;
@@ -131,19 +122,6 @@ function monthly(rows: SuggestRow[]): number | null {
   return gaps.every((g) => g >= 25 && g <= 35) ? first : null;
 }
 
-/** Words of place, which a descriptor's town and state are made of, never of what was bought. */
-const PLACE = new Set([
-  'north', 'south', 'east', 'west', 'beach', 'springs', 'spring', 'city', 'county', 'park', 'lake', 'heights',
-  'valley', 'island', 'port', 'harbor', 'harbour', 'village', 'town', 'center', 'centre', 'downtown', 'saint',
-  'fort', 'mount', 'new', 'york', 'jersey', 'florida', 'texas', 'california', 'carolina', 'virginia', 'brooklyn',
-  'manhattan', 'queens', 'boston', 'chicago', 'miami', 'seattle', 'austin', 'denver',
-]);
-
-/** The words of a payee's NAME: its first two, past the bank's bookkeeping, at least four letters, not a place. */
-function nameWords(key: string): string[] {
-  const w = words(key).filter((x) => !BOOKKEEPING.has(x));
-  return [...new Set(w.slice(0, 2))].filter((x) => x.length >= 4 && !PLACE.has(x));
-}
 
 /** A word distinctive enough to suggest by: in at most this many categorized payees. */
 const SHARED_WORD_MAX_PAYEES = 3;

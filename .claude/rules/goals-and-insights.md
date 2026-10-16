@@ -22,6 +22,11 @@ anything below; several entries record "tried and failed, don't retry".
   (missedCharge), never by the clock alone: it stays listed, flagged, and
   leaves the commitments and the /yr, as does a registered twin with no newer
   charge of its own.
+- The detector follows ONE plan across a renamed descriptor (continues in
+  recurring.ts): same account, no overlap, about the same price, a shared
+  NAME word (payeeWords.ts, never a town), and a handover gap like any other
+  cycle; it keys on the newest name, lists the rest as `aliases`, and never
+  assembles a plan from names none of which is recurring alone.
 - Registered subscriptions fold to charges by their OWN merchantPattern
   (matchesSubscription) — never brandOf; detected wins ties.
 - Subscription thresholds are TUNED: run subs:audit before touching one and

@@ -116,6 +116,12 @@ export interface RecurringChargePayload {
    * on rows generated before it existed (regeneration fills it in).
    */
   accountThrough?: string;
+  /**
+   * Earlier merchant strings the same plan was billed under, oldest first,
+   * when the bank renamed its descriptor mid-plan (`merchant` is the newest).
+   * Absent when the plan only ever had one.
+   */
+  aliases?: string[];
 }
 
 export interface AnomalyPayload {
