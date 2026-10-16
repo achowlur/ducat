@@ -15,12 +15,23 @@ import { growthBetween, type NetWorthPoint } from "./netWorthGrowth";
  *   controls.
  * - WITH MARKETS: the same pace, plus a yearly return the OPERATOR TYPED,
  *   applied to invested money only (investment accounts outside the cash
- *   definition). No return lives in code: none typed, no markets date.
+ *   definition) and to what a TYPICAL month adds to it. No return lives in
+ *   code: none typed, no markets date.
  *
  * Everything is in TODAY'S DOLLARS. The return is after inflation, so the
  * target is buying power, the pace is held level in real terms, and cash is
- * assumed to keep pace with inflation. New savings are counted as cash, the
- * cautious reading: if they are invested the markets date comes sooner.
+ * assumed to keep pace with inflation.
+ *
+ * The monthly CONTRIBUTION is the median month of money crossing into
+ * invested accounts over the pace window. A median, not a mean and not a
+ * cutoff: a real history mixes a steady monthly deposit with lump sums
+ * (savings moved in from another bank, a yearly IRA contribution, a
+ * reshuffle between accounts worth many months of saving), and any average
+ * those touch reads as a monthly habit nobody has. A fixed cutoff ("leave out
+ * anything over $5,000") was the first suggestion and fails the reader whose
+ * ordinary deposit is above it, where every month would be thrown out. The
+ * typical month needs no threshold. That much compounds with the invested
+ * balance; the rest of the pace is counted as cash.
  *
  * Dates are projected from the last COMPLETE month-end, never the live
  * balance, so they hold still through a month instead of moving with every
@@ -74,6 +85,8 @@ export function parseNetWorthGoal(raw: string | null): NetWorthGoal | null {
 export interface NetWorthMonth extends NetWorthPoint {
   /** Each account's month-end value; null on rows stored before it was recorded. */
   byAccount: Record<string, number> | null;
+  /** Money crossing into (+) or out of (−) each investment account; null on rows stored before it was recorded. */
+  flowsByAccount: Record<string, number> | null;
 }
 
 export interface Projection {
@@ -107,6 +120,8 @@ export interface NetWorthGoalAssessment {
   paceUncertainMonths: number;
   /** Invested money at the anchor, the part a return applies to; null when the row predates per-account values. */
   invested: number | null;
+  /** A typical month's money into invested accounts over the pace window (the median month); null when the rows predate it. */
+  contribution: number | null;
   saving: Projection | null;
   /** Null when no return is typed, or `invested` is unknown. */
   markets: Projection | null;
@@ -144,20 +159,54 @@ function paceAt(months: readonly NetWorthMonth[], end: number) {
   const span = monthsFrom(months[base].period, months[end].period);
   if (span < NET_WORTH_PACE_MIN_MONTHS) return null;
   const growth = growthBetween([...months], base, end);
-  return { months: span, perMonth: round2(growth.saved / span), uncertain: growth.uncertainMonths };
+  return { base, months: span, perMonth: round2(growth.saved / span), uncertain: growth.uncertainMonths };
+}
+
+const median = (xs: number[]): number => {
+  const s = [...xs].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 === 1 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+};
+
+/**
+ * A typical month's money into invested accounts over (base, end]: the
+ * median month, so a lump sum of any size cannot pass for a habit. Null when
+ * any month in the window predates per-account flows.
+ */
+function contributionOver(months: readonly NetWorthMonth[], base: number, end: number, investedIds: ReadonlySet<string>): number | null {
+  const totals: number[] = [];
+  for (let i = base + 1; i <= end; i += 1) {
+    const flows = months[i].flowsByAccount;
+    if (flows === null) return null;
+    totals.push([...investedIds].reduce((sum, id) => sum + (flows[id] ?? 0), 0));
+  }
+  return totals.length === 0 ? null : round2(median(totals));
 }
 
 /**
- * The first month, after `anchor`, that net worth reaches `target`: what is
- * not invested stays level, the pace is added every month, and `invested`
- * compounds at the real return. Null beyond the horizon.
+ * The first month, after `anchor`, that net worth reaches `target`. Each
+ * month the invested money earns the real return and takes the month's
+ * `contribution`; the rest of the pace lands in cash, which stays level.
+ * With no return the split cannot matter and net worth simply grows by the
+ * pace. Null beyond the horizon.
  */
-function landing(anchor: string, netWorth: number, invested: number, pace: number, realReturnPct: number, target: number): string | null {
+function landing(
+  anchor: string,
+  netWorth: number,
+  invested: number,
+  pace: number,
+  contribution: number,
+  realReturnPct: number,
+  target: number,
+): string | null {
   if (netWorth >= target) return anchor;
   const monthly = Math.pow(1 + realReturnPct / 100, 1 / 12) - 1;
-  const rest = netWorth - invested;
+  let inv = invested;
+  let rest = netWorth - invested;
   for (let t = 1; t <= NET_WORTH_HORIZON_MONTHS; t += 1) {
-    if (rest + pace * t + invested * Math.pow(1 + monthly, t) >= target) return addMonths(anchor, t);
+    inv = inv * (1 + monthly) + contribution;
+    rest += pace - contribution;
+    if (inv + rest >= target) return addMonths(anchor, t);
   }
   return null;
 }
@@ -183,6 +232,7 @@ export function assessNetWorthGoal(input: {
     paceMonths: 0,
     paceUncertainMonths: 0,
     invested: null,
+    contribution: null,
     saving: null,
     markets: null,
     refusal: null,
@@ -202,14 +252,16 @@ export function assessNetWorthGoal(input: {
     if (pace === null) return null;
     const m = months[end];
     const invested = investedAt(m);
+    const contribution = contributionOver(months, pace.base, end, investedIds);
     return {
       pace,
       invested,
-      saving: landing(m.period, m.value, 0, pace.perMonth, 0, goal.target),
+      contribution,
+      saving: landing(m.period, m.value, 0, pace.perMonth, 0, 0, goal.target),
       markets:
         goal.realReturnPct === undefined || invested === null
           ? undefined
-          : landing(m.period, m.value, invested, pace.perMonth, goal.realReturnPct, goal.target),
+          : landing(m.period, m.value, invested, pace.perMonth, contribution ?? 0, goal.realReturnPct, goal.target),
     };
   };
 
@@ -228,6 +280,7 @@ export function assessNetWorthGoal(input: {
     paceMonths: now.pace.months,
     paceUncertainMonths: now.pace.uncertain,
     invested: now.invested,
+    contribution: now.contribution,
     saving: { lands: now.saving, shift: shift(now.saving, before?.saving) },
     markets: now.markets === undefined ? null : { lands: now.markets, shift: shift(now.markets, before?.markets) },
   };

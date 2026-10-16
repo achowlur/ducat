@@ -273,9 +273,23 @@ function NetWorthGoalBlock({ g }: { g: NetWorthGoalAssessment }) {
               .
             </p>
             {g.invested !== null && pct !== undefined && g.markets !== null && (
+              // What compounds, said in full: the balance, plus a TYPICAL
+              // month's deposit (the median month, so a lump sum cannot pass
+              // for a habit); everything else saved is counted as cash.
               <p className="pt-0.5">
-                New savings are counted as cash; the return applies to the{" "}
-                <span className="font-money tabular">{money(g.invested)}</span> invested.
+                {g.contribution !== null && g.contribution > 0 ? (
+                  <>
+                    Investing <span className="font-money tabular text-ink">~{money(g.contribution)}</span>/mo in a
+                    typical month, lump sums left out. That and the{" "}
+                    <span className="font-money tabular">{money(g.invested)}</span> invested earn the return; the
+                    rest of what you save is counted as cash.
+                  </>
+                ) : (
+                  <>
+                    No regular monthly investing in a typical month, so new savings are counted as cash; the return
+                    applies to the <span className="font-money tabular">{money(g.invested)}</span> invested.
+                  </>
+                )}
               </p>
             )}
           </>

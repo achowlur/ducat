@@ -58,6 +58,11 @@ export interface NetWorthGrowthPayload {
   /** Net transaction flow into INVESTMENT accounts during the period. */
   investmentNetFlows: number;
   /**
+   * `investmentNetFlows` by account (accounts with none absent): money in
+   * positive, out negative. Absent on payloads stored before 2026-10-16.
+   */
+  investmentFlowsByAccount?: Record<string, number>;
+  /**
    * Accounts whose period-end balance is not that period's own: reconstructed
    * from transaction history, or (investment) a snapshot from earlier.
    */

@@ -44,7 +44,9 @@ anything below; several entries record "tried and failed, don't retry".
   TWO dates and never one blended rate: by saving alone (the /trends "saved"
   pace over 12 complete months, never across a change in counted accounts)
   and with markets (a real return the operator TYPED, applied to invested
-  money outside the cash definition; no return lives in code). Today's
+  money outside the cash definition and to a TYPICAL month's deposit into
+  it, the MEDIAN month, never a mean or a fixed cutoff; no return lives in
+  code). Today's
   dollars; dates from the last complete month-end, each with its shift and
   the pace a month before.
 - "Counts as cash" is a Setting (cash.additionalAccountIds via

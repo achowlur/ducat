@@ -22,6 +22,8 @@ function history(opts: {
   markets?: number;
   leftOut?: (i: number) => string[];
   byAccount?: boolean;
+  /** Money into each investment account that month; none by default, null for rows predating it. */
+  flows?: (i: number) => Record<string, number> | null;
 }): NetWorthMonth[] {
   const months: NetWorthMonth[] = [];
   let value = opts.start;
@@ -39,6 +41,7 @@ function history(opts: {
         opts.byAccount === false
           ? null
           : { invested: value * 0.6, cashInvested: value * 0.1, checking: value * 0.3 },
+      flowsByAccount: opts.flows === undefined ? {} : opts.flows(i),
     });
   }
   return months;
@@ -92,6 +95,43 @@ describe("assessNetWorthGoal", () => {
     expect(g.markets?.lands).toBe("2027-07");
     // Saving alone, at a pace of zero, never gets there.
     expect(g.saving?.lands).toBeNull();
+  });
+
+  it("takes a TYPICAL month's investing, so a lump sum of any size cannot pass for a habit", () => {
+    const months = history({
+      count: 14,
+      last: "2026-09",
+      start: 80000,
+      saved: 1000,
+      // 400 a month into invested money; one month also moves 30,000 in, and
+      // the account counted as cash takes 250 a month that is not investing.
+      flows: (i) => ({ invested: i === 7 ? 30400 : 400, cashInvested: 250 }),
+    });
+    const g = assessNetWorthGoal({ goal: { target: 250000, realReturnPct: 5 }, liveNetWorth: 93000, months, investedIds });
+    expect(g.contribution).toBe(400);
+  });
+
+  it("compounds that contribution, so the markets date comes sooner than with savings as cash", () => {
+    const base = { count: 14, last: "2026-09", start: 80000, saved: 1000 };
+    const goal = { target: 250000, realReturnPct: 5 };
+    const asCash = assessNetWorthGoal({ goal, liveNetWorth: 93000, months: history(base), investedIds });
+    const invested = assessNetWorthGoal({
+      goal,
+      liveNetWorth: 93000,
+      months: history({ ...base, flows: () => ({ invested: 800 }) }),
+      investedIds,
+    });
+    expect(asCash.contribution).toBe(0);
+    expect(invested.markets!.lands! < asCash.markets!.lands!).toBe(true);
+    // By saving alone the split cannot matter.
+    expect(invested.saving?.lands).toBe(asCash.saving?.lands);
+  });
+
+  it("counts savings as cash when the rows predate per-account flows", () => {
+    const months = history({ count: 14, last: "2026-09", start: 80000, saved: 1000, flows: () => null });
+    const g = assessNetWorthGoal({ goal: { target: 250000, realReturnPct: 5 }, liveNetWorth: 93000, months, investedIds });
+    expect(g.contribution).toBeNull();
+    expect(g.markets?.lands).not.toBeNull();
   });
 
   it("says how far each date moved since the month-end before, and what the pace was", () => {

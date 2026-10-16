@@ -35,13 +35,25 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   markets date and no default in code.
   Everything is in today's dollars: the target is buying power, the pace is
   held level in real terms, cash is assumed to keep pace with inflation, and
-  new savings are counted as cash (the cautious reading; invested, the date
-  comes sooner, and the panel says which). The return applies to INVESTED
+  of what is saved only a typical month's deposit into invested money
+  compounds (below); the rest is counted as cash. The return applies to INVESTED
   money only, the investment accounts outside the operator's cash definition,
   so an account the operator counts as cash is never credited with a stock
   return. That split needs each account's month-end value, which the account
   type cannot give, so NET_WORTH_GROWTH rows now carry `byAccount`; a row
   stored before it prints no markets date until regeneration fills it in.
+  The monthly deposit was added the same day, at the operator's ask: the
+  first cut counted every new dollar as cash, ignoring a steady monthly
+  deposit the history plainly shows, and lump sums must not pass for it. It
+  is the MEDIAN month of money crossing into invested accounts over the pace
+  window (per account, so the cash definition draws the line; rows carry
+  `investmentFlowsByAccount`). Not a mean: a history mixing a steady deposit
+  with savings moved in from another bank, a yearly IRA contribution and a
+  reshuffle between accounts worth many months of saving averages to a habit
+  nobody has. Not a fixed cutoff either, the first suggestion ("leave out
+  anything over $5,000"): it throws away every month for a reader whose
+  ordinary deposit is above it. The typical month needs no threshold, and on
+  the history that prompted it landed exactly on the deposit.
   Dates are projected from the last COMPLETE month-end, not the live
   balance: a live anchor would move the date with every day's markets, and
   the shift since last month would compare a month-end with a Tuesday.

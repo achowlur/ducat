@@ -226,6 +226,21 @@ describe('computeNetWorthGrowth', () => {
     expect(Object.values(march.byAccount!).reduce((s, v) => s + v, 0)).toBeCloseTo(march.netWorth, 2);
   });
 
+  it('records money crossing each investment account, trades inside it left out', () => {
+    const brokerage: AccountData = { id: 'acc8', type: 'INVESTMENT', balance: 5000, balanceDate: utc(2026, 3, 31) };
+    const snapshots: SnapshotData[] = [
+      { accountId: 'acc8', date: utc(2026, 2, 28), balance: 3000 },
+      { accountId: 'acc8', date: utc(2026, 3, 31), balance: 5000 },
+    ];
+    const txns = [
+      txn({ accountId: 'acc8', date: utc(2026, 3, 3), amount: 400, description: 'ELECTRONIC FUNDS TRANSFER RECEIVED', flow: 'TRANSFER' }),
+      txn({ accountId: 'acc8', date: utc(2026, 3, 5), amount: -400, description: 'YOU BOUGHT INDEX FUND', flow: 'TRANSFER' }),
+    ];
+    const march = computeNetWorthGrowth([brokerage], snapshots, txns, ['2026-02', '2026-03'], 'MONTH').get('2026-03')!;
+    expect(march.investmentFlowsByAccount).toEqual({ acc8: 400 });
+    expect(march.investmentNetFlows).toBe(400);
+  });
+
   it('computes growth rate between consecutive periods', () => {
     const account: AccountData = {
       id: 'acc1', type: 'DEPOSITORY', balance: 1100, balanceDate: utc(2026, 7, 12),

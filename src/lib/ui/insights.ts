@@ -642,6 +642,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
               leftOut: payload.excludedAccountIds ?? [],
               marketGains: payload.marketGains ?? null,
               byAccount: payload.byAccount ?? null,
+              flowsByAccount: payload.investmentFlowsByAccount ?? null,
             })),
           // Invested money is what a market return applies to: investment
           // accounts OUTSIDE the cash definition, so an account the operator
