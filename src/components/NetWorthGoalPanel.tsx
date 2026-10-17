@@ -433,7 +433,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
         {g.basis !== null && (
           <>
             <label htmlFor="nw-goal-pace" className={LABEL}>
-              Saving per month
+              Saved per month
             </label>
             <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <AmountInput
@@ -463,7 +463,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
         )}
 
         <label htmlFor="nw-goal-invest" className={LABEL}>
-          Invested per month
+          Of which invested
         </label>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <AmountInput
@@ -486,6 +486,14 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
                 Use usual, <span className="font-money tabular">{roughly.format(measuredDeposit)}</span>
               </button>
             </>
+          )}
+          {/* The rest of the saving, so the two fields read as one split:
+              what is saved, and how much of it goes to the market. Investing
+              above the saving is the warning line's to explain. */}
+          {g.basis !== null && shownPace - shownDeposit >= 0.5 && (
+            <span className="basis-full">
+              the other <span className="font-money tabular">{roughly.format(shownPace - shownDeposit)}</span>/mo stays cash
+            </span>
           )}
         </span>
 

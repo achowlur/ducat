@@ -66,7 +66,9 @@ anything below; several entries record "tried and failed, don't retry".
   they settle; a shift always compares the SAME settings a month apart;
   with no return set the slider sits at 0. Each monthly figure defaults to
   the measured one and follows it; typing the measured figure clears it.
-  The saving is the TOTAL and the investing only SPLITS it (withSaving),
+  The saving is the TOTAL and the investing only SPLITS it (withSaving;
+  the fields read "Saved per month" and "Of which invested", the rest
+  named as staying cash),
   except that investing typed ABOVE the saving raises the saving to match;
   investing above a saving lowered after says, in the warning ink, that the
   rest comes out of cash and how long it lasts, and the projection invests
