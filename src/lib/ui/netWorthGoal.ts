@@ -496,9 +496,20 @@ function simulate(
   let saved = 0;
   const other = b.netWorth - inv - held;
   for (let t = 1; t <= months; t += 1) {
-    inv = inv * (1 + market) + contribution;
     held += held > 0 ? held * heldRate : 0;
-    saved += (saved > 0 ? saved * newRate : 0) + (b.pace - contribution);
+    saved += saved > 0 ? saved * newRate : 0;
+    // A deposit above the month's saving comes out of cash, and only cash
+    // there is: once it runs out, investing is what is saved. Left uncapped,
+    // cash went negative and the projection invested money borrowed at 0%.
+    const deposit = Math.min(contribution, Math.max(0, held + saved + b.pace));
+    inv = inv * (1 + market) + deposit;
+    saved += b.pace - deposit;
+    // What new saving cannot cover is drawn from the cash held.
+    if (saved < 0 && held > 0) {
+      const drawn = Math.min(held, -saved);
+      held -= drawn;
+      saved += drawn;
+    }
     if (visit(t, inv + held + saved + other)) return;
   }
 }

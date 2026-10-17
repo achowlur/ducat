@@ -540,6 +540,34 @@ describe('idle cash', () => {
   });
 });
 
+describe('investing more than is saved', () => {
+  // Invented: $10,000 of cash, nothing saved, $4,000 a month "invested".
+  const b = {
+    anchor: '2026-09',
+    netWorth: 50000,
+    pace: 0,
+    paceMonths: 6,
+    paceUncertainMonths: 0,
+    invested: 0,
+    contribution: 4000,
+    cash: 10000,
+    cashRealPct: 0,
+    newCashRealPct: 0,
+    cashNominalPct: 0,
+  };
+
+  it('moves cash into the market only while there is cash', () => {
+    // At 12% a year only the $10,000 there was can be earning, never $48,000.
+    const path = goalPath(b, 12, 12);
+    expect(path[12]).toBeGreaterThan(50000);
+    expect(path[12]).toBeLessThan(50000 + 10000 * 0.13);
+  });
+
+  it('adds nothing by saving alone, since moving money between accounts is not saving', () => {
+    expect(goalPath(b, undefined, 24).every((v) => Math.abs(v - 50000) < 0.01)).toBe(true);
+  });
+});
+
 describe('the return slider', () => {
   it('runs from no growth to 100%, on a scale that gives the realistic few percent room', () => {
     expect(sliderToReturn(0)).toBe(0);

@@ -589,3 +589,18 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   whole dollars. The savings goal's reconciliation, which must stay beside
   its date, now says the gap outright: "Your cash grew ~$460/mo, not the
   ~$1,965/mo this date assumes" (the demo's figures).
+- INVESTING NO MORE THAN THERE IS (2026-10-17). The operator typed a saving
+  of $0 and investing of $4,000 a month, expecting the goal to come sooner,
+  and saw the saving-alone date vanish and the markets date move years
+  later. By the fields' meaning that was right (nothing saved; $4,000 a
+  month moved from cash into the market, which only adds the market's
+  return) but nothing said so, and the projection kept investing after the
+  cash ran out, cash going negative as if borrowed at 0%. Three changes:
+  investing typed above the saving raises the saving to match ("I invest
+  $4,000" means "I save at least $4,000"); a saving then lowered below the
+  investing is named in the warning ink, the other part coming out of cash
+  and how many months that cash lasts; and simulate never deposits more than
+  the month's saving plus the cash on hand, drawing the shortfall from the
+  cash held. On the demo, investing $4,000 brought both dates years nearer;
+  saving lowered to $0 read "Investing $4,000/mo of $0 saved: the other
+  $4,000/mo comes out of cash, which lasts about 24 months."
