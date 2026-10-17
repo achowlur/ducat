@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { confirmNewPay, saveNetWorthGoal } from "../app/insights/actions";
 import { ACTION_DID_NOT_COMPLETE } from "../lib/ui/boundaryCopy";
-import { money, monthLabel, shortDateYear, titleCase } from "../lib/ui/format";
+import { money, monthLabel, shortDateYear } from "../lib/ui/format";
 import { wholePercents } from "../lib/ui/spendingBreakdown";
 import {
   ASSUMED_INFLATION_PCT,
@@ -32,11 +32,10 @@ const roughly = new Intl.NumberFormat("en-US", { style: "currency", currency: "U
 /** "$1m", "$1.65m", "$650k": a figure grown by an assumed rate, to the precision it has. */
 const compact = (n: number) =>
   n >= 1e6 ? `$${(n / 1e6).toFixed(2).replace(/\.?0+$/, "")}m` : n >= 1e3 ? `$${Math.round(n / 1e3)}k` : roughly.format(n);
-/** A real yearly rate in words: "about keeps its value", "earns about 1.2% a year", "loses about 0.8% a year". */
-const realWords = (pct: number) =>
-  Math.abs(pct) < 0.3
-    ? "about keeps its value"
-    : `${pct > 0 ? "earns" : "loses"} about ${percent(Math.abs(pct))} a year`;
+/** A real yearly rate, signed: "+0.4%", "−0.8%", "about 0%". */
+const signedPct = (pct: number) => (Math.abs(pct) < 0.3 ? "about 0%" : `${pct > 0 ? "+" : "\u2212"}${percent(Math.abs(pct))}`);
+/** A line that asks for an action. */
+const WARN_LINE = "pt-1.5 text-[0.78rem] leading-relaxed text-[color:var(--warn-ink)]";
 const percent = (n: number) => `${n.toFixed(1).replace(/\.0$/, "")}%`;
 const monthsWord = (n: number) => (n === 1 ? "month" : "months");
 
@@ -378,15 +377,17 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
         </>
       )}
 
-      {/* The numbers the operator sets. Each saves when it settles: a typed
-          amount on Enter or leaving the field, the return on release. */}
+      {/* The numbers the operator sets, each with a few words on where it
+          comes from. Everything that only explains is in the working-out
+          below; each saves when it settles (Enter or leaving a field, the
+          slider on release). */}
       <div className="mt-3 grid grid-cols-1 items-center gap-x-3 gap-y-1 text-[0.78rem] text-faint md:grid-cols-[auto_1fr] md:gap-y-2">
         <label htmlFor="nw-goal-target" className={LABEL}>
           Target
         </label>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <AmountInput key={`target:${target}`} id="nw-goal-target" value={target} onEdit={clearFailure} onCommit={commitTarget} />
-          <span>in today&apos;s dollars</span>
+          <span>today&apos;s dollars</span>
         </span>
 
         <label htmlFor="nw-goal-return" className={LABEL}>
@@ -420,13 +421,6 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
           {pct > 0 && <span className={ASSUMED_CHIP}>Assumed</span>}
         </span>
 
-        <p className="text-[0.72rem] leading-relaxed md:col-span-2">
-          {pct === 0
-            ? "No market growth assumed, so there is one date. "
-            : `A year after inflation, your figure, applied to invested money only${setOn !== undefined ? `, set ${shortDateYear(new Date(`${setOn}T12:00:00Z`))}` : ""}. `}
-          Forecasts for the next decade sit near 4%; US stocks returned about 7% over the last century.
-        </p>
-
         {g.basis !== null && (
           <>
             <label htmlFor="nw-goal-pace" className={LABEL}>
@@ -442,7 +436,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
                 onCommit={commitPace}
               />
               {paceSet === null ? (
-                <span>your last {NET_WORTH_PACE_MONTHS} months, one-off pay left out</span>
+                <span>{NET_WORTH_PACE_MONTHS}-month average</span>
               ) : (
                 <>
                   <span className={ASSUMED_CHIP}>Assumed</span>
@@ -451,7 +445,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
                     onClick={useMeasuredPace}
                     className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
                   >
-                    Use your usual, <span className="font-money tabular">{money(paceUntouched)}</span>
+                    Use usual, <span className="font-money tabular">{roughly.format(paceUntouched)}</span>
                   </button>
                 </>
               )}
@@ -471,7 +465,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
             onCommit={commitInvest}
           />
           {invest === null ? (
-            <span>{g.contribution === null ? "no regular deposit measured yet" : "your usual, the last three months"}</span>
+            <span>{g.contribution === null ? "none measured yet" : "usual, last 3 months"}</span>
           ) : (
             <>
               <span className={ASSUMED_CHIP}>Assumed</span>
@@ -480,110 +474,30 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
                 onClick={useMeasuredDeposit}
                 className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
               >
-                Use your usual, <span className="font-money tabular">{money(measuredDeposit)}</span>
+                Use usual, <span className="font-money tabular">{roughly.format(measuredDeposit)}</span>
               </button>
             </>
           )}
         </span>
 
-        <p className="text-[0.72rem] leading-relaxed md:col-span-2">
-          {paceSet !== null
-            ? "The saving you set is the whole of it; the investing is the part of it that earns the return."
-            : invest !== null
-              ? "The investing you set is part of your saving: what is left of it is counted as cash, and the total stays as it is."
-              : "What you save in all, and the part of it that goes into invested accounts. Type other amounts to see what saving or investing more would do."}
-          {pending && " Saving…"}
-          {failure !== null && <span className="text-neg"> {failure}</span>}
-        </p>
+        {(pending || failure !== null) && (
+          <p className="text-[0.72rem] md:col-span-2">
+            {pending && "Saving…"}
+            {failure !== null && <span className="text-neg">{failure}</span>}
+          </p>
+        )}
       </div>
 
-      {/* Today's dollars assume the saving rises with inflation: say what that
-          asks, briefly. */}
-      {basis !== null && !reached && basis.pace > 0 && (
-        <p className="pt-2 text-[0.78rem] leading-relaxed text-faint">
-          At {ASSUMED_INFLATION_PCT}% inflation <span className={ASSUMED_CHIP}>Assumed</span>, these dates need your saving
-          to keep pace: <span className="font-money tabular">{roughly.format(basis.pace * grow(10))}</span>/mo in ten years
-          {noteDate !== null && (
-            <>
-              , and the <span className="font-money tabular">{compact(target)}</span> target is{" "}
-              <span className="font-money tabular">~{compact(target * grow(yearsTo(noteDate)))}</span> in{" "}
-              {monthLabel(noteDate)} dollars
-            </>
-          )}
-          .
-        </p>
-      )}
-      {/* Cash earns what it was paid, less the assumed inflation: the cash
-          held at where it sits now, new saving at where cash has sat. */}
-      {basis !== null && !reached && g.cash !== null && (
-        <p className="pt-1.5 text-[0.78rem] leading-relaxed text-faint">
-          Cash:{" "}
-          {heldAccounts.map((a, k) => (
-            <span key={a.id}>
-              {k > 0 && ", "}
-              {cashShares[k]}% in {a.name} at <span className="font-money tabular">{percent(a.nominalPct)}</span>
-            </span>
-          ))}
-          .{" "}
-          {Math.abs(g.cash.realPct - g.cash.newRealPct) < 0.3 ? (
-            <>After inflation it {realWords(g.cash.realPct)}.</>
-          ) : (
-            <>
-              After inflation, the cash you hold {realWords(g.cash.realPct)}; new saving, by where your cash has sat these{" "}
-              {g.paceMonths} months, {realWords(g.cash.newRealPct)}.
-            </>
-          )}
-        </p>
-      )}
-      {/* Money waiting where it earns nothing, beyond a month of spending:
-          the account that pays most is where it would keep its value. */}
-      {idle !== null && !reached && (
-        <p className="pt-1.5 text-[0.78rem] leading-relaxed text-[color:var(--warn-ink)]">
-          {idle.from.join(" + ")} {idle.from.length === 1 ? "holds" : "hold"}{" "}
-          <span className="font-money tabular">{money(idle.held)}</span>, about {(idle.held / idle.buffer).toFixed(1)}{" "}
-          months of your spending (<span className="font-money tabular">~{roughly.format(idle.buffer)}</span>/mo). Beyond
-          a month, <span className="font-money tabular">{roughly.format(idle.idle)}</span> earns nothing; in {idle.to.name}{" "}
-          at about {percent(idle.to.nominalPct)} it would earn about{" "}
-          <span className="font-money tabular">{roughly.format(idle.yearly)}</span> a year
-          {idleSooner > 0 && (
-            <>
-              {" "}
-              and bring {projection?.markets != null ? "the date with markets" : "the date"} about {idleSooner}{" "}
-              {monthsWord(idleSooner)} sooner
-            </>
-          )}
-          .
-        </p>
-      )}
-      {keeping !== null && g.contributionYearAgo !== null && (
-        <p className={`pt-1.5 text-[0.78rem] leading-relaxed ${keeping.behind ? "text-[color:var(--warn-ink)]" : "text-faint"}`}>
-          Your monthly investing,{" "}
-          <span className="font-money tabular">{money(g.contribution ?? 0)}</span>, is{" "}
-          {keeping.changePct === 0
-            ? "the same as"
-            : `${keeping.changePct > 0 ? "up" : "down"} ${Math.abs(keeping.changePct)}% on`}{" "}
-          a year ago (<span className="font-money tabular">{money(g.contributionYearAgo)}</span>)
-          {keeping.behind ? (
-            <>
-              . Keeping up with {ASSUMED_INFLATION_PCT}% inflation means about{" "}
-              <span className="font-money tabular">{money(keeping.needed)}</span> now, and raising it each year.
-            </>
-          ) : (
-            <>, ahead of {ASSUMED_INFLATION_PCT}% inflation.</>
-          )}
-        </p>
-      )}
-
-      {/* A paycheck at a new amount: counted as itself until it repeats, or
-          until the operator says it is the new pay. Only a PAYCHECK asks; a
-          bonus beside one never does. */}
+      {/* Only what asks for an action stays in view, one sentence each, in
+          the warning ink: a paycheck at a new amount (only a PAYCHECK asks; a
+          bonus beside one never does), cash waiting where it earns nothing,
+          investing that has fallen behind inflation. */}
       {g.basis !== null &&
         g.payPending.map((p) => (
-          <p key={`pending:${p.payer}:${p.date}`} className="pt-1.5 text-[0.78rem] leading-relaxed text-[color:var(--warn-ink)]">
-            Your paycheck from {titleCase(p.payer)} on {shortDateYear(new Date(`${p.date}T12:00:00Z`))} came to{" "}
+          <p key={`pending:${p.payer}:${p.date}`} className={WARN_LINE}>
+            Your {shortDateYear(new Date(`${p.date}T12:00:00Z`))} paycheck was{" "}
             <span className="font-money tabular">{money(p.amount)}</span>, {p.amount > p.from ? "up" : "down"} from{" "}
-            <span className="font-money tabular">{money(p.from)}</span>. It counts as it is; if it is your new pay, the
-            dates can project from it now, and otherwise once it repeats.{" "}
+            <span className="font-money tabular">{money(p.from)}</span>.{" "}
             <button
               type="button"
               disabled={pending}
@@ -604,109 +518,176 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
             </button>
           </p>
         ))}
-
-      {/* What the reader must be able to discount stays in view. */}
-      {g.unmatchedDeposit !== null && pct > 0 && invest === null && (
-        <p className="pt-1.5 text-[0.78rem] text-faint">
-          {monthLabel(g.anchor ?? "")}&apos;s deposits came to{" "}
-          <span className="font-money tabular">{money(g.unmatchedDeposit)}</span>, unlike the usual; a new amount
-          counts once it repeats.
+      {idle !== null && !reached && (
+        <p className={WARN_LINE}>
+          <span className="font-money tabular">{roughly.format(idle.idle)}</span> in {idle.from.join(" + ")} is beyond a
+          month of spending and earns nothing; in {idle.to.name} it would earn{" "}
+          <span className="font-money tabular">~{roughly.format(idle.yearly)}</span>/yr
+          {idleSooner > 0 && (
+            <>
+              , {idleSooner} {monthsWord(idleSooner)} sooner
+            </>
+          )}
+          .
+        </p>
+      )}
+      {keeping !== null && keeping.behind && (
+        <p className={WARN_LINE}>
+          Investing <span className="font-money tabular">{money(g.contribution ?? 0)}</span>/mo,{" "}
+          {keeping.changePct === 0 ? "the same as" : `${keeping.changePct > 0 ? "up" : "down"} ${Math.abs(keeping.changePct)}% on`} a
+          year ago: <span className="font-money tabular">~{money(keeping.needed)}</span> keeps up with{" "}
+          {ASSUMED_INFLATION_PCT}% inflation.
         </p>
       )}
       {pct > 0 && g.invested === null && (
         <p className="pt-1.5 text-[0.78rem] text-faint">
-          The date with markets needs each account&apos;s month-end value, which the next sync records.
+          The date with markets needs each account&apos;s month-end value; the next sync records it.
         </p>
       )}
 
+      {/* What the reader must discount stays in view, in one line; how it is
+          all worked out is one tap away. */}
       {g.basis !== null && !reached && (
-        <details className="group pt-2 text-[0.78rem] text-faint">
-          <summary className="flex cursor-pointer list-none items-center gap-1.5 max-md:min-h-[44px] [&::-webkit-details-marker]:hidden">
-            How these dates are worked out
-            {g.paceUncertainMonths > 0 && <span>(pace partly estimated)</span>}
-            <span aria-hidden="true" className="text-[0.7rem] transition-transform group-open:rotate-90">
-              ›
-            </span>
-          </summary>
-          <div className="grid gap-0.5 pt-1.5 leading-relaxed">
-            <p>From the end of {monthLabel(g.anchor ?? "")}, in today&apos;s dollars.</p>
-            {/* The pace a month ago sits beside today's: against a far target
-                a modest change in pace moves the date by years, and a date
-                that moves must say what moved it. */}
-            <p>
-              Saving <span className="font-money tabular text-ink">~{money(g.pace ?? 0)}</span>/mo over your last{" "}
-              {g.paceMonths} complete months{g.paceUncertainMonths > 0 ? " (partly estimated)" : ""}
-              {g.previousPace !== null && g.previousPace !== g.pace && (
-                <>
-                  , {(g.pace ?? 0) > g.previousPace ? "up" : "down"} from{" "}
-                  <span className="font-money tabular">~{money(g.previousPace)}</span> a month before
-                </>
-              )}
-              .
-              {g.paceLeavesOut.length > 0 && (
-                <>
-                  {" "}
-                  It leaves out one-off pay:{" "}
-                  {g.paceLeavesOut.map((o, k) => (
-                    <span key={`${o.date}:${o.amount}`}>
-                      {k > 0 && ", "}
-                      <span className="font-money tabular">{money(o.amount)}</span> on{" "}
-                      {shortDateYear(new Date(`${o.date}T12:00:00Z`))}
-                    </span>
-                  ))}
-                  .
-                </>
-              )}
-              {g.payChanges.map((c) => (
-                <span key={`change:${c.payer}:${c.since}`}>
-                  {" "}
-                  It projects your pay as it is now: <span className="font-money tabular">{money(c.to)}</span> a
-                  paycheck from {titleCase(c.payer)} since {shortDateYear(new Date(`${c.since}T12:00:00Z`))}
-                  {c.told ? ", as you said" : ""}, {c.to > c.from ? "up" : "down"} from{" "}
-                  <span className="font-money tabular">{money(c.from)}</span>, so the earlier paychecks count at it.
-                </span>
-              ))}
-            </p>
-            {(invest !== null || paceSet !== null) && basis !== null && (
-              <p>
-                Saving <span className="font-money tabular text-ink">~{money(basis.pace)}</span>/mo
-                {paceSet !== null ? ", the amount you set," : " in all,"} investing{" "}
-                <span className="font-money tabular text-ink">{money(basis.contribution ?? 0)}</span>/mo of it
-                {invest !== null ? ", the amount you set" : ", your usual"}.
-                {pct > 0 && g.invested !== null && (
-                  <>
-                    {" "}
-                    That and the <span className="font-money tabular">{money(g.invested)}</span> invested earn the
-                    return; the rest is counted as cash.
-                  </>
-                )}
-              </p>
-            )}
-            {invest === null && paceSet === null && pct > 0 && g.invested !== null && (
-              <p>
-                {g.contribution !== null && g.contribution > 0 ? (
-                  <>
-                    Investing <span className="font-money tabular text-ink">~{money(g.contribution)}</span>/mo, your
-                    usual deposit over the last three months
-                    {g.previousContribution !== null && g.previousContribution !== g.contribution && (
-                      <>
-                        , {g.contribution > g.previousContribution ? "up" : "down"} from{" "}
-                        <span className="font-money tabular">~{money(g.previousContribution)}</span> a month before
-                      </>
-                    )}
-                    . That and the <span className="font-money tabular">{money(g.invested)}</span> invested earn the
-                    return; the rest of what you save is counted as cash.
-                  </>
+        <>
+          <p className="pt-2 text-[0.78rem] leading-relaxed text-faint">
+            Assumes {ASSUMED_INFLATION_PCT}% inflation <span className={ASSUMED_CHIP}>Assumed</span>
+            {g.cash !== null && (
+              <>
+                , cash{" "}
+                {Math.abs(g.cash.realPct - g.cash.newRealPct) < 0.3 ? (
+                  <span className="font-money tabular">{signedPct(g.cash.realPct)}</span>
                 ) : (
                   <>
-                    No regular monthly investing over your last three months, so new savings are counted as cash; the
-                    return applies to the <span className="font-money tabular">{money(g.invested)}</span> invested.
+                    <span className="font-money tabular">{signedPct(g.cash.realPct)}</span> (new saving{" "}
+                    <span className="font-money tabular">{signedPct(g.cash.newRealPct)}</span>)
+                  </>
+                )}{" "}
+                a year after it
+              </>
+            )}
+            {g.paceUncertainMonths > 0 && ", pace partly estimated"}.
+          </p>
+          <details className="group text-[0.78rem] text-faint">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 max-md:min-h-[44px] [&::-webkit-details-marker]:hidden">
+              How these dates are worked out
+              <span aria-hidden="true" className="text-[0.7rem] transition-transform group-open:rotate-90">
+                ›
+              </span>
+            </summary>
+            <div className="grid gap-1.5 pt-1.5 leading-relaxed">
+              <p>From the end of {monthLabel(g.anchor ?? "")}, in today&apos;s dollars.</p>
+              {/* The pace a month ago sits beside today's: against a far target
+                  a modest change in pace moves the date by years, and a date
+                  that moves must say what moved it. */}
+              <p>
+                Saving <span className="font-money tabular text-ink">~{money(g.pace ?? 0)}</span>/mo over your last{" "}
+                {g.paceMonths} complete months{g.paceUncertainMonths > 0 ? " (partly estimated)" : ""}
+                {g.previousPace !== null && g.previousPace !== g.pace && (
+                  <>
+                    , {(g.pace ?? 0) > g.previousPace ? "up" : "down"} from{" "}
+                    <span className="font-money tabular">~{money(g.previousPace)}</span> a month before
                   </>
                 )}
+                .
+                {g.paceLeavesOut.length > 0 && (
+                  <>
+                    {" "}
+                    It leaves out one-off pay:{" "}
+                    {g.paceLeavesOut.map((o, k) => (
+                      <span key={`${o.date}:${o.amount}`}>
+                        {k > 0 && ", "}
+                        <span className="font-money tabular">{money(o.amount)}</span> on{" "}
+                        {shortDateYear(new Date(`${o.date}T12:00:00Z`))}
+                      </span>
+                    ))}
+                    .
+                  </>
+                )}
+                {g.payChanges.map((c) => (
+                  <span key={`change:${c.payer}:${c.since}`}>
+                    {" "}
+                    It counts every paycheck at your pay now, <span className="font-money tabular">{money(c.to)}</span>{" "}
+                    since {shortDateYear(new Date(`${c.since}T12:00:00Z`))}
+                    {c.told ? " (as you said)" : ""}, {c.to > c.from ? "up" : "down"} from{" "}
+                    <span className="font-money tabular">{money(c.from)}</span>.
+                  </span>
+                ))}
               </p>
-            )}
-          </div>
-        </details>
+              {basis !== null && (
+                <p>
+                  {paceSet !== null || invest !== null ? (
+                    <>
+                      Saving <span className="font-money tabular text-ink">~{money(basis.pace)}</span>/mo
+                      {paceSet !== null ? ", the amount you set," : ""} with{" "}
+                      <span className="font-money tabular text-ink">{money(basis.contribution ?? 0)}</span>/mo of it invested
+                      {invest !== null ? ", the amount you set" : ""}.
+                    </>
+                  ) : g.contribution !== null && g.contribution > 0 ? (
+                    <>
+                      Investing <span className="font-money tabular text-ink">~{money(g.contribution)}</span>/mo, your
+                      usual over the last three months
+                      {g.previousContribution !== null && g.previousContribution !== g.contribution && (
+                        <>
+                          , {g.contribution > g.previousContribution ? "up" : "down"} from{" "}
+                          <span className="font-money tabular">~{money(g.previousContribution)}</span> a month before
+                        </>
+                      )}
+                      {keeping !== null && !keeping.behind && <>, up {keeping.changePct}% on a year ago, ahead of inflation</>}.
+                    </>
+                  ) : (
+                    <>No regular monthly investing over your last three months.</>
+                  )}
+                  {pct > 0 && g.invested !== null && (
+                    <>
+                      {" "}
+                      That and the <span className="font-money tabular">{money(g.invested)}</span> invested earn the
+                      return; the rest of what you save is cash.
+                    </>
+                  )}
+                </p>
+              )}
+              <p>
+                {pct === 0
+                  ? "No market growth assumed, so there is one date."
+                  : `${pct}% a year after inflation is your figure${setOn !== undefined ? `, set ${shortDateYear(new Date(`${setOn}T12:00:00Z`))}` : ""}.`}{" "}
+                Forecasts for the next decade sit near 4%; US stocks returned about 7% over the last century.
+              </p>
+              {basis !== null && basis.pace > 0 && (
+                <p>
+                  At {ASSUMED_INFLATION_PCT}% inflation, your saving keeps these dates if it reaches{" "}
+                  <span className="font-money tabular">{roughly.format(basis.pace * grow(10))}</span>/mo in ten years
+                  {noteDate !== null && (
+                    <>
+                      , and the <span className="font-money tabular">{compact(target)}</span> target is{" "}
+                      <span className="font-money tabular">~{compact(target * grow(yearsTo(noteDate)))}</span> in{" "}
+                      {monthLabel(noteDate)} dollars
+                    </>
+                  )}
+                  .
+                </p>
+              )}
+              {g.cash !== null && (
+                <p>
+                  Cash, from what each account was paid:{" "}
+                  {heldAccounts.map((a, k) => (
+                    <span key={a.id}>
+                      {k > 0 && ", "}
+                      {cashShares[k]}% in {a.name} at <span className="font-money tabular">{percent(a.nominalPct)}</span>
+                    </span>
+                  ))}
+                  . New saving counts at where your cash has sat these {g.paceMonths} months.
+                </p>
+              )}
+              {g.unmatchedDeposit !== null && pct > 0 && invest === null && (
+                <p>
+                  {monthLabel(g.anchor ?? "")}&apos;s deposits came to{" "}
+                  <span className="font-money tabular">{money(g.unmatchedDeposit)}</span>, unlike the usual; a new amount
+                  counts once it repeats.
+                </p>
+              )}
+            </div>
+          </details>
+        </>
       )}
     </div>
   );

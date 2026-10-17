@@ -543,3 +543,13 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   inflation and cash notes to say less: one sentence each, the target priced
   in compact dollars (the demo's "~$1.65m in August 2043 dollars"), each account as its
   share and rate, and one clause for both pots when their real rates agree.
+  The operator then asked for less again, with details on hover. Hover does
+  not exist on the phone this is read on (CLAUDE.md), so it is a TAP: in
+  view stay the four controls with a few words each, only the lines that ask
+  for an ACTION (a new paycheck, idle cash, investing behind inflation), and
+  ONE line of what to discount (the assumed inflation and what cash earns
+  after it); everything that only explains (the pace and its one-offs and
+  raises, the investing, the return's context, inflation's ten-year figure,
+  cash by account, investing ahead of inflation) folds into the working-out.
+  On the demo at phone width the panel below its chart went from about
+  1,240px and 240 words to 890px and 100.
