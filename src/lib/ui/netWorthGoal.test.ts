@@ -478,6 +478,23 @@ describe('what cash earns', () => {
     expect(goalPath(g.basis!, undefined, t)[t]).toBeLessThan(goalPath(level.basis!, undefined, t)[t]);
   });
 
+  // A lump moved into the money market last month: the cash held is nearly
+  // all there now, while saved cash has mostly sat in checking.
+  it('earns cash held at where it sits now, and new saving at where it has sat', () => {
+    const moved = history({ count: 15, last: '2026-09', start: 80000, saved: 1000, flows: () => ({ invested: 400 }), interest: () => ({}) });
+    for (let i = 1; i < moved.length; i += 1) {
+      moved[i].interestByAccount = { cashInvested: Math.round(moved[i - 1].byAccount!.cashInvested * 0.003 * 100) / 100 };
+    }
+    const last = moved.at(-1)!;
+    const lump = last.byAccount!.checking * 0.9;
+    last.byAccount = { ...last.byAccount!, checking: last.byAccount!.checking - lump, cashInvested: last.byAccount!.cashInvested + lump };
+    const c = assessNetWorthGoal({ goal, liveNetWorth: 94000, months: moved, investedIds, cashAccounts }).cash!;
+    const mm = c.accounts.find((a) => a.name === 'Money market')!;
+    expect(mm.share).toBeGreaterThan(0.9);
+    expect(mm.habitShare).toBeLessThan(0.4);
+    expect(c.realPct).toBeGreaterThan(c.newRealPct);
+  });
+
   it('holds cash level on rows stored before interest was recorded', () => {
     const old = history({ count: 15, last: '2026-09', start: 80000, saved: 1000, flows: () => ({ invested: 400 }) });
     const o = assessNetWorthGoal({ goal, liveNetWorth: 94000, months: old, investedIds, cashAccounts });
@@ -490,11 +507,12 @@ describe('idle cash', () => {
   // Invented: checking pays nothing, a money market about 3.4%.
   const cash = {
     accounts: [
-      { id: 'checking', name: 'Checking', nominalPct: 0, share: 0.3 },
-      { id: 'mm', name: 'Money market', nominalPct: 3.4, share: 0.7 },
+      { id: 'checking', name: 'Checking', nominalPct: 0, share: 0.3, habitShare: 0.3 },
+      { id: 'mm', name: 'Money market', nominalPct: 3.4, share: 0.7, habitShare: 0.7 },
     ],
     nominalPct: 2.38,
     realPct: -0.6,
+    newRealPct: -0.6,
   };
   const spending = [4100, 5200, 4800, 4900];
 

@@ -531,3 +531,15 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   pace, the savings goal's pace and readiness income alike; a cut the same
   way. Until then a new amount counts as itself, and only a paycheck ever
   asks.
+- CASH HELD vs NEW SAVING (2026-10-17). The cash line said a money market
+  held about two-thirds of the cash when, at the month-end, it held nearly
+  all of it: one mix,
+  averaged over the pace window, weighed a lump moved in the window's last
+  month as one month of seven. The average was there for NEW saving, which
+  waits in checking until it moves in a lump; it was wrong for money already
+  moved. So the projection keeps two cash pots: the cash held at the
+  month-end earns at where it sits then, and what is saved from there earns
+  at the window's average mix. The same day the operator asked for the
+  inflation and cash notes to say less: one sentence each, the target priced
+  in compact dollars (the demo's "~$1.65m in August 2043 dollars"), each account as its
+  share and rate, and one clause for both pots when their real rates agree.

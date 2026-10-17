@@ -29,6 +29,14 @@ import { ASSUMED_CHIP, CHIP, CONTROL, FIELD_LABEL, PROJECTED_CHIP } from "./ui/h
 const wholeDollars = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 // An estimate in whole dollars: cents on a figure grown by an assumed rate claim a precision it lacks.
 const roughly = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+/** "$1m", "$1.65m", "$650k": a figure grown by an assumed rate, to the precision it has. */
+const compact = (n: number) =>
+  n >= 1e6 ? `$${(n / 1e6).toFixed(2).replace(/\.?0+$/, "")}m` : n >= 1e3 ? `$${Math.round(n / 1e3)}k` : roughly.format(n);
+/** A real yearly rate in words: "about keeps its value", "earns about 1.2% a year", "loses about 0.8% a year". */
+const realWords = (pct: number) =>
+  Math.abs(pct) < 0.3
+    ? "about keeps its value"
+    : `${pct > 0 ? "earns" : "loses"} about ${percent(Math.abs(pct))} a year`;
 const percent = (n: number) => `${n.toFixed(1).replace(/\.0$/, "")}%`;
 const monthsWord = (n: number) => (n === 1 ? "month" : "months");
 
@@ -285,7 +293,9 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
   const grow = (years: number) => Math.pow(1 + ASSUMED_INFLATION_PCT / 100, years);
   const noteDate = projection?.markets?.lands ?? projection?.saving.lands ?? null;
   const yearsTo = (key: string) => (basis === null ? 0 : monthsBetween(basis.anchor, key) / 12);
-  const cashShares = g.cash === null ? [] : wholePercents(g.cash.accounts.map((a) => a.share));
+  // Where the cash held sits now, largest first.
+  const heldAccounts = g.cash === null ? [] : g.cash.accounts.filter((a) => a.share > 0).sort((a, b) => b.share - a.share);
+  const cashShares = wholePercents(heldAccounts.map((a) => a.share));
   // Idle cash, priced in months: the nearer date on screen, with the idle
   // amount earning what the best-paying account pays from now on.
   const idle = g.idle;
@@ -488,38 +498,41 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
       </div>
 
       {/* Today's dollars assume the saving rises with inflation: say what that
-          asks, and whether the investing has kept up over the past year. */}
+          asks, briefly. */}
       {basis !== null && !reached && basis.pace > 0 && (
         <p className="pt-2 text-[0.78rem] leading-relaxed text-faint">
-          In today&apos;s dollars, with inflation at {ASSUMED_INFLATION_PCT}% a year{" "}
-          <span className={ASSUMED_CHIP}>Assumed</span>: the dates hold if what you save rises with it, so{" "}
-          <span className="font-money tabular">~{money(basis.pace)}</span>/mo now is about{" "}
-          <span className="font-money tabular">{roughly.format(basis.pace * grow(10))}</span>/mo in ten years
+          At {ASSUMED_INFLATION_PCT}% inflation <span className={ASSUMED_CHIP}>Assumed</span>, these dates need your saving
+          to keep pace: <span className="font-money tabular">{roughly.format(basis.pace * grow(10))}</span>/mo in ten years
           {noteDate !== null && (
             <>
-              , and the <span className="font-money tabular">{money(target)}</span> target is about{" "}
-              <span className="font-money tabular">{roughly.format(target * grow(yearsTo(noteDate)))}</span> in
-              the dollars of {monthLabel(noteDate)}
+              , and the <span className="font-money tabular">{compact(target)}</span> target is{" "}
+              <span className="font-money tabular">~{compact(target * grow(yearsTo(noteDate)))}</span> in{" "}
+              {monthLabel(noteDate)} dollars
             </>
           )}
           .
         </p>
       )}
-      {/* Cash earns what it was measurably paid, less the assumed inflation:
-          each account named, so a checking balance losing ground is seen. */}
+      {/* Cash earns what it was paid, less the assumed inflation: the cash
+          held at where it sits now, new saving at where cash has sat. */}
       {basis !== null && !reached && g.cash !== null && (
         <p className="pt-1.5 text-[0.78rem] leading-relaxed text-faint">
-          Cash {g.cash.realPct < 0 ? "loses" : "earns"} about{" "}
-          <span className="font-money tabular">{percent(Math.abs(g.cash.realPct))}</span> a year after inflation, from what
-          each account was paid over the last three months:{" "}
-          {g.cash.accounts.map((a, k) => (
+          Cash:{" "}
+          {heldAccounts.map((a, k) => (
             <span key={a.id}>
-              {k > 0 && "; "}
-              {a.name} {a.nominalPct === 0 ? "pays nothing" : <>pays about <span className="font-money tabular">{percent(a.nominalPct)}</span></>}
-              {" "}({cashShares[k]}% of your cash)
+              {k > 0 && ", "}
+              {cashShares[k]}% in {a.name} at <span className="font-money tabular">{percent(a.nominalPct)}</span>
             </span>
           ))}
-          .
+          .{" "}
+          {Math.abs(g.cash.realPct - g.cash.newRealPct) < 0.3 ? (
+            <>After inflation it {realWords(g.cash.realPct)}.</>
+          ) : (
+            <>
+              After inflation, the cash you hold {realWords(g.cash.realPct)}; new saving, by where your cash has sat these{" "}
+              {g.paceMonths} months, {realWords(g.cash.newRealPct)}.
+            </>
+          )}
         </p>
       )}
       {/* Money waiting where it earns nothing, beyond a month of spending:
