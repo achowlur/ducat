@@ -27,7 +27,7 @@ export async function setInsightDismissed(insightId: string, dismissed: boolean)
 }
 
 /**
- * Save the net worth goal's target, market return and monthly amount from
+ * Save the net worth goal's target, market return and monthly figures from
  * the panel's controls (the goals command writes the same Setting). Refusals come back
  * as values, shown beside the control (lib/actionResult.ts).
  */
@@ -36,6 +36,8 @@ export async function saveNetWorthGoal(input: {
   realReturnPct: number;
   /** Null: the deposit follows the data. */
   monthlyInvest: number | null;
+  /** Null: the saving pace follows the data. */
+  monthlyPace: number | null;
 }): Promise<ActionResult<{ goal: NetWorthGoal }>> {
   await requireSession();
   const row = await prisma.setting.findUnique({ where: { key: NET_WORTH_GOAL_KEY } });

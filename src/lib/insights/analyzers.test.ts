@@ -241,6 +241,28 @@ describe('computeNetWorthGrowth', () => {
     expect(march.investmentNetFlows).toBe(400);
   });
 
+  // A cash account's yield is read from what it was PAID, never its change
+  // in value: a reinvestment, a card's interest charge and a deposit are not.
+  it('records the interest and dividends each bank or investment account was paid', () => {
+    const savings: AccountData = { id: 'acc9', type: 'DEPOSITORY', balance: 10000, balanceDate: utc(2026, 3, 31) };
+    const moneyMarket: AccountData = { id: 'acc10', type: 'INVESTMENT', balance: 20000, balanceDate: utc(2026, 3, 31) };
+    const card: AccountData = { id: 'acc11', type: 'CREDIT', balance: -500, balanceDate: utc(2026, 3, 31) };
+    const snapshots: SnapshotData[] = [
+      { accountId: 'acc9', date: utc(2026, 3, 31), balance: 10000 },
+      { accountId: 'acc10', date: utc(2026, 3, 31), balance: 20000 },
+      { accountId: 'acc11', date: utc(2026, 3, 31), balance: -500 },
+    ];
+    const txns = [
+      txn({ accountId: 'acc9', date: utc(2026, 3, 28), amount: 31.25, description: 'INTEREST PAYMENT' }),
+      txn({ accountId: 'acc9', date: utc(2026, 3, 3), amount: 5000, description: 'TRANSFER FROM CHECKING' }),
+      txn({ accountId: 'acc10', date: utc(2026, 3, 31), amount: -54.1, description: 'DIVIDEND RECEIVED GOVERNMENT MONEY MARKET' }),
+      txn({ accountId: 'acc10', date: utc(2026, 3, 31), amount: 54.1, description: 'REINVESTMENT GOVERNMENT MONEY MARKET' }),
+      txn({ accountId: 'acc11', date: utc(2026, 3, 20), amount: -12.4, description: 'INTEREST CHARGE ON PURCHASES' }),
+    ];
+    const march = computeNetWorthGrowth([savings, moneyMarket, card], snapshots, txns, ['2026-03'], 'MONTH').get('2026-03')!;
+    expect(march.interestByAccount).toEqual({ acc9: 31.25, acc10: 54.1 });
+  });
+
   it('computes growth rate between consecutive periods', () => {
     const account: AccountData = {
       id: 'acc1', type: 'DEPOSITORY', balance: 1100, balanceDate: utc(2026, 7, 12),

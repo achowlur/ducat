@@ -99,6 +99,74 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   is not named while an amount is set: the panel is not using the measured
   one. On the demo, $2,500 a month in place of the measured $1,235 brought
   saving alone from 2052 to 2043 and the markets date from 2041 to 2037.
+  INFLATION, SAID OUT LOUD (2026-10-17). Reading the working-out, the
+  operator objected that $2,342 saved today is not $2,342 ten years from
+  now. The dates are in today's dollars, so they never add nominal dollars to
+  a real target; but that frame quietly ASSUMES the saving rises with
+  inflation, a deposit held level in buying power being one that grows in
+  actual dollars every year. Measured on the demo at 2.5%: cash losing its
+  value moved the dates from 2052 / 2041 to 2059 / 2042, and a saving kept
+  at the same dollar amount as well gave no saving-alone date inside fifty
+  years and 2044 with markets. Dropping inflation altogether was asked about
+  and refused: a nominal $1M with a nominal return of about 8% lands years
+  sooner on a target that then buys what about $650k does today. So the
+  frame stays, and what it asks is printed instead: at an ASSUMED 3% a year
+  (ASSUMED_INFLATION_PCT, near the long-run US average; the dates do not use
+  it), what the pace means in ten years and the target in the dollars of
+  the date on screen, in whole dollars, since cents on a figure grown by an
+  assumed rate claim a precision it lacks. And the operator asked to be TOLD
+  when to raise the investing: the deposit is compared with the same
+  deposit a year earlier (contributionYearAgo, the middle of the three
+  months a year before the anchor), and anything under 3% growth reads in
+  the warning ink with the amount that keeps up (keepingUp); at or above it
+  says so plainly. The SAVING PACE became a field at the same time, beside
+  the investing: typed, it is the whole of what is saved and the investing
+  is its part; untouched, it follows the data, moved by a typed investing
+  amount as before.
+  CASH EARNS WHAT IT IS PAID (2026-10-17, the same day). Holding cash level
+  in today's dollars was generous for a checking account that pays nothing,
+  and the operator pointed out that the accounts are known. The account TYPE
+  cannot tell checking from savings (both are DEPOSITORY) but the rows can:
+  a checking account that pays nothing has no interest rows, a savings
+  account or money market has one every month. An account's change in value
+  beyond its deposits cannot be the measure: an account counted as cash
+  today may once have held stock funds, whose gains pass for interest (the
+  first cut read such an account as paying well above any money market),
+  and a lump moved in mid-month reads as earnings. So a yield is read only
+  from what an account was PAID: NET_WORTH_GROWTH rows now carry
+  interestByAccount (interest and dividend rows by wording, a reinvestment
+  and a card's interest CHARGE excluded, magnitude only since sources sign
+  them oppositely), and an account's yield is the middle of its last three
+  months against the balance it started each month with, so a lump moved in
+  mid-month cannot set it. The operator also noted that money reaches a
+  high-yield account in bulk, not monthly: the accounts are weighted by their
+  AVERAGE month-end balance over the pace window, where the cash sat, never
+  today's, which one lump would swing; new cash saving is assumed to land in
+  the same mix. Less the assumed 3%, the mix is a real yield applied to
+  positive cash only (cards and loans stand still), in both dates: "saving
+  alone" means no market return, not cash frozen while prices rise. A row
+  stored before the field holds cash level, as before, until the next sync
+  regenerates it (every sync regenerates every period). The demo's savings
+  interest was a fixed $24-31 a month and read as a high-yield account
+  paying 0.6%; it now pays a rate on its balance (under 1% until four years
+  ago, 4.2% since), and the demo reads checking at nothing, savings at 4.2%,
+  cash losing about 0.6% a year.
+  IDLE CASH (2026-10-17, the same day). The operator asked for the money
+  market's counterpart of the keeping-up check. It is not the same check:
+  money reaches a high-yield account in lumps, so there is no monthly habit
+  to grow, and once there it about keeps its value. What loses value is
+  money WAITING where nothing is paid. So the panel says when the cash
+  accounts that pay nothing hold more than a month of spending, and what the
+  best-paying cash account would earn on the rest, priced in months on the
+  nearer date (withCashMoved: that share of cash earning the better rate from
+  now on). The buffer was first to be what LEAVES checking in a month, and
+  the rows refused it: card payments and a lump moved to savings both leave
+  as unpaired transfers, so a month holding a lump read as five months of
+  needs. A month of SPENDING (the cash-flow analyzer's, cards included,
+  transfers out) is what checking has to cover; the middle of the last three
+  complete months, so one heavy month cannot set it. Live balances, since it
+  asks for an action today; quiet under IDLE_CASH_MIN (,000), after a move,
+  and when no cash account pays anything.
   Dates are projected from the last COMPLETE month-end, not the live
   balance: a live anchor would move the date with every day's markets, and
   the shift since last month would compare a month-end with a Tuesday.

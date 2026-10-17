@@ -4,12 +4,15 @@ import {
   assessNetWorthGoal,
   NET_WORTH_PACE_MIN_MONTHS,
   goalPath,
+  idleCashAt,
+  withCashMoved,
   nextNetWorthGoal,
   parseNetWorthGoal,
   projectGoal,
   returnToSlider,
   sliderToReturn,
-  withDeposit,
+  keepingUp,
+  withSaving,
   type NetWorthMonth,
 } from "./netWorthGoal";
 
@@ -30,6 +33,8 @@ function history(opts: {
   byAccount?: boolean;
   /** Money into each investment account that month; none by default, null for rows predating it. */
   flows?: (i: number) => Record<string, number> | null;
+  /** Interest each account was paid that month; absent by default (rows predating it). */
+  interest?: (i: number) => Record<string, number> | null;
 }): NetWorthMonth[] {
   const months: NetWorthMonth[] = [];
   let value = opts.start;
@@ -48,6 +53,7 @@ function history(opts: {
           ? null
           : { invested: value * 0.6, cashInvested: value * 0.1, checking: value * 0.3 },
       flowsByAccount: opts.flows === undefined ? {} : opts.flows(i),
+      ...(opts.interest === undefined ? {} : { interestByAccount: opts.interest(i) }),
     });
   }
   return months;
@@ -242,34 +248,34 @@ describe('nextNetWorthGoal, what a save from the panel writes', () => {
   const stored = { target: 1000000, realReturnPct: 5, returnSetOn: '2026-03-02' };
 
   it('keeps the day a return was set while only the target moves', () => {
-    expect(nextNetWorthGoal(stored, { target: 750000, realReturnPct: 5, monthlyInvest: null }, '2026-10-16')).toEqual({
+    expect(nextNetWorthGoal(stored, { target: 750000, realReturnPct: 5, monthlyInvest: null, monthlyPace: null }, '2026-10-16')).toEqual({
       ok: true,
       goal: { target: 750000, realReturnPct: 5, returnSetOn: '2026-03-02' },
     });
   });
 
   it('dates a changed return today, and clears it at zero', () => {
-    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 6.5, monthlyInvest: null }, '2026-10-16')).toEqual({
+    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 6.5, monthlyInvest: null, monthlyPace: null }, '2026-10-16')).toEqual({
       ok: true,
       goal: { target: 1000000, realReturnPct: 6.5, returnSetOn: '2026-10-16' },
     });
-    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 0, monthlyInvest: null }, '2026-10-16')).toEqual({
+    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 0, monthlyInvest: null, monthlyPace: null }, '2026-10-16')).toEqual({
       ok: true,
       goal: { target: 1000000 },
     });
   });
 
   it('stores a monthly amount the operator sets, with or without a return, and clears it on null', () => {
-    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 5, monthlyInvest: 2000 }, '2026-10-16')).toEqual({
+    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 5, monthlyInvest: 2000, monthlyPace: null }, '2026-10-16')).toEqual({
       ok: true,
       goal: { target: 1000000, realReturnPct: 5, returnSetOn: '2026-03-02', monthlyInvest: 2000 },
     });
-    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 0, monthlyInvest: 0 }, '2026-10-16')).toEqual({
+    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 0, monthlyInvest: 0, monthlyPace: null }, '2026-10-16')).toEqual({
       ok: true,
       goal: { target: 1000000, monthlyInvest: 0 },
     });
     const set = { ...stored, monthlyInvest: 2000 };
-    expect(nextNetWorthGoal(set, { target: 1000000, realReturnPct: 5, monthlyInvest: null }, '2026-10-16')).toEqual({
+    expect(nextNetWorthGoal(set, { target: 1000000, realReturnPct: 5, monthlyInvest: null, monthlyPace: null }, '2026-10-16')).toEqual({
       ok: true,
       goal: stored,
     });
@@ -284,12 +290,12 @@ describe('nextNetWorthGoal, what a save from the panel writes', () => {
 
   it('refuses what it cannot project, with a sentence for the person', () => {
     for (const input of [
-      { target: 0, realReturnPct: 5, monthlyInvest: null },
-      { target: Number.NaN, realReturnPct: 5, monthlyInvest: null },
-      { target: 1000000, realReturnPct: -1, monthlyInvest: null },
-      { target: 1000000, realReturnPct: 120, monthlyInvest: null },
-      { target: 1000000, realReturnPct: 5, monthlyInvest: -50 },
-      { target: 1000000, realReturnPct: 5, monthlyInvest: Number.NaN },
+      { target: 0, realReturnPct: 5, monthlyInvest: null, monthlyPace: null },
+      { target: Number.NaN, realReturnPct: 5, monthlyInvest: null, monthlyPace: null },
+      { target: 1000000, realReturnPct: -1, monthlyInvest: null, monthlyPace: null },
+      { target: 1000000, realReturnPct: 120, monthlyInvest: null, monthlyPace: null },
+      { target: 1000000, realReturnPct: 5, monthlyInvest: -50, monthlyPace: null },
+      { target: 1000000, realReturnPct: 5, monthlyInvest: Number.NaN, monthlyPace: null },
     ]) {
       const r = nextNetWorthGoal(stored, input, '2026-10-16');
       expect(r.ok).toBe(false);
@@ -305,10 +311,10 @@ describe('a monthly amount the operator sets', () => {
 
   it('replaces the measured deposit and keeps the cash saving: investing more is saving more', () => {
     expect(g.basis!.contribution).toBe(400);
-    const more = withDeposit(g.basis!, 1400);
+    const more = withSaving(g.basis!, { monthlyInvest: 1400 });
     expect(more.contribution).toBe(1400);
     expect(more.pace).toBe(g.basis!.pace + 1000);
-    expect(withDeposit(g.basis!, undefined)).toBe(g.basis);
+    expect(withSaving(g.basis!, {})).toBe(g.basis);
   });
 
   it('brings both dates nearer when it rises, and the server agrees with the panel', () => {
@@ -323,7 +329,12 @@ describe('a monthly amount the operator sets', () => {
     // The figures the working-out prints stay the measured ones.
     expect(set.contribution).toBe(400);
     expect(set.pace).toBe(g.pace);
-    const panel = projectGoal(withDeposit(set.basis!, 1400), withDeposit(set.previousBasis!, 1400), 300000, 5);
+    const panel = projectGoal(
+      withSaving(set.basis!, { monthlyInvest: 1400 }),
+      withSaving(set.previousBasis!, { monthlyInvest: 1400 }),
+      300000,
+      5,
+    );
     expect(panel).toEqual({ saving: set.saving, markets: set.markets });
   });
 
@@ -336,6 +347,135 @@ describe('a monthly amount the operator sets', () => {
       investedIds,
     });
     expect(set.saving!.shift).toBe(0);
+  });
+});
+
+describe('a monthly saving pace the operator sets', () => {
+  const months = history({ count: 15, last: '2026-09', start: 80000, saved: 1000, flows: () => ({ invested: 400 }) });
+  const g = assessNetWorthGoal({ goal: { target: 300000, realReturnPct: 5 }, liveNetWorth: 94000, months, investedIds });
+
+  it('is the whole of what is saved, the deposit its invested part', () => {
+    expect(withSaving(g.basis!, { monthlyPace: 1500 })).toMatchObject({ pace: 1500, contribution: 400 });
+    expect(withSaving(g.basis!, { monthlyPace: 1500, monthlyInvest: 900 })).toMatchObject({ pace: 1500, contribution: 900 });
+  });
+
+  it('moves the dates the server prints, and round-trips through the Setting', () => {
+    const goal = { target: 300000, realReturnPct: 5, monthlyPace: 2000 };
+    const set = assessNetWorthGoal({ goal, liveNetWorth: 94000, months, investedIds });
+    expect(set.saving!.lands! < g.saving!.lands!).toBe(true);
+    expect(set.pace).toBe(g.pace);
+    expect(parseNetWorthGoal(JSON.stringify(goal))).toEqual(goal);
+    expect(
+      nextNetWorthGoal(null, { target: 300000, realReturnPct: 0, monthlyInvest: null, monthlyPace: 2000 }, '2026-10-17'),
+    ).toEqual({ ok: true, goal: { target: 300000, monthlyPace: 2000 } });
+  });
+});
+
+describe('keeping up with inflation', () => {
+  it('flags a deposit that has not grown by the assumed 3% in a year', () => {
+    expect(keepingUp(1000, 1000)).toEqual({ needed: 1030, changePct: 0, behind: true });
+    expect(keepingUp(1020, 1000).behind).toBe(true);
+  });
+
+  it('is satisfied by a raise at or above it', () => {
+    expect(keepingUp(1030, 1000).behind).toBe(false);
+    expect(keepingUp(1235, 1150)).toMatchObject({ changePct: 7, behind: false });
+  });
+
+  it('measures the deposit a year before the anchor', () => {
+    const months = history({ count: 16, last: '2026-09', start: 80000, saved: 1000, flows: () => ({ invested: 400 }) });
+    const g = assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months, investedIds });
+    expect(g.contributionYearAgo).toBe(400);
+    const short = assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months: months.slice(-12), investedIds });
+    expect(short.contributionYearAgo).toBeNull();
+  });
+});
+
+describe('what cash earns', () => {
+  // Invented: checking (30% of net worth) is paid nothing; the account counted
+  // as cash (10%) is paid 0.3% of its month-start balance each month.
+  const cashAccounts = [
+    { id: 'checking', name: 'Checking' },
+    { id: 'cashInvested', name: 'Money market' },
+  ];
+  const months = history({
+    count: 15,
+    last: '2026-09',
+    start: 80000,
+    saved: 1000,
+    flows: () => ({ invested: 400 }),
+    interest: () => ({}),
+  });
+  // Paid 0.3% of what the money market started each month with.
+  for (let i = 1; i < months.length; i += 1) {
+    months[i].interestByAccount = { cashInvested: Math.round(months[i - 1].byAccount!.cashInvested * 0.003 * 100) / 100 };
+  }
+  const goal = { target: 300000, realReturnPct: 5 };
+  const g = assessNetWorthGoal({ goal, liveNetWorth: 94000, months, investedIds, cashAccounts });
+
+  it('reads each account from what it was paid, weighted by where the cash sat', () => {
+    expect(g.cash!.accounts.map((a) => a.name)).toEqual(['Checking', 'Money market']);
+    expect(g.cash!.accounts[0].nominalPct).toBe(0);
+    expect(g.cash!.accounts[1].nominalPct).toBeCloseTo(3.66, 1);
+    expect(g.cash!.accounts.reduce((s, a) => s + a.share, 0)).toBeCloseTo(1, 6);
+    expect(g.cash!.accounts[0].share).toBeCloseTo(0.75, 6); // checking is 30% of net worth against 10%
+    // The mix, 0.9% before inflation, loses about 2% after the assumed 3%.
+    expect(g.cash!.nominalPct).toBeCloseTo(0.92, 1);
+    expect(g.cash!.realPct).toBeLessThan(-1.9);
+    expect(g.basis!.cash).toBeCloseTo(months.at(-1)!.value * 0.4, 1);
+  });
+
+  it('moves both dates later when cash loses value, and the panel agrees', () => {
+    const level = assessNetWorthGoal({ goal, liveNetWorth: 94000, months, investedIds });
+    expect(level.cash).toBeNull();
+    expect(g.saving!.lands! > level.saving!.lands!).toBe(true);
+    expect(g.markets!.lands! >= level.markets!.lands!).toBe(true);
+    expect(projectGoal(g.basis!, g.previousBasis, 300000, 5)).toEqual({ saving: g.saving, markets: g.markets });
+    const t = 24;
+    expect(goalPath(g.basis!, undefined, t)[t]).toBeLessThan(goalPath(level.basis!, undefined, t)[t]);
+  });
+
+  it('holds cash level on rows stored before interest was recorded', () => {
+    const old = history({ count: 15, last: '2026-09', start: 80000, saved: 1000, flows: () => ({ invested: 400 }) });
+    const o = assessNetWorthGoal({ goal, liveNetWorth: 94000, months: old, investedIds, cashAccounts });
+    expect(o.cash).toBeNull();
+    expect(o.basis!.cashRealPct).toBe(0);
+  });
+});
+
+describe('idle cash', () => {
+  // Invented: checking pays nothing, a money market about 3.4%.
+  const cash = {
+    accounts: [
+      { id: 'checking', name: 'Checking', nominalPct: 0, share: 0.3 },
+      { id: 'mm', name: 'Money market', nominalPct: 3.4, share: 0.7 },
+    ],
+    nominalPct: 2.38,
+    realPct: -0.6,
+  };
+  const spending = [4100, 5200, 4800, 4900];
+
+  it('counts what checking holds beyond a month of spending, and what the best-paying account would earn on it', () => {
+    const idle = idleCashAt(cash, [{ id: 'checking', balance: 18000 }, { id: 'mm', balance: 40000 }], spending)!;
+    expect(idle).toMatchObject({ held: 18000, buffer: 4900, idle: 13100, from: ['Checking'] });
+    expect(idle.to).toEqual({ name: 'Money market', nominalPct: 3.4 });
+    expect(idle.yearly).toBeCloseTo(445.4, 2);
+  });
+
+  it('says nothing under a thousand idle, without an account that pays, or before spending is measured', () => {
+    expect(idleCashAt(cash, [{ id: 'checking', balance: 5500 }], spending)).toBeNull();
+    expect(idleCashAt({ ...cash, accounts: [cash.accounts[0]] }, [{ id: 'checking', balance: 18000 }], spending)).toBeNull();
+    expect(idleCashAt(cash, [{ id: 'checking', balance: 18000 }], [4000, 4000])).toBeNull();
+    expect(idleCashAt(null, [{ id: 'checking', balance: 18000 }], spending)).toBeNull();
+  });
+
+  it('prices a move as cash earning more from now on, which brings a date nearer', () => {
+    const months = history({ count: 15, last: '2026-09', start: 80000, saved: 1000, flows: () => ({ invested: 400 }) });
+    const b = { ...assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months, investedIds }).basis!, cash: 30000, cashNominalPct: 1, cashRealPct: -1.94 };
+    const moved = withCashMoved(b, 15000, 3.4);
+    expect(moved.cashNominalPct).toBeCloseTo(2.7, 6);
+    expect(projectGoal(moved, null, 300000, undefined).saving.lands! < projectGoal(b, null, 300000, undefined).saving.lands!).toBe(true);
+    expect(withCashMoved(b, 0, 3.4)).toBe(b);
   });
 });
 
@@ -357,7 +497,7 @@ describe('the return slider', () => {
 
   it('lets the panel save anything the slider can reach', () => {
     for (let position = 0; position <= 1000; position += 37) {
-      const r = nextNetWorthGoal(null, { target: 1000000, realReturnPct: sliderToReturn(position), monthlyInvest: null }, '2026-10-16');
+      const r = nextNetWorthGoal(null, { target: 1000000, realReturnPct: sliderToReturn(position), monthlyInvest: null, monthlyPace: null }, '2026-10-16');
       expect(r.ok).toBe(true);
     }
   });

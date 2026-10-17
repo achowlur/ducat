@@ -49,7 +49,8 @@ the things waiting for your review.
 Three questions, in order. This month: where spending lands if the rest of
 the month is ordinary, and what is worth your attention. Goals: a net worth
 goal dated two ways (by saving alone, and with a market return you set on
-the page, along with what you invest each month), each savings goal with the date it lands and its path, and a
+the page, along with what you save and invest each month, and what keeping
+up with inflation asks of you), each savings goal with the date it lands and its path, and a
 house-readiness estimate that names its assumptions. Recurring charges: one
 list, each plan with its next charge, and what is due in the next 30 days.
 

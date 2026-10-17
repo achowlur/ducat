@@ -4,23 +4,31 @@ import { useRef, useState, useTransition } from "react";
 import { saveNetWorthGoal } from "../app/insights/actions";
 import { ACTION_DID_NOT_COMPLETE } from "../lib/ui/boundaryCopy";
 import { money, monthLabel, shortDateYear } from "../lib/ui/format";
+import { wholePercents } from "../lib/ui/spendingBreakdown";
 import {
+  ASSUMED_INFLATION_PCT,
   goalPath,
+  keepingUp,
   NET_WORTH_HORIZON_MONTHS,
   NET_WORTH_PACE_MIN_MONTHS,
   projectGoal,
   returnToSlider,
   SLIDER_STEPS,
   sliderToReturn,
-  withDeposit,
+  withCashMoved,
+  withSaving,
   type GoalBasis,
   type NetWorthGoalAssessment,
   type Projection,
+  type SavingOverrides,
 } from "../lib/ui/netWorthGoal";
 import { GoalPathChart, type GoalProjectionLine } from "./goals/GoalPathChart";
 import { ASSUMED_CHIP, CHIP, CONTROL, FIELD_LABEL, PROJECTED_CHIP } from "./ui/headings";
 
 const wholeDollars = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+// An estimate in whole dollars: cents on a figure grown by an assumed rate claim a precision it lacks.
+const roughly = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const percent = (n: number) => `${n.toFixed(1).replace(/\.0$/, "")}%`;
 const monthsWord = (n: number) => (n === 1 ? "month" : "months");
 
 // A control's label sits beside it from md up and above it on a phone, where
@@ -65,6 +73,66 @@ function pathsFor(
 /** The same amount within a cent or 2%, as a deposit is judged to match (netWorthGoal.ts). */
 const sameAmount = (a: number, b: number) => Math.abs(a - b) <= Math.max(0.01, 0.02 * Math.max(Math.abs(a), Math.abs(b)));
 
+/** What the panel's controls hold; a null monthly figure follows the data. */
+type Draft = { target: number; pct: number; invest: number | null; pace: number | null };
+
+const FIELD =
+  "tap44 w-[9.5rem] rounded-[2px] border border-rule bg-paper px-1.5 py-0.5 font-money text-[0.85rem] tabular text-ink outline-none focus:border-acc";
+
+/**
+ * A dollar field: commits on Enter or on leaving it, puts back what it showed
+ * on Escape or a refused value. The caller keys it by the value it shows, so
+ * a figure moved elsewhere (the saving, when the investing moves it) redraws.
+ */
+function AmountInput({
+  id,
+  value,
+  negative = false,
+  onEdit,
+  onCommit,
+}: {
+  id: string;
+  value: number;
+  negative?: boolean;
+  onEdit: () => void;
+  /** False refuses the value and puts back the one shown. */
+  onCommit: (typed: number | null) => boolean;
+}) {
+  const [draft, setDraft] = useState(wholeDollars.format(value));
+  const commit = () => {
+    const cleaned = draft.replace(negative ? /[^0-9.-]/g : /[^0-9.]/g, "");
+    const typed = Number(cleaned);
+    const ok = onCommit(cleaned === "" || cleaned === "-" || !Number.isFinite(typed) ? null : typed);
+    setDraft(wholeDollars.format(ok && Number.isFinite(typed) && cleaned !== "" ? typed : value));
+  };
+  return (
+    <span className="inline-flex items-baseline gap-1">
+      <span className="font-money">$</span>
+      <input
+        id={id}
+        type="text"
+        inputMode="decimal"
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          onEdit();
+        }}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            setDraft(wholeDollars.format(value));
+          }
+        }}
+        className={FIELD}
+      />
+    </span>
+  );
+}
+
 /** "~May 2045" or the reason there is no date. */
 function Landing({ p, pace }: { p: Projection; pace: number | null }) {
   if ((pace ?? 0) <= 0 && p.lands === null) return <span className="text-[0.85rem] text-faint">not reached at this pace</span>;
@@ -97,31 +165,44 @@ function Shift({ p }: { p: Projection }) {
  * target, return and amount a month apart, so it says what the DATA did,
  * never what a control did.
  *
- * The monthly amount starts as the measured deposit (the middle of the last
- * three months) and follows it while untouched; one typed in its place holds
- * until it is set back, and typing the measured amount sets it back.
+ * The two monthly figures start as the measured ones (the saving pace over
+ * the last twelve months, the deposit as the middle of the last three) and
+ * follow the data while untouched; one typed in place holds until it is set
+ * back, and typing the measured figure sets it back.
+ *
+ * The dates are in today's dollars, which assume the saving rises with
+ * inflation. The note under the controls says what that asks at an assumed
+ * 3% a year, and the deposit is checked against a year ago: kept level in
+ * dollars, it falls behind (keepingUp).
  */
 export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
   const [target, setTarget] = useState(g.goal.target);
-  const [draft, setDraft] = useState(wholeDollars.format(g.goal.target));
   const [pct, setPct] = useState(g.goal.realReturnPct ?? 0);
   const [setOn, setSetOn] = useState(g.goal.returnSetOn);
-  // The amount typed in place of the measured deposit; null follows the data.
-  const measured = g.contribution ?? 0;
+  // Figures typed in place of the measured ones; null follows the data.
   const [invest, setInvest] = useState<number | null>(g.goal.monthlyInvest ?? null);
-  const [investDraft, setInvestDraft] = useState(wholeDollars.format(g.goal.monthlyInvest ?? measured));
+  const [paceSet, setPaceSet] = useState<number | null>(g.goal.monthlyPace ?? null);
   const [failure, setFailure] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const saved = useRef({ target: g.goal.target, pct: g.goal.realReturnPct ?? 0, invest: g.goal.monthlyInvest ?? null });
+  const saved = useRef<Draft>({
+    target: g.goal.target,
+    pct: g.goal.realReturnPct ?? 0,
+    invest: g.goal.monthlyInvest ?? null,
+    pace: g.goal.monthlyPace ?? null,
+  });
 
-  type Draft = { target: number; pct: number; invest: number | null };
   const save = (next: Draft) => {
     const s = saved.current;
-    if (next.target === s.target && next.pct === s.pct && next.invest === s.invest) return;
+    if (next.target === s.target && next.pct === s.pct && next.invest === s.invest && next.pace === s.pace) return;
     setFailure(null);
     startTransition(async () => {
       try {
-        const result = await saveNetWorthGoal({ target: next.target, realReturnPct: next.pct, monthlyInvest: next.invest });
+        const result = await saveNetWorthGoal({
+          target: next.target,
+          realReturnPct: next.pct,
+          monthlyInvest: next.invest,
+          monthlyPace: next.pace,
+        });
         if (!result.ok) {
           setFailure(result.message);
           return;
@@ -130,6 +211,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
           target: result.goal.target,
           pct: result.goal.realReturnPct ?? 0,
           invest: result.goal.monthlyInvest ?? null,
+          pace: result.goal.monthlyPace ?? null,
         };
         setSetOn(result.goal.returnSetOn);
       } catch {
@@ -138,47 +220,85 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
       }
     });
   };
+  const current: Draft = { target, pct, invest, pace: paceSet };
+  const clearFailure = () => setFailure(null);
 
-  const commitTarget = () => {
-    const typed = Number(draft.replace(/[^0-9.]/g, ""));
-    if (!Number.isFinite(typed) || typed <= 0) {
+  const commitTarget = (typed: number | null) => {
+    if (typed === null || typed <= 0) {
       setFailure("The target has to be a dollar amount above zero.");
-      setDraft(wholeDollars.format(target));
-      return;
+      return false;
     }
     setTarget(typed);
-    setDraft(wholeDollars.format(typed));
-    save({ target: typed, pct, invest });
+    save({ ...current, target: typed });
+    return true;
   };
-  const commitReturn = () => save({ target, pct, invest });
+  const commitReturn = () => save(current);
 
-  const commitInvest = () => {
-    const cleaned = investDraft.replace(/[^0-9.]/g, "");
-    const typed = Number(cleaned);
-    if (cleaned === "" || !Number.isFinite(typed) || typed < 0) {
+  // The figures as measured, and the saving as it stands untouched: the
+  // measured pace, moved by an investing amount typed in place.
+  const measuredDeposit = g.contribution ?? 0;
+  const paceUntouched = g.basis === null ? 0 : withSaving(g.basis, { monthlyInvest: invest ?? undefined }).pace;
+
+  const commitInvest = (typed: number | null) => {
+    if (typed === null || typed < 0) {
       setFailure("The monthly amount has to be a dollar amount of zero or more.");
-      setInvestDraft(wholeDollars.format(invest ?? measured));
-      return;
+      return false;
     }
     // The measured amount, typed back, follows the data again.
     const next = g.contribution !== null && sameAmount(typed, g.contribution) ? null : typed;
     setInvest(next);
-    setInvestDraft(wholeDollars.format(next ?? measured));
-    save({ target, pct, invest: next });
+    save({ ...current, invest: next });
+    return true;
   };
-  const useMeasured = () => {
+  const commitPace = (typed: number | null) => {
+    if (typed === null) {
+      setFailure("The monthly saving has to be a dollar amount.");
+      return false;
+    }
+    const next = sameAmount(typed, paceUntouched) ? null : typed;
+    setPaceSet(next);
+    save({ ...current, pace: next });
+    return true;
+  };
+  const useMeasuredDeposit = () => {
     setInvest(null);
-    setInvestDraft(wholeDollars.format(measured));
-    save({ target, pct, invest: null });
+    save({ ...current, invest: null });
+  };
+  const useMeasuredPace = () => {
+    setPaceSet(null);
+    save({ ...current, pace: null });
   };
 
   const reached = g.netWorth >= target;
   const progress = Math.min(1, Math.max(0, g.netWorth / target));
-  // The bases with the amount set, if any: both dates move with it.
-  const basis = g.basis === null ? null : withDeposit(g.basis, invest ?? undefined);
-  const previousBasis = g.previousBasis === null ? null : withDeposit(g.previousBasis, invest ?? undefined);
+  // The bases with the figures set, if any: both dates move with them.
+  const set: SavingOverrides = { monthlyInvest: invest ?? undefined, monthlyPace: paceSet ?? undefined };
+  const basis = g.basis === null ? null : withSaving(g.basis, set);
+  const previousBasis = g.previousBasis === null ? null : withSaving(g.previousBasis, set);
   const projection =
     basis === null || reached ? null : projectGoal(basis, previousBasis, target, pct > 0 ? pct : undefined);
+  const shownPace = paceSet ?? paceUntouched;
+  const shownDeposit = invest ?? measuredDeposit;
+  // What today's dollars ask, at the assumed inflation: the date the note
+  // prices the target at is the nearer one on screen.
+  const grow = (years: number) => Math.pow(1 + ASSUMED_INFLATION_PCT / 100, years);
+  const noteDate = projection?.markets?.lands ?? projection?.saving.lands ?? null;
+  const yearsTo = (key: string) => (basis === null ? 0 : monthsBetween(basis.anchor, key) / 12);
+  const cashShares = g.cash === null ? [] : wholePercents(g.cash.accounts.map((a) => a.share));
+  // Idle cash, priced in months: the nearer date on screen, with the idle
+  // amount earning what the best-paying account pays from now on.
+  const idle = g.idle;
+  const idleSooner = (() => {
+    if (idle === null || basis === null || projection === null) return 0;
+    const moved = projectGoal(withCashMoved(basis, idle.idle, idle.to.nominalPct), null, target, pct > 0 ? pct : undefined);
+    const now = projection.markets?.lands ?? projection.saving.lands;
+    const then = projection.markets !== null ? moved.markets?.lands : moved.saving.lands;
+    return now === null || then === null || then === undefined ? 0 : monthsBetween(then, now);
+  })();
+  const keeping =
+    invest === null && g.contribution !== null && g.contribution > 0 && (g.contributionYearAgo ?? 0) > 0
+      ? keepingUp(g.contribution, g.contributionYearAgo!)
+      : null;
 
   return (
     <div className="text-[0.85rem]">
@@ -254,30 +374,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
           Target
         </label>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="inline-flex items-baseline gap-1">
-            <span className="font-money">$</span>
-            <input
-              id="nw-goal-target"
-              type="text"
-              inputMode="decimal"
-              value={draft}
-              onChange={(e) => {
-                setDraft(e.target.value);
-                setFailure(null);
-              }}
-              onBlur={commitTarget}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  commitTarget();
-                } else if (e.key === "Escape") {
-                  e.preventDefault();
-                  setDraft(wholeDollars.format(target));
-                }
-              }}
-              className="tap44 w-[9.5rem] rounded-[2px] border border-rule bg-paper px-1.5 py-0.5 font-money text-[0.85rem] tabular text-ink outline-none focus:border-acc"
-            />
-          </span>
+          <AmountInput key={`target:${target}`} id="nw-goal-target" value={target} onEdit={clearFailure} onCommit={commitTarget} />
           <span>in today&apos;s dollars</span>
         </span>
 
@@ -319,34 +416,49 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
           Forecasts for the next decade sit near 4%; US stocks returned about 7% over the last century.
         </p>
 
+        {g.basis !== null && (
+          <>
+            <label htmlFor="nw-goal-pace" className={LABEL}>
+              Saving per month
+            </label>
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <AmountInput
+                key={`pace:${shownPace}`}
+                id="nw-goal-pace"
+                value={shownPace}
+                negative
+                onEdit={clearFailure}
+                onCommit={commitPace}
+              />
+              {paceSet === null ? (
+                <span>{invest === null ? "your last 12 months" : "your last 12 months, with the investing you set"}</span>
+              ) : (
+                <>
+                  <span className={ASSUMED_CHIP}>Assumed</span>
+                  <button
+                    type="button"
+                    onClick={useMeasuredPace}
+                    className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
+                  >
+                    Use your usual, <span className="font-money tabular">{money(paceUntouched)}</span>
+                  </button>
+                </>
+              )}
+            </span>
+          </>
+        )}
+
         <label htmlFor="nw-goal-invest" className={LABEL}>
           Invested per month
         </label>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="inline-flex items-baseline gap-1">
-            <span className="font-money">$</span>
-            <input
-              id="nw-goal-invest"
-              type="text"
-              inputMode="decimal"
-              value={investDraft}
-              onChange={(e) => {
-                setInvestDraft(e.target.value);
-                setFailure(null);
-              }}
-              onBlur={commitInvest}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  commitInvest();
-                } else if (e.key === "Escape") {
-                  e.preventDefault();
-                  setInvestDraft(wholeDollars.format(invest ?? measured));
-                }
-              }}
-              className="tap44 w-[9.5rem] rounded-[2px] border border-rule bg-paper px-1.5 py-0.5 font-money text-[0.85rem] tabular text-ink outline-none focus:border-acc"
-            />
-          </span>
+          <AmountInput
+            key={`invest:${shownDeposit}`}
+            id="nw-goal-invest"
+            value={shownDeposit}
+            onEdit={clearFailure}
+            onCommit={commitInvest}
+          />
           {invest === null ? (
             <span>{g.contribution === null ? "no regular deposit measured yet" : "your usual, the last three months"}</span>
           ) : (
@@ -354,23 +466,99 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
               <span className={ASSUMED_CHIP}>Assumed</span>
               <button
                 type="button"
-                onClick={useMeasured}
+                onClick={useMeasuredDeposit}
                 className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
               >
-                Use your usual, <span className="font-money tabular">{money(measured)}</span>
+                Use your usual, <span className="font-money tabular">{money(measuredDeposit)}</span>
               </button>
             </>
           )}
         </span>
 
         <p className="text-[0.72rem] leading-relaxed md:col-span-2">
-          {invest === null
-            ? "What goes into invested accounts each month. Type another amount to see what investing more or less would do."
-            : "What you save in cash stays as it is and this is added to it, so investing more moves both dates."}
+          {paceSet !== null
+            ? "The saving you set is the whole of it; the investing is the part of it that earns the return."
+            : invest !== null
+              ? "What you save in cash stays as it is and the investing is added to it, so investing more moves both dates."
+              : "What you save in all, and the part of it that goes into invested accounts. Type other amounts to see what saving or investing more would do."}
           {pending && " Saving…"}
           {failure !== null && <span className="text-neg"> {failure}</span>}
         </p>
       </div>
+
+      {/* Today's dollars assume the saving rises with inflation: say what that
+          asks, and whether the investing has kept up over the past year. */}
+      {basis !== null && !reached && basis.pace > 0 && (
+        <p className="pt-2 text-[0.78rem] leading-relaxed text-faint">
+          In today&apos;s dollars, with inflation at {ASSUMED_INFLATION_PCT}% a year{" "}
+          <span className={ASSUMED_CHIP}>Assumed</span>: the dates hold if what you save rises with it, so{" "}
+          <span className="font-money tabular">~{money(basis.pace)}</span>/mo now is about{" "}
+          <span className="font-money tabular">{roughly.format(basis.pace * grow(10))}</span>/mo in ten years
+          {noteDate !== null && (
+            <>
+              , and the <span className="font-money tabular">{money(target)}</span> target is about{" "}
+              <span className="font-money tabular">{roughly.format(target * grow(yearsTo(noteDate)))}</span> in
+              the dollars of {monthLabel(noteDate)}
+            </>
+          )}
+          .
+        </p>
+      )}
+      {/* Cash earns what it was measurably paid, less the assumed inflation:
+          each account named, so a checking balance losing ground is seen. */}
+      {basis !== null && !reached && g.cash !== null && (
+        <p className="pt-1.5 text-[0.78rem] leading-relaxed text-faint">
+          Cash {g.cash.realPct < 0 ? "loses" : "earns"} about{" "}
+          <span className="font-money tabular">{percent(Math.abs(g.cash.realPct))}</span> a year after inflation, from what
+          each account was paid over the last three months:{" "}
+          {g.cash.accounts.map((a, k) => (
+            <span key={a.id}>
+              {k > 0 && "; "}
+              {a.name} {a.nominalPct === 0 ? "pays nothing" : <>pays about <span className="font-money tabular">{percent(a.nominalPct)}</span></>}
+              {" "}({cashShares[k]}% of your cash)
+            </span>
+          ))}
+          .
+        </p>
+      )}
+      {/* Money waiting where it earns nothing, beyond a month of spending:
+          the account that pays most is where it would keep its value. */}
+      {idle !== null && !reached && (
+        <p className="pt-1.5 text-[0.78rem] leading-relaxed text-[color:var(--warn-ink)]">
+          {idle.from.join(" + ")} {idle.from.length === 1 ? "holds" : "hold"}{" "}
+          <span className="font-money tabular">{money(idle.held)}</span>, about {(idle.held / idle.buffer).toFixed(1)}{" "}
+          months of your spending (<span className="font-money tabular">~{roughly.format(idle.buffer)}</span>/mo). Beyond
+          a month, <span className="font-money tabular">{roughly.format(idle.idle)}</span> earns nothing; in {idle.to.name}{" "}
+          at about {percent(idle.to.nominalPct)} it would earn about{" "}
+          <span className="font-money tabular">{roughly.format(idle.yearly)}</span> a year
+          {idleSooner > 0 && (
+            <>
+              {" "}
+              and bring {projection?.markets != null ? "the date with markets" : "the date"} about {idleSooner}{" "}
+              {monthsWord(idleSooner)} sooner
+            </>
+          )}
+          .
+        </p>
+      )}
+      {keeping !== null && g.contributionYearAgo !== null && (
+        <p className={`pt-1.5 text-[0.78rem] leading-relaxed ${keeping.behind ? "text-[color:var(--warn-ink)]" : "text-faint"}`}>
+          Your monthly investing,{" "}
+          <span className="font-money tabular">{money(g.contribution ?? 0)}</span>, is{" "}
+          {keeping.changePct === 0
+            ? "the same as"
+            : `${keeping.changePct > 0 ? "up" : "down"} ${Math.abs(keeping.changePct)}% on`}{" "}
+          a year ago (<span className="font-money tabular">{money(g.contributionYearAgo)}</span>)
+          {keeping.behind ? (
+            <>
+              . Keeping up with {ASSUMED_INFLATION_PCT}% inflation means about{" "}
+              <span className="font-money tabular">{money(keeping.needed)}</span> now, and raising it each year.
+            </>
+          ) : (
+            <>, ahead of {ASSUMED_INFLATION_PCT}% inflation.</>
+          )}
+        </p>
+      )}
 
       {/* What the reader must be able to discount stays in view. */}
       {g.unmatchedDeposit !== null && pct > 0 && invest === null && (
@@ -411,11 +599,12 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
               )}
               .
             </p>
-            {invest !== null && basis !== null && (
+            {(invest !== null || paceSet !== null) && basis !== null && (
               <p>
-                Investing <span className="font-money tabular text-ink">{money(invest)}</span>/mo, the amount you set,
-                in place of your usual <span className="font-money tabular">~{money(measured)}</span>: saving{" "}
-                <span className="font-money tabular text-ink">~{money(basis.pace)}</span>/mo in all.
+                Saving <span className="font-money tabular text-ink">~{money(basis.pace)}</span>/mo
+                {paceSet !== null ? ", the amount you set," : " in all,"} investing{" "}
+                <span className="font-money tabular text-ink">{money(basis.contribution ?? 0)}</span>/mo of it
+                {invest !== null ? ", the amount you set" : ", your usual"}.
                 {pct > 0 && g.invested !== null && (
                   <>
                     {" "}
@@ -425,7 +614,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
                 )}
               </p>
             )}
-            {invest === null && pct > 0 && g.invested !== null && (
+            {invest === null && paceSet === null && pct > 0 && g.invested !== null && (
               <p>
                 {g.contribution !== null && g.contribution > 0 ? (
                   <>
