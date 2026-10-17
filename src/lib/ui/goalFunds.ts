@@ -59,3 +59,18 @@ export function fundGrowthOver(
   if (base?.byAccount == null || end?.byAccount == null) return null;
   return round2((fundValue(end, ids) - fundValue(base, ids)) / windowKeys.length);
 }
+
+/**
+ * A savings goal's record as its chart draws it: the month-ends, then TODAY's
+ * balance at the month being lived in, which is where the projection starts.
+ * Without that last point the record stopped at the last month-end and the
+ * projection began a month later from a different figure (two paydays
+ * higher, on the demo), a gap and a jump between lines that are one story.
+ */
+export function recordThroughToday(
+  history: readonly { period: string; value: number }[],
+  anchor: string,
+  today: number,
+): { period: string; value: number }[] {
+  return [...history.filter((m) => m.period < anchor), { period: anchor, value: round2(today) }];
+}

@@ -4,6 +4,7 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { axisMoney } from "../charts/scale";
 import { money, monthLabel } from "../../lib/ui/format";
 import { addMonths } from "../../lib/ui/netWorthGoal";
+import { goalAxisTicks } from "../../lib/ui/timeAxis";
 
 /**
  * A goal's path: what happened (solid, in ink), then each projection (dashed:
@@ -83,13 +84,8 @@ function Plot({
   const history = recent.map((r) => [x(monthIndex(r.period) - monthIndex(start)), y(r.value)] as [number, number]);
   const projected = (values: number[]) => values.map((v, t) => [x(anchorAt + t), y(Math.min(v, top))] as [number, number]);
 
-  // Year ticks on calendar steps that fit the span.
-  const firstYear = Number(start.slice(0, 4)) + 1;
-  const lastYear = Number(addMonths(anchor, ahead).slice(0, 4));
-  const span = lastYear - firstYear;
-  const step = span <= 6 ? 1 : span <= 12 ? 2 : span <= 30 ? 5 : 10;
-  const years: number[] = [];
-  for (let yr = Math.ceil(firstYear / step) * step; yr <= lastYear; yr += step) years.push(yr);
+  // Quarters on a short chart, calendar years on a long one (goalAxisTicks).
+  const ticks = goalAxisTicks(start, addMonths(anchor, ahead));
 
   // The pointer's month, in whole months from the chart's first.
   const indexAt = (e: ReactPointerEvent<SVGSVGElement>) => {
@@ -121,17 +117,14 @@ function Plot({
         {axisMoney(target)} goal
       </text>
       <line x1={PAD.left} x2={size.w - PAD.right} y1={y(0)} y2={y(0)} stroke="var(--rule)" strokeWidth="1" />
-      {years.map((yr) => {
-        const at = monthIndex(`${yr}-01`) - monthIndex(start);
-        return (
-          <g key={yr}>
-            <line x1={x(at)} x2={x(at)} y1={y(0)} y2={y(0) + 3} stroke="var(--rule)" />
-            <text x={x(at)} y={size.h - 6} fontSize="10" textAnchor="middle" fill="var(--faint)">
-              {yr}
-            </text>
-          </g>
-        );
-      })}
+      {ticks.map((tick) => (
+        <g key={tick.at}>
+          <line x1={x(tick.at)} x2={x(tick.at)} y1={y(0)} y2={y(0) + 3} stroke="var(--rule)" />
+          <text x={x(tick.at)} y={size.h - 6} fontSize="10" textAnchor="middle" fill="var(--faint)">
+            {tick.label}
+          </text>
+        </g>
+      ))}
       {/* Where the record ends and the projections begin. */}
       <line x1={x(anchorAt)} x2={x(anchorAt)} y1={PAD.top} y2={y(0)} stroke="var(--grid)" strokeWidth="1" />
       {[...projections].reverse().map((p) => (

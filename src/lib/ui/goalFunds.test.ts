@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fundGrowthOver, fundHistory, fundValue, type MonthByAccount } from "./goalFunds";
+import { fundGrowthOver, fundHistory, fundValue, recordThroughToday, type MonthByAccount } from "./goalFunds";
 
 // Invented figures throughout.
 const months: MonthByAccount[] = [
@@ -39,5 +39,19 @@ describe("fundGrowthOver", () => {
   it("says nothing when either end predates per-account values", () => {
     expect(fundGrowthOver(months, fund, ["2026-02", "2026-03"])).toBeNull();
     expect(fundGrowthOver(months, fund, [])).toBeNull();
+  });
+});
+
+describe("recordThroughToday", () => {
+  it("ends the record at today's balance, where the projection starts", () => {
+    const history = [
+      { period: "2026-08", value: 41000 },
+      { period: "2026-09", value: 42500 },
+    ];
+    expect(recordThroughToday(history, "2026-10", 48212.345)).toEqual([...history, { period: "2026-10", value: 48212.35 }]);
+  });
+
+  it("never draws the month being lived in twice", () => {
+    expect(recordThroughToday([{ period: "2026-10", value: 1 }], "2026-10", 2)).toEqual([{ period: "2026-10", value: 2 }]);
   });
 });

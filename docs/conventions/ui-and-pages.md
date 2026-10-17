@@ -1388,3 +1388,12 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   operator's data at 1280px and 375px: no sideways scroll, the chart's dots
   on the printed dates (goalPath, pinned by test), readouts on both sides of
   the record's end.
+  FOLLOW-UP the same evening, from the public demo: a savings goal's record
+  stopped at the last month-end while its projection started from TODAY's
+  balance, two paydays higher there, so the chart showed a gap and a jump
+  between lines that are one story (on the operator's data the two figures
+  happened to be close, which is why the draft review missed it). The record
+  now ends at today's balance (recordThroughToday). The same charts, a year
+  or so long, carried one year label in the middle and nothing else; up to
+  three years they are labelled by quarter, the year on January
+  (goalAxisTicks).

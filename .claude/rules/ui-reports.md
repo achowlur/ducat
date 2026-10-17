@@ -80,7 +80,9 @@ Overview:
   path (record solid in ink, each projection dashed in Trends' saved or
   markets colour, ending in a dot at the target), readable by tap or drag
   at any month; the working-out folds, anything to discount stays in view.
-  A savings goal's record spans only its pace window (goalFunds.ts).
+  A savings goal's record spans only its pace window and ends at TODAY's
+  balance, where its projection starts (goalFunds.ts); a chart of three
+  years or less is labelled by quarter (timeAxis.ts, goalAxisTicks).
 - /insights LEADS with one figure, the month's spending: projected (with
   its chip) for the month being lived in, spent so far while pace refuses
   (said in words), the analyzer's total for a closed month. Its context
