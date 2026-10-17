@@ -33,6 +33,12 @@ import { growthBetween, type NetWorthPoint } from "./netWorthGrowth";
  * no market return, not cash that stands still in a world where prices
  * rise.
  *
+ * Money waiting in an account that pays nothing is where that loss lands, so
+ * the panel says when checking holds more than a month of spending (the
+ * middle of the last three) and what the best-paying cash account would earn
+ * on the rest (idleCashAt). Money reaches that account in lumps, so there is
+ * no monthly habit to keep up, only a balance to move.
+ *
  * The monthly CONTRIBUTION is the middle of the LAST THREE complete months
  * of money crossing into invested accounts. A real history mixes a steady
  * monthly deposit with lump sums (savings moved in from another bank, a
@@ -150,6 +156,73 @@ export interface NetWorthMonth extends NetWorthPoint {
   interestByAccount?: Record<string, number> | null;
 }
 
+/** Cash waiting in accounts that pay nothing, beyond a month's spending. */
+export interface IdleCash {
+  /** Those accounts' live balances, summed. */
+  held: number;
+  /** A month of spending: the middle of the last three complete months. */
+  buffer: number;
+  /** `held` less `buffer`. */
+  idle: number;
+  /** The accounts it waits in. */
+  from: string[];
+  /** The best-paying cash account, and its measured yearly yield before inflation. */
+  to: { name: string; nominalPct: number };
+  /** What `idle` would earn there in a year. */
+  yearly: number;
+}
+
+/** Below this, moving money is not worth a sentence. */
+export const IDLE_CASH_MIN = 1000;
+
+/**
+ * Cash beyond a month's spending in the cash accounts that pay nothing, and
+ * what the best-paying one would earn on it. A month of SPENDING, not what
+ * leaves the account: a card payment and a lump moved to savings both leave
+ * checking as transfers, and only the first is a need. Live balances, since
+ * this asks for an action today. Null when no account pays anything, when the
+ * spending cannot be measured, or when less than IDLE_CASH_MIN is idle.
+ */
+export function idleCashAt(
+  cash: CashYield | null,
+  live: readonly { id: string; balance: number }[],
+  monthlySpending: readonly number[],
+): IdleCash | null {
+  if (cash === null || monthlySpending.length < DEPOSIT_MONTHS) return null;
+  const best = cash.accounts.reduce<CashYield["accounts"][number] | null>(
+    (top, a) => (a.nominalPct > 0 && (top === null || a.nominalPct > top.nominalPct) ? a : top),
+    null,
+  );
+  const idleAccounts = cash.accounts.filter((a) => a.nominalPct === 0);
+  if (best === null || idleAccounts.length === 0) return null;
+  const recent = monthlySpending.slice(-DEPOSIT_MONTHS);
+  const buffer = round2([...recent].sort((a, b) => a - b)[Math.floor(DEPOSIT_MONTHS / 2)]);
+  const held = round2(
+    idleAccounts.reduce((sum, a) => sum + Math.max(0, live.find((l) => l.id === a.id)?.balance ?? 0), 0),
+  );
+  const idle = round2(held - buffer);
+  if (idle < IDLE_CASH_MIN) return null;
+  return {
+    held,
+    buffer,
+    idle,
+    from: idleAccounts.map((a) => a.name),
+    to: { name: best.name, nominalPct: best.nominalPct },
+    yearly: round2(idle * (best.nominalPct / 100)),
+  };
+}
+
+/**
+ * The basis with `amount` moved from cash that pays nothing to an account
+ * paying `nominalPct`: that share of the cash earns it from now on. What the
+ * panel prices a move at, in months.
+ */
+export function withCashMoved(b: GoalBasis, amount: number, nominalPct: number): GoalBasis {
+  if (b.cash <= 0 || amount <= 0) return b;
+  const nominal = b.cashNominalPct + Math.min(1, amount / b.cash) * nominalPct;
+  return { ...b, cashNominalPct: round2(nominal), cashRealPct: round2(((1 + nominal / 100) / (1 + ASSUMED_INFLATION_PCT / 100) - 1) * 100) };
+}
+
 /** Cash, as the projection treats it. */
 export interface CashYield {
   /** Each cash account: its measured yearly yield before inflation (percent), and its share of where the cash sat. */
@@ -207,6 +280,8 @@ export interface NetWorthGoalAssessment {
   markets: Projection | null;
   /** What cash earns, measured; null on rows stored before interest was recorded, when cash is held level. */
   cash: CashYield | null;
+  /** Cash beyond a month's spending sitting where it earns nothing; null when there is none worth moving. */
+  idle: IdleCash | null;
   refusal: "TOO_FEW_MONTHS" | null;
   /** The month-end the dates come from, for the panel to re-project as its controls move; null when too little history. */
   basis: GoalBasis | null;
@@ -399,6 +474,8 @@ export interface GoalBasis {
   cash: number;
   /** What cash earns a year after the assumed inflation, in percent; 0 (held level) when unmeasured. */
   cashRealPct: number;
+  /** The same before inflation; 0 when unmeasured. */
+  cashNominalPct: number;
 }
 
 /** The monthly figures the operator set in place of the measured ones; absent ones follow the data. */
@@ -541,6 +618,10 @@ export function assessNetWorthGoal(input: {
   investedIds: ReadonlySet<string>;
   /** The operator's cash definition, named for the panel; none holds cash level, as before interest was measured. */
   cashAccounts?: readonly { id: string; name: string }[];
+  /** Those accounts' live balances, for the idle-cash line. */
+  liveCash?: readonly { id: string; balance: number }[];
+  /** Spending in each complete month, oldest first: a month of it is the buffer checking keeps. */
+  monthlySpending?: readonly number[];
 }): NetWorthGoalAssessment {
   const { goal, liveNetWorth, months, investedIds } = input;
   const cashAccounts = input.cashAccounts ?? [];
@@ -566,6 +647,7 @@ export function assessNetWorthGoal(input: {
       contribution: depositAt(months, end, investedIds),
       cash: cash?.balance ?? 0,
       cashRealPct: cash?.realPct ?? 0,
+      cashNominalPct: cash?.nominalPct ?? 0,
     };
   };
   const cashAt = (end: number) => {
@@ -594,6 +676,7 @@ export function assessNetWorthGoal(input: {
           goal.realReturnPct,
         );
   const latest = end < 0 ? null : depositIn(months[end], investedIds);
+  const cash = cashAt(end);
 
   return {
     goal,
@@ -615,7 +698,8 @@ export function assessNetWorthGoal(input: {
       latest === null || basis?.contribution == null || sameDeposit(latest, basis.contribution) ? null : latest,
     saving: projection?.saving ?? null,
     markets: projection?.markets ?? null,
-    cash: cashAt(end),
+    cash,
+    idle: idleCashAt(cash, input.liveCash ?? [], input.monthlySpending ?? []),
     refusal: basis === null ? "TOO_FEW_MONTHS" : null,
     recent: months.slice(-GOAL_CHART_HISTORY_MONTHS).map((m) => ({ period: m.period, value: m.value })),
   };

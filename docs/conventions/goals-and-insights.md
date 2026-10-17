@@ -151,6 +151,22 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   paying 0.6%; it now pays a rate on its balance (under 1% until four years
   ago, 4.2% since), and the demo reads checking at nothing, savings at 4.2%,
   cash losing about 0.6% a year.
+  IDLE CASH (2026-10-17, the same day). The operator asked for the money
+  market's counterpart of the keeping-up check. It is not the same check:
+  money reaches a high-yield account in lumps, so there is no monthly habit
+  to grow, and once there it about keeps its value. What loses value is
+  money WAITING where nothing is paid. So the panel says when the cash
+  accounts that pay nothing hold more than a month of spending, and what the
+  best-paying cash account would earn on the rest, priced in months on the
+  nearer date (withCashMoved: that share of cash earning the better rate from
+  now on). The buffer was first to be what LEAVES checking in a month, and
+  the rows refused it: card payments and a lump moved to savings both leave
+  as unpaired transfers, so a month holding a lump read as five months of
+  needs. A month of SPENDING (the cash-flow analyzer's, cards included,
+  transfers out) is what checking has to cover; the middle of the last three
+  complete months, so one heavy month cannot set it. Live balances, since it
+  asks for an action today; quiet under IDLE_CASH_MIN (,000), after a move,
+  and when no cash account pays anything.
   Dates are projected from the last COMPLETE month-end, not the live
   balance: a live anchor would move the date with every day's markets, and
   the shift since last month would compare a month-end with a Tuesday.

@@ -659,6 +659,8 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
           ),
           // What cash earns is measured per account in the same definition.
           cashAccounts: cashAccountRows.map((a) => ({ id: a.id, name: a.name })),
+          liveCash: cashAccountRows.map((a) => ({ id: a.id, balance: Number(a.balance) })),
+          monthlySpending: completeCashFlow.map((r) => r.payload.spending),
         })
       : null;
 

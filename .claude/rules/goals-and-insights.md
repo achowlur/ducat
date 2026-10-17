@@ -69,7 +69,9 @@ anything below; several entries record "tried and failed, don't retry".
   middle of its last three months against its month-start balance), NEVER
   its change in value; accounts weighted by their average balance over the
   pace window; both dates use it; a row predating the field holds cash
-  level.
+  level. Cash beyond a month of SPENDING (never "what leaves the account")
+  in accounts paying nothing is named with what the best-paying cash
+  account would earn on it (idleCashAt, live balances, IDLE_CASH_MIN).
 - "Counts as cash" is a Setting (cash.additionalAccountIds via
   accounts:cash), never an account-type change — retyping breaks net worth.
 - npm run goals --add is NOT idempotent (slugs dedupe, content does not):

@@ -15,6 +15,7 @@ import {
   returnToSlider,
   SLIDER_STEPS,
   sliderToReturn,
+  withCashMoved,
   withSaving,
   type GoalBasis,
   type NetWorthGoalAssessment,
@@ -284,6 +285,16 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
   const noteDate = projection?.markets?.lands ?? projection?.saving.lands ?? null;
   const yearsTo = (key: string) => (basis === null ? 0 : monthsBetween(basis.anchor, key) / 12);
   const cashShares = g.cash === null ? [] : wholePercents(g.cash.accounts.map((a) => a.share));
+  // Idle cash, priced in months: the nearer date on screen, with the idle
+  // amount earning what the best-paying account pays from now on.
+  const idle = g.idle;
+  const idleSooner = (() => {
+    if (idle === null || basis === null || projection === null) return 0;
+    const moved = projectGoal(withCashMoved(basis, idle.idle, idle.to.nominalPct), null, target, pct > 0 ? pct : undefined);
+    const now = projection.markets?.lands ?? projection.saving.lands;
+    const then = projection.markets !== null ? moved.markets?.lands : moved.saving.lands;
+    return now === null || then === null || then === undefined ? 0 : monthsBetween(then, now);
+  })();
   const keeping =
     invest === null && g.contribution !== null && g.contribution > 0 && (g.contributionYearAgo ?? 0) > 0
       ? keepingUp(g.contribution, g.contributionYearAgo!)
@@ -507,6 +518,26 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
               {" "}({cashShares[k]}% of your cash)
             </span>
           ))}
+          .
+        </p>
+      )}
+      {/* Money waiting where it earns nothing, beyond a month of spending:
+          the account that pays most is where it would keep its value. */}
+      {idle !== null && !reached && (
+        <p className="pt-1.5 text-[0.78rem] leading-relaxed text-[color:var(--warn-ink)]">
+          {idle.from.join(" + ")} {idle.from.length === 1 ? "holds" : "hold"}{" "}
+          <span className="font-money tabular">{money(idle.held)}</span>, about {(idle.held / idle.buffer).toFixed(1)}{" "}
+          months of your spending (<span className="font-money tabular">~{roughly.format(idle.buffer)}</span>/mo). Beyond
+          a month, <span className="font-money tabular">{roughly.format(idle.idle)}</span> earns nothing; in {idle.to.name}{" "}
+          at about {percent(idle.to.nominalPct)} it would earn about{" "}
+          <span className="font-money tabular">{roughly.format(idle.yearly)}</span> a year
+          {idleSooner > 0 && (
+            <>
+              {" "}
+              and bring {projection?.markets != null ? "the date with markets" : "the date"} about {idleSooner}{" "}
+              {monthsWord(idleSooner)} sooner
+            </>
+          )}
           .
         </p>
       )}

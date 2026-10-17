@@ -4,6 +4,8 @@ import {
   assessNetWorthGoal,
   NET_WORTH_PACE_MIN_MONTHS,
   goalPath,
+  idleCashAt,
+  withCashMoved,
   nextNetWorthGoal,
   parseNetWorthGoal,
   projectGoal,
@@ -438,6 +440,42 @@ describe('what cash earns', () => {
     const o = assessNetWorthGoal({ goal, liveNetWorth: 94000, months: old, investedIds, cashAccounts });
     expect(o.cash).toBeNull();
     expect(o.basis!.cashRealPct).toBe(0);
+  });
+});
+
+describe('idle cash', () => {
+  // Invented: checking pays nothing, a money market about 3.4%.
+  const cash = {
+    accounts: [
+      { id: 'checking', name: 'Checking', nominalPct: 0, share: 0.3 },
+      { id: 'mm', name: 'Money market', nominalPct: 3.4, share: 0.7 },
+    ],
+    nominalPct: 2.38,
+    realPct: -0.6,
+  };
+  const spending = [4100, 5200, 4800, 4900];
+
+  it('counts what checking holds beyond a month of spending, and what the best-paying account would earn on it', () => {
+    const idle = idleCashAt(cash, [{ id: 'checking', balance: 18000 }, { id: 'mm', balance: 40000 }], spending)!;
+    expect(idle).toMatchObject({ held: 18000, buffer: 4900, idle: 13100, from: ['Checking'] });
+    expect(idle.to).toEqual({ name: 'Money market', nominalPct: 3.4 });
+    expect(idle.yearly).toBeCloseTo(445.4, 2);
+  });
+
+  it('says nothing under a thousand idle, without an account that pays, or before spending is measured', () => {
+    expect(idleCashAt(cash, [{ id: 'checking', balance: 5500 }], spending)).toBeNull();
+    expect(idleCashAt({ ...cash, accounts: [cash.accounts[0]] }, [{ id: 'checking', balance: 18000 }], spending)).toBeNull();
+    expect(idleCashAt(cash, [{ id: 'checking', balance: 18000 }], [4000, 4000])).toBeNull();
+    expect(idleCashAt(null, [{ id: 'checking', balance: 18000 }], spending)).toBeNull();
+  });
+
+  it('prices a move as cash earning more from now on, which brings a date nearer', () => {
+    const months = history({ count: 15, last: '2026-09', start: 80000, saved: 1000, flows: () => ({ invested: 400 }) });
+    const b = { ...assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months, investedIds }).basis!, cash: 30000, cashNominalPct: 1, cashRealPct: -1.94 };
+    const moved = withCashMoved(b, 15000, 3.4);
+    expect(moved.cashNominalPct).toBeCloseTo(2.7, 6);
+    expect(projectGoal(moved, null, 300000, undefined).saving.lands! < projectGoal(b, null, 300000, undefined).saving.lands!).toBe(true);
+    expect(withCashMoved(b, 0, 3.4)).toBe(b);
   });
 });
 
