@@ -1,6 +1,6 @@
 import type { CategorySpending, PeriodGranularity, SpendingByCategoryPayload } from '../../types/contracts';
 import { isUnreviewedP2P, P2P_UNREVIEWED_ID, P2P_UNREVIEWED_NAME } from '../p2p';
-import { inPeriod, previousPeriodKey } from './periods';
+import { inPeriod, periodEndExclusive, periodStart, previousPeriodKey } from './periods';
 import { reimbursementCredits, type ReimbursementCredit } from './reimbursements';
 import { pctDelta, round2 } from './stats';
 import type { TxnData } from './types';
@@ -34,10 +34,41 @@ function spendingFor(txns: TxnData[], credits: ReimbursementCredit[], key: strin
   return { total, byCategory };
 }
 
+/**
+ * Spending that is not EVERYDAY: trips, planned and lumpy, matched by
+ * category NAME as the subscription exclusions are (recurring.ts).
+ */
+export const NOT_EVERYDAY_CATEGORIES = new Set(['Travel']);
+
+/**
+ * Everyday spending after each day of a month (SpendingByCategoryPayload.
+ * everydayAfterDay): outflows less reimbursement credits, travel and the
+ * month's one-off purchases left out, by UTC day.
+ */
+function everydayAfterDay(txns: TxnData[], credits: ReimbursementCredit[], key: string, oneOffIds: ReadonlySet<string>): number[] {
+  const days = Math.round((periodEndExclusive(key).getTime() - periodStart(key).getTime()) / 86_400_000);
+  const byDay = new Array<number>(days + 1).fill(0);
+  const everyday = (name: string | null) => name === null || !NOT_EVERYDAY_CATEGORIES.has(name);
+  for (const t of txns) {
+    if (t.flow !== 'OUTFLOW' || !inPeriod(t.date, key) || oneOffIds.has(t.id) || !everyday(t.categoryName)) continue;
+    byDay[t.date.getUTCDate()] += -t.amount;
+  }
+  for (const c of credits) {
+    if (!inPeriod(c.date, key) || !everyday(c.categoryName)) continue;
+    byDay[c.date.getUTCDate()] -= c.amount;
+  }
+  // after[d] = spending on days d+1 .. end.
+  const after = new Array<number>(days + 1).fill(0);
+  for (let d = days - 1; d >= 0; d -= 1) after[d] = after[d + 1] + byDay[d + 1];
+  return after.map(round2);
+}
+
 export function computeSpendingByCategory(
   allTxns: TxnData[],
   periods: string[],
   granularity: PeriodGranularity,
+  /** One-off purchases (the transaction anomalies): left out of the everyday series. */
+  oneOffIds: ReadonlySet<string> = new Set(),
 ): Map<string, SpendingByCategoryPayload> {
   // Unconfirmed P2P payments OUT are spending of their own kind, not part of
   // the Uncategorized pile: relabelled here, before either the totals or the
@@ -74,6 +105,7 @@ export function computeSpendingByCategory(
       totalSpending: round2(current.total),
       previousTotalSpending: previous === null ? null : round2(previous.total),
       categories,
+      ...(granularity === 'MONTH' ? { everydayAfterDay: everydayAfterDay(txns, credits, key, oneOffIds) } : {}),
     });
   }
   return result;

@@ -473,6 +473,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
         period: r.period,
         total: r.payload.totalSpending,
         coverage: c === null ? undefined : { covered: c.covered, total: c.total },
+        everydayAfterDay: r.payload.everydayAfterDay,
       };
     });
 

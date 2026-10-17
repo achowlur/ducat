@@ -44,6 +44,12 @@ anything below; several entries record "tried and failed, don't retry".
   12 periods with spending, the pace call against the same month of the last
   3 years (else the trailing 3 months). On a long history every price or pay
   rise otherwise reads as a trend all the year after it.
+- The pace call projects the REST of the month from what typical months
+  spent AFTER this day, EVERYDAY spending only
+  (SpendingByCategoryPayload.everydayAfterDay: travel, by category name, and
+  the month's one-off purchases, the transaction anomalies, left out); never
+  a share of the month's total, which counts rent paid on the 2nd again on
+  the 17th. Spending so far counts everything.
 - The NET WORTH goal (ui/netWorthGoal.ts, Setting goals.netWorth) prints
   TWO dates and never one blended rate: by saving alone (the /trends "saved"
   pace over 6 complete months, one-off pay left out, never across a change

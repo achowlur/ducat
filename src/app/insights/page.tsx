@@ -335,21 +335,32 @@ function MonthHeadline({
         <p className="mt-1 max-w-[760px] text-[0.78rem] leading-relaxed text-faint">
           {projected !== null ? (
             <>
-              <Lead>{month}</Lead>, if the rest of the month is ordinary. <Fig>{money(pace.spentSoFar)}</Fig>{" "}
-              spent by day {pace.dayOfPeriod} of {pace.daysInPeriod}
+              <Lead>{month}</Lead>: <Fig>{money(pace.spentSoFar)}</Fig> spent by day {pace.dayOfPeriod} of{" "}
+              {pace.daysInPeriod}
               {due !== null && (
                 <>
-                  , <Fig>{money(due)}</Fig> due before month end
+                  , <Fig>{money(due)}</Fig> still due
                 </>
               )}
-              . {pace.basis === "SAME_MONTH" ? `A typical ${month} ran ` : "The last few months ran "}
-              <Fig>{money(pace.typical ?? 0)}</Fig>
-              {pace.basis === "SAME_MONTH" ? ` (${pace.basisCount} prior years)` : ""}
+              {pace.restIsEveryday ? (
+                <>
+                  ; the rest of a typical {pace.basis === "SAME_MONTH" ? month : "month"} adds{" "}
+                  <Fig>~{money(pace.typicalRest ?? 0)}</Fig> (
+                  {pace.basis === "SAME_MONTH" ? `${pace.basisCount} prior years` : `your last ${pace.basisCount} months`},
+                  travel and one-offs left out)
+                </>
+              ) : (
+                <>
+                  . {pace.basis === "SAME_MONTH" ? `A typical ${month} ran ` : "The last few months ran "}
+                  <Fig>{money(pace.typical ?? 0)}</Fig>
+                  {pace.basis === "SAME_MONTH" ? ` (${pace.basisCount} prior years)` : ""}
+                </>
+              )}
               {/* Visibly incomplete beats silently wrong: a baseline drawn
                   from before an account existed is understated, so the
                   projection leans low and says so. */}
               {pace.basisMissingAccounts > 0 &&
-                `, before ${pace.basisMissingAccounts} of your accounts existed, so this leans low`}
+                `, though those months miss ${pace.basisMissingAccounts === 1 ? "an account" : `${pace.basisMissingAccounts} accounts`}, so it may run low`}
               .
             </>
           ) : (

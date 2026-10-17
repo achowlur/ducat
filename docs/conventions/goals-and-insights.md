@@ -553,3 +553,23 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   cash by account, investing ahead of inflation) folds into the working-out.
   On the demo at phone width the panel below its chart went from about
   1,240px and 240 words to 890px and 100.
+- THE REST OF THE MONTH (2026-10-17). The pace call projected a month as
+  spent so far plus the remaining SHARE of a typical month's total. Rent
+  lands in the first days, so by the 17th a typical month had already spent
+  about four-fifths of itself, not half; the share counted the rent again,
+  and on the operator's month the projection ran well above where
+  their recent months said it would land. The rest of the month is now what
+  typical months spent AFTER this day (SPENDING_BY_CATEGORY rows carry
+  everydayAfterDay, index d = spending on days d+1 onward), median across the
+  sample. EVERYDAY: the operator chose to count everything in the month's
+  figure but to keep one-offs and travel out of "typical": what remained
+  after the 17th was mostly a trip paid one month and a fare the next, and a
+  month with no trip should not be projected one. Travel is left out by
+  CATEGORY NAME, as the subscription exclusions are; one-off purchases are
+  the transaction anomalies the page already flags, computed first in the
+  engine and handed to the spending analyzer. Spending so far still counts
+  everything, so a trip this month shows the moment it is spent. Rows stored
+  before the series fall back to the share until the next sync. The copy
+  says it in one line ("the rest of a typical month adds ~$X (your last 3
+  months, travel and one-offs left out)"), and the coverage caveat reads
+  "though those months miss an account, so it may run low".

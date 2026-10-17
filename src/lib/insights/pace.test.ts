@@ -20,6 +20,25 @@ function pace(over: Partial<Parameters<typeof computePace>[0]> = {}) {
 }
 
 describe('computePace', () => {
+  // Invented: rent of $1,800 on the 2nd and $40 a day of everyday spending,
+  // so by the 16th most of a $3,000 month is already spent.
+  it('projects the rest of the month from what typical months spent after this day', () => {
+    const after = (d: number) => Math.max(0, (31 - d) * 40);
+    const withSeries: PriorPeriod[] = julys.map((p) => ({ ...p, everydayAfterDay: Array.from({ length: 32 }, (_, d) => after(d)) }));
+    const p = pace({ priors: withSeries, spentSoFar: 2400 });
+    expect(p.restIsEveryday).toBe(true);
+    expect(p.typicalRest).toBe(600); // 15 days after the 16th
+    expect(p.projected).toBe(3000);
+    // A share of the month would have counted the rent again.
+    expect(pace({ spentSoFar: 2400 }).projected!).toBeGreaterThan(4000);
+  });
+
+  it('falls back to a share of the month when a sampled month predates the series', () => {
+    const mixed: PriorPeriod[] = [{ ...julys[0], everydayAfterDay: new Array(32).fill(100) }, julys[1]];
+    expect(pace({ priors: mixed }).restIsEveryday).toBe(false);
+  });
+
+
   it('reports where the month stands before projecting anything', () => {
     const p = pace();
     expect(p.dayOfPeriod).toBe(16);

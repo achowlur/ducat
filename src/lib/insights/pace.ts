@@ -5,7 +5,13 @@ import { round2 } from './stats';
  * Where the current month lands, from what has been spent so far.
  *
  * The projection is deliberately dull: assume the rest of the month looks like
- * a typical one, and never claim less than what is already known to be due.
+ * the rest of a typical one, and never claim less than what is already known
+ * to be due. "The rest of a typical month" is what typical months spent AFTER
+ * this day, everyday spending only (travel and one-off purchases left out,
+ * SpendingByCategoryPayload.everydayAfterDay): a straight share of the month
+ * read a rent paid on the 2nd as still to come on the 17th, and projected a
+ * month well above where it landed. Rows stored before the series fall
+ * back to that share.
  * Everything interesting here is in what it REFUSES to say — a pace call is
  * only as good as its baseline, and there are three ways the baseline can be
  * too thin to speak from.
@@ -54,6 +60,8 @@ export interface PriorPeriod {
    * wrong; incomparable beats neither, and is refused.
    */
   coverage?: { covered: number; total: number };
+  /** Everyday spending after each day of that month (index d = after day d); absent on older rows. */
+  everydayAfterDay?: number[];
 }
 
 export interface Pace {
@@ -75,6 +83,14 @@ export interface Pace {
    * when you are not is the reassuring kind of wrong.
    */
   basisMissingAccounts: number;
+  /**
+   * What the rest of a typical month adds: the middle of the sample's
+   * everyday spending after this day, or a share of its typical total on rows
+   * without the series. Null with a refusal.
+   */
+  typicalRest: number | null;
+  /** True when `typicalRest` came from the everyday series, false when from a share of the total. */
+  restIsEveryday: boolean;
   /** Null whenever `refusal` is set — the two are never both present. */
   projected: number | null;
   refusal: PaceRefusal | null;
@@ -127,7 +143,7 @@ export function computePace(input: {
 
   const base: Omit<
     Pace,
-    'typical' | 'basis' | 'basisCount' | 'basisMissingAccounts' | 'projected' | 'refusal'
+    'typical' | 'basis' | 'basisCount' | 'basisMissingAccounts' | 'typicalRest' | 'restIsEveryday' | 'projected' | 'refusal'
   > = {
     period,
     dayOfPeriod,
@@ -142,6 +158,8 @@ export function computePace(input: {
     basis: null,
     basisCount: 0,
     basisMissingAccounts: 0,
+    typicalRest: null,
+    restIsEveryday: false,
     projected: null,
     refusal,
   });
@@ -175,8 +193,16 @@ export function computePace(input: {
   if (basis === null) return refuse('NO_BASELINE');
 
   const typical = round2(median(sample.map((p) => p.total)));
-  // What a typical month still had left to spend at this point.
-  const typicalRemaining = Math.max(0, typical * (1 - elapsedFraction));
+  // What a typical month still had left to spend after this day: from its
+  // everyday spending when every sampled month carries the series, else a
+  // share of the total.
+  const series = sample.every((p) => p.everydayAfterDay !== undefined && p.everydayAfterDay.length > 0);
+  const typicalRemaining = series
+    ? Math.max(
+        0,
+        median(sample.map((p) => p.everydayAfterDay![Math.min(dayOfPeriod, p.everydayAfterDay!.length - 1)])),
+      )
+    : Math.max(0, typical * (1 - elapsedFraction));
   // Never project less than what is already known to fall due: the committed
   // charges are observed, the typical remainder is inferred, and an inference
   // should not talk over a fact.
@@ -191,6 +217,8 @@ export function computePace(input: {
       0,
       ...sample.map((p) => (p.coverage === undefined ? 0 : p.coverage.total - p.coverage.covered)),
     ),
+    typicalRest: round2(typicalRemaining),
+    restIsEveryday: series,
     projected: round2(spentSoFar + remaining),
     refusal: null,
   };
