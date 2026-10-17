@@ -59,9 +59,8 @@ anything below; several entries record "tried and failed, don't retry".
   they settle; a shift always compares the SAME settings a month apart;
   with no return set the slider sits at 0. Each monthly figure defaults to
   the measured one and follows it; typing the measured figure clears it.
-  A typed investing amount alone keeps the cash saving and moves BOTH
-  dates; a typed saving is the whole of it, the investing its part
-  (withSaving). The dates stay in TODAY'S dollars, never nominal; what
+  The saving is the TOTAL and the investing only SPLITS it (withSaving): a
+  typed investing amount never changes what is saved. The dates stay in TODAY'S dollars, never nominal; what
   that assumes (saving rising with inflation) is SAID, at an ASSUMED 3%,
   with the deposit checked against a year ago (keepingUp). CASH earns its
   MEASURED yield less that 3%: each cash account's yield from the interest
@@ -72,6 +71,14 @@ anything below; several entries record "tried and failed, don't retry".
   level. Cash beyond a month of SPENDING (never "what leaves the account")
   in accounts paying nothing is named with what the best-paying cash
   account would earn on it (idleCashAt, live balances, IDLE_CASH_MIN).
+- ONE-OFF PAY (insights/oneOffPay.ts, CashFlowTrendPayload.oneOffIncome) is
+  EXTRA pay from a payer with a salary-like run: beside a regular paycheck,
+  or between two paydays no further apart than usual. Regular = the same
+  amount (within 2%) on 3 of the 8 paydays around it; a deposit standing
+  where a paycheck should be IS the paycheck; interest and dividends are
+  never judged. It stays in income and cash flow but is LEFT OUT of every
+  saving pace and of readiness income, and the screens say so; one too
+  recent to judge is left out AND flagged in view until the paydays decide.
 - "Counts as cash" is a Setting (cash.additionalAccountIds via
   accounts:cash), never an account-type change — retyping breaks net worth.
 - npm run goals --add is NOT idempotent (slugs dedupe, content does not):

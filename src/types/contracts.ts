@@ -116,6 +116,22 @@ export interface CashFlowTrendPayload {
   previousNet: number | null;
   incomeDeltaPct: number | null;
   spendingDeltaPct: number | null;
+  /**
+   * The part of `income` that is ONE-OFF pay (insights/oneOffPay.ts): a bonus
+   * beside a paycheck, back pay. Counted in income, left out of every saving
+   * pace and of house readiness. Absent on payloads stored before 2026-10-17.
+   */
+  oneOffIncome?: number;
+  /** Those deposits; `settled` false while later paydays could still make one regular pay. */
+  oneOffPay?: OneOffPayItem[];
+}
+
+export interface OneOffPayItem {
+  /** Day it landed, "2026-08-21". */
+  date: string;
+  amount: number;
+  payer: string;
+  settled: boolean;
 }
 
 export interface RecurringChargePayload {

@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { saveNetWorthGoal } from "../app/insights/actions";
 import { ACTION_DID_NOT_COMPLETE } from "../lib/ui/boundaryCopy";
-import { money, monthLabel, shortDateYear } from "../lib/ui/format";
+import { money, monthLabel, shortDateYear, titleCase } from "../lib/ui/format";
 import { wholePercents } from "../lib/ui/spendingBreakdown";
 import {
   ASSUMED_INFLATION_PCT,
@@ -431,7 +431,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
                 onCommit={commitPace}
               />
               {paceSet === null ? (
-                <span>{invest === null ? "your last 12 months" : "your last 12 months, with the investing you set"}</span>
+                <span>your last 12 months, one-off pay left out</span>
               ) : (
                 <>
                   <span className={ASSUMED_CHIP}>Assumed</span>
@@ -479,7 +479,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
           {paceSet !== null
             ? "The saving you set is the whole of it; the investing is the part of it that earns the return."
             : invest !== null
-              ? "What you save in cash stays as it is and the investing is added to it, so investing more moves both dates."
+              ? "The investing you set is part of your saving: what is left of it is counted as cash, and the total stays as it is."
               : "What you save in all, and the part of it that goes into invested accounts. Type other amounts to see what saving or investing more would do."}
           {pending && " Saving…"}
           {failure !== null && <span className="text-neg"> {failure}</span>}
@@ -560,6 +560,19 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
         </p>
       )}
 
+      {/* Pay the paydays have not judged yet: left out of the pace as a
+          one-off, said in view so a raise is never quietly ignored. */}
+      {g.basis !== null &&
+        g.paceLeavesOut
+          .filter((o) => !o.settled)
+          .map((o) => (
+            <p key={`unsettled:${o.date}:${o.amount}`} className="pt-1.5 text-[0.78rem] leading-relaxed text-[color:var(--warn-ink)]">
+              Unexpected pay: <span className="font-money tabular">{money(o.amount)}</span> from {titleCase(o.payer)} on{" "}
+              {shortDateYear(new Date(`${o.date}T12:00:00Z`))}. It is left out of your saving as a
+              one-off, like a bonus; if it comes with your next paychecks too, it will count as regular pay.
+            </p>
+          ))}
+
       {/* What the reader must be able to discount stays in view. */}
       {g.unmatchedDeposit !== null && pct > 0 && invest === null && (
         <p className="pt-1.5 text-[0.78rem] text-faint">
@@ -598,6 +611,20 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
                 </>
               )}
               .
+              {g.paceLeavesOut.length > 0 && (
+                <>
+                  {" "}
+                  It leaves out one-off pay:{" "}
+                  {g.paceLeavesOut.map((o, k) => (
+                    <span key={`${o.date}:${o.amount}`}>
+                      {k > 0 && ", "}
+                      <span className="font-money tabular">{money(o.amount)}</span> on{" "}
+                      {shortDateYear(new Date(`${o.date}T12:00:00Z`))}
+                    </span>
+                  ))}
+                  .
+                </>
+              )}
             </p>
             {(invest !== null || paceSet !== null) && basis !== null && (
               <p>

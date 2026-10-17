@@ -309,29 +309,31 @@ describe('a monthly amount the operator sets', () => {
   const months = history({ count: 15, last: '2026-09', start: 80000, saved: 1000, flows: () => ({ invested: 400 }) });
   const g = assessNetWorthGoal({ goal: { target: 300000, realReturnPct: 5 }, liveNetWorth: 94000, months, investedIds });
 
-  it('replaces the measured deposit and keeps the cash saving: investing more is saving more', () => {
+  // The saving is the total; the investing only splits it. Clearing the
+  // investing to $0 once read as saving the whole deposit less every month.
+  it('splits the same saving, never changing the total', () => {
     expect(g.basis!.contribution).toBe(400);
-    const more = withSaving(g.basis!, { monthlyInvest: 1400 });
-    expect(more.contribution).toBe(1400);
-    expect(more.pace).toBe(g.basis!.pace + 1000);
+    const more = withSaving(g.basis!, { monthlyInvest: 900 });
+    expect(more).toMatchObject({ contribution: 900, pace: g.basis!.pace });
+    expect(withSaving(g.basis!, { monthlyInvest: 0 }).pace).toBe(g.basis!.pace);
     expect(withSaving(g.basis!, {})).toBe(g.basis);
   });
 
-  it('brings both dates nearer when it rises, and the server agrees with the panel', () => {
+  it('moves the markets date with the split, leaves saving alone, and the server agrees with the panel', () => {
     const set = assessNetWorthGoal({
-      goal: { target: 300000, realReturnPct: 5, monthlyInvest: 1400 },
+      goal: { target: 300000, realReturnPct: 5, monthlyInvest: 900 },
       liveNetWorth: 94000,
       months,
       investedIds,
     });
-    expect(set.saving!.lands! < g.saving!.lands!).toBe(true);
+    expect(set.saving!.lands).toBe(g.saving!.lands);
     expect(set.markets!.lands! < g.markets!.lands!).toBe(true);
     // The figures the working-out prints stay the measured ones.
     expect(set.contribution).toBe(400);
     expect(set.pace).toBe(g.pace);
     const panel = projectGoal(
-      withSaving(set.basis!, { monthlyInvest: 1400 }),
-      withSaving(set.previousBasis!, { monthlyInvest: 1400 }),
+      withSaving(set.basis!, { monthlyInvest: 900 }),
+      withSaving(set.previousBasis!, { monthlyInvest: 900 }),
       300000,
       5,
     );
@@ -347,6 +349,27 @@ describe('a monthly amount the operator sets', () => {
       investedIds,
     });
     expect(set.saving!.shift).toBe(0);
+  });
+});
+
+describe('one-off pay', () => {
+  // Invented: $1,000 saved a month, and two $3,000 bonuses inside the year.
+  const months = history({ count: 15, last: '2026-09', start: 80000, saved: (i) => (i === 10 || i === 12 ? 4000 : 1000) });
+  const bonuses = {
+    [months[10].period]: [{ date: `${months[10].period}-21`, amount: 3000, payer: 'harbor works payroll', settled: true }],
+    [months[12].period]: [{ date: `${months[12].period}-18`, amount: 3000, payer: 'harbor works payroll', settled: false }],
+  };
+
+  it('is left out of the pace, and named', () => {
+    const counted = assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months, investedIds });
+    const left = assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months, investedIds, oneOffs: bonuses });
+    expect(counted.pace).toBe(1500);
+    expect(left.pace).toBe(1000);
+    expect(left.paceLeavesOut.map((o) => [o.amount, o.settled])).toEqual([
+      [3000, true],
+      [3000, false],
+    ]);
+    expect(left.saving!.lands! > counted.saving!.lands!).toBe(true);
   });
 });
 

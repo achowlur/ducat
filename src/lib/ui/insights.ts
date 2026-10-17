@@ -632,7 +632,8 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
           // here, at render, so a cash goal tracks whatever the operator's
           // declaration says TODAY, not what it said at declaration time.
           cashAccounts: cashAccountRows.map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) })),
-          completeMonthlyNet: completeCashFlow.map((r) => r.payload.net),
+          // One-off pay (a bonus beside a paycheck) is left out of every pace.
+          completeMonthlyNet: completeCashFlow.map((r) => r.payload.net - (r.payload.oneOffIncome ?? 0)),
           observedCashGrowth,
           now,
         })
@@ -661,6 +662,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
           cashAccounts: cashAccountRows.map((a) => ({ id: a.id, name: a.name })),
           liveCash: cashAccountRows.map((a) => ({ id: a.id, balance: Number(a.balance) })),
           monthlySpending: completeCashFlow.map((r) => r.payload.spending),
+          oneOffs: Object.fromEntries(completeCashFlow.map((r) => [r.period, r.payload.oneOffPay ?? []])),
         })
       : null;
 
@@ -715,7 +717,8 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     readiness = assessReadiness({
       config: readinessConfig,
       fund: goals[0].saved,
-      completeMonthlyIncome: completeCashFlow.map((r) => r.payload.income),
+      // Regular pay only: a bonus month is not a budget.
+      completeMonthlyIncome: completeCashFlow.map((r) => r.payload.income - (r.payload.oneOffIncome ?? 0)),
       completeMonthlyNonHousing: completeCashFlow.map((r) => {
         const s = spendingByPeriod.get(r.period);
         return s === undefined ? r.payload.spending : nonHousingSpending(s);

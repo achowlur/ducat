@@ -150,7 +150,7 @@ export function SavingsGoalCard({
             <p className="pt-1.5 leading-relaxed">
               From your balance today: saving{" "}
               <span className="font-money tabular text-ink">~{money(rate)}</span>/mo, your income less spending averaged
-              over your last {g.basisMonths} complete months.
+              over your last {g.basisMonths} complete months, one-off pay such as a bonus left out.
             </p>
           </details>
         </>

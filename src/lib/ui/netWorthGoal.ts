@@ -1,4 +1,5 @@
 import { round2 } from "../insights/stats";
+import type { OneOffPayItem } from "../../types/contracts";
 import { growthBetween, type NetWorthPoint } from "./netWorthGrowth";
 
 /**
@@ -53,13 +54,20 @@ import { growthBetween, type NetWorthPoint } from "./netWorthGrowth";
  * changes silently. That much compounds with the invested balance; the rest
  * of the pace is counted as cash.
  *
- * The operator can SET either monthly figure instead, to ask "what if":
- * the amount invested (`monthlyInvest`) and the whole saving pace
- * (`monthlyPace`). A typed investing amount alone keeps what they save in
- * cash as measured and is added to it, so both dates move: investing more is
- * saving more. A typed pace is the whole of it, the investing its part
- * (withSaving). Set back to the measured figure, each clears and follows the
- * data again.
+ * The pace leaves out ONE-OFF pay (a bonus beside a paycheck, judged by
+ * insights/oneOffPay.ts and carried on the CASH_FLOW_TREND rows): real
+ * money, but averaged in it reads one bonus month as a monthly habit: two
+ * bonuses in a year raise a twelve-month pace by a twelfth of their total every
+ * month. The panel names what it left out, and a bonus still too recent to
+ * judge.
+ *
+ * The operator can SET either monthly figure instead, to ask "what if": the
+ * whole saving pace (`monthlyPace`) and the part of it invested
+ * (`monthlyInvest`). Each means one thing: the saving is the total, the
+ * investing only SPLITS it (withSaving). The first cut had a typed investing
+ * amount change the total too ("investing more is saving more"), and an
+ * investing field cleared to $0 read as saving the whole deposit less. Set back
+ * to the measured figure, each clears and follows the data again.
  *
  * Today's dollars ASSUME the saving rises with inflation: a pace held level
  * in real terms is a deposit that grows in actual dollars every year. Left
@@ -261,6 +269,8 @@ export interface NetWorthGoalAssessment {
   paceMonths: number;
   /** Months in that window (its base included) partly estimated or leaving an account out. */
   paceUncertainMonths: number;
+  /** One-off pay inside the pace window, left out of it. */
+  paceLeavesOut: OneOffPayItem[];
   /** Invested money at the anchor, the part a return applies to; null when the row predates per-account values. */
   invested: number | null;
   /** The monthly deposit into invested money: the middle of the last three months; null without three months of flows. */
@@ -314,7 +324,7 @@ const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.l
  * month that counts different accounts (an account entering the sum is not
  * saving). Null when fewer than NET_WORTH_PACE_MIN_MONTHS remain.
  */
-function paceAt(months: readonly NetWorthMonth[], end: number) {
+function paceAt(months: readonly NetWorthMonth[], end: number, oneOffs: OneOffsByMonth) {
   let base = Math.max(0, end - NET_WORTH_PACE_MONTHS);
   for (let i = end; i >= base; i -= 1) {
     if (!sameSet(months[i].leftOut, months[end].leftOut)) {
@@ -325,8 +335,20 @@ function paceAt(months: readonly NetWorthMonth[], end: number) {
   const span = monthsFrom(months[base].period, months[end].period);
   if (span < NET_WORTH_PACE_MIN_MONTHS) return null;
   const growth = growthBetween([...months], base, end);
-  return { base, months: span, perMonth: round2(growth.saved / span), uncertain: growth.uncertainMonths };
+  // One-off pay in the months the window adds (each month after its base).
+  const leftOut = months.slice(base + 1, end + 1).flatMap((m) => oneOffs[m.period] ?? []);
+  const extra = leftOut.reduce((sum, o) => sum + o.amount, 0);
+  return {
+    base,
+    months: span,
+    perMonth: round2((growth.saved - extra) / span),
+    uncertain: growth.uncertainMonths,
+    leftOut,
+  };
 }
+
+/** One-off pay by month ("2026-08"), as the CASH_FLOW_TREND rows carry it. */
+export type OneOffsByMonth = Readonly<Record<string, readonly OneOffPayItem[]>>;
 
 /** Months the deposit is read over: its middle is the monthly amount. */
 export const DEPOSIT_MONTHS = 3;
@@ -485,17 +507,14 @@ export interface SavingOverrides {
 }
 
 /**
- * The basis with the figures the operator SET. A typed pace is the whole of
- * what is saved, the deposit its invested part. A typed deposit alone keeps
- * the cash saving (the pace less the measured deposit) and is added to it:
- * investing $500 more a month is saving $500 more. Nothing set leaves the
- * basis as measured.
+ * The basis with the figures the operator SET. The pace is the whole of what
+ * is saved and the deposit only its invested part: investing $500 more of
+ * the same saving moves $500 a month from cash into the market, and saving
+ * more is the pace's own field. Nothing set leaves the basis as measured.
  */
 export function withSaving(b: GoalBasis, set: SavingOverrides): GoalBasis {
   const contribution = set.monthlyInvest ?? b.contribution;
-  const pace =
-    set.monthlyPace ??
-    (set.monthlyInvest === undefined ? b.pace : round2(b.pace - (b.contribution ?? 0) + set.monthlyInvest));
+  const pace = set.monthlyPace ?? b.pace;
   return pace === b.pace && contribution === b.contribution ? b : { ...b, pace, contribution };
 }
 
@@ -622,9 +641,12 @@ export function assessNetWorthGoal(input: {
   liveCash?: readonly { id: string; balance: number }[];
   /** Spending in each complete month, oldest first: a month of it is the buffer checking keeps. */
   monthlySpending?: readonly number[];
+  /** One-off pay by month: left out of the pace. */
+  oneOffs?: OneOffsByMonth;
 }): NetWorthGoalAssessment {
   const { goal, liveNetWorth, months, investedIds } = input;
   const cashAccounts = input.cashAccounts ?? [];
+  const oneOffs = input.oneOffs ?? {};
   const netWorth = round2(liveNetWorth);
 
   const investedAt = (m: NetWorthMonth): number | null =>
@@ -634,7 +656,7 @@ export function assessNetWorthGoal(input: {
 
   const basisAt = (end: number): GoalBasis | null => {
     if (end < 0) return null;
-    const pace = paceAt(months, end);
+    const pace = paceAt(months, end, oneOffs);
     if (pace === null) return null;
     const cash = cashYieldAt(months, end, pace.base, cashAccounts);
     return {
@@ -651,7 +673,7 @@ export function assessNetWorthGoal(input: {
     };
   };
   const cashAt = (end: number) => {
-    const pace = end < 0 ? null : paceAt(months, end);
+    const pace = end < 0 ? null : paceAt(months, end, oneOffs);
     if (pace === null) return null;
     const c = cashYieldAt(months, end, pace.base, cashAccounts);
     return c === null ? null : { accounts: c.accounts, nominalPct: c.nominalPct, realPct: c.realPct };
@@ -690,6 +712,7 @@ export function assessNetWorthGoal(input: {
     previousPace: previousBasis?.pace ?? null,
     paceMonths: basis?.paceMonths ?? 0,
     paceUncertainMonths: basis?.paceUncertainMonths ?? 0,
+    paceLeavesOut: end < 0 || basis === null ? [] : (paceAt(months, end, oneOffs)?.leftOut ?? []),
     invested: basis?.invested ?? null,
     contribution: basis?.contribution ?? null,
     contributionYearAgo: end - 12 < 0 ? null : depositAt(months, end - 12, investedIds),
