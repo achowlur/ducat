@@ -143,6 +143,10 @@ export function buildDemoData(now: Date): DemoPlan {
   const lastComplete = months[months.length - 2];
 
   const firstYear = months[0].y;
+  // The savings account's balance as the months go, so its interest is a
+  // RATE on it: the net worth goal reads a cash account's yield from what it
+  // was paid, and a fixed amount read as a high-yield account paying 0.6%.
+  let savingsHeld = 3000;
   for (const mo of months) {
     let card = 0;
     /** Calendar years since the first, so raises and rent rises land in January. */
@@ -180,12 +184,23 @@ export function buildDemoData(now: Date): DemoPlan {
     checking(12, -round2(78 + 62 * season + between(-6, 6)), 'CITYLIGHT ELECTRIC', 'citylight electric', 'Utilities', 'OUTFLOW');
     checking(17, -65, 'BRIGHTWAVE INTERNET', 'brightwave internet', 'Utilities', 'OUTFLOW');
     checking(22, -45, 'PARCEL MOBILE', 'parcel mobile', 'Utilities', 'OUTFLOW');
-    const interest = on(mo, 28);
-    if (interest !== null) add({ accountKey: 'savings', date: interest, amount: between(24, 31), description: 'INTEREST PAYMENT', merchant: 'harbor savings', flow: 'INFLOW', category: 'Income' });
-
     // Saving and investing grow with the pay; the loan payment does not.
+    const toSavings = Math.min(475, 200 + 25 * yrs);
     const t3 = on(mo, 3);
-    if (t3 !== null) pair('checking', 'savings', t3, Math.min(475, 200 + 25 * yrs), 'TRANSFER TO SAVINGS ...0002', 'TRANSFER FROM CHECKING ...0001');
+    if (t3 !== null) {
+      pair('checking', 'savings', t3, toSavings, 'TRANSFER TO SAVINGS ...0002', 'TRANSFER FROM CHECKING ...0001');
+      savingsHeld += toSavings;
+    }
+    // A high-yield account's rate: under 1% until rates rose four years ago,
+    // about 4.2% a year since.
+    const yearsAgo = (DEMO_HISTORY_MONTHS - 1 - mo.index) / 12;
+    const apy = yearsAgo > 4 ? 0.9 : yearsAgo > 3.5 ? 2.5 : 4.2;
+    const interest = on(mo, 28);
+    if (interest !== null) {
+      const paid = round2(savingsHeld * (Math.pow(1 + apy / 100, 1 / 12) - 1));
+      add({ accountKey: 'savings', date: interest, amount: paid, description: 'INTEREST PAYMENT', merchant: 'harbor savings', flow: 'INFLOW', category: 'Income' });
+      savingsHeld += paid;
+    }
     const t5 = on(mo, 5);
     if (t5 !== null) pair('checking', 'brokerage', t5, 100 + 75 * yrs, 'NORTHWIND BROKERAGE CONTRIBUTION', 'ELECTRONIC CONTRIBUTION RECEIVED');
     const t6 = on(mo, 6);

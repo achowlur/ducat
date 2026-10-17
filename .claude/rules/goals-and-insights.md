@@ -63,7 +63,13 @@ anything below; several entries record "tried and failed, don't retry".
   dates; a typed saving is the whole of it, the investing its part
   (withSaving). The dates stay in TODAY'S dollars, never nominal; what
   that assumes (saving rising with inflation) is SAID, at an ASSUMED 3%,
-  with the deposit checked against a year ago (keepingUp).
+  with the deposit checked against a year ago (keepingUp). CASH earns its
+  MEASURED yield less that 3%: each cash account's yield from the interest
+  and dividends it was PAID (NetWorthGrowthPayload.interestByAccount, the
+  middle of its last three months against its month-start balance), NEVER
+  its change in value; accounts weighted by their average balance over the
+  pace window; both dates use it; a row predating the field holds cash
+  level.
 - "Counts as cash" is a Setting (cash.additionalAccountIds via
   accounts:cash), never an account-type change — retyping breaks net worth.
 - npm run goals --add is NOT idempotent (slugs dedupe, content does not):

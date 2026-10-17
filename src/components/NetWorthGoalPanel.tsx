@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { saveNetWorthGoal } from "../app/insights/actions";
 import { ACTION_DID_NOT_COMPLETE } from "../lib/ui/boundaryCopy";
 import { money, monthLabel, shortDateYear } from "../lib/ui/format";
+import { wholePercents } from "../lib/ui/spendingBreakdown";
 import {
   ASSUMED_INFLATION_PCT,
   goalPath,
@@ -26,6 +27,7 @@ import { ASSUMED_CHIP, CHIP, CONTROL, FIELD_LABEL, PROJECTED_CHIP } from "./ui/h
 const wholeDollars = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 // An estimate in whole dollars: cents on a figure grown by an assumed rate claim a precision it lacks.
 const roughly = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const percent = (n: number) => `${n.toFixed(1).replace(/\.0$/, "")}%`;
 const monthsWord = (n: number) => (n === 1 ? "month" : "months");
 
 // A control's label sits beside it from md up and above it on a phone, where
@@ -281,6 +283,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
   const grow = (years: number) => Math.pow(1 + ASSUMED_INFLATION_PCT / 100, years);
   const noteDate = projection?.markets?.lands ?? projection?.saving.lands ?? null;
   const yearsTo = (key: string) => (basis === null ? 0 : monthsBetween(basis.anchor, key) / 12);
+  const cashShares = g.cash === null ? [] : wholePercents(g.cash.accounts.map((a) => a.share));
   const keeping =
     invest === null && g.contribution !== null && g.contribution > 0 && (g.contributionYearAgo ?? 0) > 0
       ? keepingUp(g.contribution, g.contributionYearAgo!)
@@ -487,6 +490,23 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
               the dollars of {monthLabel(noteDate)}
             </>
           )}
+          .
+        </p>
+      )}
+      {/* Cash earns what it was measurably paid, less the assumed inflation:
+          each account named, so a checking balance losing ground is seen. */}
+      {basis !== null && !reached && g.cash !== null && (
+        <p className="pt-1.5 text-[0.78rem] leading-relaxed text-faint">
+          Cash {g.cash.realPct < 0 ? "loses" : "earns"} about{" "}
+          <span className="font-money tabular">{percent(Math.abs(g.cash.realPct))}</span> a year after inflation, from what
+          each account was paid over the last three months:{" "}
+          {g.cash.accounts.map((a, k) => (
+            <span key={a.id}>
+              {k > 0 && "; "}
+              {a.name} {a.nominalPct === 0 ? "pays nothing" : <>pays about <span className="font-money tabular">{percent(a.nominalPct)}</span></>}
+              {" "}({cashShares[k]}% of your cash)
+            </span>
+          ))}
           .
         </p>
       )}

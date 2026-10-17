@@ -591,6 +591,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
       marketGains: payload.marketGains ?? null,
       byAccount: payload.byAccount ?? null,
       flowsByAccount: payload.investmentFlowsByAccount ?? null,
+      interestByAccount: payload.interestByAccount ?? null,
     }));
 
   // The reconciliation a cash goal's projection owes: the rate assumes every
@@ -656,6 +657,8 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
               .filter((a) => a.type === "INVESTMENT" && !countsAsCash({ id: a.id, type: a.type, balance: Number(a.balance) }, cashIds))
               .map((a) => a.id),
           ),
+          // What cash earns is measured per account in the same definition.
+          cashAccounts: cashAccountRows.map((a) => ({ id: a.id, name: a.name })),
         })
       : null;
 

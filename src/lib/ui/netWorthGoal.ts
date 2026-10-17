@@ -19,8 +19,19 @@ import { growthBetween, type NetWorthPoint } from "./netWorthGrowth";
  *   code: none typed, no markets date.
  *
  * Everything is in TODAY'S DOLLARS. The return is after inflation, so the
- * target is buying power, the pace is held level in real terms, and cash is
- * assumed to keep pace with inflation.
+ * target is buying power and the pace is held level in real terms.
+ *
+ * CASH earns what it measurably earns. Each cash account's yield is read
+ * from the interest and dividends it was PAID (never its change in value,
+ * which a deposit or a fund it once held would pass off as earnings): the
+ * middle of its last three months, against the balance it started each month
+ * with. Less the assumed inflation, a checking account that pays nothing
+ * loses about 3% a year and a money market about breaks even. The accounts
+ * are weighted by where the cash SAT over the pace window, not today's
+ * balance, since money moves between them in lumps, and new cash saving is
+ * assumed to land in the same mix. Both dates use it: "saving alone" means
+ * no market return, not cash that stands still in a world where prices
+ * rise.
  *
  * The monthly CONTRIBUTION is the middle of the LAST THREE complete months
  * of money crossing into invested accounts. A real history mixes a steady
@@ -135,6 +146,17 @@ export interface NetWorthMonth extends NetWorthPoint {
   byAccount: Record<string, number> | null;
   /** Money crossing into (+) or out of (−) each investment account; null on rows stored before it was recorded. */
   flowsByAccount: Record<string, number> | null;
+  /** Interest and dividends each account was paid; null or absent on rows stored before it was recorded. */
+  interestByAccount?: Record<string, number> | null;
+}
+
+/** Cash, as the projection treats it. */
+export interface CashYield {
+  /** Each cash account: its measured yearly yield before inflation (percent), and its share of where the cash sat. */
+  accounts: { id: string; name: string; nominalPct: number; share: number }[];
+  /** The mix, before and after the assumed inflation, in percent a year. */
+  nominalPct: number;
+  realPct: number;
 }
 
 export interface Projection {
@@ -183,6 +205,8 @@ export interface NetWorthGoalAssessment {
   saving: Projection | null;
   /** Null when no return is typed, or `invested` is unknown. */
   markets: Projection | null;
+  /** What cash earns, measured; null on rows stored before interest was recorded, when cash is held level. */
+  cash: CashYield | null;
   refusal: "TOO_FEW_MONTHS" | null;
   /** The month-end the dates come from, for the panel to re-project as its controls move; null when too little history. */
   basis: GoalBasis | null;
@@ -254,6 +278,43 @@ function depositAt(months: readonly NetWorthMonth[], end: number, investedIds: R
   return recent.sort((a, b) => a - b)[Math.floor(DEPOSIT_MONTHS / 2)];
 }
 
+/**
+ * What the cash earns as of `months[end]`. Each account's yield is the
+ * middle of its last three months' interest against the balance it started
+ * the month with, so a lump moved in one month cannot set it; its share is
+ * its average month-end balance over the pace window, where cash SAT, since
+ * money moves between the accounts in lumps. Null when a month in the window
+ * predates recorded interest, or there is no cash to weigh.
+ */
+function cashYieldAt(
+  months: readonly NetWorthMonth[],
+  end: number,
+  base: number,
+  cashAccounts: readonly { id: string; name: string }[],
+): (CashYield & { balance: number }) | null {
+  if (cashAccounts.length === 0 || end < DEPOSIT_MONTHS) return null;
+  for (let i = end - DEPOSIT_MONTHS + 1; i <= end; i += 1) {
+    if (months[i].interestByAccount == null || months[i - 1].byAccount === null) return null;
+  }
+  const window = months.slice(base, end + 1);
+  const sat = cashAccounts.map((a) => window.reduce((sum, m) => sum + Math.max(0, m.byAccount?.[a.id] ?? 0), 0) / window.length);
+  const total = sat.reduce((sum, x) => sum + x, 0);
+  if (total <= 0) return null;
+  const accounts = cashAccounts.map((a, k) => {
+    const rates: number[] = [];
+    for (let i = end - DEPOSIT_MONTHS + 1; i <= end; i += 1) {
+      const start = months[i - 1].byAccount?.[a.id] ?? 0;
+      if (start > 0) rates.push((months[i].interestByAccount?.[a.id] ?? 0) / start);
+    }
+    const middle = rates.length === 0 ? 0 : [...rates].sort((x, y) => x - y)[Math.floor(rates.length / 2)];
+    return { id: a.id, name: a.name, nominalPct: round2((Math.pow(1 + middle, 12) - 1) * 100), share: sat[k] / total };
+  });
+  const nominalPct = round2(accounts.reduce((sum, a) => sum + a.share * a.nominalPct, 0));
+  const realPct = round2(((1 + nominalPct / 100) / (1 + ASSUMED_INFLATION_PCT / 100) - 1) * 100);
+  const balance = round2(cashAccounts.reduce((sum, a) => sum + Math.max(0, months[end].byAccount?.[a.id] ?? 0), 0));
+  return { accounts: accounts.filter((a) => a.share > 0), nominalPct, realPct, balance };
+}
+
 /** Two deposits are the same amount within a cent or 2%: a transfer's amount is set, not estimated. */
 const sameDeposit = (a: number, b: number) => Math.abs(a - b) <= Math.max(0.01, 0.02 * Math.max(Math.abs(a), Math.abs(b)));
 
@@ -265,45 +326,54 @@ const sameDeposit = (a: number, b: number) => Math.abs(a - b) <= Math.max(0.01, 
  * can never disagree.
  */
 export function goalPath(b: GoalBasis, realReturnPct: number | undefined, months: number): number[] {
-  const monthly = realReturnPct === undefined || realReturnPct <= 0 ? 0 : Math.pow(1 + realReturnPct / 100, 1 / 12) - 1;
-  const contribution = monthly === 0 ? 0 : (b.contribution ?? 0);
-  let inv = monthly === 0 || b.invested === null ? 0 : b.invested;
-  let rest = b.netWorth - inv;
   const out = [b.netWorth];
-  for (let t = 1; t <= months; t += 1) {
-    inv = inv * (1 + monthly) + contribution;
-    rest += b.pace - contribution;
-    out.push(inv + rest);
-  }
+  simulate(b, realReturnPct, months, (_t, value) => {
+    out.push(value);
+    return false;
+  });
   return out;
 }
 
+/** A yearly percent as a monthly rate. */
+const monthlyRate = (pct: number | undefined) => (pct === undefined || pct === 0 ? 0 : Math.pow(1 + pct / 100, 1 / 12) - 1);
+
 /**
- * The first month, after `anchor`, that net worth reaches `target`. Each
- * month the invested money earns the real return and takes the month's
- * `contribution`; the rest of the pace lands in cash, which stays level.
- * With no return the split cannot matter and net worth simply grows by the
- * pace. Null beyond the horizon.
+ * Net worth month by month from the basis, in three parts. Invested money
+ * earns the real return (none: it keeps pace with prices) and takes the
+ * monthly deposit. Cash earns its measured real yield while there is any and
+ * takes the rest of the pace. Everything else (cards, loans) stands still.
+ * `visit` sees each month's total and stops the run by returning true.
  */
-function landing(
-  anchor: string,
-  netWorth: number,
-  invested: number,
-  pace: number,
-  contribution: number,
-  realReturnPct: number,
-  target: number,
-): string | null {
-  if (netWorth >= target) return anchor;
-  const monthly = Math.pow(1 + realReturnPct / 100, 1 / 12) - 1;
-  let inv = invested;
-  let rest = netWorth - invested;
-  for (let t = 1; t <= NET_WORTH_HORIZON_MONTHS; t += 1) {
-    inv = inv * (1 + monthly) + contribution;
-    rest += pace - contribution;
-    if (inv + rest >= target) return addMonths(anchor, t);
+function simulate(
+  b: GoalBasis,
+  realReturnPct: number | undefined,
+  months: number,
+  visit: (t: number, value: number) => boolean,
+): void {
+  const market = realReturnPct === undefined || realReturnPct <= 0 ? 0 : monthlyRate(realReturnPct);
+  const cashRate = monthlyRate(b.cashRealPct);
+  const known = b.invested !== null;
+  const contribution = known ? (b.contribution ?? 0) : 0;
+  let inv = known ? b.invested! : 0;
+  let cash = b.cash;
+  const other = b.netWorth - inv - cash;
+  for (let t = 1; t <= months; t += 1) {
+    inv = inv * (1 + market) + contribution;
+    cash = cash + (cash > 0 ? cash * cashRate : 0) + (b.pace - contribution);
+    if (visit(t, inv + cash + other)) return;
   }
-  return null;
+}
+
+/** The first month, after the basis, that net worth reaches `target`; null beyond the horizon. */
+function landing(b: GoalBasis, realReturnPct: number | undefined, target: number): string | null {
+  if (b.netWorth >= target) return b.anchor;
+  let lands: string | null = null;
+  simulate(b, realReturnPct, NET_WORTH_HORIZON_MONTHS, (t, value) => {
+    if (value < target) return false;
+    lands = addMonths(b.anchor, t);
+    return true;
+  });
+  return lands;
 }
 
 /**
@@ -325,6 +395,10 @@ export interface GoalBasis {
   invested: number | null;
   /** The monthly deposit into it (depositAt); null without three months of flows. */
   contribution: number | null;
+  /** Cash at the month-end, the part that earns `cashRealPct`; 0 when unmeasured. */
+  cash: number;
+  /** What cash earns a year after the assumed inflation, in percent; 0 (held level) when unmeasured. */
+  cashRealPct: number;
 }
 
 /** The monthly figures the operator set in place of the measured ones; absent ones follow the data. */
@@ -381,11 +455,9 @@ export function projectGoal(
   realReturnPct: number | undefined,
 ): { saving: Projection; markets: Projection | null } {
   const at = (b: GoalBasis) => ({
-    saving: landing(b.anchor, b.netWorth, 0, b.pace, 0, 0, target),
+    saving: landing(b, undefined, target),
     markets:
-      realReturnPct === undefined || realReturnPct <= 0 || b.invested === null
-        ? undefined
-        : landing(b.anchor, b.netWorth, b.invested, b.pace, b.contribution ?? 0, realReturnPct, target),
+      realReturnPct === undefined || realReturnPct <= 0 || b.invested === null ? undefined : landing(b, realReturnPct, target),
   });
   const n = at(now);
   const p = before === null ? null : at(before);
@@ -467,8 +539,11 @@ export function assessNetWorthGoal(input: {
   months: readonly NetWorthMonth[];
   /** Investment accounts outside the operator's cash definition. */
   investedIds: ReadonlySet<string>;
+  /** The operator's cash definition, named for the panel; none holds cash level, as before interest was measured. */
+  cashAccounts?: readonly { id: string; name: string }[];
 }): NetWorthGoalAssessment {
   const { goal, liveNetWorth, months, investedIds } = input;
+  const cashAccounts = input.cashAccounts ?? [];
   const netWorth = round2(liveNetWorth);
 
   const investedAt = (m: NetWorthMonth): number | null =>
@@ -480,6 +555,7 @@ export function assessNetWorthGoal(input: {
     if (end < 0) return null;
     const pace = paceAt(months, end);
     if (pace === null) return null;
+    const cash = cashYieldAt(months, end, pace.base, cashAccounts);
     return {
       anchor: months[end].period,
       netWorth: months[end].value,
@@ -488,7 +564,15 @@ export function assessNetWorthGoal(input: {
       paceUncertainMonths: pace.uncertain,
       invested: investedAt(months[end]),
       contribution: depositAt(months, end, investedIds),
+      cash: cash?.balance ?? 0,
+      cashRealPct: cash?.realPct ?? 0,
     };
+  };
+  const cashAt = (end: number) => {
+    const pace = end < 0 ? null : paceAt(months, end);
+    if (pace === null) return null;
+    const c = cashYieldAt(months, end, pace.base, cashAccounts);
+    return c === null ? null : { accounts: c.accounts, nominalPct: c.nominalPct, realPct: c.realPct };
   };
 
   // The basis is measured even for a goal already reached: the panel's
@@ -531,6 +615,7 @@ export function assessNetWorthGoal(input: {
       latest === null || basis?.contribution == null || sameDeposit(latest, basis.contribution) ? null : latest,
     saving: projection?.saving ?? null,
     markets: projection?.markets ?? null,
+    cash: cashAt(end),
     refusal: basis === null ? "TOO_FEW_MONTHS" : null,
     recent: months.slice(-GOAL_CHART_HISTORY_MONTHS).map((m) => ({ period: m.period, value: m.value })),
   };

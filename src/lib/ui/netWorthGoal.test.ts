@@ -31,6 +31,8 @@ function history(opts: {
   byAccount?: boolean;
   /** Money into each investment account that month; none by default, null for rows predating it. */
   flows?: (i: number) => Record<string, number> | null;
+  /** Interest each account was paid that month; absent by default (rows predating it). */
+  interest?: (i: number) => Record<string, number> | null;
 }): NetWorthMonth[] {
   const months: NetWorthMonth[] = [];
   let value = opts.start;
@@ -49,6 +51,7 @@ function history(opts: {
           ? null
           : { invested: value * 0.6, cashInvested: value * 0.1, checking: value * 0.3 },
       flowsByAccount: opts.flows === undefined ? {} : opts.flows(i),
+      ...(opts.interest === undefined ? {} : { interestByAccount: opts.interest(i) }),
     });
   }
   return months;
@@ -383,6 +386,58 @@ describe('keeping up with inflation', () => {
     expect(g.contributionYearAgo).toBe(400);
     const short = assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months: months.slice(-12), investedIds });
     expect(short.contributionYearAgo).toBeNull();
+  });
+});
+
+describe('what cash earns', () => {
+  // Invented: checking (30% of net worth) is paid nothing; the account counted
+  // as cash (10%) is paid 0.3% of its month-start balance each month.
+  const cashAccounts = [
+    { id: 'checking', name: 'Checking' },
+    { id: 'cashInvested', name: 'Money market' },
+  ];
+  const months = history({
+    count: 15,
+    last: '2026-09',
+    start: 80000,
+    saved: 1000,
+    flows: () => ({ invested: 400 }),
+    interest: () => ({}),
+  });
+  // Paid 0.3% of what the money market started each month with.
+  for (let i = 1; i < months.length; i += 1) {
+    months[i].interestByAccount = { cashInvested: Math.round(months[i - 1].byAccount!.cashInvested * 0.003 * 100) / 100 };
+  }
+  const goal = { target: 300000, realReturnPct: 5 };
+  const g = assessNetWorthGoal({ goal, liveNetWorth: 94000, months, investedIds, cashAccounts });
+
+  it('reads each account from what it was paid, weighted by where the cash sat', () => {
+    expect(g.cash!.accounts.map((a) => a.name)).toEqual(['Checking', 'Money market']);
+    expect(g.cash!.accounts[0].nominalPct).toBe(0);
+    expect(g.cash!.accounts[1].nominalPct).toBeCloseTo(3.66, 1);
+    expect(g.cash!.accounts.reduce((s, a) => s + a.share, 0)).toBeCloseTo(1, 6);
+    expect(g.cash!.accounts[0].share).toBeCloseTo(0.75, 6); // checking is 30% of net worth against 10%
+    // The mix, 0.9% before inflation, loses about 2% after the assumed 3%.
+    expect(g.cash!.nominalPct).toBeCloseTo(0.92, 1);
+    expect(g.cash!.realPct).toBeLessThan(-1.9);
+    expect(g.basis!.cash).toBeCloseTo(months.at(-1)!.value * 0.4, 1);
+  });
+
+  it('moves both dates later when cash loses value, and the panel agrees', () => {
+    const level = assessNetWorthGoal({ goal, liveNetWorth: 94000, months, investedIds });
+    expect(level.cash).toBeNull();
+    expect(g.saving!.lands! > level.saving!.lands!).toBe(true);
+    expect(g.markets!.lands! >= level.markets!.lands!).toBe(true);
+    expect(projectGoal(g.basis!, g.previousBasis, 300000, 5)).toEqual({ saving: g.saving, markets: g.markets });
+    const t = 24;
+    expect(goalPath(g.basis!, undefined, t)[t]).toBeLessThan(goalPath(level.basis!, undefined, t)[t]);
+  });
+
+  it('holds cash level on rows stored before interest was recorded', () => {
+    const old = history({ count: 15, last: '2026-09', start: 80000, saved: 1000, flows: () => ({ invested: 400 }) });
+    const o = assessNetWorthGoal({ goal, liveNetWorth: 94000, months: old, investedIds, cashAccounts });
+    expect(o.cash).toBeNull();
+    expect(o.basis!.cashRealPct).toBe(0);
   });
 });
 

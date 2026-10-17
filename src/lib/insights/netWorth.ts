@@ -172,6 +172,19 @@ function crossingAmount(t: TxnData): number {
   return INBOUND_WORDING.test(t.description) ? magnitude : OUTBOUND_WORDING.test(t.description) ? -magnitude : t.amount;
 }
 
+/**
+ * A row that pays interest or a dividend INTO a bank or investment account:
+ * "INTEREST PAYMENT", "DIVIDEND RECEIVED … MONEY MARKET (SPAXX)". Not its
+ * reinvestment (the same dollars buying shares), and not a card's interest
+ * CHARGE. By wording, as the closed box reads these rows, and by magnitude,
+ * since sources sign the same row oppositely.
+ */
+const EARNED = /\b(interest|dividend)\b/i;
+const NOT_EARNED = /\b(reinvest\w*|charge[ds]?|fee)\b/i;
+function interestEarned(t: TxnData): number {
+  return EARNED.test(t.description) && !NOT_EARNED.test(t.description) ? Math.abs(t.amount) : 0;
+}
+
 function sameAccounts(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((id) => b.includes(id));
 }
@@ -252,6 +265,22 @@ export function computeNetWorthGrowth(
     return { total: round2(sum), byAccount };
   };
 
+  /**
+   * Interest and dividends earned in the period, by bank or investment
+   * account: a cash account's yield is measured from these, never from its
+   * change in value (net worth goal).
+   */
+  const earningIds = new Set(accounts.filter((a) => a.type === 'DEPOSITORY' || a.type === 'INVESTMENT').map((a) => a.id));
+  const interestBy = (key: string, leftOut: string[]): Record<string, number> => {
+    const byAccount: Record<string, number> = {};
+    for (const t of txns) {
+      if (!earningIds.has(t.accountId) || leftOut.includes(t.accountId) || !inPeriod(t.date, key)) continue;
+      const earned = interestEarned(t);
+      if (earned > 0) byAccount[t.accountId] = round2((byAccount[t.accountId] ?? 0) + earned);
+    }
+    return byAccount;
+  };
+
   const result = new Map<string, NetWorthGrowthPayload>();
   for (const key of periods) {
     const current = netWorthAt(key);
@@ -277,6 +306,7 @@ export function computeNetWorthGrowth(
       marketGains,
       investmentNetFlows: flows.total,
       investmentFlowsByAccount: flows.byAccount,
+      interestByAccount: interestBy(key, current.excluded),
       estimatedAccountIds: current.estimated,
       carriedAccountIds: current.carried,
       excludedAccountIds: current.excluded,

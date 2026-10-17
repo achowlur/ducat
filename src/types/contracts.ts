@@ -63,6 +63,14 @@ export interface NetWorthGrowthPayload {
    */
   investmentFlowsByAccount?: Record<string, number>;
   /**
+   * Interest and dividends EARNED in the period, by bank or investment
+   * account (accounts with none absent), as positive dollars: what a cash
+   * account's yield is measured from. Never the change in value, which a
+   * deposit, or a fund the account held, would pass off as earnings. Absent
+   * on payloads stored before 2026-10-17.
+   */
+  interestByAccount?: Record<string, number>;
+  /**
    * Accounts whose period-end balance is not that period's own: reconstructed
    * from transaction history, or (investment) a snapshot from earlier.
    */

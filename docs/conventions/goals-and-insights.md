@@ -122,8 +122,35 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   says so plainly. The SAVING PACE became a field at the same time, beside
   the investing: typed, it is the whole of what is saved and the investing
   is its part; untouched, it follows the data, moved by a typed investing
-  amount as before. Cash is still assumed to keep its value: close for a
-  high-yield savings account, generous for checking.
+  amount as before.
+  CASH EARNS WHAT IT IS PAID (2026-10-17, the same day). Holding cash level
+  in today's dollars was generous for a checking account that pays nothing,
+  and the operator pointed out that the accounts are known. The account TYPE
+  cannot tell checking from savings (both are DEPOSITORY) but the rows can:
+  a checking account that pays nothing has no interest rows, a savings
+  account or money market has one every month. An account's change in value
+  beyond its deposits cannot be the measure: an account counted as cash
+  today may once have held stock funds, whose gains pass for interest (the
+  first cut read such an account as paying well above any money market),
+  and a lump moved in mid-month reads as earnings. So a yield is read only
+  from what an account was PAID: NET_WORTH_GROWTH rows now carry
+  interestByAccount (interest and dividend rows by wording, a reinvestment
+  and a card's interest CHARGE excluded, magnitude only since sources sign
+  them oppositely), and an account's yield is the middle of its last three
+  months against the balance it started each month with, so a lump moved in
+  mid-month cannot set it. The operator also noted that money reaches a
+  high-yield account in bulk, not monthly: the accounts are weighted by their
+  AVERAGE month-end balance over the pace window, where the cash sat, never
+  today's, which one lump would swing; new cash saving is assumed to land in
+  the same mix. Less the assumed 3%, the mix is a real yield applied to
+  positive cash only (cards and loans stand still), in both dates: "saving
+  alone" means no market return, not cash frozen while prices rise. A row
+  stored before the field holds cash level, as before, until the next sync
+  regenerates it (every sync regenerates every period). The demo's savings
+  interest was a fixed $24-31 a month and read as a high-yield account
+  paying 0.6%; it now pays a rate on its balance (under 1% until four years
+  ago, 4.2% since), and the demo reads checking at nothing, savings at 4.2%,
+  cash losing about 0.6% a year.
   Dates are projected from the last COMPLETE month-end, not the live
   balance: a live anchor would move the date with every day's markets, and
   the shift since last month would compare a month-end with a Tuesday.
