@@ -3,6 +3,7 @@ import {
   addMonths,
   assessNetWorthGoal,
   NET_WORTH_PACE_MIN_MONTHS,
+  NET_WORTH_PACE_MONTHS,
   goalPath,
   idleCashAt,
   withCashMoved,
@@ -86,7 +87,7 @@ describe("assessNetWorthGoal", () => {
     const months = history({ count: 14, last: "2026-09", start: 80000, saved: 1000, markets: 500 });
     const g = assessNetWorthGoal({ goal: { target: 250000 }, liveNetWorth: 101000, months, investedIds });
     expect(g.pace).toBe(1000);
-    expect(g.paceMonths).toBe(12);
+    expect(g.paceMonths).toBe(NET_WORTH_PACE_MONTHS);
     expect(g.anchor).toBe("2026-09");
   });
 
@@ -169,21 +170,21 @@ describe("assessNetWorthGoal", () => {
     const months = history({ count: 15, last: "2026-09", start: 80000, saved: (i) => (i === 14 ? 7000 : 1000) });
     const g = assessNetWorthGoal({ goal: { target: 150000 }, liveNetWorth: 101000, months, investedIds });
     expect(g.previousPace).toBe(1000);
-    expect(g.pace).toBe(1500);
+    expect(g.pace).toBe(2000);
     expect(g.saving?.shift).toBeLessThan(0); // sooner
   });
 
   it("never measures the pace across a change in which accounts are counted", () => {
-    // The first five months leave an account out: an account entering the sum is not saving.
+    // The first nine months leave an account out: an account entering the sum is not saving.
     const months = history({
       count: 14,
       last: "2026-09",
       start: 80000,
       saved: 1000,
-      leftOut: (i) => (i < 5 ? ["late-card"] : []),
+      leftOut: (i) => (i < 9 ? ["late-card"] : []),
     });
     const g = assessNetWorthGoal({ goal: { target: 250000 }, liveNetWorth: 95000, months, investedIds });
-    expect(g.paceMonths).toBe(8);
+    expect(g.paceMonths).toBe(4);
   });
 
   it(`refuses a date with fewer than ${NET_WORTH_PACE_MIN_MONTHS} months behind it, and keeps the progress`, () => {
@@ -309,29 +310,31 @@ describe('a monthly amount the operator sets', () => {
   const months = history({ count: 15, last: '2026-09', start: 80000, saved: 1000, flows: () => ({ invested: 400 }) });
   const g = assessNetWorthGoal({ goal: { target: 300000, realReturnPct: 5 }, liveNetWorth: 94000, months, investedIds });
 
-  it('replaces the measured deposit and keeps the cash saving: investing more is saving more', () => {
+  // The saving is the total; the investing only splits it. Clearing the
+  // investing to $0 once read as saving the whole deposit less every month.
+  it('splits the same saving, never changing the total', () => {
     expect(g.basis!.contribution).toBe(400);
-    const more = withSaving(g.basis!, { monthlyInvest: 1400 });
-    expect(more.contribution).toBe(1400);
-    expect(more.pace).toBe(g.basis!.pace + 1000);
+    const more = withSaving(g.basis!, { monthlyInvest: 900 });
+    expect(more).toMatchObject({ contribution: 900, pace: g.basis!.pace });
+    expect(withSaving(g.basis!, { monthlyInvest: 0 }).pace).toBe(g.basis!.pace);
     expect(withSaving(g.basis!, {})).toBe(g.basis);
   });
 
-  it('brings both dates nearer when it rises, and the server agrees with the panel', () => {
+  it('moves the markets date with the split, leaves saving alone, and the server agrees with the panel', () => {
     const set = assessNetWorthGoal({
-      goal: { target: 300000, realReturnPct: 5, monthlyInvest: 1400 },
+      goal: { target: 300000, realReturnPct: 5, monthlyInvest: 900 },
       liveNetWorth: 94000,
       months,
       investedIds,
     });
-    expect(set.saving!.lands! < g.saving!.lands!).toBe(true);
+    expect(set.saving!.lands).toBe(g.saving!.lands);
     expect(set.markets!.lands! < g.markets!.lands!).toBe(true);
     // The figures the working-out prints stay the measured ones.
     expect(set.contribution).toBe(400);
     expect(set.pace).toBe(g.pace);
     const panel = projectGoal(
-      withSaving(set.basis!, { monthlyInvest: 1400 }),
-      withSaving(set.previousBasis!, { monthlyInvest: 1400 }),
+      withSaving(set.basis!, { monthlyInvest: 900 }),
+      withSaving(set.previousBasis!, { monthlyInvest: 900 }),
       300000,
       5,
     );
@@ -347,6 +350,46 @@ describe('a monthly amount the operator sets', () => {
       investedIds,
     });
     expect(set.saving!.shift).toBe(0);
+  });
+});
+
+describe('one-off pay', () => {
+  // Invented: $1,000 saved a month, and two $3,000 bonuses inside the year.
+  const months = history({ count: 15, last: '2026-09', start: 80000, saved: (i) => (i === 10 || i === 12 ? 4000 : 1000) });
+  const bonuses = {
+    [months[10].period]: [{ date: `${months[10].period}-21`, amount: 3000, payer: 'harbor works payroll' }],
+    [months[12].period]: [{ date: `${months[12].period}-18`, amount: 3000, payer: 'harbor works payroll' }],
+  };
+
+  it('is left out of the pace, and named', () => {
+    const counted = assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months, investedIds });
+    const left = assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months, investedIds, oneOffs: bonuses });
+    expect(counted.pace).toBe(2000);
+    expect(left.pace).toBe(1000);
+    expect(left.paceLeavesOut.map((o) => o.amount)).toEqual([3000, 3000]);
+    expect(left.saving!.lands! > counted.saving!.lands!).toBe(true);
+  });
+});
+
+describe('pay as it is now', () => {
+  // Invented: $1,000 saved a month on pay that rose by $200 a month two
+  // months before the anchor; the four months before count at the new pay.
+  const months = history({ count: 15, last: '2026-09', start: 80000, saved: 1000 });
+  const raise = {
+    topUps: Object.fromEntries(months.slice(9, 13).map((m) => [m.period, 200])),
+    changes: [{ payer: 'harbor works payroll', from: 2000, to: 2100, since: '2026-08-01', told: false }],
+    pending: [],
+  };
+
+  it('counts the earlier paychecks in the window at the new pay, and says so', () => {
+    const g = assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months, investedIds, pay: raise });
+    expect(g.pace).toBe(1133.33); // 1,000 + 4 × 200 / 6
+    expect(g.payChanges).toEqual(raise.changes);
+  });
+
+  it('names no change the window no longer reaches', () => {
+    const old = { ...raise, topUps: {}, changes: [{ ...raise.changes[0], since: '2025-01-01' }] };
+    expect(assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months, investedIds, pay: old }).payChanges).toEqual([]);
   });
 });
 

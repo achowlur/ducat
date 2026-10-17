@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "../../lib/prisma";
 import { requireSession } from "../../lib/auth/requireSession";
 import type { ActionResult } from "../../lib/actionResult";
+import { NEW_PAY_KEY, parseNewPay } from "../../lib/ui/payLevel";
 import {
   NET_WORTH_GOAL_KEY,
   nextNetWorthGoal,
@@ -24,6 +25,24 @@ export async function setInsightDismissed(insightId: string, dismissed: boolean)
   });
   revalidatePath("/insights");
   revalidatePath("/");
+}
+
+/**
+ * Confirm a paycheck at a new amount as the operator's new pay, so the paces
+ * project from it before it repeats (ui/payLevel.ts). Keeps the last few
+ * confirmations; a stale one confirms nothing once newer paychecks exist.
+ */
+export async function confirmNewPay(input: { payer: string; date: string }): Promise<ActionResult> {
+  await requireSession();
+  if (typeof input.payer !== "string" || input.payer === "" || !/^\d{4}-\d{2}-\d{2}$/.test(input.date)) {
+    return { ok: false, message: "That paycheck could not be read." };
+  }
+  const row = await prisma.setting.findUnique({ where: { key: NEW_PAY_KEY } });
+  const kept = parseNewPay(row?.value ?? null).filter((c) => !(c.payer === input.payer && c.date === input.date));
+  const value = JSON.stringify([...kept, { payer: input.payer, date: input.date }].slice(-10));
+  await prisma.setting.upsert({ where: { key: NEW_PAY_KEY }, create: { key: NEW_PAY_KEY, value }, update: { value } });
+  revalidatePath("/insights");
+  return { ok: true };
 }
 
 /**

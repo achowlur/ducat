@@ -41,6 +41,7 @@ import {
   parseNetWorthGoal,
   type NetWorthGoalAssessment,
 } from "./netWorthGoal";
+import { NEW_PAY_KEY, parseNewPay, payLevels } from "./payLevel";
 import { getAccountCoverage, getPeriodCoverage } from "./coverage";
 import { monthlyRows, ofType } from "./insightRows";
 import { selectPeriod } from "./periodNav";
@@ -325,7 +326,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     // statement — on Turso the count of round trips is the cost, so four
     // findUniques would pay for three reads nobody needs.
     prisma.setting.findMany({
-      where: { key: { in: [SAVINGS_GOALS_KEY, NET_WORTH_GOAL_KEY, HOUSE_READINESS_KEY, MORTGAGE_RATE_KEY] } },
+      where: { key: { in: [SAVINGS_GOALS_KEY, NET_WORTH_GOAL_KEY, HOUSE_READINESS_KEY, MORTGAGE_RATE_KEY, NEW_PAY_KEY] } },
     }),
     // Balances for the goal funds. Unconditional rather than gated on the
     // setting existing: a gate costs about its own round trip anyway, and
@@ -577,6 +578,15 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   const completeCashFlow = ofType<CashFlowTrendPayload>(monthly, "CASH_FLOW_TREND").filter(
     (r) => r.period < period,
   );
+  // Pay as it is now (payLevel.ts): every paycheck on record, the month being
+  // lived in included, so a raise this month is seen; earlier paychecks are
+  // topped up to it, and one-off pay is left out, in every pace below.
+  const pay = payLevels(
+    ofType<CashFlowTrendPayload>(monthly, "CASH_FLOW_TREND").flatMap((r) => r.payload.paychecks ?? []),
+    parseNewPay(settingValue(NEW_PAY_KEY)),
+  );
+  const regular = (r: { period: string; payload: CashFlowTrendPayload }) =>
+    (pay.topUps[r.period] ?? 0) - (r.payload.oneOffIncome ?? 0);
 
   // Complete month-ends as the NET_WORTH_GROWTH rows record them, each
   // account's value included: the net worth goal reads them, and so do the
@@ -632,7 +642,8 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
           // here, at render, so a cash goal tracks whatever the operator's
           // declaration says TODAY, not what it said at declaration time.
           cashAccounts: cashAccountRows.map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) })),
-          completeMonthlyNet: completeCashFlow.map((r) => r.payload.net),
+          // One-off pay (a bonus beside a paycheck) left out, paychecks at today's pay.
+          completeMonthlyNet: completeCashFlow.map((r) => r.payload.net + regular(r)),
           observedCashGrowth,
           now,
         })
@@ -661,6 +672,8 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
           cashAccounts: cashAccountRows.map((a) => ({ id: a.id, name: a.name })),
           liveCash: cashAccountRows.map((a) => ({ id: a.id, balance: Number(a.balance) })),
           monthlySpending: completeCashFlow.map((r) => r.payload.spending),
+          oneOffs: Object.fromEntries(completeCashFlow.map((r) => [r.period, r.payload.oneOffPay ?? []])),
+          pay,
         })
       : null;
 
@@ -715,7 +728,9 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     readiness = assessReadiness({
       config: readinessConfig,
       fund: goals[0].saved,
-      completeMonthlyIncome: completeCashFlow.map((r) => r.payload.income),
+      // Regular pay at today's amount: a bonus month is not a budget, and a
+      // raise is.
+      completeMonthlyIncome: completeCashFlow.map((r) => r.payload.income + regular(r)),
       completeMonthlyNonHousing: completeCashFlow.map((r) => {
         const s = spendingByPeriod.get(r.period);
         return s === undefined ? r.payload.spending : nonHousingSpending(s);

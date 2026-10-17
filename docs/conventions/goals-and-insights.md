@@ -171,7 +171,8 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   balance: a live anchor would move the date with every day's markets, and
   the shift since last month would compare a month-end with a Tuesday.
   Progress stays live, Overview's headline. The pace window is twelve
-  complete months (a bonus or a big bill moves six too far) and never crosses
+  complete months (a bonus or a big bill moves six too far; SIX since
+  2026-10-17, once one-off pay was left out, below) and never crosses
   a change in which accounts are counted, since an account entering the sum
   is not saving; under six months there is no date.
   A FAR target is sensitive to pace: saving a tenth faster brings a
@@ -482,3 +483,51 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   against the same month of the most recent three years (pace.ts,
   SAME_MONTH_YEARS). A year still holds a bounce; three Octobers still average
   one odd one out. Both read the priors OLDEST first, as ofType returns them.
+- ONE-OFF PAY, AND WHAT THE INVESTING FIELD MEANS (2026-10-17). The operator
+  read a saving pace far above what their pay less their spending allowed,
+  and readiness income above their paychecks. Three causes, two of them
+  code. (1) Bonuses: two extra payroll deposits beside paychecks in the
+  pace window counted as income, and averaged in they read as a monthly
+  habit. The operator's rule: pay that is not repeated over the next three
+  paychecks is a bonus; flag it, and ask if unsure. Built as oneOffPay:
+  REGULAR pay is the same amount (within 2%) from the same payer on three of
+  the eight paydays around it, both sides counted together; a first cut
+  that required three on ONE side left a raise's middle paychecks undecided,
+  and a bonus that came back a month later must still not count. On real
+  history the rule also caught interest (amounts that happened to repeat to
+  the cent) and a lone paycheck at an odd amount: so interest and dividends
+  are never judged, a payer is judged only when three in four of its
+  deposits are regular, and only EXTRA pay is one-off (beside a paycheck, or
+  between two paydays no further apart than usual); a deposit where a
+  paycheck should be IS that paycheck. Income keeps it; every saving pace
+  and readiness income leave it out and say so, and pay too recent to judge
+  is left out and flagged in view ("Unexpected pay") until two more paydays
+  pass without it, or it repeats and counts as regular. Every-two-weeks pay
+  also means 26 paychecks a year, about 2.17 a month, which the 12-month
+  pace already holds. (2) The investing field: the first cut let a typed
+  investing amount change the TOTAL saved ("investing more is saving more"),
+  and the operator, clearing it to zero, read their saving drop by the whole
+  deposit. The saving is now the total and the investing only splits it.
+  (3) Data: cards whose statements are not yet imported have no rows before
+  the feed began, so older months in the window look cheaper than they
+  were. That is an import to run, not code.
+  (4) The window, the same day, at the operator's ask: SIX complete months,
+  not twelve, and four the least to project from. Twelve was chosen so a
+  bonus or a big bill moved the pace less (the entry above); with one-off
+  pay left out that reason is gone, and twelve only reached back into
+  older, cheaper months, pay before a raise and spending not yet imported.
+  (5) Raises, the same day. The operator asked how to tell Ducat a new pay
+  is the pay going forward, and noted two bonuses in consecutive months must
+  never read as one. Two things changed. A raise's first paycheck had been
+  left out as unsettled extra pay until it repeated: wrong, since a deposit
+  where a paycheck should be IS the paycheck, so only EXTRA pay (beside or
+  between paydays) is ever a one-off, settled at once, and the in-view
+  "Unexpected pay" flag went with it. And a six-month average reflects a
+  raise a sixth at a time, so the paces project from pay as it is NOW
+  (payLevel.ts): CASH_FLOW_TREND rows carry each month's paychecks, and once
+  the newest paycheck amount repeats, or the operator presses "This is my
+  new pay" on the panel (Setting pay.newPay), every earlier paycheck counts
+  at the new amount, its difference a TOP-UP in its month, for the net worth
+  pace, the savings goal's pace and readiness income alike; a cut the same
+  way. Until then a new amount counts as itself, and only a paycheck ever
+  asks.

@@ -255,7 +255,8 @@ function ReadinessBlock({
               </tbody>
             </table>
             <p className="pt-1 text-[0.72rem] text-faint">
-              averaged over your last {r.basisMonths} complete {monthsWord(r.basisMonths)}
+              averaged over your last {r.basisMonths} complete {monthsWord(r.basisMonths)}, one-off pay such as a
+              bonus left out of income
             </p>
           </div>
         </>

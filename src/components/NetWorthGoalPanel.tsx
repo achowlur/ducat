@@ -1,9 +1,9 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { saveNetWorthGoal } from "../app/insights/actions";
+import { confirmNewPay, saveNetWorthGoal } from "../app/insights/actions";
 import { ACTION_DID_NOT_COMPLETE } from "../lib/ui/boundaryCopy";
-import { money, monthLabel, shortDateYear } from "../lib/ui/format";
+import { money, monthLabel, shortDateYear, titleCase } from "../lib/ui/format";
 import { wholePercents } from "../lib/ui/spendingBreakdown";
 import {
   ASSUMED_INFLATION_PCT,
@@ -11,6 +11,7 @@ import {
   keepingUp,
   NET_WORTH_HORIZON_MONTHS,
   NET_WORTH_PACE_MIN_MONTHS,
+  NET_WORTH_PACE_MONTHS,
   projectGoal,
   returnToSlider,
   SLIDER_STEPS,
@@ -166,7 +167,7 @@ function Shift({ p }: { p: Projection }) {
  * never what a control did.
  *
  * The two monthly figures start as the measured ones (the saving pace over
- * the last twelve months, the deposit as the middle of the last three) and
+ * the last six months, the deposit as the middle of the last three) and
  * follow the data while untouched; one typed in place holds until it is set
  * back, and typing the measured figure sets it back.
  *
@@ -431,7 +432,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
                 onCommit={commitPace}
               />
               {paceSet === null ? (
-                <span>{invest === null ? "your last 12 months" : "your last 12 months, with the investing you set"}</span>
+                <span>your last {NET_WORTH_PACE_MONTHS} months, one-off pay left out</span>
               ) : (
                 <>
                   <span className={ASSUMED_CHIP}>Assumed</span>
@@ -479,7 +480,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
           {paceSet !== null
             ? "The saving you set is the whole of it; the investing is the part of it that earns the return."
             : invest !== null
-              ? "What you save in cash stays as it is and the investing is added to it, so investing more moves both dates."
+              ? "The investing you set is part of your saving: what is left of it is counted as cash, and the total stays as it is."
               : "What you save in all, and the part of it that goes into invested accounts. Type other amounts to see what saving or investing more would do."}
           {pending && " Saving…"}
           {failure !== null && <span className="text-neg"> {failure}</span>}
@@ -560,6 +561,37 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
         </p>
       )}
 
+      {/* A paycheck at a new amount: counted as itself until it repeats, or
+          until the operator says it is the new pay. Only a PAYCHECK asks; a
+          bonus beside one never does. */}
+      {g.basis !== null &&
+        g.payPending.map((p) => (
+          <p key={`pending:${p.payer}:${p.date}`} className="pt-1.5 text-[0.78rem] leading-relaxed text-[color:var(--warn-ink)]">
+            Your paycheck from {titleCase(p.payer)} on {shortDateYear(new Date(`${p.date}T12:00:00Z`))} came to{" "}
+            <span className="font-money tabular">{money(p.amount)}</span>, {p.amount > p.from ? "up" : "down"} from{" "}
+            <span className="font-money tabular">{money(p.from)}</span>. It counts as it is; if it is your new pay, the
+            dates can project from it now, and otherwise once it repeats.{" "}
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                setFailure(null);
+                startTransition(async () => {
+                  try {
+                    const result = await confirmNewPay({ payer: p.payer, date: p.date });
+                    if (!result.ok) setFailure(result.message);
+                  } catch {
+                    setFailure(ACTION_DID_NOT_COMPLETE);
+                  }
+                });
+              }}
+              className={`${CONTROL} tap44 border-rule text-ink hover:border-acc hover:text-acc`}
+            >
+              This is my new pay
+            </button>
+          </p>
+        ))}
+
       {/* What the reader must be able to discount stays in view. */}
       {g.unmatchedDeposit !== null && pct > 0 && invest === null && (
         <p className="pt-1.5 text-[0.78rem] text-faint">
@@ -598,6 +630,29 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
                 </>
               )}
               .
+              {g.paceLeavesOut.length > 0 && (
+                <>
+                  {" "}
+                  It leaves out one-off pay:{" "}
+                  {g.paceLeavesOut.map((o, k) => (
+                    <span key={`${o.date}:${o.amount}`}>
+                      {k > 0 && ", "}
+                      <span className="font-money tabular">{money(o.amount)}</span> on{" "}
+                      {shortDateYear(new Date(`${o.date}T12:00:00Z`))}
+                    </span>
+                  ))}
+                  .
+                </>
+              )}
+              {g.payChanges.map((c) => (
+                <span key={`change:${c.payer}:${c.since}`}>
+                  {" "}
+                  It projects your pay as it is now: <span className="font-money tabular">{money(c.to)}</span> a
+                  paycheck from {titleCase(c.payer)} since {shortDateYear(new Date(`${c.since}T12:00:00Z`))}
+                  {c.told ? ", as you said" : ""}, {c.to > c.from ? "up" : "down"} from{" "}
+                  <span className="font-money tabular">{money(c.from)}</span>, so the earlier paychecks count at it.
+                </span>
+              ))}
             </p>
             {(invest !== null || paceSet !== null) && basis !== null && (
               <p>
