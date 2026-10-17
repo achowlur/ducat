@@ -163,7 +163,7 @@ and shipping a pull request.
 | --- | --- |
 | `npm run dev` | Dev server, bound to `127.0.0.1` |
 | `npm test` | Vitest suite |
-| `npm run db:seed` | Load invented demo data dated relative to today (two years of history for six accounts, goals, house readiness, a trip and P2P payments to confirm), then install the rule pack and build insights, so every screen has something to show. Destructive: wipes accounts, transactions, rules, insights and the data's Settings, and refuses over existing transactions without `-- --yes` |
+| `npm run db:seed` | Load invented demo data dated relative to today (eleven years of history for six accounts, a house goal and a net worth goal, house readiness, a trip and P2P payments to confirm), then install the rule pack and build insights, so every screen has something to show. Destructive: wipes accounts, transactions, rules, insights and the data's Settings, and refuses over existing transactions without `-- --yes` |
 | `npm run screenshots` | Retake the README's banner, framed screenshots and walkthrough from invented demo data: seeds a throwaway database, builds the app into `.next-capture/` (never `.next/`, so it is safe beside a running dev server), and drives Playwright's own Chromium. Needs `npx playwright install chromium` once. Never touches `data/ducat.db` |
 | `npm run db:reset` | Wipe every row **including** `Setting`, so the next sync refetches full history rather than a short incremental window. Destructive and irreversible; refuses without `-- --yes` |
 | `npm run insights:generate` | Regenerate insights (`-- --granularity=WEEK\|MONTH\|QUARTER\|YEAR`) |

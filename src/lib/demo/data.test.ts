@@ -50,7 +50,7 @@ describe.each(NOWS)('buildDemoData at %s', (iso) => {
     for (const s of plan.snapshots) expect(s.date.getTime()).toBeLessThanOrEqual(newestSync.getTime() + 12 * 3_600_000);
   });
 
-  it('covers 24 months of history plus the month being lived in', () => {
+  it('covers eleven years of history plus the month being lived in', () => {
     const months = new Set(plan.txns.map((t) => periodKey(t.date, 'MONTH')));
     expect(months.size).toBe(DEMO_HISTORY_MONTHS + 1);
     expect(months.has(periodKey(newestSync, 'MONTH'))).toBe(true);
@@ -189,6 +189,24 @@ describe('the demo through the real pipeline', () => {
       (r) => (typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload) as T,
     );
 
+  it('declares one savings goal, the house, and the net worth goal', () => {
+    const savings = plan.settings.find((s) => s.key === 'goals.savings')?.value as { id: string }[];
+    expect(savings.map((g) => g.id)).toEqual(['house-deposit']);
+    expect(plan.settings.some((s) => s.key === 'goals.netWorth')).toBe(true);
+  });
+
+  // The links are written a few hundred rows per statement, not one per row.
+  it('writes every transfer pair and the repayment link', async () => {
+    const [paired, transfers, repaid] = await Promise.all([
+      prisma.transaction.count({ where: { transferPairId: { not: null } } }),
+      prisma.transaction.count({ where: { flow: 'TRANSFER' } }),
+      prisma.transaction.count({ where: { reimbursesId: { not: null } } }),
+    ]);
+    expect(paired).toBe(transfers);
+    expect(paired).toBeGreaterThan(1000);
+    expect(repaid).toBe(1);
+  });
+
   it('leaves no rule-pack drift, so Overview does not ask for an upgrade', async () => {
     expect(await pendingPackRules(prisma)).toBe(0);
   });
@@ -265,8 +283,12 @@ describe('the demo through the real pipeline', () => {
     expect(g.saving?.lands).not.toBeNull();
     expect(g.markets?.lands).not.toBeNull();
     expect(g.markets!.lands! < g.saving!.lands!).toBe(true);
-    // The demo's monthly brokerage and IRA contributions are its monthly deposit.
-    expect(g.contribution).toBe(550);
+    // The chart exists to show the two apart: markets land years sooner.
+    const index = (k: string) => Number(k.slice(0, 4)) * 12 + Number(k.slice(5, 7)) - 1;
+    expect(index(g.saving!.lands!) - index(g.markets!.lands!)).toBeGreaterThanOrEqual(60);
+    // This year's brokerage (925) and IRA (310) deposits are the monthly
+    // deposit; March's bonus moved into the brokerage is a lump sum it ignores.
+    expect(g.contribution).toBe(1235);
     expect(g.unmatchedDeposit).toBeNull();
   });
 

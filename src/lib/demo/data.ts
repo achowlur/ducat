@@ -8,9 +8,17 @@ import type { PrismaClient } from '../../generated/prisma/client';
  * goals, readiness, pace and commitments panels on /insights, Overview's
  * spending block — so a fixture pinned to a fixed date renders an empty
  * current month on every day after it was written. Everything here is
- * computed from `now`: 24 complete months of history plus the current month
- * up to today, month-end investment snapshots inside every period, and the
- * Settings the Insights panels read.
+ * computed from `now`: eleven years of complete months plus the current month
+ * up to today, month-end snapshots for every account inside every period, and
+ * the Settings the Insights panels read.
+ *
+ * The eleven years are one life, so the long screens have a shape to show: a
+ * first job a decade ago with a raise every January, rent rising with it, a
+ * student loan paid down to almost nothing, saving and investing that grow
+ * with the pay (a yearly bonus moved into the brokerage, the lump sum the
+ * goal's deposit rule must ignore), and markets with a crash and a bad year
+ * in them. The net worth goal is far enough off that saving alone and saving
+ * with markets land about a decade apart, which is what its chart is for.
  *
  * Why it looks the way it does: each piece exists because a screen needs it.
  * Payroll and rent make cash flow; weekly groceries and rising dining make a
@@ -29,7 +37,7 @@ import type { PrismaClient } from '../../generated/prisma/client';
  * `now` (a seeded LCG), so a screenshot retaken the same day is identical.
  */
 
-export const DEMO_HISTORY_MONTHS = 24;
+export const DEMO_HISTORY_MONTHS = 132;
 
 type Flow = 'INFLOW' | 'OUTFLOW' | 'TRANSFER';
 type AccountType = 'DEPOSITORY' | 'CREDIT' | 'INVESTMENT' | 'LOAN';
@@ -71,6 +79,8 @@ export interface DemoPlan {
 }
 
 const DAY_MS = 86_400_000;
+/** Transfer and repayment links written per statement (three bound values a row, well inside SQLite's limit). */
+const LINKS_PER_STATEMENT = 250;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const noon = (y: number, m0: number, d: number) => new Date(Date.UTC(y, m0, d, 12));
 const daysIn = (y: number, m0: number) => new Date(Date.UTC(y, m0 + 1, 0)).getUTCDate();
@@ -132,8 +142,13 @@ export function buildDemoData(now: Date): DemoPlan {
   const gymDay = Math.min(28, gymLast.getUTCDate());
   const lastComplete = months[months.length - 2];
 
+  const firstYear = months[0].y;
   for (const mo of months) {
     let card = 0;
+    /** Calendar years since the first, so raises and rent rises land in January. */
+    const yrs = mo.y - firstYear;
+    /** Everyday spending grows with the pay, from three quarters of today's. */
+    const life = 0.75 + 0.025 * yrs;
     const spend = (day: number, amount: number, description: string, merchant: string, category: string, extra: Partial<DemoTxn> = {}) => {
       const d = on(mo, day);
       if (d === null) return;
@@ -149,26 +164,34 @@ export function buildDemoData(now: Date): DemoPlan {
     // Dining creeps up over the last quarter — the digest's category drift.
     const diningLift = mo.index >= DEMO_HISTORY_MONTHS - 2 ? 1.35 : 1;
 
-    checking(1, 2650, 'NORTHWIND LABS PAYROLL', 'northwind labs', 'Income', 'INFLOW');
-    checking(15, 2650, 'NORTHWIND LABS PAYROLL', 'northwind labs', 'Income', 'INFLOW');
-    // A yearly bonus in March, and a raise at each year's start.
-    if (mo.m0 === 2) checking(20, 3800, 'NORTHWIND LABS BONUS', 'northwind labs', 'Income', 'INFLOW');
-    if (mo.m0 === 0 && mo.index > 0) checking(15, 120 * Math.floor(mo.index / 12), 'NORTHWIND LABS PAYROLL ADJ', 'northwind labs', 'Income', 'INFLOW');
-    checking(1, -1850, 'MAPLE COURT APARTMENTS RENT', 'maple court apartments', 'Rent & Housing', 'OUTFLOW');
+    // Paid twice a month, with a raise every January.
+    const pay = round2(1900 * Math.pow(1.035, yrs));
+    checking(1, pay, 'NORTHWIND LABS PAYROLL', 'northwind labs', 'Income', 'INFLOW');
+    checking(15, pay, 'NORTHWIND LABS PAYROLL', 'northwind labs', 'Income', 'INFLOW');
+    // A yearly bonus in March, most of it moved straight into the brokerage:
+    // the lump sum the net worth goal's deposit rule must not read as a habit.
+    if (mo.m0 === 2) {
+      const bonus = 2400 + 150 * yrs;
+      checking(20, bonus, 'NORTHWIND LABS BONUS', 'northwind labs', 'Income', 'INFLOW');
+      const moved = on(mo, 21);
+      if (moved !== null) pair('checking', 'brokerage', moved, round2(bonus * 0.8), 'NORTHWIND BROKERAGE CONTRIBUTION', 'ELECTRONIC CONTRIBUTION RECEIVED');
+    }
+    checking(1, -(1300 + 50 * yrs), 'MAPLE COURT APARTMENTS RENT', 'maple court apartments', 'Rent & Housing', 'OUTFLOW');
     checking(12, -round2(78 + 62 * season + between(-6, 6)), 'CITYLIGHT ELECTRIC', 'citylight electric', 'Utilities', 'OUTFLOW');
     checking(17, -65, 'BRIGHTWAVE INTERNET', 'brightwave internet', 'Utilities', 'OUTFLOW');
     checking(22, -45, 'PARCEL MOBILE', 'parcel mobile', 'Utilities', 'OUTFLOW');
     const interest = on(mo, 28);
     if (interest !== null) add({ accountKey: 'savings', date: interest, amount: between(24, 31), description: 'INTEREST PAYMENT', merchant: 'harbor savings', flow: 'INFLOW', category: 'Income' });
 
+    // Saving and investing grow with the pay; the loan payment does not.
     const t3 = on(mo, 3);
-    if (t3 !== null) pair('checking', 'savings', t3, 450, 'TRANSFER TO SAVINGS ...0002', 'TRANSFER FROM CHECKING ...0001');
+    if (t3 !== null) pair('checking', 'savings', t3, Math.min(475, 200 + 25 * yrs), 'TRANSFER TO SAVINGS ...0002', 'TRANSFER FROM CHECKING ...0001');
     const t5 = on(mo, 5);
-    if (t5 !== null) pair('checking', 'brokerage', t5, 300, 'NORTHWIND BROKERAGE CONTRIBUTION', 'ELECTRONIC CONTRIBUTION RECEIVED');
+    if (t5 !== null) pair('checking', 'brokerage', t5, 100 + 75 * yrs, 'NORTHWIND BROKERAGE CONTRIBUTION', 'ELECTRONIC CONTRIBUTION RECEIVED');
     const t6 = on(mo, 6);
-    if (t6 !== null) pair('checking', 'loan', t6, 340, 'AUTO LOAN PAYMENT ...0005', 'PAYMENT RECEIVED - THANK YOU');
+    if (t6 !== null) pair('checking', 'loan', t6, 300, 'STUDENT LOAN PAYMENT ...0005', 'PAYMENT RECEIVED - THANK YOU');
     const t8 = on(mo, 8);
-    if (t8 !== null) pair('checking', 'ira', t8, 250, 'ROTH IRA CONTRIBUTION', 'CONTRIBUTION RECEIVED');
+    if (t8 !== null) pair('checking', 'ira', t8, 200 + 10 * yrs, 'ROTH IRA CONTRIBUTION', 'CONTRIBUTION RECEIVED');
     const prior = cardSpendByMonth[cardSpendByMonth.length - 1];
     const t25 = on(mo, 25);
     if (t25 !== null && prior !== undefined) pair('checking', 'card', t25, round2(prior), 'RIVERSTONE CARD PAYMENT ...0006', 'PAYMENT THANK YOU');
@@ -192,12 +215,38 @@ export function buildDemoData(now: Date): DemoPlan {
     // days the recurring detector reads a grocery store as a subscription.
     const jitter = (base: number) => Math.max(1, base + Math.floor(rand() * 5) - 2);
     for (const [i, day] of [3, 10, 17, 24].entries()) {
-      spend(jitter(day), between(58, 124), i % 2 === 0 ? 'GREENBASKET MARKET' : 'CORNER GROCER', i % 2 === 0 ? 'greenbasket market' : 'corner grocer', 'Groceries');
+      spend(jitter(day), round2(between(58, 124) * life), i % 2 === 0 ? 'GREENBASKET MARKET' : 'CORNER GROCER', i % 2 === 0 ? 'greenbasket market' : 'corner grocer', 'Groceries');
     }
     const restaurants = ['little saigon kitchen', 'ember pizza co', 'the copper table', 'noodle harbor', 'blue fern cafe'];
     for (let i = 0; i < 6; i++) {
       const name = restaurants[(mo.index + i) % restaurants.length];
-      spend(jitter(3 + i * 5), round2(between(16, 58) * diningLift), name.toUpperCase(), name, 'Dining');
+      spend(jitter(3 + i * 5), round2(between(16, 58) * diningLift * life), name.toUpperCase(), name, 'Dining');
+    }
+    // Coffee most mornings and a few desk lunches: many small rows, three or
+    // four days apart, too close together for any cadence to read as a plan.
+    // Coffee is a category of its own: filed under Dining, ten small cups a
+    // month set that category's median at a cup, and an ordinary dinner read
+    // as a one-off.
+    for (const day of [2, 5, 8, 11, 13, 16, 19, 22, 25, 28]) {
+      spend(Math.min(28, day + Math.floor(rand() * 2)), between(4.25, 7.4), 'DAILY GRIND COFFEE', 'daily grind coffee', 'Coffee');
+    }
+    for (const day of [6, 13, 21]) spend(jitter(day), round2(between(10.5, 16.9) * life), 'GREENLEAF SALADS', 'greenleaf salads', 'Dining');
+    if (rand() < 0.7) spend(jitter(9), between(11, 34), 'ZIPRIDE TRIP', 'zipride', 'Transport');
+    if (rand() < 0.5) spend(jitter(21), between(8, 26), 'ZIPRIDE TRIP', 'zipride', 'Transport');
+    if (rand() < 0.6) spend(jitter(16), between(4, 18), 'CITYPARK METER', 'citypark', 'Transport');
+    spend(jitter(7), round2(between(24, 71) * life), 'PAWS AND CLAWS SUPPLY', 'paws and claws supply', 'Shopping');
+    if (mo.index % 2 === 1) spend(jitter(23), between(16, 96), 'OAKLINE HARDWARE', 'oakline hardware', 'Shopping');
+    if (mo.index % 3 === 0) spend(jitter(18), between(12, 48), 'PAGEWISE BOOKS', 'pagewise books', 'Entertainment');
+    if (mo.m0 % 3 === 1) spend(jitter(14), round2(between(45, 210) * life), 'THREADLINE CLOTHING', 'threadline', 'Shopping');
+    if (mo.index % 4 === 2) spend(jitter(10), between(25, 60), 'HARBOR HEALTH CLINIC', 'harbor health clinic', 'Health');
+    // A summer trip every year but the one tagged below: flights, a stay, meals out.
+    if (mo.m0 === 6 && mo.index !== DEMO_HISTORY_MONTHS - 4) {
+      const stay = ['SEAGLASS INN', 'CEDAR RIDGE LODGE', 'HARBORVIEW SUITES', 'MESA SPRINGS INN'][mo.y % 4];
+      // Two airlines, alternate years: one fare a year at one carrier reads as a yearly plan.
+      const air = mo.y % 2 === 0 ? 'SKYLARK AIR' : 'BLUEJET AIRWAYS';
+      spend(jitter(8), round2(between(220, 410) * life), air, air.toLowerCase(), 'Travel');
+      spend(jitter(12), round2(between(380, 640) * life), stay, stay.toLowerCase(), 'Travel');
+      spend(jitter(14), round2(between(45, 120) * life), 'DRIFTWOOD OYSTER BAR', 'driftwood oyster bar', 'Dining');
     }
     // Fuel whenever the tank runs low: anywhere in each half of the month, at
     // whatever the fill costs — two days of jitter still read as "biweekly".
@@ -210,7 +259,7 @@ export function buildDemoData(now: Date): DemoPlan {
     // payee to SUGGEST for (lib/sync/groupSuggest.ts, "like ...").
     if (mo.m0 === 6 || mo.m0 === 7) spend(jitter(27), between(90, 160), 'LANTERN POTTERY STUDIO #2', 'lantern pottery studio #2', 'Shopping');
     spend(11, between(12, 26), 'METRORIDE TRANSIT', 'metroride', 'Transport');
-    spend(19, between(24, 140), 'ORBITMART ONLINE', 'orbitmart', 'Shopping');
+    spend(19, round2(between(24, 140) * life), 'ORBITMART ONLINE', 'orbitmart', 'Shopping');
     if (mo.index % 3 === 1) spend(26, between(18, 44), 'WELLSPRING PHARMACY', 'wellspring pharmacy', 'Health');
     if (mo.index % 2 === 0) spend(24, between(22, 48), 'STARLIGHT CINEMAS', 'starlight cinemas', 'Entertainment');
 
@@ -255,6 +304,7 @@ export function buildDemoData(now: Date): DemoPlan {
   // Utilities split with a roommate: the same amount every month, confirmed by
   // hand — so the latest one arrives with a SAME AMOUNT suggestion.
   const alex = months
+    .filter((mo) => mo.index >= DEMO_HISTORY_MONTHS - 36)
     .map((mo) => on(mo, 20))
     .filter((d): d is Date => d !== null);
   alex.forEach((d, i) => {
@@ -309,25 +359,36 @@ export function buildDemoData(now: Date): DemoPlan {
   const checkingOpening = round2(Math.max(4200, -low + 2500));
 
   const snapshots: DemoPlan['snapshots'] = [];
-  const invest = (key: string, start: number, monthly: number): number => {
+  // The month's market move: ordinary months, then a crash one March and a
+  // bad year, so the net worth line and the markets' share have a shape.
+  const marketMove = (mo: (typeof months)[number]): number => {
+    if (mo.y === 2020 && mo.m0 === 2) return -0.12;
+    if (mo.y === 2022 && mo.m0 <= 8) return between(-0.045, 0.018);
+    return between(-0.028, 0.041);
+  };
+  /** Month-end values from the money that crossed into the account and the markets' move on it. */
+  const invest = (key: string, start: number): number => {
     let value = start;
     for (const mo of months) {
-      value = round2(value * (1 + between(-0.028, 0.041)) + monthly);
+      const flows = txns
+        .filter((t) => t.accountKey === key && t.date.getUTCFullYear() === mo.y && t.date.getUTCMonth() === mo.m0)
+        .reduce((sum, t) => sum + t.amount, 0);
+      value = round2(value * (1 + marketMove(mo)) + flows);
       const date = mo.current ? today : new Date(Date.UTC(mo.y, mo.m0 + 1, 0, 23, 59, 59));
       snapshots.push({ accountKey: key, date, balance: value });
     }
     return value;
   };
-  const brokerage = invest('brokerage', 31800, 300);
-  const ira = invest('ira', 18400, 250);
+  const brokerage = invest('brokerage', 2000);
+  const ira = invest('ira', 1500);
 
   const accounts: DemoAccount[] = [
     { key: 'checking', name: 'Everyday Checking ...0001', institution: 'Harbor Community Bank', type: 'DEPOSITORY', balance: round2(checkingOpening + sumOf('checking')) },
-    { key: 'savings', name: 'High-Yield Savings ...0002', institution: 'Harbor Community Bank', type: 'DEPOSITORY', balance: round2(9600 + sumOf('savings')) },
+    { key: 'savings', name: 'High-Yield Savings ...0002', institution: 'Harbor Community Bank', type: 'DEPOSITORY', balance: round2(3000 + sumOf('savings')) },
     { key: 'card', name: 'Riverstone Rewards Visa ...0006', institution: 'Riverstone Card Services', type: 'CREDIT', balance: round2(-640 + sumOf('card')) },
     { key: 'brokerage', name: 'Individual Brokerage ...0003', institution: 'Northwind Investments', type: 'INVESTMENT', balance: brokerage },
     { key: 'ira', name: 'Roth IRA ...0004', institution: 'Northwind Investments', type: 'INVESTMENT', balance: ira },
-    { key: 'loan', name: 'Auto Loan ...0005', institution: 'Harbor Community Bank', type: 'LOAN', balance: round2(-16800 + sumOf('loan')) },
+    { key: 'loan', name: 'Student Loan ...0005', institution: 'Bluestone Loan Servicing', type: 'LOAN', balance: round2(-41400 + sumOf('loan')) },
   ];
   // Every other account gets month-end snapshots too, as a live feed writes
   // them: without one, a card's and a loan's history is only "estimated".
@@ -341,12 +402,12 @@ export function buildDemoData(now: Date): DemoPlan {
     snapshots.push({ accountKey: key, date: today, balance: account.balance });
   }
 
-  const houseTargetMonth = new Date(Date.UTC(cy, cm + 30, 1));
+  const houseTargetMonth = new Date(Date.UTC(cy, cm + 36, 1));
   return {
     now,
     categories: [
       { name: 'Income', isIncome: true },
-      ...['Rent & Housing', 'Groceries', 'Dining', 'Utilities', 'Subscriptions', 'Gas', 'Transport', 'Shopping', 'Health', 'Entertainment', 'Travel', 'Gifts'].map(
+      ...['Rent & Housing', 'Groceries', 'Dining', 'Coffee', 'Utilities', 'Subscriptions', 'Gas', 'Transport', 'Shopping', 'Health', 'Entertainment', 'Travel', 'Gifts'].map(
         (name) => ({ name, isIncome: false }),
       ),
     ],
@@ -364,12 +425,11 @@ export function buildDemoData(now: Date): DemoPlan {
       {
         key: 'goals.savings',
         value: [
-          { id: 'house-deposit', name: 'House deposit', target: 69000, housePrice: 300000, targetMonth: monthKey(houseTargetMonth.getUTCFullYear(), houseTargetMonth.getUTCMonth()), cash: true, accountIds: [] },
-          { id: 'emergency-fund', name: 'Emergency fund', target: 30000, accountIds: ['{account:savings}'] },
+          { id: 'house-deposit', name: 'House deposit', target: 149500, housePrice: 650000, targetMonth: monthKey(houseTargetMonth.getUTCFullYear(), houseTargetMonth.getUTCMonth()), cash: true, accountIds: [] },
         ],
       },
       // The net worth goal, with a typed return so both dates show.
-      { key: 'goals.netWorth', value: { target: 250000, realReturnPct: 5, returnSetOn: isoDay(new Date(today.getTime() - 6 * DAY_MS)) } },
+      { key: 'goals.netWorth', value: { target: 1000000, realReturnPct: 5, returnSetOn: isoDay(new Date(today.getTime() - 6 * DAY_MS)) } },
       {
         key: 'readiness.house',
         value: { savingsFloor: 900, termYears: 30, taxPctYr: 1.1, insurancePctYr: 0.35, pmiPctYr: 0.5, closingPct: 3, downPct: 20, ratePct: 6.4, asOf: isoDay(new Date(today.getTime() - 6 * DAY_MS)) },
@@ -408,14 +468,30 @@ export async function writeDemoData(prisma: PrismaClient, plan: DemoPlan): Promi
       source: 'SIMPLEFIN' as const, groupLabel: t.groupLabel ?? null,
     })),
   });
-  // Self-references after every row exists.
-  for (const t of plan.txns) {
-    if (t.pairWith !== undefined || t.reimburses !== undefined) {
-      await prisma.transaction.update({
-        where: { id: t.id },
-        data: { transferPairId: t.pairWith ?? null, reimbursesId: t.reimburses ?? null },
-      });
-    }
+  // Self-references after every row exists, a few hundred rows per statement:
+  // on Turso the COUNT of round trips is the cost, and eleven years of
+  // transfers, written one row at a time, was over a thousand of them inside
+  // the nightly reset's sixty seconds.
+  const links = plan.txns.filter((t) => t.pairWith !== undefined || t.reimburses !== undefined);
+  for (let i = 0; i < links.length; i += LINKS_PER_STATEMENT) {
+    const chunk = links.slice(i, i + LINKS_PER_STATEMENT);
+    const caseOf = (column: string, pick: (t: DemoTxn) => string | undefined) => {
+      const rows = chunk.filter((t) => pick(t) !== undefined);
+      return rows.length === 0
+        ? { sql: `"${column}"`, params: [] as string[] }
+        : {
+            sql: `CASE "id" ${rows.map(() => 'WHEN ? THEN ?').join(' ')} ELSE "${column}" END`,
+            params: rows.flatMap((t) => [t.id, pick(t)!]),
+          };
+    };
+    const pairs = caseOf('transferPairId', (t) => t.pairWith);
+    const repaid = caseOf('reimbursesId', (t) => t.reimburses);
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Transaction" SET "transferPairId" = ${pairs.sql}, "reimbursesId" = ${repaid.sql} WHERE "id" IN (${chunk.map(() => '?').join(', ')})`,
+      ...pairs.params,
+      ...repaid.params,
+      ...chunk.map((t) => t.id),
+    );
   }
   await prisma.balanceSnapshot.createMany({
     data: plan.snapshots.map((s) => ({ accountId: accountIds.get(s.accountKey)!, date: s.date, balance: s.balance })),
