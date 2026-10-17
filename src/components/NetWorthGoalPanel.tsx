@@ -11,6 +11,7 @@ import {
   keepingUp,
   NET_WORTH_HORIZON_MONTHS,
   NET_WORTH_PACE_MIN_MONTHS,
+  NET_WORTH_PACE_MONTHS,
   projectGoal,
   returnToSlider,
   SLIDER_STEPS,
@@ -166,7 +167,7 @@ function Shift({ p }: { p: Projection }) {
  * never what a control did.
  *
  * The two monthly figures start as the measured ones (the saving pace over
- * the last twelve months, the deposit as the middle of the last three) and
+ * the last six months, the deposit as the middle of the last three) and
  * follow the data while untouched; one typed in place holds until it is set
  * back, and typing the measured figure sets it back.
  *
@@ -431,7 +432,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
                 onCommit={commitPace}
               />
               {paceSet === null ? (
-                <span>your last 12 months, one-off pay left out</span>
+                <span>your last {NET_WORTH_PACE_MONTHS} months, one-off pay left out</span>
               ) : (
                 <>
                   <span className={ASSUMED_CHIP}>Assumed</span>

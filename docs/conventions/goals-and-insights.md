@@ -171,7 +171,8 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   balance: a live anchor would move the date with every day's markets, and
   the shift since last month would compare a month-end with a Tuesday.
   Progress stays live, Overview's headline. The pace window is twelve
-  complete months (a bonus or a big bill moves six too far) and never crosses
+  complete months (a bonus or a big bill moves six too far; SIX since
+  2026-10-17, once one-off pay was left out, below) and never crosses
   a change in which accounts are counted, since an account entering the sum
   is not saving; under six months there is no date.
   A FAR target is sensitive to pace: saving a tenth faster brings a
@@ -510,3 +511,8 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   (3) Data: cards whose statements are not yet imported have no rows before
   the feed began, so older months in the window look cheaper than they
   were. That is an import to run, not code.
+  (4) The window, the same day, at the operator's ask: SIX complete months,
+  not twelve, and four the least to project from. Twelve was chosen so a
+  bonus or a big bill moved the pace less (the entry above); with one-off
+  pay left out that reason is gone, and twelve only reached back into
+  older, cheaper months, pay before a raise and spending not yet imported.

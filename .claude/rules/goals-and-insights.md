@@ -46,7 +46,8 @@ anything below; several entries record "tried and failed, don't retry".
   rise otherwise reads as a trend all the year after it.
 - The NET WORTH goal (ui/netWorthGoal.ts, Setting goals.netWorth) prints
   TWO dates and never one blended rate: by saving alone (the /trends "saved"
-  pace over 12 complete months, never across a change in counted accounts)
+  pace over 6 complete months, one-off pay left out, never across a change
+  in counted accounts)
   and with markets (a real return the operator SETS, applied to invested
   money outside the cash definition and to the monthly deposit into it, the
   MIDDLE of the last three months: never a mean, a fixed cutoff or a long

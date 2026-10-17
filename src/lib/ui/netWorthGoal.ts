@@ -57,7 +57,7 @@ import { growthBetween, type NetWorthPoint } from "./netWorthGrowth";
  * The pace leaves out ONE-OFF pay (a bonus beside a paycheck, judged by
  * insights/oneOffPay.ts and carried on the CASH_FLOW_TREND rows): real
  * money, but averaged in it reads one bonus month as a monthly habit: two
- * bonuses in a year raise a twelve-month pace by a twelfth of their total every
+ * bonuses in a six-month window raise its pace by a sixth of their total every
  * month. The panel names what it left out, and a bonus still too recent to
  * judge.
  *
@@ -83,9 +83,15 @@ import { growthBetween, type NetWorthPoint } from "./netWorthGrowth";
 
 export const NET_WORTH_GOAL_KEY = "goals.netWorth";
 
-/** A year of months smooths a bonus month and a big bill; half of one is the least to project from. */
-export const NET_WORTH_PACE_MONTHS = 12;
-export const NET_WORTH_PACE_MIN_MONTHS = 6;
+/**
+ * Six complete months: recent enough that this year's pay and spending set
+ * it, not last year's, and long enough to smooth a big bill. A year was the
+ * first window, chosen to smooth bonus months; with one-off pay left out
+ * (oneOffPay) it only dragged in older months, cheaper ones whose card
+ * spending had not been imported. Four is the least to project from.
+ */
+export const NET_WORTH_PACE_MONTHS = 6;
+export const NET_WORTH_PACE_MIN_MONTHS = 4;
 
 /** Beyond this a landing date is not worth printing: fifty years, as the savings goals say. */
 export const NET_WORTH_HORIZON_MONTHS = 600;

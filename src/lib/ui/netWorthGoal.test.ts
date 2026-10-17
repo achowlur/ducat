@@ -3,6 +3,7 @@ import {
   addMonths,
   assessNetWorthGoal,
   NET_WORTH_PACE_MIN_MONTHS,
+  NET_WORTH_PACE_MONTHS,
   goalPath,
   idleCashAt,
   withCashMoved,
@@ -86,7 +87,7 @@ describe("assessNetWorthGoal", () => {
     const months = history({ count: 14, last: "2026-09", start: 80000, saved: 1000, markets: 500 });
     const g = assessNetWorthGoal({ goal: { target: 250000 }, liveNetWorth: 101000, months, investedIds });
     expect(g.pace).toBe(1000);
-    expect(g.paceMonths).toBe(12);
+    expect(g.paceMonths).toBe(NET_WORTH_PACE_MONTHS);
     expect(g.anchor).toBe("2026-09");
   });
 
@@ -169,21 +170,21 @@ describe("assessNetWorthGoal", () => {
     const months = history({ count: 15, last: "2026-09", start: 80000, saved: (i) => (i === 14 ? 7000 : 1000) });
     const g = assessNetWorthGoal({ goal: { target: 150000 }, liveNetWorth: 101000, months, investedIds });
     expect(g.previousPace).toBe(1000);
-    expect(g.pace).toBe(1500);
+    expect(g.pace).toBe(2000);
     expect(g.saving?.shift).toBeLessThan(0); // sooner
   });
 
   it("never measures the pace across a change in which accounts are counted", () => {
-    // The first five months leave an account out: an account entering the sum is not saving.
+    // The first nine months leave an account out: an account entering the sum is not saving.
     const months = history({
       count: 14,
       last: "2026-09",
       start: 80000,
       saved: 1000,
-      leftOut: (i) => (i < 5 ? ["late-card"] : []),
+      leftOut: (i) => (i < 9 ? ["late-card"] : []),
     });
     const g = assessNetWorthGoal({ goal: { target: 250000 }, liveNetWorth: 95000, months, investedIds });
-    expect(g.paceMonths).toBe(8);
+    expect(g.paceMonths).toBe(4);
   });
 
   it(`refuses a date with fewer than ${NET_WORTH_PACE_MIN_MONTHS} months behind it, and keeps the progress`, () => {
@@ -363,7 +364,7 @@ describe('one-off pay', () => {
   it('is left out of the pace, and named', () => {
     const counted = assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months, investedIds });
     const left = assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months, investedIds, oneOffs: bonuses });
-    expect(counted.pace).toBe(1500);
+    expect(counted.pace).toBe(2000);
     expect(left.pace).toBe(1000);
     expect(left.paceLeavesOut.map((o) => [o.amount, o.settled])).toEqual([
       [3000, true],
