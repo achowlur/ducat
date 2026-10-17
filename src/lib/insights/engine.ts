@@ -102,7 +102,14 @@ export async function generateInsights(
   for (const [period, payload] of computeNetWorthGrowth(accounts, snapshots, txns, periods, granularity)) {
     fresh.push({ type: 'NET_WORTH_GROWTH', period, payload, identity: 'NET_WORTH_GROWTH' });
   }
-  for (const [period, payload] of computeSpendingByCategory(txns, periods, granularity)) {
+  // One-off purchases first: the everyday spending the pace call projects
+  // from leaves them out.
+  const anomalyOptions = options.anomalyOptions ?? DEFAULT_ANOMALY_OPTIONS;
+  const transactionAnomalies = new Map(periods.map((p) => [p, detectTransactionAnomalies(txns, p, granularity, anomalyOptions)]));
+  const oneOffIds = new Set(
+    [...transactionAnomalies.values()].flat().flatMap((a) => (a.transactionId === null ? [] : [a.transactionId])),
+  );
+  for (const [period, payload] of computeSpendingByCategory(txns, periods, granularity, oneOffIds)) {
     fresh.push({ type: 'SPENDING_BY_CATEGORY', period, payload, identity: 'SPENDING_BY_CATEGORY' });
   }
   for (const [period, payload] of computeCashFlowTrend(txns, periods, granularity)) {
@@ -112,9 +119,8 @@ export async function generateInsights(
   for (const [merchant, payload] of detectRecurringCharges(txns, recurringOptions)) {
     fresh.push({ type: 'RECURRING_CHARGE', period: latestPeriod, payload, identity: merchant });
   }
-  const anomalyOptions = options.anomalyOptions ?? DEFAULT_ANOMALY_OPTIONS;
   for (const period of periods) {
-    for (const payload of detectTransactionAnomalies(txns, period, granularity, anomalyOptions)) {
+    for (const payload of transactionAnomalies.get(period) ?? []) {
       fresh.push({ type: 'ANOMALY', period, payload, identity: String(payload.transactionId) });
     }
     for (const payload of detectCategoryTotalAnomalies(txns, period, periods, granularity, anomalyOptions)) {

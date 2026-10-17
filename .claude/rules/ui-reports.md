@@ -92,7 +92,9 @@ Overview:
 - /insights LEADS with one figure, the month's spending: projected (with
   its chip) for the month being lived in, spent so far while pace refuses
   (said in words), the analyzer's total for a closed month. Its context
-  line is the pace paragraph; never print that paragraph again below.
+  is ONE line in view (spent so far, what a typical rest of the month adds,
+  any caveat to discount); how it is worked out is behind a tap, and never
+  printed again below.
 - /insights admits the month being LIVED IN before it has rows — and ONLY
   that month — and DEFAULTS to it, because every current-gated panel (goals,
   readiness, pace, commitments) lives there. Prior months stay one ‹ away.

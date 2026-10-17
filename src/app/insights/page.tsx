@@ -332,41 +332,68 @@ function MonthHeadline({
           </span>
           {projected !== null && <span className={PROJECTED_CHIP}>Projected</span>}
         </div>
-        <p className="mt-1 max-w-[760px] text-[0.78rem] leading-relaxed text-faint">
-          {projected !== null ? (
-            <>
-              <Lead>{month}</Lead>, if the rest of the month is ordinary. <Fig>{money(pace.spentSoFar)}</Fig>{" "}
-              spent by day {pace.dayOfPeriod} of {pace.daysInPeriod}
-              {due !== null && (
-                <>
-                  , <Fig>{money(due)}</Fig> due before month end
-                </>
-              )}
-              . {pace.basis === "SAME_MONTH" ? `A typical ${month} ran ` : "The last few months ran "}
-              <Fig>{money(pace.typical ?? 0)}</Fig>
-              {pace.basis === "SAME_MONTH" ? ` (${pace.basisCount} prior years)` : ""}
+        {projected !== null ? (
+          <>
+            {/* One line in view: what is spent and what a typical rest of the
+                month adds, with the one caveat to discount; how it is worked
+                out is a tap away. */}
+            <p className="mt-1 max-w-[760px] text-[0.78rem] leading-relaxed text-faint">
+              <Fig>{money(pace.spentSoFar)}</Fig> spent so far,{" "}
+              <Fig>~{money(pace.restIsEveryday ? (pace.typicalRest ?? 0) : Math.max(0, projected - pace.spentSoFar))}</Fig>{" "}
+              more in a typical rest of {month}
               {/* Visibly incomplete beats silently wrong: a baseline drawn
-                  from before an account existed is understated, so the
-                  projection leans low and says so. */}
-              {pace.basisMissingAccounts > 0 &&
-                `, before ${pace.basisMissingAccounts} of your accounts existed, so this leans low`}
-              .
-            </>
-          ) : (
-            <>
-              <Lead>Spent in {month} so far</Lead>, day {pace.dayOfPeriod} of {pace.daysInPeriod}
-              {due !== null && (
-                <>
-                  , with <Fig>{money(due)}</Fig> due before month end
-                </>
-              )}
-              .{" "}
-              {pace.refusal === "TOO_EARLY"
-                ? "Too early in the month to say where it lands."
-                : `No comparable month to project from yet: ${pace.basisCount === 0 ? "none" : "too few"} with complete data.`}
-            </>
-          )}
-        </p>
+                  from before an account existed is understated. */}
+              {pace.basisMissingAccounts > 0 && "; may run low, earlier months miss an account"}.
+            </p>
+            <details className="group max-w-[760px] text-[0.78rem] text-faint">
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 max-md:min-h-[44px] [&::-webkit-details-marker]:hidden">
+                How this is worked out
+                <span aria-hidden="true" className="text-[0.7rem] transition-transform group-open:rotate-90">
+                  ›
+                </span>
+              </summary>
+              <p className="pt-1 leading-relaxed">
+                Day {pace.dayOfPeriod} of {pace.daysInPeriod}.{" "}
+                {pace.restIsEveryday ? (
+                  <>
+                    The rest of the month is what{" "}
+                    {pace.basis === "SAME_MONTH" ? `the last ${pace.basisCount} ${month}s` : `your last ${pace.basisCount} months`}{" "}
+                    spent after day {pace.dayOfPeriod}, travel and one-off purchases left out; anything you spend this month
+                    counts.
+                  </>
+                ) : (
+                  <>
+                    {pace.basis === "SAME_MONTH" ? `A typical ${month} ran ` : "The last few months ran "}
+                    <Fig>{money(pace.typical ?? 0)}</Fig>
+                    {pace.basis === "SAME_MONTH" ? ` (${pace.basisCount} prior years)` : ""}, and the rest of the month is
+                    its share.
+                  </>
+                )}
+                {due !== null && (
+                  <>
+                    {" "}
+                    <Fig>{money(due)}</Fig> of recurring charges is still due, the least the rest can be.
+                  </>
+                )}
+                {pace.basisMissingAccounts > 0 &&
+                  ` Those months miss ${pace.basisMissingAccounts === 1 ? "an account" : `${pace.basisMissingAccounts} accounts`} you have now, so their spending reads low.`}
+              </p>
+            </details>
+          </>
+        ) : (
+          <p className="mt-1 max-w-[760px] text-[0.78rem] leading-relaxed text-faint">
+            <Lead>Spent in {month} so far</Lead>, day {pace.dayOfPeriod} of {pace.daysInPeriod}
+            {due !== null && (
+              <>
+                , with <Fig>{money(due)}</Fig> due before month end
+              </>
+            )}
+            .{" "}
+            {pace.refusal === "TOO_EARLY"
+              ? "Too early in the month to say where it lands."
+              : `No comparable month to project from yet: ${pace.basisCount === 0 ? "none" : "too few"} with complete data.`}
+          </p>
+        )}
       </div>
     );
   }

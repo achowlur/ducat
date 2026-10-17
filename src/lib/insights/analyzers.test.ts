@@ -419,6 +419,24 @@ describe('market gains decomposition (buy → appreciate → sell lifecycle)', (
 });
 
 describe('computeSpendingByCategory', () => {
+  it('records everyday spending after each day, travel and one-offs left out', () => {
+    const travel = { categoryId: 'cat-travel', categoryName: 'Travel' };
+    const txns = [
+      txn({ date: utc(2026, 7, 2), amount: -1800, categoryId: 'cat-rent', categoryName: 'Rent & Housing' }),
+      txn({ date: utc(2026, 7, 20), amount: -60, ...groceries }),
+      txn({ id: 'big-tv', date: utc(2026, 7, 22), amount: -1200, categoryId: 'cat-shop', categoryName: 'Shopping' }),
+      txn({ date: utc(2026, 7, 25), amount: -900, ...travel }),
+    ];
+    const july = computeSpendingByCategory(txns, ['2026-07'], 'MONTH', new Set(['big-tv'])).get('2026-07')!;
+    expect(july.totalSpending).toBe(3960);
+    expect(july.everydayAfterDay).toHaveLength(32);
+    expect(july.everydayAfterDay![0]).toBe(1860);
+    expect(july.everydayAfterDay![2]).toBe(60);
+    expect(july.everydayAfterDay![20]).toBe(0);
+    expect(computeSpendingByCategory(txns, ['2026-Q3'], 'QUARTER').get('2026-Q3')?.everydayAfterDay).toBeUndefined();
+  });
+
+
   it('sums outflows per category and excludes transfers', () => {
     const txns = [
       txn({ date: utc(2026, 7, 2), amount: -50, ...groceries }),

@@ -104,6 +104,15 @@ export interface SpendingByCategoryPayload {
   totalSpending: number;
   previousTotalSpending: number | null;
   categories: CategorySpending[];
+  /**
+   * MONTH rows only: EVERYDAY spending after each day of the month, index d
+   * holding the spending on days d+1 to the end (index 0 the whole month).
+   * Everyday leaves out travel and the period's one-off purchases (the
+   * transaction anomalies): what the pace call projects the rest of a month
+   * from, so a rent paid on the 2nd is never counted again on the 17th.
+   * Absent on payloads stored before 2026-10-17.
+   */
+  everydayAfterDay?: number[];
 }
 
 export interface CashFlowTrendPayload {
