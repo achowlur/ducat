@@ -11,7 +11,7 @@ import {
 } from "../../lib/ui/chartZoom";
 import { money } from "../../lib/ui/format";
 import { monthStep, monthTicks, yearLabels, yearSpans } from "../../lib/ui/timeAxis";
-import { axisMoney, monthWithYear, niceTicks } from "./scale";
+import { axisMoney, monthWithYear, valueAxis } from "./scale";
 
 /** Room a month label needs, and a year label, in viewBox units at 10px type. */
 const MONTH_LABEL = 34;
@@ -137,13 +137,10 @@ function Plot({
   // Six percent of headroom: twelve could push the top tick a whole step
   // above the line, a quarter of the plot drawn over nothing.
   const pad = (Math.max(...values) - Math.min(...values)) * 0.06 || 1;
-  // Padding must not invent a NEGATIVE band no month reaches: a history that
-  // starts near zero padded a "−$100k" tick under a line that never went below
-  // zero. Below zero is drawn only when a month is.
-  const bottom = Math.min(...values) >= 0 ? Math.max(0, Math.min(...values) - pad) : Math.min(...values) - pad;
-  const ticks = niceTicks(bottom, Math.max(...values) + pad, 4);
-  const yLo = ticks[0];
-  const yHi = ticks[ticks.length - 1];
+  // Neither padding nor rounding may invent a NEGATIVE band no month reaches:
+  // below zero is drawn only as far as a month goes (valueAxis), so $0 stays
+  // near the base and a negative month dips under it.
+  const { lo: yLo, hi: yHi, ticks } = valueAxis(Math.min(...values), Math.max(...values), pad);
   const y = (v: number) => PLOT_BOTTOM - ((v - yLo) / (yHi - yLo)) * (PLOT_BOTTOM - PLOT_TOP);
   const x = (i: number) => (count === 1 ? (PLOT_LEFT + PLOT_RIGHT) / 2 : PLOT_LEFT + ((i - shown.start) / span) * PLOT_W);
 
@@ -178,9 +175,10 @@ function Plot({
   const pointsAll = unitsPerMonth >= 14;
   const isolated = (i: number) =>
     uncertain(months[i]) && (i === 0 || !uncertain(months[i - 1])) && (i === last || !uncertain(months[i + 1]));
-  // A wash under the line only when the axis starts at zero: area reads as
-  // amount, and over a cut axis it would overstate every month.
-  const washed = yLo === 0 && count > 1;
+  // A wash between the line and ZERO, only when zero is on the axis: area
+  // reads as amount, and over a cut axis it would overstate every month. A
+  // month below zero is washed below it.
+  const washed = yLo <= 0 && yHi > 0 && count > 1;
 
   // The caption told the reader to look for "months marked estimated" and
   // nothing was marked: one solid confident line, the flag reachable only by
@@ -358,7 +356,8 @@ function Plot({
         </defs>
         {ticks.map((t) => (
           <g key={t}>
-            <line x1={PLOT_LEFT} y1={y(t)} x2={PLOT_RIGHT} y2={y(t)} stroke="var(--grid)" strokeWidth="1" />
+            {/* Zero, when a month dips under it, is the line the rest stands on. */}
+            <line x1={PLOT_LEFT} y1={y(t)} x2={PLOT_RIGHT} y2={y(t)} stroke={t === 0 && yLo < 0 ? "var(--rule)" : "var(--grid)"} strokeWidth="1" />
             <text x={PLOT_RIGHT + 8} y={y(t) + 3} className="fill-[var(--faint)] font-money text-[10px]">
               {axisMoney(t)}
             </text>
@@ -379,10 +378,10 @@ function Plot({
           ))}
           {washed && (
             <path
-              d={`M${x(lo)},${PLOT_BOTTOM} ${months
+              d={`M${x(lo)},${y(0)} ${months
                 .slice(lo, hi + 1)
                 .map((m, k) => `L${x(lo + k)},${y(m.value)}`)
-                .join(" ")} L${x(hi)},${PLOT_BOTTOM} Z`}
+                .join(" ")} L${x(hi)},${y(0)} Z`}
               fill="var(--chart1)"
               fillOpacity="0.08"
             />

@@ -82,8 +82,9 @@ category you set by hand is never overridden.
   added, and compare years in a table. Every figure opens its transactions.
 - **Insights** (`/insights`) — am I on track, in three parts. This month:
   where spending is heading and what is worth a look. Goals: a net worth
-  goal dated two ways (by saving alone, and with a market return you choose,
-  both set right on the page), then each savings goal, each with its date
+  goal dated two ways (by saving alone, and with a market return you choose;
+  the target, the return and what you invest each month are set right on
+  the page), then each savings goal, each with its date
   and a chart of its path you can tap for any month. Recurring charges: one
   list with each plan's next charge and what is due in the next 30 days.
   Projections are labelled as projections.

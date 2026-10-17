@@ -69,8 +69,8 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   100% (the operator asked for the full range, for fun) on a SQUARE scale, so
   a quarter of its travel covers 0 to about 7% and 5% does not sit a few
   pixels from the edge of a phone; it snaps to half points below 20% and
-  whole points above, with tick marks at the decade's forecasts and at a
-  century of history. The
+  whole points above, with tick marks at the decade's forecasts, at a
+  century of history and at 10% (added at the operator's ask). The
   dates re-project in the browser as they move, through projectGoal, the
   very function the server ran, from a serializable GoalBasis per month-end,
   so a slider never waits on a round trip and never disagrees with a reload.
@@ -82,6 +82,23 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   not a rate, so still no return lives in code. A shift compares the same
   target and return a month apart, so dragging a control never reads as the
   data moving. The command still writes the same Setting.
+  The AMOUNT INVESTED A MONTH became a third control (2026-10-16), at the
+  operator's ask, defaulting to the measured deposit, so the panel answers
+  "what if I invested more?". What a typed amount means had to be chosen.
+  Read as a re-split of the same saving, investing more would only move
+  money from cash into the market, and an amount above the whole pace would
+  draw cash down every month: not what anyone typing a bigger number means.
+  So the cash part of the pace holds as measured and the typed amount is
+  added to it (withDeposit): investing $500 more a month is saving $500 more,
+  and both dates move, the saving-alone one too. The pace and deposit the
+  working-out prints stay the measured ones, with the amount set and the
+  total beside them. Untouched, the amount follows the data as before; typed,
+  it holds (stored as monthlyInvest in the Setting, kept by the goals
+  command) behind the ASSUMED chip with a button back to the measured amount,
+  and typing the measured amount clears it too. The month that did not match
+  is not named while an amount is set: the panel is not using the measured
+  one. On the demo, $2,500 a month in place of the measured $1,235 brought
+  saving alone from 2052 to 2043 and the markets date from 2041 to 2037.
   Dates are projected from the last COMPLETE month-end, not the live
   balance: a live anchor would move the date with every day's markets, and
   the shift since last month would compare a month-end with a Tuesday.
