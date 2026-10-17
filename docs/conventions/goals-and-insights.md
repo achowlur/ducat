@@ -573,3 +573,19 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   says it in one line ("the rest of a typical month adds ~$X (your last 3
   months, travel and one-offs left out)"), and the coverage caveat reads
   "though those months miss an account, so it may run low".
+- HOUSE READINESS LEADS WITH ITS VERDICT (2026-10-17). The operator found the
+  house panel full of information but hard to read: five figures of equal
+  weight (the budget, the ceiling today, what the payment carries, the
+  balanced target, the target house), each to the cent, and the answer to
+  the only question (can I buy the house I picked, and when?) left to be
+  assembled from three of them. The target house's payment was never printed
+  at all. It now leads with one sentence on the TARGET house: the cash it
+  needs, when the fund's goal reaches it, and its monthly payment
+  (monthlyPiti with the cash saved in full) against the budget, over in the
+  warning ink; then what the plan affords today, binding ceiling named
+  (fund-limited stays, the rule above), and where the two ceilings meet. The
+  budget ledger and both ceilings are behind a tap; the ASSUMED disclosure
+  keeps its as-of date in view. Estimated prices print as $k and payments in
+  whole dollars. The savings goal's reconciliation, which must stay beside
+  its date, now says the gap outright: "Your cash grew ~$460/mo, not the
+  ~$1,965/mo this date assumes" (the demo's figures).
