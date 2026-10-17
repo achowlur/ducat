@@ -255,7 +255,16 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
     // The measured amount, typed back, follows the data again.
     const next = g.contribution !== null && sameAmount(typed, g.contribution) ? null : typed;
     setInvest(next);
-    save({ ...current, invest: next });
+    // "I invest $4,000" means "I save at least $4,000": the investing is part
+    // of the saving, so a deposit above the saving raises it to match. The
+    // saving can be lowered after, and the line below says what that means.
+    if (typed > shownPace) {
+      const pace = sameAmount(typed, paceUntouched) ? null : typed;
+      setPaceSet(pace);
+      save({ ...current, invest: next, pace });
+    } else {
+      save({ ...current, invest: next });
+    }
     return true;
   };
   const commitPace = (typed: number | null) => {
@@ -518,6 +527,23 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
             </button>
           </p>
         ))}
+      {/* Investing more than is saved: the difference comes out of cash, and
+          the projection stops investing once that cash is gone. */}
+      {basis !== null && (basis.contribution ?? 0) > basis.pace + 0.5 && (
+        <p className={WARN_LINE}>
+          Investing <span className="font-money tabular">{roughly.format(basis.contribution ?? 0)}</span>/mo of{" "}
+          <span className="font-money tabular">{roughly.format(basis.pace)}</span> saved: the other{" "}
+          <span className="font-money tabular">{roughly.format((basis.contribution ?? 0) - basis.pace)}</span>/mo comes
+          out of cash
+          {basis.cash > 0 && (
+            <>
+              , which lasts about {Math.max(1, Math.round(basis.cash / ((basis.contribution ?? 0) - basis.pace)))}{" "}
+              {monthsWord(Math.max(1, Math.round(basis.cash / ((basis.contribution ?? 0) - basis.pace))))}
+            </>
+          )}
+          .
+        </p>
+      )}
       {idle !== null && !reached && (
         <p className={WARN_LINE}>
           <span className="font-money tabular">{roughly.format(idle.idle)}</span> in {idle.from.join(" + ")} is beyond a

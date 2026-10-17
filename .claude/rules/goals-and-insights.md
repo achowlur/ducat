@@ -66,8 +66,11 @@ anything below; several entries record "tried and failed, don't retry".
   they settle; a shift always compares the SAME settings a month apart;
   with no return set the slider sits at 0. Each monthly figure defaults to
   the measured one and follows it; typing the measured figure clears it.
-  The saving is the TOTAL and the investing only SPLITS it (withSaving): a
-  typed investing amount never changes what is saved. The dates stay in TODAY'S dollars, never nominal; what
+  The saving is the TOTAL and the investing only SPLITS it (withSaving),
+  except that investing typed ABOVE the saving raises the saving to match;
+  investing above a saving lowered after says, in the warning ink, that the
+  rest comes out of cash and how long it lasts, and the projection invests
+  only cash there is (never below zero). The dates stay in TODAY'S dollars, never nominal; what
   that assumes (saving rising with inflation) is SAID, at an ASSUMED 3%,
   with the deposit checked against a year ago (keepingUp). CASH earns its
   MEASURED yield less that 3%: each cash account's yield from the interest
