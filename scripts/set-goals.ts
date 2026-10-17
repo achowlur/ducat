@@ -94,7 +94,8 @@ async function netWorthGoal(): Promise<void> {
     const target = targetArg !== undefined ? Number(targetArg) : stored?.target;
     if (target === undefined) return fail("--target is required for a new net worth goal (dollars, in today's money).");
     if (!Number.isFinite(target) || target <= 0) return fail('--target must be a positive dollar amount.');
-    let goal: NetWorthGoal = { target };
+    // The monthly amount is set on the panel; the command keeps it.
+    let goal: NetWorthGoal = { target, ...(stored?.monthlyInvest !== undefined ? { monthlyInvest: stored.monthlyInvest } : {}) };
     if (returnArg === undefined) {
       // Untouched: the stored return and the day it was typed both stand.
       if (stored?.realReturnPct !== undefined) {
@@ -133,6 +134,11 @@ async function netWorthGoal(): Promise<void> {
     current.realReturnPct === undefined
       ? '  markets  no return typed: /insights shows the saving-alone date only'
       : `  markets  ${current.realReturnPct}% a year after inflation, your assumption${current.returnSetOn !== undefined ? `, set ${current.returnSetOn}` : ''}`,
+  );
+  console.log(
+    current.monthlyInvest === undefined
+      ? '  invested your usual monthly deposit, read from the data'
+      : `  invested ${current.monthlyInvest.toFixed(2)} a month, set on /insights`,
   );
 }
 

@@ -31,6 +31,9 @@ Charts:
 - niceTicks guarantees last tick ≥ max; value labels are collision-checked.
   A viewBox scales its TYPE with its container, so width buys legibility and
   then overshoots — every /trends chart is capped at 880px for that reason.
+- A line that crosses zero floors its axis at its lowest value, never a
+  rounded tick below it (valueAxis): $0 stays near the base, a month below
+  zero dips under it, and any wash is drawn to zero.
 
 Overview:
 - Overview's net-worth HEADLINE is LIVE (the signed sum of account

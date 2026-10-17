@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { axisMoney, labelStepFor, monthWithYear, niceTicks } from "./scale";
+import { axisMoney, labelStepFor, monthWithYear, niceTicks, valueAxis } from "./scale";
 
 describe("niceTicks", () => {
   it("always encloses the data range — last tick >= max (the July cash-flow bug)", () => {
@@ -26,6 +26,33 @@ describe("niceTicks", () => {
 
   it("produces rounded boundaries", () => {
     expect(niceTicks(0, 5738, 4)).toEqual([0, 2000, 4000, 6000]);
+  });
+});
+
+describe("valueAxis", () => {
+  // Invented: a net worth from −$29.7k to $272.5k, padded 6% of its range.
+  const pad = (272_511.75 + 29_741.49) * 0.06;
+
+  it("floors a line crossing zero at its lowest value, not a rounded tick below it", () => {
+    const axis = valueAxis(-29_741.49, 272_511.75, pad);
+    expect(axis.lo).toBeCloseTo(-29_741.49 - pad / 3, 2);
+    expect(axis.lo).toBeGreaterThan(-50_000);
+    expect(axis.ticks).toEqual([0, 100_000, 200_000, 300_000]);
+    expect(axis.hi).toBeGreaterThanOrEqual(272_511.75);
+    // Zero sits within the lowest sixth of the plot, not a quarter of the way up.
+    expect((0 - axis.lo) / (axis.hi - axis.lo)).toBeLessThan(1 / 6);
+  });
+
+  it("starts a line that never goes below zero at zero or above", () => {
+    expect(valueAxis(1_000, 272_511.75, 16_000)).toMatchObject({ lo: 0 });
+    expect(valueAxis(150_000, 272_511.75, 7_000).lo).toBeGreaterThan(0);
+  });
+
+  it("keeps rounded ticks for a line wholly below zero", () => {
+    const axis = valueAxis(-30_000, -10_000, 1_200);
+    expect(axis.lo).toBe(axis.ticks[0]);
+    expect(axis.lo).toBeLessThanOrEqual(-31_200);
+    expect(axis.hi).toBeGreaterThanOrEqual(-8_800);
   });
 });
 

@@ -36,6 +36,13 @@ import { growthBetween, type NetWorthPoint } from "./netWorthGrowth";
  * changes silently. That much compounds with the invested balance; the rest
  * of the pace is counted as cash.
  *
+ * The operator can SET the monthly amount instead (`monthlyInvest`), to ask
+ * what investing more or less would do. What they save in cash stays as
+ * measured (the pace less the measured deposit) and the amount they set is
+ * added to it, so both dates move: investing more is saving more
+ * (withDeposit). Set to the measured amount, it clears, and the deposit
+ * follows the data again.
+ *
  * Dates are projected from the last COMPLETE month-end, never the live
  * balance, so they hold still through a month instead of moving with every
  * day's markets, and the shift since the month-end before compares like with
@@ -58,7 +65,12 @@ export interface NetWorthGoal {
   realReturnPct?: number;
   /** Day ("2026-10-16") the return was typed: a typed assumption must never read current forever. */
   returnSetOn?: string;
+  /** Dollars a month into invested money, set by the operator in place of the measured deposit. Absent: the measured deposit. */
+  monthlyInvest?: number;
 }
+
+/** The largest monthly amount a save accepts: past it a projection is noise. */
+export const MAX_MONTHLY_INVEST = 1e9;
 
 /**
  * The highest real return the controls offer and a save accepts, in percent
@@ -82,10 +94,14 @@ export function parseNetWorthGoal(raw: string | null): NetWorthGoal | null {
     const validPct = typeof pct === "number" && Number.isFinite(pct) && pct > 0 && pct <= MAX_REAL_RETURN_PCT;
     if (pct !== undefined && !validPct) return null;
     if (g.returnSetOn !== undefined && (typeof g.returnSetOn !== "string" || !DAY.test(g.returnSetOn))) return null;
+    const invest = g.monthlyInvest;
+    const validInvest = typeof invest === "number" && Number.isFinite(invest) && invest >= 0 && invest <= MAX_MONTHLY_INVEST;
+    if (invest !== undefined && !validInvest) return null;
     return {
       target: g.target,
       ...(validPct ? { realReturnPct: pct as number } : {}),
       ...(typeof g.returnSetOn === "string" ? { returnSetOn: g.returnSetOn } : {}),
+      ...(validInvest ? { monthlyInvest: invest as number } : {}),
     };
   } catch {
     return null;
@@ -288,6 +304,17 @@ export interface GoalBasis {
   contribution: number | null;
 }
 
+/**
+ * The basis with the monthly deposit the operator SET in place of the
+ * measured one. What they save in cash (the pace less the measured deposit)
+ * holds, and the amount set is added to it: investing $500 more a month is
+ * saving $500 more. Undefined leaves the basis as measured.
+ */
+export function withDeposit(b: GoalBasis, monthlyInvest: number | undefined): GoalBasis {
+  if (monthlyInvest === undefined) return b;
+  return { ...b, pace: round2(b.pace - (b.contribution ?? 0) + monthlyInvest), contribution: monthlyInvest };
+}
+
 /** Months later (+) or sooner (−); null when either landing is missing. */
 const shiftBetween = (now: string | null | undefined, before: string | null | undefined) =>
   now === null || now === undefined || before === null || before === undefined ? null : monthsFrom(before, now);
@@ -343,11 +370,12 @@ export function returnToSlider(pct: number): number {
  * What saving the panel's controls writes, or why it refuses. A return of
  * zero clears it (no markets date); a CHANGED return is dated today, an
  * unchanged one keeps the day it was set, so the as-of date means when the
- * assumption was made, not when the target last moved.
+ * assumption was made, not when the target last moved. A monthly amount of
+ * null clears it, and the deposit follows the data again.
  */
 export function nextNetWorthGoal(
   stored: NetWorthGoal | null,
-  input: { target: number; realReturnPct: number },
+  input: { target: number; realReturnPct: number; monthlyInvest: number | null },
   today: string,
 ): { ok: true; goal: NetWorthGoal } | { ok: false; message: string } {
   if (!Number.isFinite(input.target) || input.target <= 0) {
@@ -357,12 +385,22 @@ export function nextNetWorthGoal(
   if (!Number.isFinite(input.realReturnPct) || input.realReturnPct < 0 || input.realReturnPct > MAX_REAL_RETURN_PCT) {
     return { ok: false, message: `The market return has to be between 0% and ${MAX_REAL_RETURN_PCT}% a year.` };
   }
+  const invest = input.monthlyInvest;
+  if (invest !== null && (!Number.isFinite(invest) || invest < 0 || invest > MAX_MONTHLY_INVEST)) {
+    return { ok: false, message: "The monthly amount has to be a dollar amount of zero or more." };
+  }
   const target = round2(input.target);
-  if (input.realReturnPct === 0) return { ok: true, goal: { target } };
+  const monthly = invest === null ? {} : { monthlyInvest: round2(invest) };
+  if (input.realReturnPct === 0) return { ok: true, goal: { target, ...monthly } };
   const unchanged = stored?.realReturnPct === input.realReturnPct && stored.returnSetOn !== undefined;
   return {
     ok: true,
-    goal: { target, realReturnPct: input.realReturnPct, returnSetOn: unchanged ? stored!.returnSetOn! : today },
+    goal: {
+      target,
+      realReturnPct: input.realReturnPct,
+      returnSetOn: unchanged ? stored!.returnSetOn! : today,
+      ...monthly,
+    },
   };
 }
 
@@ -403,7 +441,17 @@ export function assessNetWorthGoal(input: {
   const basis = basisAt(end);
   const previousBasis = basis === null ? null : basisAt(end - 1);
   const reached = netWorth >= goal.target;
-  const projection = basis === null || reached ? null : projectGoal(basis, previousBasis, goal.target, goal.realReturnPct);
+  // A monthly amount the operator set moves both dates; the pace and deposit
+  // reported stay the measured ones, which the panel prints beside it.
+  const projection =
+    basis === null || reached
+      ? null
+      : projectGoal(
+          withDeposit(basis, goal.monthlyInvest),
+          previousBasis === null ? null : withDeposit(previousBasis, goal.monthlyInvest),
+          goal.target,
+          goal.realReturnPct,
+        );
   const latest = end < 0 ? null : depositIn(months[end], investedIds);
 
   return {

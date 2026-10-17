@@ -9,6 +9,7 @@ import {
   projectGoal,
   returnToSlider,
   sliderToReturn,
+  withDeposit,
   type NetWorthMonth,
 } from "./netWorthGoal";
 
@@ -241,34 +242,100 @@ describe('nextNetWorthGoal, what a save from the panel writes', () => {
   const stored = { target: 1000000, realReturnPct: 5, returnSetOn: '2026-03-02' };
 
   it('keeps the day a return was set while only the target moves', () => {
-    expect(nextNetWorthGoal(stored, { target: 750000, realReturnPct: 5 }, '2026-10-16')).toEqual({
+    expect(nextNetWorthGoal(stored, { target: 750000, realReturnPct: 5, monthlyInvest: null }, '2026-10-16')).toEqual({
       ok: true,
       goal: { target: 750000, realReturnPct: 5, returnSetOn: '2026-03-02' },
     });
   });
 
   it('dates a changed return today, and clears it at zero', () => {
-    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 6.5 }, '2026-10-16')).toEqual({
+    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 6.5, monthlyInvest: null }, '2026-10-16')).toEqual({
       ok: true,
       goal: { target: 1000000, realReturnPct: 6.5, returnSetOn: '2026-10-16' },
     });
-    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 0 }, '2026-10-16')).toEqual({
+    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 0, monthlyInvest: null }, '2026-10-16')).toEqual({
       ok: true,
       goal: { target: 1000000 },
     });
   });
 
+  it('stores a monthly amount the operator sets, with or without a return, and clears it on null', () => {
+    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 5, monthlyInvest: 2000 }, '2026-10-16')).toEqual({
+      ok: true,
+      goal: { target: 1000000, realReturnPct: 5, returnSetOn: '2026-03-02', monthlyInvest: 2000 },
+    });
+    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 0, monthlyInvest: 0 }, '2026-10-16')).toEqual({
+      ok: true,
+      goal: { target: 1000000, monthlyInvest: 0 },
+    });
+    const set = { ...stored, monthlyInvest: 2000 };
+    expect(nextNetWorthGoal(set, { target: 1000000, realReturnPct: 5, monthlyInvest: null }, '2026-10-16')).toEqual({
+      ok: true,
+      goal: stored,
+    });
+  });
+
+  it('reads back what it writes, and refuses a stored amount it cannot use', () => {
+    const goal = { target: 1000000, realReturnPct: 5, returnSetOn: '2026-03-02', monthlyInvest: 1500 };
+    expect(parseNetWorthGoal(JSON.stringify(goal))).toEqual(goal);
+    expect(parseNetWorthGoal(JSON.stringify({ ...goal, monthlyInvest: -1 }))).toBeNull();
+    expect(parseNetWorthGoal(JSON.stringify({ ...goal, monthlyInvest: '1500' }))).toBeNull();
+  });
+
   it('refuses what it cannot project, with a sentence for the person', () => {
     for (const input of [
-      { target: 0, realReturnPct: 5 },
-      { target: Number.NaN, realReturnPct: 5 },
-      { target: 1000000, realReturnPct: -1 },
-      { target: 1000000, realReturnPct: 120 },
+      { target: 0, realReturnPct: 5, monthlyInvest: null },
+      { target: Number.NaN, realReturnPct: 5, monthlyInvest: null },
+      { target: 1000000, realReturnPct: -1, monthlyInvest: null },
+      { target: 1000000, realReturnPct: 120, monthlyInvest: null },
+      { target: 1000000, realReturnPct: 5, monthlyInvest: -50 },
+      { target: 1000000, realReturnPct: 5, monthlyInvest: Number.NaN },
     ]) {
       const r = nextNetWorthGoal(stored, input, '2026-10-16');
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.message.length).toBeGreaterThan(10);
     }
+  });
+});
+
+describe('a monthly amount the operator sets', () => {
+  // Measured: $1,000 saved a month, $400 of it into invested money.
+  const months = history({ count: 15, last: '2026-09', start: 80000, saved: 1000, flows: () => ({ invested: 400 }) });
+  const g = assessNetWorthGoal({ goal: { target: 300000, realReturnPct: 5 }, liveNetWorth: 94000, months, investedIds });
+
+  it('replaces the measured deposit and keeps the cash saving: investing more is saving more', () => {
+    expect(g.basis!.contribution).toBe(400);
+    const more = withDeposit(g.basis!, 1400);
+    expect(more.contribution).toBe(1400);
+    expect(more.pace).toBe(g.basis!.pace + 1000);
+    expect(withDeposit(g.basis!, undefined)).toBe(g.basis);
+  });
+
+  it('brings both dates nearer when it rises, and the server agrees with the panel', () => {
+    const set = assessNetWorthGoal({
+      goal: { target: 300000, realReturnPct: 5, monthlyInvest: 1400 },
+      liveNetWorth: 94000,
+      months,
+      investedIds,
+    });
+    expect(set.saving!.lands! < g.saving!.lands!).toBe(true);
+    expect(set.markets!.lands! < g.markets!.lands!).toBe(true);
+    // The figures the working-out prints stay the measured ones.
+    expect(set.contribution).toBe(400);
+    expect(set.pace).toBe(g.pace);
+    const panel = projectGoal(withDeposit(set.basis!, 1400), withDeposit(set.previousBasis!, 1400), 300000, 5);
+    expect(panel).toEqual({ saving: set.saving, markets: set.markets });
+  });
+
+  // The shift still says what the DATA did: the same amount applies a month apart.
+  it('leaves a steady history unshifted', () => {
+    const set = assessNetWorthGoal({
+      goal: { target: 300000, realReturnPct: 5, monthlyInvest: 1400 },
+      liveNetWorth: 94000,
+      months,
+      investedIds,
+    });
+    expect(set.saving!.shift).toBe(0);
   });
 });
 
@@ -290,7 +357,7 @@ describe('the return slider', () => {
 
   it('lets the panel save anything the slider can reach', () => {
     for (let position = 0; position <= 1000; position += 37) {
-      const r = nextNetWorthGoal(null, { target: 1000000, realReturnPct: sliderToReturn(position) }, '2026-10-16');
+      const r = nextNetWorthGoal(null, { target: 1000000, realReturnPct: sliderToReturn(position), monthlyInvest: null }, '2026-10-16');
       expect(r.ok).toBe(true);
     }
   });

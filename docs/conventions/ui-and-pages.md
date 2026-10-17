@@ -1397,3 +1397,17 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   or so long, carried one year label in the middle and nothing else; up to
   three years they are labelled by quarter, the year on January
   (goalAxisTicks).
+- ZERO STAYS AT THE BASE (2026-10-16). With eleven years of demo history
+  the Trends net worth line ran from about −$30k to $272k, and niceTicks
+  rounded the floor down to a whole step: a "−$100k" gridline under a line
+  that never went below −$30k, lifting $0 a quarter of the way up the plot.
+  The operator read it as zero shifting up. The floor of a line that crosses
+  zero is now its lowest month less a third of the padding (valueAxis in
+  charts/scale.ts), unrounded, with gridlines only inside it: $0 sits where
+  −$30k of $300k puts it, about a tenth of the way up, and only the months
+  below zero are drawn below it. The wash under the line, once drawn only
+  over an axis starting at zero, now runs to the zero line whenever zero is
+  on the axis, so a negative month is washed below it; the zero gridline
+  takes the rule colour when a month dips under it. A line wholly above zero
+  is unchanged (starting at zero or above) and one wholly below keeps the
+  rounded ticks.
