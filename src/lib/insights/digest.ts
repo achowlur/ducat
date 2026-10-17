@@ -140,6 +140,17 @@ const MAX_ITEMS = 4;
 /** A category needs this many prior periods with actual spending to have a baseline. */
 const MIN_CATEGORY_SAMPLES = 2;
 
+/**
+ * Past periods a category's drift is measured against: its most recent
+ * twelve with spending. A median over ALL history flagged anything that grows
+ * with prices or pay as drifting every month of the year after it grew: on
+ * eleven years of history, rent raised each January read "Rent & Housing
+ * $1,850, against $1,600 in comparable months", and utilities did the same on
+ * eight years of real data. A year is long enough to hold a bounce, short
+ * enough that last year's prices are the comparison.
+ */
+const DRIFT_BASELINE_PERIODS = 12;
+
 function median(values: number[]): number {
   const s = [...values].sort((a, b) => a - b);
   const mid = Math.floor(s.length / 2);
@@ -153,6 +164,7 @@ function keyOf(c: { categoryId: string | null; categoryName: string | null }): s
 export function computeDigest(input: {
   spending: SpendingByCategoryPayload | null;
   /** Comparable prior periods only — the caller applies the coverage gate. */
+  /** Comparable prior periods, OLDEST first: drift measures against the most recent of them. */
   priorSpending: SpendingByCategoryPayload[];
   recurring: RecurringChargePayload[];
   anomalies: AnomalyPayload[];
@@ -197,7 +209,7 @@ export function computeDigest(input: {
       // A review backlog is not a spending trend: "P2P — Unreviewed is up"
       // says only that fewer payments have been confirmed yet.
       if (c.categoryId === P2P_UNREVIEWED_ID) continue;
-      const past = history.get(keyOf(c)) ?? [];
+      const past = (history.get(keyOf(c)) ?? []).slice(-DRIFT_BASELINE_PERIODS);
       if (past.length < MIN_CATEGORY_SAMPLES) continue;
       const baseline = median(past);
       const oneOffs = c.categoryId === null ? 0 : (oneOffByCategory.get(c.categoryId) ?? 0);

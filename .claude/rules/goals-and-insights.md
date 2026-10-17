@@ -40,6 +40,10 @@ anything below; several entries record "tried and failed, don't retry".
   so nothing is lost.
 - Category DRIFT is measured NET of that period's one-offs in the category —
   a one-off is scored once, never annualised as a trend.
+- Baselines are RECENT, never all history: drift against a category's last
+  12 periods with spending, the pace call against the same month of the last
+  3 years (else the trailing 3 months). On a long history every price or pay
+  rise otherwise reads as a trend all the year after it.
 - The NET WORTH goal (ui/netWorthGoal.ts, Setting goals.netWorth) prints
   TWO dates and never one blended rate: by saving alone (the /trends "saved"
   pace over 12 complete months, never across a change in counted accounts)

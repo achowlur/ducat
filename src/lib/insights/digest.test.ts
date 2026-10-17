@@ -383,3 +383,21 @@ describe('explainedByOneOffs: a category total the one-off already told', () => 
     expect(explainedByOneOffs([{ id: 'a', payload: elsewhere }, { id: 'b', payload: total(700) }], new Set([anomalyDedupeKey(elsewhere)!])).size).toBe(0);
   });
 });
+
+describe('computeDigest drift: measured against the most recent year', () => {
+  const month = (amount: number) => spending([{ name: 'Rent', spending: amount }]);
+
+  // Rent raised two Januaries ago and steady since: not a trend, however low
+  // the years before the raise were.
+  it('lets a rise more than a year old stand as the new normal', () => {
+    const priors = [...Array.from({ length: 24 }, () => month(1600)), ...Array.from({ length: 12 }, () => month(1850))];
+    const items = computeDigest({ ...base, spending: month(1850), priorSpending: priors });
+    expect(items.filter((i) => i.kind === 'CATEGORY_DRIFT')).toEqual([]);
+  });
+
+  it('still flags a rise against the past year', () => {
+    const priors = Array.from({ length: 30 }, () => month(1600));
+    const items = computeDigest({ ...base, spending: month(1850), priorSpending: priors });
+    expect(items.find((i) => i.kind === 'CATEGORY_DRIFT')).toMatchObject({ subject: 'Rent', baseline: 1600 });
+  });
+});

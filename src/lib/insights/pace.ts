@@ -15,6 +15,13 @@ import { round2 } from './stats';
 const MIN_ELAPSED = 0.25;
 /** A single prior year is an anecdote; two is the least that can average. */
 const MIN_SAME_MONTH = 2;
+/**
+ * The most recent years of the same month the baseline reads. Every prior
+ * year was a decade-old October on a long history, when rent and prices
+ * were far lower: on eleven years of it "a typical October ran" half of what
+ * October now costs, and an ordinary month read as double its norm.
+ */
+const SAME_MONTH_YEARS = 3;
 /** How far back the fallback reaches, and how much of it must be usable. */
 const TRAILING_WINDOW = 3;
 const MIN_TRAILING = 2;
@@ -147,7 +154,10 @@ export function computePace(input: {
   const comparable = priors.filter((p) => p.period < period && isComparableBaseline(p.coverage));
 
   const month = monthOf(period);
-  const sameMonth = comparable.filter((p) => monthOf(p.period) === month);
+  const sameMonth = comparable
+    .filter((p) => monthOf(p.period) === month)
+    .sort((a, b) => (a.period < b.period ? 1 : -1))
+    .slice(0, SAME_MONTH_YEARS);
   const trailing = [...comparable]
     .sort((a, b) => (a.period < b.period ? 1 : -1))
     .slice(0, TRAILING_WINDOW);
