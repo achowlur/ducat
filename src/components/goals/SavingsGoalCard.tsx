@@ -135,9 +135,10 @@ export function SavingsGoalCard({
               says whether it did. */}
           {g.observedFundGrowth !== null && (
             <p className="pt-1.5 text-[0.78rem] text-faint">
-              Cash itself {g.observedFundGrowth < 0 ? "shrank" : "grew"}{" "}
-              <span className="font-money tabular text-ink">~{money(Math.abs(g.observedFundGrowth))}</span>/mo over the
-              same months; the date assumes your full saving pace reaches it.
+              Your cash {g.observedFundGrowth < 0 ? "shrank" : "grew"}{" "}
+              <span className="font-money tabular text-ink">~{money(Math.abs(g.observedFundGrowth))}</span>/mo,{" "}
+              {g.observedFundGrowth < rate ? "not" : "at least"} the{" "}
+              <span className="font-money tabular">~{money(rate)}</span>/mo this date assumes.
             </p>
           )}
           <details className="group pt-2 text-[0.78rem] text-faint">

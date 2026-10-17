@@ -106,6 +106,11 @@ anything below; several entries record "tried and failed, don't retry".
   It is measured from the fund's month-end BALANCES (goalFunds.ts), never
   a sum of its transactions: an investment account counted as cash books
   trades and sweeps as rows.
+- House readiness LEADS with the verdict on the target house (its cash, when
+  the fund reaches it, its payment against the budget, over in the warning
+  ink), then what the plan affords today with the binding ceiling named; the
+  budget ledger and both ceilings are behind a tap. Estimates print in whole
+  dollars or $k, never cents.
 - House readiness is a READINESS signal, never lender math: the residual
   form (income − non-housing − declared floor) is canonical, non-housing is
   built PER MONTH before averaging, the binding ceiling is named
