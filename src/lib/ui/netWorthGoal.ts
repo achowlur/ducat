@@ -1,5 +1,6 @@
 import { round2 } from "../insights/stats";
-import type { OneOffPayItem } from "../../types/contracts";
+import type { PayItem } from "../../types/contracts";
+import type { PayChange, PayLevels, PendingPay } from "./payLevel";
 import { growthBetween, type NetWorthPoint } from "./netWorthGrowth";
 
 /**
@@ -58,8 +59,9 @@ import { growthBetween, type NetWorthPoint } from "./netWorthGrowth";
  * insights/oneOffPay.ts and carried on the CASH_FLOW_TREND rows): real
  * money, but averaged in it reads one bonus month as a monthly habit: two
  * bonuses in a six-month window raise its pace by a sixth of their total every
- * month. The panel names what it left out, and a bonus still too recent to
- * judge.
+ * month. The panel names what it left out. And it projects from pay as it
+ * is NOW (ui/payLevel.ts): six months after a raise most of the window still
+ * holds the old paychecks, so each counts at today's amount.
  *
  * The operator can SET either monthly figure instead, to ask "what if": the
  * whole saving pace (`monthlyPace`) and the part of it invested
@@ -276,7 +278,11 @@ export interface NetWorthGoalAssessment {
   /** Months in that window (its base included) partly estimated or leaving an account out. */
   paceUncertainMonths: number;
   /** One-off pay inside the pace window, left out of it. */
-  paceLeavesOut: OneOffPayItem[];
+  paceLeavesOut: PayItem[];
+  /** Pay changes the pace projects across its window: earlier paychecks counted at the new amount. */
+  payChanges: PayChange[];
+  /** Paychecks at a new amount not yet repeated: counted as themselves; the panel asks. */
+  payPending: PendingPay[];
   /** Invested money at the anchor, the part a return applies to; null when the row predates per-account values. */
   invested: number | null;
   /** The monthly deposit into invested money: the middle of the last three months; null without three months of flows. */
@@ -330,7 +336,7 @@ const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.l
  * month that counts different accounts (an account entering the sum is not
  * saving). Null when fewer than NET_WORTH_PACE_MIN_MONTHS remain.
  */
-function paceAt(months: readonly NetWorthMonth[], end: number, oneOffs: OneOffsByMonth) {
+function paceAt(months: readonly NetWorthMonth[], end: number, oneOffs: OneOffsByMonth, topUps: Readonly<Record<string, number>>) {
   let base = Math.max(0, end - NET_WORTH_PACE_MONTHS);
   for (let i = end; i >= base; i -= 1) {
     if (!sameSet(months[i].leftOut, months[end].leftOut)) {
@@ -342,19 +348,22 @@ function paceAt(months: readonly NetWorthMonth[], end: number, oneOffs: OneOffsB
   if (span < NET_WORTH_PACE_MIN_MONTHS) return null;
   const growth = growthBetween([...months], base, end);
   // One-off pay in the months the window adds (each month after its base).
-  const leftOut = months.slice(base + 1, end + 1).flatMap((m) => oneOffs[m.period] ?? []);
+  const window = months.slice(base + 1, end + 1);
+  const leftOut = window.flatMap((m) => oneOffs[m.period] ?? []);
   const extra = leftOut.reduce((sum, o) => sum + o.amount, 0);
+  // Earlier paychecks counted at today's pay.
+  const toppedUp = window.reduce((sum, m) => sum + (topUps[m.period] ?? 0), 0);
   return {
     base,
     months: span,
-    perMonth: round2((growth.saved - extra) / span),
+    perMonth: round2((growth.saved - extra + toppedUp) / span),
     uncertain: growth.uncertainMonths,
     leftOut,
   };
 }
 
 /** One-off pay by month ("2026-08"), as the CASH_FLOW_TREND rows carry it. */
-export type OneOffsByMonth = Readonly<Record<string, readonly OneOffPayItem[]>>;
+export type OneOffsByMonth = Readonly<Record<string, readonly PayItem[]>>;
 
 /** Months the deposit is read over: its middle is the monthly amount. */
 export const DEPOSIT_MONTHS = 3;
@@ -649,10 +658,13 @@ export function assessNetWorthGoal(input: {
   monthlySpending?: readonly number[];
   /** One-off pay by month: left out of the pace. */
   oneOffs?: OneOffsByMonth;
+  /** Pay as it is now: earlier paychecks in the window count at it. */
+  pay?: PayLevels;
 }): NetWorthGoalAssessment {
   const { goal, liveNetWorth, months, investedIds } = input;
   const cashAccounts = input.cashAccounts ?? [];
   const oneOffs = input.oneOffs ?? {};
+  const topUps = input.pay?.topUps ?? {};
   const netWorth = round2(liveNetWorth);
 
   const investedAt = (m: NetWorthMonth): number | null =>
@@ -662,7 +674,7 @@ export function assessNetWorthGoal(input: {
 
   const basisAt = (end: number): GoalBasis | null => {
     if (end < 0) return null;
-    const pace = paceAt(months, end, oneOffs);
+    const pace = paceAt(months, end, oneOffs, topUps);
     if (pace === null) return null;
     const cash = cashYieldAt(months, end, pace.base, cashAccounts);
     return {
@@ -679,7 +691,7 @@ export function assessNetWorthGoal(input: {
     };
   };
   const cashAt = (end: number) => {
-    const pace = end < 0 ? null : paceAt(months, end, oneOffs);
+    const pace = end < 0 ? null : paceAt(months, end, oneOffs, topUps);
     if (pace === null) return null;
     const c = cashYieldAt(months, end, pace.base, cashAccounts);
     return c === null ? null : { accounts: c.accounts, nominalPct: c.nominalPct, realPct: c.realPct };
@@ -705,6 +717,7 @@ export function assessNetWorthGoal(input: {
         );
   const latest = end < 0 ? null : depositIn(months[end], investedIds);
   const cash = cashAt(end);
+  const paceNow = basis === null ? null : paceAt(months, end, oneOffs, topUps);
 
   return {
     goal,
@@ -718,7 +731,11 @@ export function assessNetWorthGoal(input: {
     previousPace: previousBasis?.pace ?? null,
     paceMonths: basis?.paceMonths ?? 0,
     paceUncertainMonths: basis?.paceUncertainMonths ?? 0,
-    paceLeavesOut: end < 0 || basis === null ? [] : (paceAt(months, end, oneOffs)?.leftOut ?? []),
+    paceLeavesOut: paceNow?.leftOut ?? [],
+    // A change the window still holds paychecks from before: the pace counts them at the new amount.
+    payChanges:
+      paceNow === null ? [] : (input.pay?.changes ?? []).filter((c) => c.since.slice(0, 7) > months[paceNow.base].period),
+    payPending: input.pay?.pending ?? [],
     invested: basis?.invested ?? null,
     contribution: basis?.contribution ?? null,
     contributionYearAgo: end - 12 < 0 ? null : depositAt(months, end - 12, investedIds),

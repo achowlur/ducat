@@ -466,6 +466,7 @@ describe('computeCashFlowTrend', () => {
       spendingDeltaPct: 0.5,
       oneOffIncome: 0,
       oneOffPay: [],
+      paychecks: [],
     });
   });
 });

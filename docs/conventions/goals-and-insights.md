@@ -516,3 +516,18 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   bonus or a big bill moved the pace less (the entry above); with one-off
   pay left out that reason is gone, and twelve only reached back into
   older, cheaper months, pay before a raise and spending not yet imported.
+  (5) Raises, the same day. The operator asked how to tell Ducat a new pay
+  is the pay going forward, and noted two bonuses in consecutive months must
+  never read as one. Two things changed. A raise's first paycheck had been
+  left out as unsettled extra pay until it repeated: wrong, since a deposit
+  where a paycheck should be IS the paycheck, so only EXTRA pay (beside or
+  between paydays) is ever a one-off, settled at once, and the in-view
+  "Unexpected pay" flag went with it. And a six-month average reflects a
+  raise a sixth at a time, so the paces project from pay as it is NOW
+  (payLevel.ts): CASH_FLOW_TREND rows carry each month's paychecks, and once
+  the newest paycheck amount repeats, or the operator presses "This is my
+  new pay" on the panel (Setting pay.newPay), every earlier paycheck counts
+  at the new amount, its difference a TOP-UP in its month, for the net worth
+  pace, the savings goal's pace and readiness income alike; a cut the same
+  way. Until then a new amount counts as itself, and only a paycheck ever
+  asks.

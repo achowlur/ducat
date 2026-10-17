@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { saveNetWorthGoal } from "../app/insights/actions";
+import { confirmNewPay, saveNetWorthGoal } from "../app/insights/actions";
 import { ACTION_DID_NOT_COMPLETE } from "../lib/ui/boundaryCopy";
 import { money, monthLabel, shortDateYear, titleCase } from "../lib/ui/format";
 import { wholePercents } from "../lib/ui/spendingBreakdown";
@@ -561,18 +561,36 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
         </p>
       )}
 
-      {/* Pay the paydays have not judged yet: left out of the pace as a
-          one-off, said in view so a raise is never quietly ignored. */}
+      {/* A paycheck at a new amount: counted as itself until it repeats, or
+          until the operator says it is the new pay. Only a PAYCHECK asks; a
+          bonus beside one never does. */}
       {g.basis !== null &&
-        g.paceLeavesOut
-          .filter((o) => !o.settled)
-          .map((o) => (
-            <p key={`unsettled:${o.date}:${o.amount}`} className="pt-1.5 text-[0.78rem] leading-relaxed text-[color:var(--warn-ink)]">
-              Unexpected pay: <span className="font-money tabular">{money(o.amount)}</span> from {titleCase(o.payer)} on{" "}
-              {shortDateYear(new Date(`${o.date}T12:00:00Z`))}. It is left out of your saving as a
-              one-off, like a bonus; if it comes with your next paychecks too, it will count as regular pay.
-            </p>
-          ))}
+        g.payPending.map((p) => (
+          <p key={`pending:${p.payer}:${p.date}`} className="pt-1.5 text-[0.78rem] leading-relaxed text-[color:var(--warn-ink)]">
+            Your paycheck from {titleCase(p.payer)} on {shortDateYear(new Date(`${p.date}T12:00:00Z`))} came to{" "}
+            <span className="font-money tabular">{money(p.amount)}</span>, {p.amount > p.from ? "up" : "down"} from{" "}
+            <span className="font-money tabular">{money(p.from)}</span>. It counts as it is; if it is your new pay, the
+            dates can project from it now, and otherwise once it repeats.{" "}
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                setFailure(null);
+                startTransition(async () => {
+                  try {
+                    const result = await confirmNewPay({ payer: p.payer, date: p.date });
+                    if (!result.ok) setFailure(result.message);
+                  } catch {
+                    setFailure(ACTION_DID_NOT_COMPLETE);
+                  }
+                });
+              }}
+              className={`${CONTROL} tap44 border-rule text-ink hover:border-acc hover:text-acc`}
+            >
+              This is my new pay
+            </button>
+          </p>
+        ))}
 
       {/* What the reader must be able to discount stays in view. */}
       {g.unmatchedDeposit !== null && pct > 0 && invest === null && (
@@ -626,6 +644,15 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
                   .
                 </>
               )}
+              {g.payChanges.map((c) => (
+                <span key={`change:${c.payer}:${c.since}`}>
+                  {" "}
+                  It projects your pay as it is now: <span className="font-money tabular">{money(c.to)}</span> a
+                  paycheck from {titleCase(c.payer)} since {shortDateYear(new Date(`${c.since}T12:00:00Z`))}
+                  {c.told ? ", as you said" : ""}, {c.to > c.from ? "up" : "down"} from{" "}
+                  <span className="font-money tabular">{money(c.from)}</span>, so the earlier paychecks count at it.
+                </span>
+              ))}
             </p>
             {(invest !== null || paceSet !== null) && basis !== null && (
               <p>

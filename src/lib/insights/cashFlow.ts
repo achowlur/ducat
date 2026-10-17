@@ -1,5 +1,5 @@
 import type { CashFlowTrendPayload, PeriodGranularity } from '../../types/contracts';
-import { oneOffPay } from './oneOffPay';
+import { judgePay, type PayDeposit } from './oneOffPay';
 import { inPeriod, previousPeriodKey } from './periods';
 import { isReimbursement, reimbursementCredits, type ReimbursementCredit } from './reimbursements';
 import { pctDelta, round2 } from './stats';
@@ -31,11 +31,12 @@ export function computeCashFlowTrend(
   const credits = reimbursementCredits(txns);
   // Judged over the whole history: whether pay repeats is a question about
   // the paydays around it, which other periods hold.
-  const oneOffs = oneOffPay(txns);
+  const pay = judgePay(txns);
+  const item = (o: PayDeposit) => ({ date: o.date.toISOString().slice(0, 10), amount: o.amount, payer: o.payer });
   const result = new Map<string, CashFlowTrendPayload>();
   for (const key of periods) {
     const current = flowsFor(txns, credits, key);
-    const extra = oneOffs.filter((o) => inPeriod(o.date, key));
+    const extra = pay.oneOffs.filter((o) => inPeriod(o.date, key));
     const prevKey = previousPeriodKey(key);
     const previous = periods.includes(prevKey) ? flowsFor(txns, credits, prevKey) : null;
     result.set(key, {
@@ -49,7 +50,8 @@ export function computeCashFlowTrend(
       incomeDeltaPct: pctDelta(current.income, previous === null ? null : previous.income),
       spendingDeltaPct: pctDelta(current.spending, previous === null ? null : previous.spending),
       oneOffIncome: round2(extra.reduce((sum, o) => sum + o.amount, 0)),
-      oneOffPay: extra.map((o) => ({ date: o.date.toISOString().slice(0, 10), amount: o.amount, payer: o.payer, settled: o.settled })),
+      oneOffPay: extra.map(item),
+      paychecks: pay.paychecks.filter((o) => inPeriod(o.date, key)).map(item),
     });
   }
   return result;

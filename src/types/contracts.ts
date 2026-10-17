@@ -122,16 +122,17 @@ export interface CashFlowTrendPayload {
    * pace and of house readiness. Absent on payloads stored before 2026-10-17.
    */
   oneOffIncome?: number;
-  /** Those deposits; `settled` false while later paydays could still make one regular pay. */
-  oneOffPay?: OneOffPayItem[];
+  /** Those deposits. */
+  oneOffPay?: PayItem[];
+  /** The period's PAYCHECKS, from payers paying on a schedule: what the paces project from at the current amount (ui/payLevel.ts). */
+  paychecks?: PayItem[];
 }
 
-export interface OneOffPayItem {
+export interface PayItem {
   /** Day it landed, "2026-08-21". */
   date: string;
   amount: number;
   payer: string;
-  settled: boolean;
 }
 
 export interface RecurringChargePayload {

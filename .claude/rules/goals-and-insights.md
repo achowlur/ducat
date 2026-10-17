@@ -78,8 +78,13 @@ anything below; several entries record "tried and failed, don't retry".
   amount (within 2%) on 3 of the 8 paydays around it; a deposit standing
   where a paycheck should be IS the paycheck; interest and dividends are
   never judged. It stays in income and cash flow but is LEFT OUT of every
-  saving pace and of readiness income, and the screens say so; one too
-  recent to judge is left out AND flagged in view until the paydays decide.
+  saving pace and of readiness income, and the screens say so. A deposit
+  where a paycheck should be IS the paycheck, a raise counting the day it
+  lands; a bonus beside one never asks and never reads as a raise.
+- The paces project from pay as it is NOW (ui/payLevel.ts): once a new
+  paycheck amount repeats, or the operator presses "This is my new pay"
+  (Setting pay.newPay), every earlier paycheck counts at it (a cut too);
+  until then the new amount counts as itself and the panel asks.
 - "Counts as cash" is a Setting (cash.additionalAccountIds via
   accounts:cash), never an account-type change — retyping breaks net worth.
 - npm run goals --add is NOT idempotent (slugs dedupe, content does not):

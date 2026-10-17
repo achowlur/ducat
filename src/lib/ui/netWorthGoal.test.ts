@@ -357,8 +357,8 @@ describe('one-off pay', () => {
   // Invented: $1,000 saved a month, and two $3,000 bonuses inside the year.
   const months = history({ count: 15, last: '2026-09', start: 80000, saved: (i) => (i === 10 || i === 12 ? 4000 : 1000) });
   const bonuses = {
-    [months[10].period]: [{ date: `${months[10].period}-21`, amount: 3000, payer: 'harbor works payroll', settled: true }],
-    [months[12].period]: [{ date: `${months[12].period}-18`, amount: 3000, payer: 'harbor works payroll', settled: false }],
+    [months[10].period]: [{ date: `${months[10].period}-21`, amount: 3000, payer: 'harbor works payroll' }],
+    [months[12].period]: [{ date: `${months[12].period}-18`, amount: 3000, payer: 'harbor works payroll' }],
   };
 
   it('is left out of the pace, and named', () => {
@@ -366,11 +366,30 @@ describe('one-off pay', () => {
     const left = assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months, investedIds, oneOffs: bonuses });
     expect(counted.pace).toBe(2000);
     expect(left.pace).toBe(1000);
-    expect(left.paceLeavesOut.map((o) => [o.amount, o.settled])).toEqual([
-      [3000, true],
-      [3000, false],
-    ]);
+    expect(left.paceLeavesOut.map((o) => o.amount)).toEqual([3000, 3000]);
     expect(left.saving!.lands! > counted.saving!.lands!).toBe(true);
+  });
+});
+
+describe('pay as it is now', () => {
+  // Invented: $1,000 saved a month on pay that rose by $200 a month two
+  // months before the anchor; the four months before count at the new pay.
+  const months = history({ count: 15, last: '2026-09', start: 80000, saved: 1000 });
+  const raise = {
+    topUps: Object.fromEntries(months.slice(9, 13).map((m) => [m.period, 200])),
+    changes: [{ payer: 'harbor works payroll', from: 2000, to: 2100, since: '2026-08-01', told: false }],
+    pending: [],
+  };
+
+  it('counts the earlier paychecks in the window at the new pay, and says so', () => {
+    const g = assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months, investedIds, pay: raise });
+    expect(g.pace).toBe(1133.33); // 1,000 + 4 × 200 / 6
+    expect(g.payChanges).toEqual(raise.changes);
+  });
+
+  it('names no change the window no longer reaches', () => {
+    const old = { ...raise, topUps: {}, changes: [{ ...raise.changes[0], since: '2025-01-01' }] };
+    expect(assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months, investedIds, pay: old }).payChanges).toEqual([]);
   });
 });
 
