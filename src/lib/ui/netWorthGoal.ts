@@ -36,12 +36,19 @@ import { growthBetween, type NetWorthPoint } from "./netWorthGrowth";
  * changes silently. That much compounds with the invested balance; the rest
  * of the pace is counted as cash.
  *
- * The operator can SET the monthly amount instead (`monthlyInvest`), to ask
- * what investing more or less would do. What they save in cash stays as
- * measured (the pace less the measured deposit) and the amount they set is
- * added to it, so both dates move: investing more is saving more
- * (withDeposit). Set to the measured amount, it clears, and the deposit
- * follows the data again.
+ * The operator can SET either monthly figure instead, to ask "what if":
+ * the amount invested (`monthlyInvest`) and the whole saving pace
+ * (`monthlyPace`). A typed investing amount alone keeps what they save in
+ * cash as measured and is added to it, so both dates move: investing more is
+ * saving more. A typed pace is the whole of it, the investing its part
+ * (withSaving). Set back to the measured figure, each clears and follows the
+ * data again.
+ *
+ * Today's dollars ASSUME the saving rises with inflation: a pace held level
+ * in real terms is a deposit that grows in actual dollars every year. Left
+ * at the same dollar amount it buys less each year and the dates slip, so
+ * the panel compares the deposit with a year ago against an assumed 3%
+ * (ASSUMED_INFLATION_PCT, keepingUp) and says when it has fallen behind.
  *
  * Dates are projected from the last COMPLETE month-end, never the live
  * balance, so they hold still through a month instead of moving with every
@@ -67,7 +74,17 @@ export interface NetWorthGoal {
   returnSetOn?: string;
   /** Dollars a month into invested money, set by the operator in place of the measured deposit. Absent: the measured deposit. */
   monthlyInvest?: number;
+  /** Dollars saved a month in all, set by the operator in place of the measured pace. Absent: the measured pace. */
+  monthlyPace?: number;
 }
+
+/**
+ * The inflation the panel assumes when it says what today's dollars ask of
+ * the operator, in percent a year. The dates do not use it (they are in
+ * today's dollars); the note and the keeping-up check do, behind the ASSUMED
+ * chip. Near the long-run US average.
+ */
+export const ASSUMED_INFLATION_PCT = 3;
 
 /** The largest monthly amount a save accepts: past it a projection is noise. */
 export const MAX_MONTHLY_INVEST = 1e9;
@@ -97,11 +114,15 @@ export function parseNetWorthGoal(raw: string | null): NetWorthGoal | null {
     const invest = g.monthlyInvest;
     const validInvest = typeof invest === "number" && Number.isFinite(invest) && invest >= 0 && invest <= MAX_MONTHLY_INVEST;
     if (invest !== undefined && !validInvest) return null;
+    const pace = g.monthlyPace;
+    const validPace = typeof pace === "number" && Number.isFinite(pace) && Math.abs(pace) <= MAX_MONTHLY_INVEST;
+    if (pace !== undefined && !validPace) return null;
     return {
       target: g.target,
       ...(validPct ? { realReturnPct: pct as number } : {}),
       ...(typeof g.returnSetOn === "string" ? { returnSetOn: g.returnSetOn } : {}),
       ...(validInvest ? { monthlyInvest: invest as number } : {}),
+      ...(validPace ? { monthlyPace: pace as number } : {}),
     };
   } catch {
     return null;
@@ -149,6 +170,8 @@ export interface NetWorthGoalAssessment {
   invested: number | null;
   /** The monthly deposit into invested money: the middle of the last three months; null without three months of flows. */
   contribution: number | null;
+  /** The same deposit a year before the anchor, for the keeping-up check; null when it cannot be measured. */
+  contributionYearAgo: number | null;
   /** The same, a month earlier; null when it cannot be measured. */
   previousContribution: number | null;
   /**
@@ -304,15 +327,41 @@ export interface GoalBasis {
   contribution: number | null;
 }
 
+/** The monthly figures the operator set in place of the measured ones; absent ones follow the data. */
+export interface SavingOverrides {
+  monthlyInvest?: number;
+  monthlyPace?: number;
+}
+
 /**
- * The basis with the monthly deposit the operator SET in place of the
- * measured one. What they save in cash (the pace less the measured deposit)
- * holds, and the amount set is added to it: investing $500 more a month is
- * saving $500 more. Undefined leaves the basis as measured.
+ * The basis with the figures the operator SET. A typed pace is the whole of
+ * what is saved, the deposit its invested part. A typed deposit alone keeps
+ * the cash saving (the pace less the measured deposit) and is added to it:
+ * investing $500 more a month is saving $500 more. Nothing set leaves the
+ * basis as measured.
  */
-export function withDeposit(b: GoalBasis, monthlyInvest: number | undefined): GoalBasis {
-  if (monthlyInvest === undefined) return b;
-  return { ...b, pace: round2(b.pace - (b.contribution ?? 0) + monthlyInvest), contribution: monthlyInvest };
+export function withSaving(b: GoalBasis, set: SavingOverrides): GoalBasis {
+  const contribution = set.monthlyInvest ?? b.contribution;
+  const pace =
+    set.monthlyPace ??
+    (set.monthlyInvest === undefined ? b.pace : round2(b.pace - (b.contribution ?? 0) + set.monthlyInvest));
+  return pace === b.pace && contribution === b.contribution ? b : { ...b, pace, contribution };
+}
+
+/**
+ * Has the monthly deposit kept up with inflation over the past year? What
+ * today's dollars assume: a deposit at the same dollar amount buys less each
+ * year, and a projection holding it level in real terms quietly counts on a
+ * raise. `needed` is a year-old deposit grown by the assumed inflation.
+ */
+export function keepingUp(
+  now: number,
+  yearAgo: number,
+  inflationPct: number = ASSUMED_INFLATION_PCT,
+): { needed: number; changePct: number; behind: boolean } {
+  const needed = round2(yearAgo * (1 + inflationPct / 100));
+  const changePct = yearAgo === 0 ? 0 : Math.round(((now - yearAgo) / yearAgo) * 100);
+  return { needed, changePct, behind: now < needed - 0.005 };
 }
 
 /** Months later (+) or sooner (−); null when either landing is missing. */
@@ -375,7 +424,7 @@ export function returnToSlider(pct: number): number {
  */
 export function nextNetWorthGoal(
   stored: NetWorthGoal | null,
-  input: { target: number; realReturnPct: number; monthlyInvest: number | null },
+  input: { target: number; realReturnPct: number; monthlyInvest: number | null; monthlyPace: number | null },
   today: string,
 ): { ok: true; goal: NetWorthGoal } | { ok: false; message: string } {
   if (!Number.isFinite(input.target) || input.target <= 0) {
@@ -389,8 +438,15 @@ export function nextNetWorthGoal(
   if (invest !== null && (!Number.isFinite(invest) || invest < 0 || invest > MAX_MONTHLY_INVEST)) {
     return { ok: false, message: "The monthly amount has to be a dollar amount of zero or more." };
   }
+  const pace = input.monthlyPace;
+  if (pace !== null && (!Number.isFinite(pace) || Math.abs(pace) > MAX_MONTHLY_INVEST)) {
+    return { ok: false, message: "The monthly saving has to be a dollar amount." };
+  }
   const target = round2(input.target);
-  const monthly = invest === null ? {} : { monthlyInvest: round2(invest) };
+  const monthly = {
+    ...(invest === null ? {} : { monthlyInvest: round2(invest) }),
+    ...(pace === null ? {} : { monthlyPace: round2(pace) }),
+  };
   if (input.realReturnPct === 0) return { ok: true, goal: { target, ...monthly } };
   const unchanged = stored?.realReturnPct === input.realReturnPct && stored.returnSetOn !== undefined;
   return {
@@ -441,14 +497,15 @@ export function assessNetWorthGoal(input: {
   const basis = basisAt(end);
   const previousBasis = basis === null ? null : basisAt(end - 1);
   const reached = netWorth >= goal.target;
-  // A monthly amount the operator set moves both dates; the pace and deposit
-  // reported stay the measured ones, which the panel prints beside it.
+  // Monthly figures the operator set move both dates; the pace and deposit
+  // reported stay the measured ones, which the panel prints beside them.
+  const set: SavingOverrides = { monthlyInvest: goal.monthlyInvest, monthlyPace: goal.monthlyPace };
   const projection =
     basis === null || reached
       ? null
       : projectGoal(
-          withDeposit(basis, goal.monthlyInvest),
-          previousBasis === null ? null : withDeposit(previousBasis, goal.monthlyInvest),
+          withSaving(basis, set),
+          previousBasis === null ? null : withSaving(previousBasis, set),
           goal.target,
           goal.realReturnPct,
         );
@@ -468,6 +525,7 @@ export function assessNetWorthGoal(input: {
     paceUncertainMonths: basis?.paceUncertainMonths ?? 0,
     invested: basis?.invested ?? null,
     contribution: basis?.contribution ?? null,
+    contributionYearAgo: end - 12 < 0 ? null : depositAt(months, end - 12, investedIds),
     previousContribution: previousBasis?.contribution ?? null,
     unmatchedDeposit:
       latest === null || basis?.contribution == null || sameDeposit(latest, basis.contribution) ? null : latest,

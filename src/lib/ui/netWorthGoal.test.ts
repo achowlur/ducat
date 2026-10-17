@@ -9,7 +9,8 @@ import {
   projectGoal,
   returnToSlider,
   sliderToReturn,
-  withDeposit,
+  keepingUp,
+  withSaving,
   type NetWorthMonth,
 } from "./netWorthGoal";
 
@@ -242,34 +243,34 @@ describe('nextNetWorthGoal, what a save from the panel writes', () => {
   const stored = { target: 1000000, realReturnPct: 5, returnSetOn: '2026-03-02' };
 
   it('keeps the day a return was set while only the target moves', () => {
-    expect(nextNetWorthGoal(stored, { target: 750000, realReturnPct: 5, monthlyInvest: null }, '2026-10-16')).toEqual({
+    expect(nextNetWorthGoal(stored, { target: 750000, realReturnPct: 5, monthlyInvest: null, monthlyPace: null }, '2026-10-16')).toEqual({
       ok: true,
       goal: { target: 750000, realReturnPct: 5, returnSetOn: '2026-03-02' },
     });
   });
 
   it('dates a changed return today, and clears it at zero', () => {
-    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 6.5, monthlyInvest: null }, '2026-10-16')).toEqual({
+    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 6.5, monthlyInvest: null, monthlyPace: null }, '2026-10-16')).toEqual({
       ok: true,
       goal: { target: 1000000, realReturnPct: 6.5, returnSetOn: '2026-10-16' },
     });
-    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 0, monthlyInvest: null }, '2026-10-16')).toEqual({
+    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 0, monthlyInvest: null, monthlyPace: null }, '2026-10-16')).toEqual({
       ok: true,
       goal: { target: 1000000 },
     });
   });
 
   it('stores a monthly amount the operator sets, with or without a return, and clears it on null', () => {
-    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 5, monthlyInvest: 2000 }, '2026-10-16')).toEqual({
+    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 5, monthlyInvest: 2000, monthlyPace: null }, '2026-10-16')).toEqual({
       ok: true,
       goal: { target: 1000000, realReturnPct: 5, returnSetOn: '2026-03-02', monthlyInvest: 2000 },
     });
-    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 0, monthlyInvest: 0 }, '2026-10-16')).toEqual({
+    expect(nextNetWorthGoal(stored, { target: 1000000, realReturnPct: 0, monthlyInvest: 0, monthlyPace: null }, '2026-10-16')).toEqual({
       ok: true,
       goal: { target: 1000000, monthlyInvest: 0 },
     });
     const set = { ...stored, monthlyInvest: 2000 };
-    expect(nextNetWorthGoal(set, { target: 1000000, realReturnPct: 5, monthlyInvest: null }, '2026-10-16')).toEqual({
+    expect(nextNetWorthGoal(set, { target: 1000000, realReturnPct: 5, monthlyInvest: null, monthlyPace: null }, '2026-10-16')).toEqual({
       ok: true,
       goal: stored,
     });
@@ -284,12 +285,12 @@ describe('nextNetWorthGoal, what a save from the panel writes', () => {
 
   it('refuses what it cannot project, with a sentence for the person', () => {
     for (const input of [
-      { target: 0, realReturnPct: 5, monthlyInvest: null },
-      { target: Number.NaN, realReturnPct: 5, monthlyInvest: null },
-      { target: 1000000, realReturnPct: -1, monthlyInvest: null },
-      { target: 1000000, realReturnPct: 120, monthlyInvest: null },
-      { target: 1000000, realReturnPct: 5, monthlyInvest: -50 },
-      { target: 1000000, realReturnPct: 5, monthlyInvest: Number.NaN },
+      { target: 0, realReturnPct: 5, monthlyInvest: null, monthlyPace: null },
+      { target: Number.NaN, realReturnPct: 5, monthlyInvest: null, monthlyPace: null },
+      { target: 1000000, realReturnPct: -1, monthlyInvest: null, monthlyPace: null },
+      { target: 1000000, realReturnPct: 120, monthlyInvest: null, monthlyPace: null },
+      { target: 1000000, realReturnPct: 5, monthlyInvest: -50, monthlyPace: null },
+      { target: 1000000, realReturnPct: 5, monthlyInvest: Number.NaN, monthlyPace: null },
     ]) {
       const r = nextNetWorthGoal(stored, input, '2026-10-16');
       expect(r.ok).toBe(false);
@@ -305,10 +306,10 @@ describe('a monthly amount the operator sets', () => {
 
   it('replaces the measured deposit and keeps the cash saving: investing more is saving more', () => {
     expect(g.basis!.contribution).toBe(400);
-    const more = withDeposit(g.basis!, 1400);
+    const more = withSaving(g.basis!, { monthlyInvest: 1400 });
     expect(more.contribution).toBe(1400);
     expect(more.pace).toBe(g.basis!.pace + 1000);
-    expect(withDeposit(g.basis!, undefined)).toBe(g.basis);
+    expect(withSaving(g.basis!, {})).toBe(g.basis);
   });
 
   it('brings both dates nearer when it rises, and the server agrees with the panel', () => {
@@ -323,7 +324,12 @@ describe('a monthly amount the operator sets', () => {
     // The figures the working-out prints stay the measured ones.
     expect(set.contribution).toBe(400);
     expect(set.pace).toBe(g.pace);
-    const panel = projectGoal(withDeposit(set.basis!, 1400), withDeposit(set.previousBasis!, 1400), 300000, 5);
+    const panel = projectGoal(
+      withSaving(set.basis!, { monthlyInvest: 1400 }),
+      withSaving(set.previousBasis!, { monthlyInvest: 1400 }),
+      300000,
+      5,
+    );
     expect(panel).toEqual({ saving: set.saving, markets: set.markets });
   });
 
@@ -336,6 +342,47 @@ describe('a monthly amount the operator sets', () => {
       investedIds,
     });
     expect(set.saving!.shift).toBe(0);
+  });
+});
+
+describe('a monthly saving pace the operator sets', () => {
+  const months = history({ count: 15, last: '2026-09', start: 80000, saved: 1000, flows: () => ({ invested: 400 }) });
+  const g = assessNetWorthGoal({ goal: { target: 300000, realReturnPct: 5 }, liveNetWorth: 94000, months, investedIds });
+
+  it('is the whole of what is saved, the deposit its invested part', () => {
+    expect(withSaving(g.basis!, { monthlyPace: 1500 })).toMatchObject({ pace: 1500, contribution: 400 });
+    expect(withSaving(g.basis!, { monthlyPace: 1500, monthlyInvest: 900 })).toMatchObject({ pace: 1500, contribution: 900 });
+  });
+
+  it('moves the dates the server prints, and round-trips through the Setting', () => {
+    const goal = { target: 300000, realReturnPct: 5, monthlyPace: 2000 };
+    const set = assessNetWorthGoal({ goal, liveNetWorth: 94000, months, investedIds });
+    expect(set.saving!.lands! < g.saving!.lands!).toBe(true);
+    expect(set.pace).toBe(g.pace);
+    expect(parseNetWorthGoal(JSON.stringify(goal))).toEqual(goal);
+    expect(
+      nextNetWorthGoal(null, { target: 300000, realReturnPct: 0, monthlyInvest: null, monthlyPace: 2000 }, '2026-10-17'),
+    ).toEqual({ ok: true, goal: { target: 300000, monthlyPace: 2000 } });
+  });
+});
+
+describe('keeping up with inflation', () => {
+  it('flags a deposit that has not grown by the assumed 3% in a year', () => {
+    expect(keepingUp(1000, 1000)).toEqual({ needed: 1030, changePct: 0, behind: true });
+    expect(keepingUp(1020, 1000).behind).toBe(true);
+  });
+
+  it('is satisfied by a raise at or above it', () => {
+    expect(keepingUp(1030, 1000).behind).toBe(false);
+    expect(keepingUp(1235, 1150)).toMatchObject({ changePct: 7, behind: false });
+  });
+
+  it('measures the deposit a year before the anchor', () => {
+    const months = history({ count: 16, last: '2026-09', start: 80000, saved: 1000, flows: () => ({ invested: 400 }) });
+    const g = assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months, investedIds });
+    expect(g.contributionYearAgo).toBe(400);
+    const short = assessNetWorthGoal({ goal: { target: 300000 }, liveNetWorth: 94000, months: months.slice(-12), investedIds });
+    expect(short.contributionYearAgo).toBeNull();
   });
 });
 
@@ -357,7 +404,7 @@ describe('the return slider', () => {
 
   it('lets the panel save anything the slider can reach', () => {
     for (let position = 0; position <= 1000; position += 37) {
-      const r = nextNetWorthGoal(null, { target: 1000000, realReturnPct: sliderToReturn(position), monthlyInvest: null }, '2026-10-16');
+      const r = nextNetWorthGoal(null, { target: 1000000, realReturnPct: sliderToReturn(position), monthlyInvest: null, monthlyPace: null }, '2026-10-16');
       expect(r.ok).toBe(true);
     }
   });

@@ -94,8 +94,12 @@ async function netWorthGoal(): Promise<void> {
     const target = targetArg !== undefined ? Number(targetArg) : stored?.target;
     if (target === undefined) return fail("--target is required for a new net worth goal (dollars, in today's money).");
     if (!Number.isFinite(target) || target <= 0) return fail('--target must be a positive dollar amount.');
-    // The monthly amount is set on the panel; the command keeps it.
-    let goal: NetWorthGoal = { target, ...(stored?.monthlyInvest !== undefined ? { monthlyInvest: stored.monthlyInvest } : {}) };
+    // The monthly figures are set on the panel; the command keeps them.
+    let goal: NetWorthGoal = {
+      target,
+      ...(stored?.monthlyInvest !== undefined ? { monthlyInvest: stored.monthlyInvest } : {}),
+      ...(stored?.monthlyPace !== undefined ? { monthlyPace: stored.monthlyPace } : {}),
+    };
     if (returnArg === undefined) {
       // Untouched: the stored return and the day it was typed both stand.
       if (stored?.realReturnPct !== undefined) {
@@ -139,6 +143,11 @@ async function netWorthGoal(): Promise<void> {
     current.monthlyInvest === undefined
       ? '  invested your usual monthly deposit, read from the data'
       : `  invested ${current.monthlyInvest.toFixed(2)} a month, set on /insights`,
+  );
+  console.log(
+    current.monthlyPace === undefined
+      ? '  saving   your measured pace, read from the data'
+      : `  saving   ${current.monthlyPace.toFixed(2)} a month, set on /insights`,
   );
 }
 

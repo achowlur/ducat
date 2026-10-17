@@ -99,6 +99,31 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   is not named while an amount is set: the panel is not using the measured
   one. On the demo, $2,500 a month in place of the measured $1,235 brought
   saving alone from 2052 to 2043 and the markets date from 2041 to 2037.
+  INFLATION, SAID OUT LOUD (2026-10-17). Reading the working-out, the
+  operator objected that $2,342 saved today is not $2,342 ten years from
+  now. The dates are in today's dollars, so they never add nominal dollars to
+  a real target; but that frame quietly ASSUMES the saving rises with
+  inflation, a deposit held level in buying power being one that grows in
+  actual dollars every year. Measured on the demo at 2.5%: cash losing its
+  value moved the dates from 2052 / 2041 to 2059 / 2042, and a saving kept
+  at the same dollar amount as well gave no saving-alone date inside fifty
+  years and 2044 with markets. Dropping inflation altogether was asked about
+  and refused: a nominal $1M with a nominal return of about 8% lands years
+  sooner on a target that then buys what about $650k does today. So the
+  frame stays, and what it asks is printed instead: at an ASSUMED 3% a year
+  (ASSUMED_INFLATION_PCT, near the long-run US average; the dates do not use
+  it), what the pace means in ten years and the target in the dollars of
+  the date on screen, in whole dollars, since cents on a figure grown by an
+  assumed rate claim a precision it lacks. And the operator asked to be TOLD
+  when to raise the investing: the deposit is compared with the same
+  deposit a year earlier (contributionYearAgo, the middle of the three
+  months a year before the anchor), and anything under 3% growth reads in
+  the warning ink with the amount that keeps up (keepingUp); at or above it
+  says so plainly. The SAVING PACE became a field at the same time, beside
+  the investing: typed, it is the whole of what is saved and the investing
+  is its part; untouched, it follows the data, moved by a typed investing
+  amount as before. Cash is still assumed to keep its value: close for a
+  high-yield savings account, generous for checking.
   Dates are projected from the last COMPLETE month-end, not the live
   balance: a live anchor would move the date with every day's markets, and
   the shift since last month would compare a month-end with a Tuesday.

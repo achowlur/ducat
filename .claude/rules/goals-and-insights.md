@@ -53,14 +53,17 @@ anything below; several entries record "tried and failed, don't retry".
   window, and a month that does not match is named; no return lives in
   code). Today's
   dollars; dates from the last complete month-end, each with its shift and
-  the pace a month before. Target, return and the amount invested a month
-  are CONTROLS on the panel: they re-project in the browser through
-  projectGoal (the server's own arithmetic) and save when they settle; a
-  shift always compares the SAME target, return and amount a month apart;
-  with no return set the slider sits at 0. The monthly amount defaults to
-  the measured deposit and follows it; a typed one replaces it, keeps the
-  cash saving as measured and moves BOTH dates (withDeposit), and typing
-  the measured amount clears it.
+  the pace a month before. Target, return, saving a month and the amount
+  invested a month are CONTROLS on the panel: they re-project in the
+  browser through projectGoal (the server's own arithmetic) and save when
+  they settle; a shift always compares the SAME settings a month apart;
+  with no return set the slider sits at 0. Each monthly figure defaults to
+  the measured one and follows it; typing the measured figure clears it.
+  A typed investing amount alone keeps the cash saving and moves BOTH
+  dates; a typed saving is the whole of it, the investing its part
+  (withSaving). The dates stay in TODAY'S dollars, never nominal; what
+  that assumes (saving rising with inflation) is SAID, at an ASSUMED 3%,
+  with the deposit checked against a year ago (keepingUp).
 - "Counts as cash" is a Setting (cash.additionalAccountIds via
   accounts:cash), never an account-type change — retyping breaks net worth.
 - npm run goals --add is NOT idempotent (slugs dedupe, content does not):
