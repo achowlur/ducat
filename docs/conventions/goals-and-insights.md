@@ -383,3 +383,17 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   the one-off, and other categories untouched. One existing test's anomaly had
   defaulted into the very category it measured; its intent — a recurring drift
   outranking a bigger one-off — now places that one-off in another category.
+- RECENT BASELINES (2026-10-16). The demo's history grew from two years to
+  eleven, and two baselines that read ALL history went stale on it. Category
+  drift took the median of every prior month with spending, so rent raised
+  each January read "Rent & Housing $1,850, against $1,600 in comparable
+  months, $3,000/yr if it holds" every month of the following year, and a
+  real history of several years showed the same shape in utilities, rising
+  with prices. The pace call took
+  every prior year of the same month, so "a typical October ran" a figure from
+  when rent and prices were far lower, and an ordinary month read as double
+  its norm. Drift now measures against a category's most recent twelve
+  periods with spending (digest.ts, DRIFT_BASELINE_PERIODS) and the pace call
+  against the same month of the most recent three years (pace.ts,
+  SAME_MONTH_YEARS). A year still holds a bounce; three Octobers still average
+  one odd one out. Both read the priors OLDEST first, as ofType returns them.

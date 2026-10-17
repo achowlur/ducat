@@ -37,6 +37,19 @@ describe('computePace', () => {
     expect(p.projected).toBeLessThan(1800 + 3500);
   });
 
+  // A decade of Julys, the old ones from when everything cost less: the
+  // baseline is the last three, not a median that reaches back to them.
+  it('reads only the most recent three years of the same month', () => {
+    const decade: PriorPeriod[] = Array.from({ length: 10 }, (_, i) => ({
+      period: `${2016 + i}-07`,
+      total: i < 7 ? 2000 : 4000 + 100 * i,
+    }));
+    const p = pace({ priors: decade });
+    expect(p.basis).toBe('SAME_MONTH');
+    expect(p.basisCount).toBe(3);
+    expect(p.typical).toBe(4800); // median of 4700, 4800, 4900
+  });
+
   it('REFUSES a pace call early in the month, but still states the facts', () => {
     const p = pace({ now: utc(2026, 7, 3), spentSoFar: 200 });
     expect(p.refusal).toBe('TOO_EARLY');
