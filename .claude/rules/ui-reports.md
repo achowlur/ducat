@@ -83,6 +83,9 @@ Overview:
   path (record solid in ink, each projection dashed in Trends' saved or
   markets colour, ending in a dot at the target), readable by tap or drag
   at any month; the working-out folds, anything to discount stays in view.
+  Below the chart, in view: the controls (a few words each), lines that
+  ask for an ACTION, one line of assumptions; everything else is behind the
+  tap. Never hover: it does not exist on a phone.
   A savings goal's record spans only its pace window and ends at TODAY's
   balance, where its projection starts (goalFunds.ts); a chart of three
   years or less is labelled by quarter (timeAxis.ts, goalAxisTicks).

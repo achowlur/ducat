@@ -67,9 +67,9 @@ anything below; several entries record "tried and failed, don't retry".
   MEASURED yield less that 3%: each cash account's yield from the interest
   and dividends it was PAID (NetWorthGrowthPayload.interestByAccount, the
   middle of its last three months against its month-start balance), NEVER
-  its change in value; accounts weighted by their average balance over the
-  pace window; both dates use it; a row predating the field holds cash
-  level. Cash beyond a month of SPENDING (never "what leaves the account")
+  its change in value; cash HELD earns at the month-end mix, NEW saving at
+  the mix averaged over the pace window (it waits in checking first); both
+  dates use it; a row predating the field holds cash level. Cash beyond a month of SPENDING (never "what leaves the account")
   in accounts paying nothing is named with what the best-paying cash
   account would earn on it (idleCashAt, live balances, IDLE_CASH_MIN).
 - ONE-OFF PAY (insights/oneOffPay.ts, CashFlowTrendPayload.oneOffIncome) is

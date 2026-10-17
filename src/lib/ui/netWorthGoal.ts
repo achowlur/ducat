@@ -28,12 +28,13 @@ import { growthBetween, type NetWorthPoint } from "./netWorthGrowth";
  * which a deposit or a fund it once held would pass off as earnings): the
  * middle of its last three months, against the balance it started each month
  * with. Less the assumed inflation, a checking account that pays nothing
- * loses about 3% a year and a money market about breaks even. The accounts
- * are weighted by where the cash SAT over the pace window, not today's
- * balance, since money moves between them in lumps, and new cash saving is
- * assumed to land in the same mix. Both dates use it: "saving alone" means
- * no market return, not cash that stands still in a world where prices
- * rise.
+ * loses about 3% a year and a money market about breaks even. Cash HELD at
+ * the month-end earns at where it sits then; NEW cash saving at where cash
+ * sat on average over the pace window, since it waits in checking until it
+ * moves in a lump. (One average for both read a balance moved into a money
+ * market last month as two-thirds there, not nineteen-twentieths.) Both
+ * dates use it: "saving alone" means no market return, not cash that stands
+ * still in a world where prices rise.
  *
  * Money waiting in an account that pays nothing is where that loss lands, so
  * the panel says when checking holds more than a month of spending (the
@@ -241,11 +242,17 @@ export function withCashMoved(b: GoalBasis, amount: number, nominalPct: number):
 
 /** Cash, as the projection treats it. */
 export interface CashYield {
-  /** Each cash account: its measured yearly yield before inflation (percent), and its share of where the cash sat. */
-  accounts: { id: string; name: string; nominalPct: number; share: number }[];
-  /** The mix, before and after the assumed inflation, in percent a year. */
+  /**
+   * Each cash account: its measured yearly yield before inflation (percent),
+   * its share of the cash held at the month-end, and its share of where cash
+   * sat over the pace window.
+   */
+  accounts: { id: string; name: string; nominalPct: number; share: number; habitShare: number }[];
+  /** Cash held: the mix at the month-end, before and after the assumed inflation, in percent a year. */
   nominalPct: number;
   realPct: number;
+  /** New saving: the mix over the window, after the assumed inflation. */
+  newRealPct: number;
 }
 
 export interface Projection {
@@ -412,6 +419,8 @@ function cashYieldAt(
   const sat = cashAccounts.map((a) => window.reduce((sum, m) => sum + Math.max(0, m.byAccount?.[a.id] ?? 0), 0) / window.length);
   const total = sat.reduce((sum, x) => sum + x, 0);
   if (total <= 0) return null;
+  const held = cashAccounts.map((a) => Math.max(0, months[end].byAccount?.[a.id] ?? 0));
+  const heldTotal = held.reduce((sum, x) => sum + x, 0);
   const accounts = cashAccounts.map((a, k) => {
     const rates: number[] = [];
     for (let i = end - DEPOSIT_MONTHS + 1; i <= end; i += 1) {
@@ -419,12 +428,25 @@ function cashYieldAt(
       if (start > 0) rates.push((months[i].interestByAccount?.[a.id] ?? 0) / start);
     }
     const middle = rates.length === 0 ? 0 : [...rates].sort((x, y) => x - y)[Math.floor(rates.length / 2)];
-    return { id: a.id, name: a.name, nominalPct: round2((Math.pow(1 + middle, 12) - 1) * 100), share: sat[k] / total };
+    return {
+      id: a.id,
+      name: a.name,
+      nominalPct: round2((Math.pow(1 + middle, 12) - 1) * 100),
+      // No cash held at all: it would sit as it has.
+      share: heldTotal > 0 ? held[k] / heldTotal : sat[k] / total,
+      habitShare: sat[k] / total,
+    };
   });
+  const real = (nominal: number) => round2(((1 + nominal / 100) / (1 + ASSUMED_INFLATION_PCT / 100) - 1) * 100);
   const nominalPct = round2(accounts.reduce((sum, a) => sum + a.share * a.nominalPct, 0));
-  const realPct = round2(((1 + nominalPct / 100) / (1 + ASSUMED_INFLATION_PCT / 100) - 1) * 100);
-  const balance = round2(cashAccounts.reduce((sum, a) => sum + Math.max(0, months[end].byAccount?.[a.id] ?? 0), 0));
-  return { accounts: accounts.filter((a) => a.share > 0), nominalPct, realPct, balance };
+  const newNominalPct = round2(accounts.reduce((sum, a) => sum + a.habitShare * a.nominalPct, 0));
+  return {
+    accounts: accounts.filter((a) => a.share > 0 || a.habitShare > 0),
+    nominalPct,
+    realPct: real(nominalPct),
+    newRealPct: real(newNominalPct),
+    balance: round2(heldTotal),
+  };
 }
 
 /** Two deposits are the same amount within a cent or 2%: a transfer's amount is set, not estimated. */
@@ -463,16 +485,21 @@ function simulate(
   visit: (t: number, value: number) => boolean,
 ): void {
   const market = realReturnPct === undefined || realReturnPct <= 0 ? 0 : monthlyRate(realReturnPct);
-  const cashRate = monthlyRate(b.cashRealPct);
+  const heldRate = monthlyRate(b.cashRealPct);
+  const newRate = monthlyRate(b.newCashRealPct);
   const known = b.invested !== null;
   const contribution = known ? (b.contribution ?? 0) : 0;
   let inv = known ? b.invested! : 0;
-  let cash = b.cash;
-  const other = b.netWorth - inv - cash;
+  // Cash held now earns where it sits; what is saved from here earns where
+  // saved cash tends to sit.
+  let held = b.cash;
+  let saved = 0;
+  const other = b.netWorth - inv - held;
   for (let t = 1; t <= months; t += 1) {
     inv = inv * (1 + market) + contribution;
-    cash = cash + (cash > 0 ? cash * cashRate : 0) + (b.pace - contribution);
-    if (visit(t, inv + cash + other)) return;
+    held += held > 0 ? held * heldRate : 0;
+    saved += (saved > 0 ? saved * newRate : 0) + (b.pace - contribution);
+    if (visit(t, inv + held + saved + other)) return;
   }
 }
 
@@ -509,8 +536,10 @@ export interface GoalBasis {
   contribution: number | null;
   /** Cash at the month-end, the part that earns `cashRealPct`; 0 when unmeasured. */
   cash: number;
-  /** What cash earns a year after the assumed inflation, in percent; 0 (held level) when unmeasured. */
+  /** What the cash held earns a year after the assumed inflation, in percent; 0 (held level) when unmeasured. */
   cashRealPct: number;
+  /** What new cash saving earns, the same way; 0 when unmeasured. */
+  newCashRealPct: number;
   /** The same before inflation; 0 when unmeasured. */
   cashNominalPct: number;
 }
@@ -687,6 +716,7 @@ export function assessNetWorthGoal(input: {
       contribution: depositAt(months, end, investedIds),
       cash: cash?.balance ?? 0,
       cashRealPct: cash?.realPct ?? 0,
+      newCashRealPct: cash?.newRealPct ?? 0,
       cashNominalPct: cash?.nominalPct ?? 0,
     };
   };
@@ -694,7 +724,7 @@ export function assessNetWorthGoal(input: {
     const pace = end < 0 ? null : paceAt(months, end, oneOffs, topUps);
     if (pace === null) return null;
     const c = cashYieldAt(months, end, pace.base, cashAccounts);
-    return c === null ? null : { accounts: c.accounts, nominalPct: c.nominalPct, realPct: c.realPct };
+    return c === null ? null : { accounts: c.accounts, nominalPct: c.nominalPct, realPct: c.realPct, newRealPct: c.newRealPct };
   };
 
   // The basis is measured even for a goal already reached: the panel's
