@@ -5,7 +5,7 @@ paths:
   - "src/lib/rates/**"
   - "src/lib/ui/{liquidity,insights,insightRows,periodNav}*.ts"
   - "src/app/insights/**"
-  - "scripts/{set-goals,set-readiness,set-cash-accounts,audit-subscriptions}.ts"
+  - "scripts/{set-goals,set-readiness,set-cash-accounts,audit-subscriptions,audit-figures}.ts"
 ---
 
 # Rules: goals, subscriptions & insights
@@ -117,6 +117,10 @@ anything below; several entries record "tried and failed, don't retry".
   runway divides by the MIDDLE of the window's EVERYDAY months
   (everydayAfterDay[0]), never a mean of totals, and a credit against a
   one-off leaves the everyday series with it.
+- A change to any projection is read back with `npm run audit:figures`
+  (a COPY of the newest verified backup, regenerated with the branch's
+  code, never DATABASE_URL) before it ships; its output is real figures and
+  stays out of every public text.
 - A cash goal prints its RECONCILIATION beside the projected landing —
   observed cash growth over the same window the rate averages — because the
   rate assumes every saved dollar stays in cash, and with a single goal
