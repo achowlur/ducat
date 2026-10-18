@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { confirmNewPay, saveNetWorthGoal } from "../app/insights/actions";
 import { ACTION_DID_NOT_COMPLETE } from "../lib/ui/boundaryCopy";
-import { money, monthLabel, shortDateYear } from "../lib/ui/format";
+import { money, monthLabel, shortDateYear, titleCase } from "../lib/ui/format";
 import { wholePercents } from "../lib/ui/spendingBreakdown";
 import {
   ASSUMED_INFLATION_PCT,
@@ -512,9 +512,20 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
       {g.basis !== null &&
         g.payPending.map((p) => (
           <p key={`pending:${p.payer}:${p.date}`} className={WARN_LINE}>
-            Your {shortDateYear(new Date(`${p.date}T12:00:00Z`))} paycheck was{" "}
-            <span className="font-money tabular">{money(p.amount)}</span>, {p.amount > p.from ? "up" : "down"} from{" "}
-            <span className="font-money tabular">{money(p.from)}</span>.{" "}
+            {p.replaces === undefined ? (
+              <>
+                Your {shortDateYear(new Date(`${p.date}T12:00:00Z`))} paycheck was{" "}
+                <span className="font-money tabular">{money(p.amount)}</span>, {p.amount > p.from ? "up" : "down"} from{" "}
+                <span className="font-money tabular">{money(p.from)}</span>.{" "}
+              </>
+            ) : (
+              <>
+                {/* A job change: the old payer stopped, this one started. */}
+                Pay from {titleCase(p.replaces)} stopped; {titleCase(p.payer)} paid{" "}
+                <span className="font-money tabular">{money(p.amount)}</span> on{" "}
+                {shortDateYear(new Date(`${p.date}T12:00:00Z`))}.{" "}
+              </>
+            )}
             <button
               type="button"
               disabled={pending}
@@ -637,7 +648,17 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
                     .
                   </>
                 )}
-                {g.payChanges.map((c) => (
+                {g.payChanges.map((c) =>
+                  c.replaces !== undefined ? (
+                    <span key={`change:${c.payer}:${c.since}`}>
+                      {" "}
+                      Every month {titleCase(c.replaces)} paid counts at a month of your pay now from {titleCase(c.payer)},{" "}
+                      <span className="font-money tabular">{money(c.to)}</span>/mo since{" "}
+                      {shortDateYear(new Date(`${c.since}T12:00:00Z`))}
+                      {c.told ? " (as you said)" : ""}, against{" "}
+                      <span className="font-money tabular">{money(c.from)}</span>/mo before.
+                    </span>
+                  ) : (
                   <span key={`change:${c.payer}:${c.since}`}>
                     {" "}
                     It counts every paycheck at your pay now, <span className="font-money tabular">{money(c.to)}</span>{" "}
@@ -645,7 +666,8 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
                     {c.told ? " (as you said)" : ""}, {c.to > c.from ? "up" : "down"} from{" "}
                     <span className="font-money tabular">{money(c.from)}</span>.
                   </span>
-                ))}
+                  ),
+                )}
               </p>
               {basis !== null && (
                 <p>

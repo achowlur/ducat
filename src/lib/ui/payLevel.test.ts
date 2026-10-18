@@ -46,3 +46,57 @@ describe("payLevels", () => {
     expect(parseNewPay(null)).toEqual([]);
   });
 });
+
+// Invented: every other Friday at $2,000.00 from Harbor Works until June,
+// then every other Friday at $2,800.00 from a new employer from July.
+describe("payLevels across a job change", () => {
+  const DAY = 86_400_000;
+  const fortnightly = (from: string, count: number, amount: number, who: string): PayItem[] =>
+    Array.from({ length: count }, (_, i) => ({
+      date: new Date(Date.parse(`${from}T00:00:00Z`) + i * 14 * DAY).toISOString().slice(0, 10),
+      amount,
+      payer: who,
+    }));
+  const old = fortnightly("2026-01-02", 13, 2000, payer); // last 2026-06-19
+  const fresh = fortnightly("2026-07-03", 7, 2800, "lakeside data payroll"); // to 2026-09-25
+
+  // The failure: the old salary stayed in the window at its own level.
+  it("counts every month of the old job at a month of the new pay", () => {
+    const pay = payLevels([...old, ...fresh], []);
+    expect(pay.changes).toEqual([
+      { payer: "lakeside data payroll", from: 4348.21, to: 6087.5, since: "2026-07-03", told: false, replaces: payer },
+    ]);
+    // April paid two old paychecks, January three.
+    expect(pay.topUps["2026-04"]).toBe(2087.5);
+    expect(pay.topUps["2026-01"]).toBe(87.5);
+    expect(pay.topUps["2026-08"]).toBeUndefined();
+    expect(pay.pending).toEqual([]);
+  });
+
+  it("reads two payers paying at once as two jobs, never a change", () => {
+    const second = fortnightly("2026-03-06", 15, 600, "corner bookshop");
+    const pay = payLevels([...fortnightly("2026-01-02", 20, 2000, payer), ...second], []);
+    expect(pay.changes).toEqual([]);
+    expect(pay.topUps).toEqual({});
+  });
+
+  it("waits until the old pay has been silent two cycles before it reads a stop", () => {
+    expect(payLevels([...old, fresh[0]], [])).toMatchObject({ changes: [], pending: [] });
+  });
+
+  it("asks about a single new paycheck after the old pay stopped, and projects from it once told", () => {
+    const later = [...old, { ...fresh[0], date: "2026-08-28" }];
+    const ask = payLevels(later, []);
+    expect(ask.pending).toEqual([{ payer: "lakeside data payroll", date: "2026-08-28", amount: 2800, from: 2000, replaces: payer }]);
+    expect(ask.changes).toEqual([]);
+    const toldPay = payLevels(later, [{ payer: "lakeside data payroll", date: "2026-08-28" }]);
+    expect(toldPay.pending).toEqual([]);
+    expect(toldPay.changes[0]).toMatchObject({ payer: "lakeside data payroll", told: true, replaces: payer, to: 6087.5 });
+  });
+
+  it("asks rather than choosing between two new payers", () => {
+    const pay = payLevels([...old, ...fresh, ...fortnightly("2026-07-10", 6, 900, "corner bookshop")], []);
+    expect(pay.changes.filter((c) => c.replaces !== undefined)).toEqual([]);
+    expect(pay.pending.map((p) => p.payer).sort()).toEqual(["corner bookshop", "lakeside data payroll"]);
+  });
+});
