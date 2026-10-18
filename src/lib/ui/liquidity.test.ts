@@ -88,10 +88,10 @@ describe("summariseBalances", () => {
 });
 
 describe("computeRunway", () => {
-  it("divides cash by mean spending and reports the spread", () => {
+  it("divides cash by a typical month, the middle, and reports the spread", () => {
     const r = computeRunway(43143.48, [6724.16, 7306.97, 8259.92, 13746.27, 7884.92, 8387.38]);
-    expect(r?.months).toBe(4.9);
-    expect(r?.monthlySpending).toBe(8718.27);
+    expect(r?.months).toBe(5.3);
+    expect(r?.monthlySpending).toBe(8072.42);
     expect(r?.basisMonths).toBe(6);
     expect(r?.low).toBe(6724.16);
     expect(r?.high).toBe(13746.27);
@@ -101,6 +101,15 @@ describe("computeRunway", () => {
     const r = computeRunway(6000, [99999, 1000, 1000, 1000, 1000, 1000, 1000]);
     expect(r?.monthlySpending).toBe(1000);
     expect(r?.months).toBe(6);
+  });
+
+  // Invented: five ordinary months and one holding a trip and a new laptop.
+  // A mean counted a sixth of them as every month's spending.
+  it("is not moved by one heavy or one odd month", () => {
+    const steady = [2000, 2100, 1900, 2050, 1950];
+    expect(computeRunway(20000, [...steady, 2000])?.monthlySpending).toBe(2000);
+    expect(computeRunway(20000, [...steady, 9000])?.monthlySpending).toBe(2025);
+    expect(computeRunway(20000, [...steady, -1200])?.monthlySpending).toBe(1975);
   });
 
   // Refusals: each would otherwise print a number that means nothing.
@@ -116,6 +125,14 @@ describe("computeRunway", () => {
   it("refuses when there is no cash to divide", () => {
     expect(computeRunway(0, [1000, 1000, 1000])).toBeNull();
     expect(computeRunway(-500, [1000, 1000, 1000])).toBeNull();
+  });
+});
+
+describe("cards", () => {
+  it("sums the cards' balances alone, loans left out, signed like debt", () => {
+    const s = summariseBalances([acct("chk", "DEPOSITORY", 5000), acct("visa", "CREDIT", -640.12), acct("amex", "CREDIT", -59.88), acct("auto", "LOAN", -8300)]);
+    expect(s.cards).toBe(-700);
+    expect(s.debt).toBe(-9000);
   });
 });
 

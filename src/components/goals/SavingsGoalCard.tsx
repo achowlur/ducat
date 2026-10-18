@@ -67,7 +67,13 @@ export function SavingsGoalCard({
         </span>
         <span className="text-faint">{Math.floor(g.progress * 100)}%</span>
       </div>
-      {g.accountNames.length > 0 && <div className="pt-0.5 text-[0.72rem] text-faint">{g.accountNames.join(" + ")}</div>}
+      {g.accountNames.length > 0 && (
+        <div className="pt-0.5 text-[0.72rem] text-faint">
+          {g.accountNames.join(" + ")}
+          {/* A cash fund is cash after the cards it pays: said beside the accounts. */}
+          {g.goal.cash === true && (g.cardsOwed > 0 ? `, less ${money(g.cardsOwed)} on cards` : ", nothing owed on cards")}
+        </div>
+      )}
       <div className="mt-1.5 h-[3px] w-full rounded-[1px] bg-chip">
         <div
           className={`h-full rounded-[1px] ${g.reached ? "bg-pos" : "bg-acc"}`}

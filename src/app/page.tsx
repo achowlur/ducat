@@ -6,7 +6,7 @@ import { wholePercents } from "../lib/ui/spendingBreakdown";
 import { SyncNowButton } from "../components/SyncNowButton";
 import { amount, dateTime, money, pct } from "../lib/ui/format";
 import { getOverviewData, STALE_DISPLAY_DAYS } from "../lib/ui/overview";
-import { droppedNote, shortNote } from "../lib/ui/recentMonthsNote";
+import { droppedNote, shortNote, windowSpan } from "../lib/ui/recentMonthsNote";
 import { STATUS_DOT } from "../lib/ui/providers";
 import { CHIP, COLUMN_HEADER, FIELD_LABEL, PageTitle, SectionTitle } from "../components/ui/headings";
 import { transactionsHref } from "../lib/ui/categoryFilter";
@@ -480,31 +480,48 @@ async function renderOverview() {
             data.runway === null ? (
               `${data.balances.cashAccounts} account${data.balances.cashAccounts === 1 ? "" : "s"}`
             ) : (
-              <span>
+              <div>
                 <span className={`${CHIP} mr-1.5 bg-chip text-acc`}>
                   Projected
                 </span>
                 <span className="font-money font-semibold text-ink">{data.runway.months} months</span> at{" "}
                 {money(data.runway.monthlySpending)}/mo
-                {/* The spread the average hides, printed rather than hovered.
-                    A projection to one decimal place over months that ran
-                    $3,125.52 to $13,746.27 — a 4.4× range — was stating far
-                    more confidence than it has, and the only qualification
-                    lived in a title attribute no touch device can open. */}
-                <span className="block font-money text-[0.68rem] tabular">
-                  {data.runway.basisMonths} months ran {money(data.runway.low)}–{money(data.runway.high)}
+                {/* The one line of assumptions: the cash it divides is AFTER
+                    the cards it pays, and the month is an everyday one. */}
+                <span className="block pt-0.5">
+                  {data.balances.cards < 0
+                    ? `Cash after ${money(-data.balances.cards)} on cards`
+                    : "Cash, no card balance owed"}
+                  , at a typical month&apos;s {data.runwayEveryday ? "everyday " : ""}spending.
                 </span>
-                {/* Which months, when the window is not simply the last six:
-                    one left out as not comparable with today, or one kept
-                    that holds nothing from some account, leaning long. */}
-                {[droppedNote(data.runwayWindow), shortNote(data.runwayWindow, "the runway may run long")]
-                  .filter((n) => n !== null)
-                  .map((n) => (
-                    <span key={n} className="block pt-0.5">
-                      {n}
+                {/* A month kept that holds nothing from some account leans
+                    long: something to discount, so it stays in view. */}
+                {shortNote(data.runwayWindow, "the runway may run long") !== null && (
+                  <span className="block pt-0.5">{shortNote(data.runwayWindow, "the runway may run long")}</span>
+                )}
+                {/* The spread the middle hides is a tap away, never a hover:
+                    a projection to one decimal place over months that ran
+                    $3,125.52 to $13,746.27 states more confidence than it has. */}
+                <details className="group">
+                  <summary className="tap44 flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
+                    How this is worked out
+                    <span aria-hidden="true" className="text-[0.7rem] transition-transform group-open:rotate-90">
+                      ›
                     </span>
-                  ))}
-              </span>
+                  </summary>
+                  <span className="block pb-1 leading-relaxed">
+                    The middle of {windowSpan(data.runwayWindow)}
+                    {data.runwayEveryday
+                      ? ", travel and one-off purchases left out"
+                      : ", travel and one-off purchases still in until the next sync"}
+                    ; they ran{" "}
+                    <span className="font-money tabular">
+                      {money(data.runway.low)} to {money(data.runway.high)}
+                    </span>
+                    .{droppedNote(data.runwayWindow) !== null && ` ${droppedNote(data.runwayWindow)}`}
+                  </span>
+                </details>
+              </div>
             )
           }
         />
