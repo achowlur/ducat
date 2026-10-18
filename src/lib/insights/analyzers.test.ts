@@ -542,6 +542,30 @@ describe('detectRecurringCharges', () => {
     expect(netflix?.priceIncreased).toBe(true);
   });
 
+  // Invented, monthly from January 2024: the failures the all-history median
+  // made. A rise stayed "up" until half of every charge was at the new price,
+  // and a bill that wobbles read as a rise every month it climbed.
+  const across = (amounts: number[], merchant = 'streamline tv') =>
+    amounts.map((a, i) => txn({ date: utc(2024, 1 + i, 10), amount: -a, normalizedMerchant: merchant }));
+
+  it('flags a rise while the new price is young, against the price it replaced', () => {
+    const plan = detectRecurringCharges(across([...Array(12).fill(10), 12, 12])).get('streamline tv')!;
+    expect(plan).toMatchObject({ priceIncreased: true, previousAverageAmount: 10, currentAmount: 12 });
+  });
+
+  it('stops calling a rise news once the new price has billed more than three times', () => {
+    const plan = detectRecurringCharges(across([...Array(12).fill(10), ...Array(6).fill(12)])).get('streamline tv')!;
+    expect(plan.priceIncreased).toBe(false);
+    // The all-history median is still the old price; what it bills now is not.
+    expect(plan.averageAmount).toBe(10);
+    expect(plan.currentAmount).toBe(12);
+  });
+
+  it('reads a bill that moves a tenth a month as one price, never a rise', () => {
+    const power = detectRecurringCharges(across([100, 112, 95, 108, 118, 102, 125], 'citylight power')).get('citylight power')!;
+    expect(power.priceIncreased).toBe(false);
+  });
+
   it('does not flag a stable price as increased', () => {
     const result = detectRecurringCharges(monthly([15.99, 15.99, 15.99, 15.99]));
     expect(result.get('netflix')?.priceIncreased).toBe(false);

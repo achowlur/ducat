@@ -394,3 +394,19 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   a link to a P2P payment, to a row that is gone and to one that is not an
   outflow, unconfirmed P2P both ways, and transfers. Every month's total and
   every category's figure agree to the cent.
+- ACCOUNTS JOINING ARE NOT SAVING (2026-10-17). Trends split a span's
+  change in net worth into markets and "saved", the rest. The month an
+  account's statements begin (its value unknown before, so left out), its
+  whole balance arrives in the total, and the split called it saved: an old
+  workplace plan rolled in would read as a year of saving. The net worth
+  goal's pace already refused to cross such a month (paceAt); the Trends
+  figure did not. It did not reproduce on the real history, where every
+  month counts the same accounts, and the operator asked for it built
+  anyway. growthBetween now names a third part, joined: in each month that
+  counts different accounts from the one before, its move less what markets
+  did. That month's own saving goes with it, the price of not guessing which
+  part was which. The three parts add up to the change exactly, the card
+  says "The rest, $N, is accounts joining the total, not saving", and the
+  By year table's saved column leaves it out with the years named under it.
+  The demo gained a rollover IRA whose statements start two years back, so
+  both show.

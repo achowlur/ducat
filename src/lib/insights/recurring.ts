@@ -23,6 +23,37 @@ export const DEFAULT_RECURRING_OPTIONS: RecurringOptions = {
 
 const DAY_MS = 86_400_000;
 
+/** A rise is news while the new price has billed at most this many times. */
+export const PRICE_NEWS_CHARGES = 3;
+
+/**
+ * A plan's PRICE RUNS: the charges at today's price (the newest charge and
+ * those before it within the band of it) and the run before that. The band
+ * is the plan's own wobble, twice the middle step between charges, and never
+ * under the rise threshold: a fixed price has none and a $0.40 rise shows,
+ * while an electricity bill moving a tenth a month is not a rise every
+ * month it climbs. The all-history median was the comparison before, so a
+ * rise stayed "up" until half of every charge ever made was at the new
+ * price, about two years for a monthly plan bought long ago.
+ */
+export function priceRuns(amounts: readonly number[], threshold: number): { band: number; current: number[]; previous: number[] } {
+  const steps = amounts
+    .slice(1)
+    .map((a, i) => (amounts[i] > 0 ? Math.abs(a - amounts[i]) / amounts[i] : 0));
+  const band = Math.max(threshold, steps.length === 0 ? 0 : 2 * median(steps));
+  const within = (a: number, ref: number) => Math.abs(a - ref) <= band * ref;
+  let i = amounts.length - 1;
+  while (i > 0 && within(amounts[i - 1], amounts[amounts.length - 1])) i -= 1;
+  let j = i - 1;
+  while (j > 0 && within(amounts[j - 1], amounts[i - 1])) j -= 1;
+  return { band, current: amounts.slice(i), previous: j < 0 ? [] : amounts.slice(j, i) };
+}
+
+/** What a plan bills now: its current price run, or on rows stored before it, the raised price or the median. */
+export function priceNow(c: { currentAmount?: number; priceIncreased: boolean; lastAmount: number; averageAmount: number }): number {
+  return c.currentAmount ?? (c.priceIncreased ? c.lastAmount : c.averageAmount);
+}
+
 /**
  * Recurring, but NOT subscriptions.
  *
@@ -215,7 +246,12 @@ export function detectRecurringCharges(
     const amounts = sorted.map((t) => -t.amount);
     const last = sorted[sorted.length - 1];
     const lastAmount = -last.amount;
-    const previousAverage = median(amounts.slice(0, -1));
+    // Today's price and the one before it, as runs: a rise is news while the
+    // new price is young, against the price it replaced, outside the plan's
+    // own wobble.
+    const runs = priceRuns(amounts, options.priceIncreaseThreshold);
+    const previousAverage = runs.previous.length > 0 ? median(runs.previous) : median(amounts.slice(0, -1));
+    const current = median(runs.current);
     result.set(merchant, {
       merchant,
       cadence: shape.cadence,
@@ -224,7 +260,9 @@ export function detectRecurringCharges(
       lastDate: last.date.toISOString().slice(0, 10),
       occurrences: sorted.length,
       previousAverageAmount: round2(previousAverage),
-      priceIncreased: lastAmount > previousAverage * (1 + options.priceIncreaseThreshold),
+      currentAmount: round2(current),
+      priceIncreased:
+        runs.previous.length > 0 && runs.current.length <= PRICE_NEWS_CHARGES && current > previousAverage * (1 + runs.band),
       accountThrough: new Date(newestByAccount.get(last.accountId) ?? last.date.getTime()).toISOString().slice(0, 10),
       ...(named.length > 1 ? { aliases: named.slice(0, -1).map((r) => r.merchant) } : {}),
     });

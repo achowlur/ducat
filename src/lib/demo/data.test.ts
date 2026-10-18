@@ -13,6 +13,7 @@ import { accountCoverageFrom } from '../ui/coverage';
 import { payLevels } from '../ui/payLevel';
 import { isP2P, isUnreviewedP2P } from '../p2p';
 import { assessNetWorthGoal, parseNetWorthGoal } from '../ui/netWorthGoal';
+import { growthBetween } from '../ui/netWorthGrowth';
 import { groupByPayee } from '../sync/grouping';
 import { suggestGroupCategories } from '../sync/groupSuggest';
 import { suggestP2PCategories } from '../sync/p2pSuggest';
@@ -61,7 +62,9 @@ describe.each(NOWS)('buildDemoData at %s', (iso) => {
 
   it('gives every account a snapshot inside every month, so no history is "estimated"', () => {
     const months = [...new Set(plan.txns.map((t) => periodKey(t.date, 'MONTH')))];
-    for (const a of plan.accounts) {
+    // The rollover's statements start two years back ON PURPOSE: before them
+    // it is left out, which is what Trends' "accounts joining" shows.
+    for (const a of plan.accounts.filter((x) => x.key !== 'rollover')) {
       const covered = new Set(plan.snapshots.filter((s) => s.accountKey === a.key).map((s) => periodKey(s.date, 'MONTH')));
       for (const m of months) expect(covered.has(m), `${a.key} ${m}`).toBe(true);
     }
@@ -245,6 +248,21 @@ describe('the demo through the real pipeline', () => {
     expect(categories.find((c) => c.id === pottery?.categoryId)?.name).toBe('Shopping');
   });
 
+  it('leaves the rollover out before its first statement, and names it joining rather than saved', async () => {
+    const rows = await prisma.insight.findMany({ where: { type: 'NET_WORTH_GROWTH' }, orderBy: { period: 'asc' } });
+    const rollover = (await prisma.account.findFirst({ where: { name: { startsWith: 'Rollover' } } }))!;
+    const points = rows.map((r) => {
+      const p = (typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload) as NetWorthGrowthPayload;
+      return { period: r.period, value: p.netWorth, estimated: false, leftOut: p.excludedAccountIds ?? [], marketGains: p.marketGains };
+    });
+    const joins = points.findIndex((p) => !p.leftOut.includes(rollover.id));
+    expect(points[joins].period).toBe('2024-09');
+    expect(points[joins - 1].leftOut).toEqual([rollover.id]);
+    const g = growthBetween(points, joins - 1, joins + 2);
+    expect(g.joined).toBeGreaterThan(15_000);
+    expect(g.saved + g.markets + g.joined).toBeCloseTo(g.change, 2);
+  });
+
   it('knows net worth for every complete month — no account reconstructed', async () => {
     const rows = await prisma.insight.findMany({ where: { type: 'NET_WORTH_GROWTH' }, orderBy: { period: 'asc' } });
     expect(rows.length).toBe(DEMO_HISTORY_MONTHS + 1);
@@ -327,6 +345,8 @@ describe('the demo through the real pipeline', () => {
   it('shows a price rise, a one-off this month, and no groceries or fuel mistaken for subscriptions', async () => {
     const recurring = await payloads<RecurringChargePayload>('RECURRING_CHARGE');
     expect(recurring.find((r) => r.merchant === 'streamflix')?.priceIncreased).toBe(true);
+    // Electricity peaks summer and winter: a bill that moves is not a rise.
+    expect(recurring.find((r) => r.merchant === 'citylight electric')?.priceIncreased).toBe(false);
     expect(recurring.map((r) => r.merchant)).not.toEqual(expect.arrayContaining(['summit fuel']));
     expect(recurring.map((r) => r.merchant)).not.toEqual(expect.arrayContaining(['corner grocer']));
     const anomalies = await payloads<AnomalyPayload>('ANOMALY', '2026-09');

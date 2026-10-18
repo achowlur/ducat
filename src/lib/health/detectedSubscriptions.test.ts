@@ -80,6 +80,13 @@ describe('annualisedTotal', () => {
     ]);
     expect(annualisedTotal(subs)).toBe(240); // 10*12 + 120
   });
+
+  // Invented: a plan at $10 for two years, $12 for the last six months. Its
+  // median is still $10; it bills $12.
+  it('bills each plan at what it charges now, never the median of its history', () => {
+    const subs = mergeDetectedSubscriptions([charge({ merchant: 'streamline tv', averageAmount: 10, lastAmount: 12, currentAmount: 12 })]);
+    expect(annualisedTotal(subs)).toBe(144);
+  });
 });
 
 describe('isActive', () => {
