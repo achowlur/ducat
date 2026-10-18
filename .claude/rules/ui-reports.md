@@ -13,6 +13,9 @@ headings, uncertainty, SVG titles) are in CLAUDE.md; the ledger's own are in
 ui-ledger.md.
 
 Every page:
+- Close to a free limit (80% spent, or on pace to pass it), a warn-token
+  BANNER sits above every page (UsageAlert in the root layout), read through
+  a ten-minute per-instance cache, silent on any failure.
 - A database that cannot be REACHED is named on the page in both modes, never
   dropped to the generic boundary, naming no culprit and never implying the
   data is gone. A host that REFUSES on its usage limit (Turso's "BLOCKED:")
@@ -111,3 +114,7 @@ Overview:
 - /providers' "This instance" block owes the same three parts a connector
   card does, residual risks included, and states the sync CADENCE, read from
   vercel.json so it cannot drift (the CLOUD data-locality HARD RULE).
+- /providers' free-plan limits are COUNTED by the app, never read from a
+  host's account API; each limit is a constant dated LIMITS_CHECKED, and
+  whatever the count cannot see (other databases on the account, statements
+  Turso did not report, a month counted partway) is said in view.

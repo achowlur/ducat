@@ -5,6 +5,9 @@ import { isCloudMode, isTotpConfigured } from "../../lib/auth/mode";
 import vercelConfig from "../../../vercel.json";
 import { CHIP, COLUMN_HEADER, PageTitle, SectionTitle, SubsectionTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
+import { UsageLimits } from "../../components/UsageLimits";
+import { prisma } from "../../lib/prisma";
+import { readUsage, usageLines } from "../../lib/usage/limits";
 
 export const dynamic = "force-dynamic";
 
@@ -44,11 +47,13 @@ async function renderProviders({
   searchParams: Promise<{ logs?: string; logsPage?: string }>;
 }) {
   const { logs, logsPage } = await searchParams;
-  const [providers, backup] = await Promise.all([
+  const cloud = isCloudMode();
+  const now = new Date();
+  const [providers, backup, usage] = await Promise.all([
     getProvidersData({ connector: logs, page: Number(logsPage) }),
     getBackupSignal(),
+    cloud ? readUsage(prisma, now) : Promise.resolve(null),
   ]);
-  const cloud = isCloudMode();
 
   return (
     <div className="grid gap-10 py-5">
@@ -152,6 +157,12 @@ async function renderProviders({
           </div>
         )}
       </section>
+
+      {/* What the hosts' free plans allow and how close this month is, counted
+          by the app itself. Before the connector cards: on 2026-10-17 the
+          month's reads ran out in a day and took every page down, and the
+          Providers page is where the reader looks when that happens. */}
+      <UsageLimits cloud={cloud} reading={usage} lines={usage === null ? [] : usageLines(usage, now)} />
 
       {providers.map(({ health, configured, setupHint, syncLogs, logsTotal, logsPage }) => (
         <section key={health.connectorType}>

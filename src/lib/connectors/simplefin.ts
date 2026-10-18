@@ -5,6 +5,7 @@ import type {
   NormalizedTransaction,
 } from '../../types/contracts';
 import { normalizeMerchant, sanitizeBankText } from './normalize';
+import { recordUsage } from '../usage/meter';
 
 /**
  * SimpleFIN Bridge connector (https://www.simplefin.org/protocol.html).
@@ -142,6 +143,9 @@ export class SimplefinConnector implements Connector {
     if (this.cached !== null && this.cachedSince !== null && this.cachedSince <= sinceUnix) {
       return this.cached;
     }
+    // The bridge expects at most 24 of these a day and disables a token that
+    // keeps exceeding it; /providers shows today's count against that.
+    recordUsage('simplefin.requests', 1);
     const res = await fetch(`${this.baseUrl}/accounts?start-date=${sinceUnix}`, {
       headers: { Authorization: this.authHeader },
     });

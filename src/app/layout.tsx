@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { AppNav } from "../components/AppNav";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { UsageAlert } from "../components/UsageAlert";
 import { isAuthEnabled, isCloudMode } from "../lib/auth/mode";
 import { logout } from "./login/actions";
 
@@ -56,6 +57,10 @@ export default async function RootLayout({
               </span>
             </header>
           )}
+          {/* Above every page when a host's free allowance is close to its
+              limit: on 2026-10-17 the month's Turso reads ran out in a day
+              and every page went down with them. */}
+          {onLogin ? null : <UsageAlert />}
           <main>{children}</main>
           {/* The header's right-hand cluster is `hidden sm:flex`, so below
               640px there was no way to LOCK the app or change theme at all —

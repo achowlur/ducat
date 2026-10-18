@@ -15,6 +15,12 @@ anything, or claiming a speed-up: the `perf-measure` skill.
   plan's monthly limit. Every foreign key's CHILD column carries an index
   (scripts/foreignKeyIndexes.test.ts): without one, deleting a parent scans
   the whole child table per row, and the demo reset read ~100M rows a time.
+- Every libSQL client that reaches Turso fetches through `meteredFetch`
+  (lib/usage/meter.ts), or its rows are missing from /providers' free-plan
+  counts; the meter writes AFTER the response, never on its path.
+- The demo reset HOLDS once the month's rows read or written pass 25% of the
+  free plan (DEMO_RESET_CAP_SHARE), and lib/demo/resetPlans.test.ts fails on
+  any statement the nightly job plans with a full SCAN that runs per row.
 - Promise.all buys ~1.13x, not parallelism — buy speed by REMOVING round
   trips; a relation include is one statement each, so select columns.
 - Page cost is DOM SIZE (parse + hydration), not bytes on the wire.

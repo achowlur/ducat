@@ -3,6 +3,9 @@ import { prisma } from "../../../../lib/prisma";
 import { SimplefinConnector } from "../../../../lib/connectors/simplefin";
 import { isDemo } from "../../../../lib/demo/mode";
 import { reseedDemo } from "../../../../lib/demo/reseed";
+import { demoResetDue, demoResetHold, recordDemoReset } from "../../../../lib/demo/resetDue";
+import { readUsage } from "../../../../lib/usage/limits";
+import { meterRequest } from "../../../../lib/usage/request";
 import { runSync } from "../../../../lib/sync/sync";
 
 export const runtime = "nodejs";
@@ -39,14 +42,25 @@ export async function GET(request: NextRequest): Promise<Response> {
   if (!safeEqual(provided, `Bearer ${secret}`)) {
     return new Response("Unauthorized.", { status: 401 });
   }
+  meterRequest();
 
   // The public demo has no feed: its nightly job puts the invented data back
-  // as of today instead — undoing whatever visitors changed, and moving the
-  // month being lived in forward so it is never empty.
+  // as of today instead, undoing whatever visitors changed and moving the
+  // month being lived in forward so it is never empty. Only when that is
+  // needed (lib/demo/resetDue.ts): a reseed rewrites every row, and an
+  // untouched demo is left as it is.
   if (isDemo()) {
     try {
-      const result = await reseedDemo(prisma, new Date());
-      return Response.json({ ok: true, demo: "reseeded", ...result });
+      const now = new Date();
+      // Past a quarter of the free plan's month, the demo stops resetting: a
+      // failed run (503) shows in Vercel's cron log, where a quiet skip would not.
+      const hold = demoResetHold(await readUsage(prisma, now));
+      if (hold !== null) return Response.json({ ok: false, demo: "held", reason: hold }, { status: 503 });
+      const decision = await demoResetDue(prisma, now);
+      if (!decision.due) return Response.json({ ok: true, demo: "unchanged", reason: decision.reason });
+      const result = await reseedDemo(prisma, now);
+      await recordDemoReset(prisma, now);
+      return Response.json({ ok: true, demo: "reseeded", reason: decision.reason, ...result });
     } catch (e) {
       const error = e instanceof Error ? e.message : "reseed failed";
       return Response.json({ ok: false, error }, { status: 500 });
