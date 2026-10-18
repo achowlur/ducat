@@ -141,3 +141,37 @@ export async function readUsage(prisma: PrismaClient, now: Date = new Date()): P
     countedSince: since === undefined ? null : new Date(since * 1000),
   };
 }
+
+/** The day the month's allowances reset (UTC), for "by Nov 1". */
+export function usageResetsOn(reading: UsageReading): Date {
+  return monthBounds(reading.month).end;
+}
+
+/** How long one server instance reuses a reading for the banner. */
+export const USAGE_CACHE_MS = 10 * 60_000;
+
+const globalForUsage = globalThis as unknown as { ducatUsageReading?: { at: number; reading: UsageReading | null } };
+
+/**
+ * readUsage for the banner every page carries: one statement per server
+ * instance per USAGE_CACHE_MS, not one per page. Limits move over days, and a
+ * banner that cost a round trip on every page would spend the allowance it
+ * guards.
+ */
+export async function readUsageCached(prisma: PrismaClient, now: Date = new Date()): Promise<UsageReading | null> {
+  const cached = globalForUsage.ducatUsageReading;
+  if (
+    cached !== undefined &&
+    now.getTime() - cached.at < USAGE_CACHE_MS &&
+    (cached.reading === null || cached.reading.month === usageMonth(now))
+  ) {
+    return cached.reading;
+  }
+  const reading = await readUsage(prisma, now);
+  globalForUsage.ducatUsageReading = { at: now.getTime(), reading };
+  return reading;
+}
+
+export function clearUsageCache(): void {
+  delete globalForUsage.ducatUsageReading;
+}

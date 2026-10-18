@@ -13,6 +13,9 @@ headings, uncertainty, SVG titles) are in CLAUDE.md; the ledger's own are in
 ui-ledger.md.
 
 Every page:
+- Close to a free limit (80% spent, or on pace to pass it), a warn-token
+  BANNER sits above every page (UsageAlert in the root layout), read through
+  a ten-minute per-instance cache, silent on any failure.
 - A database that cannot be REACHED is named on the page in both modes, never
   dropped to the generic boundary, naming no culprit and never implying the
   data is gone. A host that REFUSES on its usage limit (Turso's "BLOCKED:")

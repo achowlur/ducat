@@ -3,7 +3,8 @@ import { prisma } from "../../../../lib/prisma";
 import { SimplefinConnector } from "../../../../lib/connectors/simplefin";
 import { isDemo } from "../../../../lib/demo/mode";
 import { reseedDemo } from "../../../../lib/demo/reseed";
-import { demoResetDue, recordDemoReset } from "../../../../lib/demo/resetDue";
+import { demoResetDue, demoResetHold, recordDemoReset } from "../../../../lib/demo/resetDue";
+import { readUsage } from "../../../../lib/usage/limits";
 import { meterRequest } from "../../../../lib/usage/request";
 import { runSync } from "../../../../lib/sync/sync";
 
@@ -51,6 +52,10 @@ export async function GET(request: NextRequest): Promise<Response> {
   if (isDemo()) {
     try {
       const now = new Date();
+      // Past a quarter of the free plan's month, the demo stops resetting: a
+      // failed run (503) shows in Vercel's cron log, where a quiet skip would not.
+      const hold = demoResetHold(await readUsage(prisma, now));
+      if (hold !== null) return Response.json({ ok: false, demo: "held", reason: hold }, { status: 503 });
       const decision = await demoResetDue(prisma, now);
       if (!decision.due) return Response.json({ ok: true, demo: "unchanged", reason: decision.reason });
       const result = await reseedDemo(prisma, now);

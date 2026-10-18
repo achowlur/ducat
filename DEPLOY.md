@@ -625,7 +625,10 @@ to try. Everything above applies, with these differences:
   changed. It reseeds only when there is something to undo or refresh (a
   visitor changed the data, or a new release or month arrived); an
   untouched demo is left as it is, however old its dates, because a
-  reseed rewrites every row and the account's free plan counts them.
+  reseed rewrites every row and the account's free plan counts them. Once
+  the month's Turso rows read or written pass a quarter of the free plan,
+  the cron stops reseeding (it answers 503, visible in Vercel's cron log)
+  until the month resets.
 - Set `AUTH_PASSWORD_HASH`, `SESSION_SECRET` and `CRON_SECRET` exactly as for a
   real instance — the login gate is never bypassed, its key is just printed.
 - **Never** set `SIMPLEFIN_ACCESS_URL` or `FRED_API_KEY`. A demo holding a

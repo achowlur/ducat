@@ -177,3 +177,14 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   data was two days old, to keep Providers' overdue-sync warning off the
   demo; the operator removed it: a demo does not need fresh dates every other
   day, and the warning is the honest state of untouched data.
+  Asked "how are we ensuring this doesn't happen again", three guards
+  followed, the operator choosing to keep both databases on one account: the
+  demo reset HOLDS (503 in the cron log) once the month's rows read or
+  written pass 25% of the free plan, so a reset gone wrong cannot spend the
+  account's month; a warn-token banner above every page once any allowance
+  is 80% spent or on pace to pass it (read through a ten-minute cache, so it
+  costs no round trip on most pages); and resetPlans.test.ts, which captures
+  every statement the nightly job runs and fails on any full SCAN after a
+  statement's own pass in SQLite's query plan, the per-row shape. Its control
+  plans the same statements against the schema without the foreign-key
+  indexes and must flag the deletes that spent the month.

@@ -7,7 +7,9 @@ import { TABLES } from '../../../scripts/copyDatabase';
 import { PrismaClient } from '../../generated/prisma/client';
 import { reseedDemo } from './reseed';
 import {
+  DEMO_RESET_CAP_SHARE,
   demoDigest,
+  demoResetHold,
   demoResetDue,
   digestTables,
   recordDemoReset,
@@ -32,6 +34,29 @@ describe('resetDueUnseen', () => {
   it('never reseeds on age alone: an untouched demo is left to the digest however old', () => {
     expect(resetDueUnseen(record('2026-03-02T23:59:00Z'), new Date('2026-03-30T23:00:00Z'), 'abc123')).toBeNull();
     expect(resetDueUnseen(record('2026-03-15T23:59:00Z', null), new Date('2026-03-16T23:00:00Z'), null)).toBeNull();
+  });
+});
+
+describe('demoResetHold', () => {
+  const reading = (read: number, written = 0) => ({
+    month: '2026-03',
+    monthly: { 'turso.rowsRead': read, 'turso.rowsWritten': written },
+    simplefinToday: 0,
+    simplefinBusiestDay: 0,
+    countedSince: null,
+  });
+
+  it('holds the reset once reads or writes pass a quarter of the free plan', () => {
+    expect(DEMO_RESET_CAP_SHARE).toBe(0.25);
+    expect(demoResetHold(reading(124_000_000))).toBeNull();
+    expect(demoResetHold(reading(125_000_000))).toBe(
+      "this month's Turso rows read are 25% of the free plan's 500,000,000, and demo resets hold at 25% until the month resets",
+    );
+    expect(demoResetHold(reading(1_000, 3_000_000))).toContain('rows written are 30%');
+  });
+
+  it('lets the reset run where nothing is counted yet', () => {
+    expect(demoResetHold(null)).toBeNull();
   });
 });
 

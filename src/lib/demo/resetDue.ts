@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { PrismaClient } from '../../generated/prisma/client';
+import { TURSO_FREE, type UsageReading } from '../usage/limits';
 
 /**
  * Whether tonight's demo cron has to reseed, or may leave the demo alone.
@@ -117,4 +118,28 @@ export async function demoResetDue(prisma: PrismaClient, now: Date): Promise<Dem
 export async function recordDemoReset(prisma: PrismaClient, now: Date): Promise<void> {
   const value = JSON.stringify({ at: now.toISOString(), digest: await demoDigest(prisma), release: currentRelease() });
   await prisma.setting.upsert({ where: { key: DEMO_RESET_KEY }, update: { value }, create: { key: DEMO_RESET_KEY, value } });
+}
+
+/**
+ * Demo resets stop once this month's Turso rows read or written pass this
+ * share of the FREE plan's allowance. The demo shares the account with the
+ * operator's own instance, and the free plan's limit is per ACCOUNT: a reset
+ * gone wrong must never be what spends it. A quarter leaves the rest of the
+ * month to everything else, the operator's instance first.
+ */
+export const DEMO_RESET_CAP_SHARE = 0.25;
+
+/** Why the reset must hold this month, or null when it may run. */
+export function demoResetHold(reading: UsageReading | null): string | null {
+  if (reading === null) return null;
+  const checks: [string, number, number][] = [
+    ['rows read', reading.monthly['turso.rowsRead'] ?? 0, TURSO_FREE.rowsRead],
+    ['rows written', reading.monthly['turso.rowsWritten'] ?? 0, TURSO_FREE.rowsWritten],
+  ];
+  for (const [label, used, limit] of checks) {
+    if (used >= limit * DEMO_RESET_CAP_SHARE) {
+      return `this month's Turso ${label} are ${Math.round((used / limit) * 100)}% of the free plan's ${limit.toLocaleString('en-US')}, and demo resets hold at ${DEMO_RESET_CAP_SHARE * 100}% until the month resets`;
+    }
+  }
+  return null;
 }
