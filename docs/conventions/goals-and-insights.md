@@ -695,6 +695,29 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   the first cut left a copy of real data in the temp folder every run.
   Its output is real figures by definition, so it says so on its second
   line and belongs in the terminal, never in a commit or a pull request.
+- RENT IS NEVER A ONE-OFF IN EVERYDAY SPENDING (2026-10-17). The runway
+  entry above names the leak: the anomaly pass called a rent payment at a
+  new high a one-off, everydayAfterDay left it out, and a credit filed under
+  Rent & Housing in the same month stayed in, so the month read below zero.
+  `audit:figures` on a real history showed one. The rent was flagged because
+  the category is two populations (the rank gate's entry in
+  money-and-analytics.md): a portal fee beside every rent, plus one small
+  extra row, puts the median and its spread on the fee side, and a rent
+  above every earlier one then ranks first at any z. Fixing that in the
+  anomaly pass was not the choice: the rank gate keeps a rent genuinely
+  above its history as a finding on purpose, and a rent rise is worth a
+  look. The operator chose instead to keep RENT & HOUSING in everyday
+  spending whatever the flag says (NEVER_ONE_OFF_CATEGORIES, by category
+  name like the travel exclusion); the anomaly row still shows on /insights.
+  Taxes stay out of it: a yearly tax bill IS lumpy, and a month that paid
+  one should not be projected as typical. Treating any payee that bills
+  monthly as never one-off was also considered and set aside: it needs new
+  recurrence logic, with more ways to misjudge a payee, to fix a leak one
+  category name closes. A credit linked to a flagged rent stays in with the
+  rent, as a credit to a one-off leaves with it. Invented, from the test: six
+  $1,475 rents with a $1.75 fee each and a $35 key fob, then a $1,590 rent
+  and an $850 credit under rent; the month read -$765 everyday and now
+  reads $825, its total.
 - A NEW JOB IS A RAISE ACROSS PAYERS (2026-10-17). Pay is judged per payer,
   so after a job change the old salary stayed in the six-month window at its
   own level, read as today's, while a raise at the same employer would have

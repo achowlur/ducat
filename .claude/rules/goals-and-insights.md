@@ -51,7 +51,8 @@ anything below; several entries record "tried and failed, don't retry".
 - The pace call projects the REST of the month from what typical months
   spent AFTER this day, EVERYDAY spending only
   (SpendingByCategoryPayload.everydayAfterDay: travel, by category name, and
-  the month's one-off purchases, the transaction anomalies, left out); never
+  the month's one-off purchases, the transaction anomalies, left out, except
+  RENT, which a one-off flag never takes out: NEVER_ONE_OFF_CATEGORIES); never
   a share of the month's total, which counts rent paid on the 2nd again on
   the 17th. Spending so far counts everything.
 - The NET WORTH goal (ui/netWorthGoal.ts, Setting goals.netWorth) prints
