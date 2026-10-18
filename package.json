@@ -22,6 +22,7 @@
     "pdf:layout": "tsx scripts/pdf-layout.ts",
     "health": "tsx scripts/health.ts",
     "subs:audit": "tsx scripts/audit-subscriptions.ts",
+    "audit:figures": "tsx scripts/audit-figures.ts",
     "repair:text": "tsx scripts/repair-text.ts",
     "repair:merchants": "tsx scripts/repair-merchants.ts",
     "rules:install": "tsx scripts/install-rule-pack.ts",

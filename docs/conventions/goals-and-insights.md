@@ -677,3 +677,21 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   filed as a transfer and so was never income to take back out. The demo
   gained a yearly tax refund in April, which the net worth panel's
   working-out names beside the March bonus.
+- AUDIT THE FIGURES, NOT ONLY THE CODE (2026-10-17). Every projection bug in
+  this file was found the same way: the operator read a figure, asked
+  whether it made sense, and a session reconstructed by hand which months it
+  averaged and what it had adjusted. `npm run audit:figures` makes that a
+  command. It copies the newest verified backup into a temporary folder,
+  regenerates insights there with the checked-out code (so a branch is
+  audited as it would render), reads them through the page loaders
+  themselves, and prints each headline (runway, savings goals, readiness,
+  the net worth goal, the month's pace, the recurring total) beside the
+  months it used, those it left out and why, their coverage, and the
+  one-off income and pay top-ups it adjusted for. It never reads
+  DATABASE_URL and refuses any file that is not a canonical backup name, so
+  it cannot regenerate the live local database or reach the cloud. The
+  report runs in a child process because the database client holds the
+  copy until its process exits, and Windows will not delete an open file:
+  the first cut left a copy of real data in the temp folder every run.
+  Its output is real figures by definition, so it says so on its second
+  line and belongs in the terminal, never in a commit or a pull request.

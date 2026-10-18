@@ -185,6 +185,7 @@ and shipping a pull request.
 | `npm run accounts:cash` | List which accounts count as spendable cash, and mark non-checking ones (`-- --add=…` / `-- --remove=…`) |
 | `npm run health` | Print the provider-health panel and the tracked-subscription reconciliation (read-only, no network) |
 | `npm run subs:audit` | Report what subscription detection missed and which gate rejected it (read-only) |
+| `npm run audit:figures` | Print every headline projection (runway, savings goals, house readiness, the net worth goal, the month's pace) beside what it stands on: the months it averaged, which it left out and why, their coverage, and the one-off income and pay top-ups it adjusted for. Reads a temporary COPY of the newest verified backup (`-- --from=<backup>` picks one), regenerated with the checked-out code, and never opens `DATABASE_URL`. Its output is real figures: keep it out of commits and PRs |
 | `npm run repair:text` | Strip undecodable characters from imported names and descriptions (dry run; `-- --apply` writes) |
 | `npm run repair:merchants` | Re-normalize stored merchant names after a normalizer change (dry run; `-- --apply` writes) |
 | `npm run auth:set-password` | Generate the login gate's `AUTH_PASSWORD_HASH` and `SESSION_SECRET`. You type the password into the terminal (echo muted, 8 characters minimum, asked twice); the values are printed to paste into `.env` or Vercel, and nothing is stored |
