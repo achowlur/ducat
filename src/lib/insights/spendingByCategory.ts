@@ -41,23 +41,34 @@ function spendingFor(txns: TxnData[], credits: ReimbursementCredit[], key: strin
 export const NOT_EVERYDAY_CATEGORIES = new Set(['Travel']);
 
 /**
+ * Spending the one-off flag never takes out of EVERYDAY spending, by category
+ * name: rent at a new high is still the month's rent, not a purchase that
+ * will not come again. The anomaly pass flags it all the same (a rent rise is
+ * worth a look), and the flag stays on /insights.
+ */
+export const NEVER_ONE_OFF_CATEGORIES = new Set(['Rent & Housing']);
+
+/**
  * Everyday spending after each day of a month (SpendingByCategoryPayload.
  * everydayAfterDay): outflows less reimbursement credits, travel and the
  * month's one-off purchases left out, by UTC day. A credit against a one-off
  * leaves with it: a friend's share of a one-off dinner, subtracted from the
  * everyday spending the dinner never joined, read a month as cheaper than
- * its everyday spending was.
+ * its everyday spending was. Rent flagged as a one-off stays in
+ * (NEVER_ONE_OFF_CATEGORIES): left out, a month whose rent was flagged kept
+ * only a credit filed under rent, and read below zero.
  */
 function everydayAfterDay(txns: TxnData[], credits: ReimbursementCredit[], key: string, oneOffIds: ReadonlySet<string>): number[] {
   const days = Math.round((periodEndExclusive(key).getTime() - periodStart(key).getTime()) / 86_400_000);
   const byDay = new Array<number>(days + 1).fill(0);
   const everyday = (name: string | null) => name === null || !NOT_EVERYDAY_CATEGORIES.has(name);
+  const oneOff = (id: string, name: string | null) => oneOffIds.has(id) && (name === null || !NEVER_ONE_OFF_CATEGORIES.has(name));
   for (const t of txns) {
-    if (t.flow !== 'OUTFLOW' || !inPeriod(t.date, key) || oneOffIds.has(t.id) || !everyday(t.categoryName)) continue;
+    if (t.flow !== 'OUTFLOW' || !inPeriod(t.date, key) || oneOff(t.id, t.categoryName) || !everyday(t.categoryName)) continue;
     byDay[t.date.getUTCDate()] += -t.amount;
   }
   for (const c of credits) {
-    if (!inPeriod(c.date, key) || !everyday(c.categoryName) || oneOffIds.has(c.sourceId)) continue;
+    if (!inPeriod(c.date, key) || !everyday(c.categoryName) || oneOff(c.sourceId, c.categoryName)) continue;
     byDay[c.date.getUTCDate()] -= c.amount;
   }
   // after[d] = spending on days d+1 .. end.

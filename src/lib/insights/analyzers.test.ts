@@ -450,6 +450,29 @@ describe('computeSpendingByCategory', () => {
     expect(july.everydayAfterDay![0]).toBe(1860);
   });
 
+  // Invented: six months of $1,475 rent, each with a $1.75 portal fee, and one
+  // $35 key fob put the category's median on the fee side, so July's rent at
+  // a new $1,590 ranks as a one-off. An $850 credit filed under rent stays
+  // in; leaving the rent out read July's everyday spending as -$765.
+  it('keeps rent flagged as a one-off in everyday spending', () => {
+    const rent = { categoryId: 'cat-rent', categoryName: 'Rent & Housing' };
+    const txns = [
+      ...[1, 2, 3, 4, 5, 6].flatMap((m) => [
+        txn({ date: utc(2026, m, 2), amount: -1475, ...rent }),
+        txn({ date: utc(2026, m, 2), amount: -1.75, ...rent }),
+      ]),
+      txn({ date: utc(2026, 3, 9), amount: -35, ...rent }),
+      txn({ id: 'july-rent', date: utc(2026, 7, 2), amount: -1590, ...rent }),
+      txn({ date: utc(2026, 7, 3), amount: 850, flow: 'INFLOW', ...rent }),
+      txn({ date: utc(2026, 7, 20), amount: -85, ...groceries }),
+    ];
+    const anomalies = detectTransactionAnomalies(txns, '2026-07', 'MONTH');
+    expect(anomalies.map((a) => a.transactionId)).toEqual(['july-rent']);
+    const oneOffs = new Set(anomalies.map((a) => a.transactionId!));
+    const july = computeSpendingByCategory(txns, ['2026-07'], 'MONTH', oneOffs).get('2026-07')!;
+    expect(july.everydayAfterDay![0]).toBe(825);
+    expect(july.everydayAfterDay![0]).toBe(july.totalSpending);
+  });
 
   it('sums outflows per category and excludes transfers', () => {
     const txns = [
