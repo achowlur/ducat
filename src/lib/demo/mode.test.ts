@@ -42,8 +42,8 @@ describe('middleware and a misconfigured demo', () => {
     for (const path of ['/', '/login', '/api/cron/sync']) {
       const res = await middleware(new NextRequest(`https://demo.example${path}`));
       expect(res.status, path).toBe(503);
-      expect(await res.text(), path).toMatch(/remove SIMPLEFIN_ACCESS_URL/);
-      // The message carries an em dash; without a charset it renders as "â€”".
+      expect(await res.text(), path).toMatch(/Remove SIMPLEFIN_ACCESS_URL/);
+      // The body names its charset, so a non-ASCII glyph never renders garbled.
       expect(res.headers.get('content-type'), path).toBe('text/plain; charset=utf-8');
     }
   });

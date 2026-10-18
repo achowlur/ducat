@@ -274,7 +274,7 @@ function Picker({
     // Clearing a category is not a category, so it sits above the groups —
     // and rule mode omits it entirely.
     if (!target.ruleMode && (q === "" || "none".includes(q))) {
-      out.push({ label: null, rows: [{ key: "none", name: "— none —", choice: { kind: "existing", id: null } }] });
+      out.push({ label: null, rows: [{ key: "none", name: "No category", choice: { kind: "existing", id: null } }] });
     }
     const spending = categories.filter((c) => !c.isIncome && hit(c)).map(row);
     const income = categories.filter((c) => c.isIncome && hit(c)).map(row);
@@ -698,13 +698,6 @@ export function CategoryButton({
         className={`inline-flex max-w-[148px] items-center gap-1 rounded-[2px] border bg-paper py-0.5 pl-1 pr-1.5 text-[0.78rem] max-md:min-h-[44px] max-md:max-w-[100px] ${
           name === null ? "border-rule text-faint" : "border-transparent text-ink hover:border-rule"
         } ${pending ? "opacity-50" : ""}`}
-        title={
-          categorySource === "MANUAL" && categoryId !== null
-            ? "Set manually"
-            : categorySource === "RULE"
-              ? "Set by rule"
-              : "Uncategorized"
-        }
       >
         <span className="truncate">{name ?? "—"}</span>
         <span aria-hidden="true" className="text-[0.55rem] text-faint">
@@ -712,20 +705,17 @@ export function CategoryButton({
         </span>
       </button>
       {categorySource === "MANUAL" && categoryId !== null && (
-        <span className="text-[0.62rem] text-faint" title="Set manually; rules never override this">
+        <span className="text-[0.62rem] text-faint" role="img" aria-label="Set manually; rules never override this">
           ✎
         </span>
       )}
       {subscriptionTracked && (
-        <span
-          className="text-[0.62rem] text-acc"
-          title="Tracked as a subscription; its renewal date and price changes are on Overview"
-        >
+        <span className="text-[0.62rem] text-acc" role="img" aria-label="Tracked as a subscription">
           ↻
         </span>
       )}
       {menu === "actions" && (
-        <span ref={menuRef} className="inline-flex items-center gap-1">
+        <span ref={menuRef} className="inline-flex flex-wrap items-center gap-1">
           <button
             type="button"
             onClick={() => {
@@ -733,7 +723,6 @@ export function CategoryButton({
               show(true, "");
             }}
             className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
-            title={`Categorize every "${merchant}" transaction, past and future`}
           >
             Category
           </button>
@@ -750,7 +739,6 @@ export function CategoryButton({
                   });
                 }}
                 className={`${CONTROL} tap44 border-rule text-faint hover:border-neg hover:text-neg`}
-                title={`Stop tracking "${subscriptionPattern}" as a subscription`}
               >
                 Untrack
               </button>
@@ -759,7 +747,6 @@ export function CategoryButton({
                 type="button"
                 onClick={() => setMenu("cadence")}
                 className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
-                title="Track this merchant as a subscription: its renewal date and price changes, without waiting for the detector's three charges"
               >
                 Subscription
               </button>
@@ -780,11 +767,20 @@ export function CategoryButton({
                 });
               }}
               className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
-              title="Tag THIS transaction into a trip or project: a view across months, never a category"
             >
               Trip
             </button>
           )}
+          {/* What each button does, in words: the buttons carried it in title=,
+              which a phone never shows. */}
+          <span className="basis-full text-[0.68rem] text-faint">
+            Category: every “{merchant}” row, past and future.
+            {subscriptionPattern !== null &&
+              (subscriptionTracked
+                ? " Untrack: stop following it as a subscription."
+                : " Subscription: follow its renewal date and price.")}
+            {groupCtx !== null && " Trip: tag this row only."}
+          </span>
           {/* Was 5.0 × 14.9px with no padding — the only way out of a menu
               that ignored Escape and click-outside. */}
           <button

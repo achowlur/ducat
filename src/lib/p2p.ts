@@ -36,7 +36,7 @@ export function isUnreviewedP2P(t: {
  * `?category=` token, so a link built from a slice needs no translation.
  */
 export const P2P_UNREVIEWED_ID = "p2p-unreviewed";
-export const P2P_UNREVIEWED_NAME = "P2P — Unreviewed";
+export const P2P_UNREVIEWED_NAME = "P2P unreviewed";
 
 /**
  * Words a SQL `contains` can pre-filter on before `isP2P` decides exactly.

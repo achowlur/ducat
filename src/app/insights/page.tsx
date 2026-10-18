@@ -277,7 +277,7 @@ function ReadinessBlock({
         </>
       )}
       {/* The five typed values collapse behind one disclosure — tap/click on
-          any device, hover-preview via title on desktop. The AS-OF DATE stays
+          any device, never hover. The AS-OF DATE stays
           on the summary deliberately: it is the staleness alarm, and a hidden
           rate must never be able to read current forever. When the rate is
           the FETCHED index rather than typed (rateSource set), the summary
@@ -287,7 +287,6 @@ function ReadinessBlock({
       <details className="group pt-2.5 text-[0.78rem] text-faint">
         <summary
           className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-2 max-md:min-h-[44px] max-md:items-center [&::-webkit-details-marker]:hidden"
-          title={`${c.ratePct}% / ${c.termYears} yr · property tax ${c.taxPctYr}%/yr · insurance ${c.insurancePctYr}%/yr · PMI ${c.pmiPctYr}%/yr below ${c.downPct}% down · closing ${c.closingPct}% of price${c.rateSource === undefined ? "" : ` · rate observed ${c.asOf} (${c.rateSource.provider} ${c.rateSource.seriesId})`}`}
         >
           <span className={ASSUMED_CHIP}>Assumed</span>
           <span>
@@ -492,11 +491,11 @@ async function renderInsights({
         {data.dismissedCount > 0 && (
           <Link
             href={`/insights?period=${data.period}${showDismissed ? "" : "&show=dismissed"}`}
-            className="text-[0.78rem] text-faint hover:text-ink"
+            className="tap44 text-[0.78rem] text-faint hover:text-ink"
           >
             {showDismissed
               ? "Hide dismissed"
-              : `Show ${data.dismissedCount} dismissed`}
+              : `Show ${data.dismissedCount} dismissed (they stay dismissed after a sync)`}
           </Link>
         )}
       </div>

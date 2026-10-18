@@ -183,43 +183,55 @@ async function renderOverview() {
             </div>
             {ctx !== null &&
               (ctx.growthRate !== null || hasMarketLine || ctx.estimatedCount > 0 || ctx.leftOutCount > 0) && (
-                <p className="mt-1 text-[0.78rem] text-faint">
-                  <span className="font-semibold text-ink">{ctx.label}:</span>{" "}
-                  {ctx.growthRate !== null && (
-                    <span
-                      className={`font-money whitespace-nowrap font-semibold ${
-                        ctx.growthRate >= 0 ? "text-pos" : "text-neg"
-                      }`}
-                    >
-                      {ctx.growthRate >= 0 ? "▲" : "▼"} {pct(ctx.growthRate).slice(1)}
-                    </span>
-                  )}
-                  {ctx.growthRate !== null && hasMarketLine && " · "}
-                  {hasMarketLine && ctx.marketGains !== null && (
-                    <>
+                <div className="mt-1 text-[0.78rem] text-faint">
+                  {/* The delta is the one line in view; what moved it, and what
+                      the month estimates or leaves out, waits behind a tap. */}
+                  <p>
+                    <span className="font-semibold text-ink">{ctx.label}:</span>{" "}
+                    {ctx.growthRate !== null && (
                       <span
-                        className={`font-money font-semibold ${
-                          ctx.marketGains > 0 ? "text-pos" : "text-neg"
+                        className={`font-money whitespace-nowrap font-semibold ${
+                          ctx.growthRate >= 0 ? "text-pos" : "text-neg"
                         }`}
                       >
-                        {money(ctx.marketGains)}
-                      </span>{" "}
-                      of {ctx.monthName}&apos;s change was investment market movement (not income).{" "}
-                    </>
+                        {ctx.growthRate >= 0 ? "▲" : "▼"} {pct(ctx.growthRate).slice(1)}
+                      </span>
+                    )}
+                  </p>
+                  {(hasMarketLine || ctx.estimatedCount > 0 || ctx.leftOutCount > 0) && (
+                    <details>
+                      <summary className="tap44 inline-flex cursor-pointer items-center text-[0.75rem] text-acc hover:underline">
+                        What moved it
+                      </summary>
+                      <p className="max-w-[60ch]">
+                        {hasMarketLine && ctx.marketGains !== null && (
+                          <>
+                            <span
+                              className={`font-money font-semibold ${
+                                ctx.marketGains > 0 ? "text-pos" : "text-neg"
+                              }`}
+                            >
+                              {money(ctx.marketGains)}
+                            </span>{" "}
+                            of {ctx.monthName}&apos;s change was investment market movement (not income).{" "}
+                          </>
+                        )}
+                        {ctx.estimatedCount > 0 && (
+                          <>
+                            {ctx.estimatedCount} of {ctx.monthName}&apos;s balances estimated (carried from an earlier
+                            month or worked out from transactions).{" "}
+                          </>
+                        )}
+                        {ctx.leftOutCount > 0 && (
+                          <>
+                            {ctx.leftOutCount === 1 ? "1 account" : `${ctx.leftOutCount} accounts`} left out of{" "}
+                            {ctx.monthName}&apos;s net worth (no value then).
+                          </>
+                        )}
+                      </p>
+                    </details>
                   )}
-                  {ctx.estimatedCount > 0 && (
-                    <>
-                      {ctx.estimatedCount} of {ctx.monthName}&apos;s balances estimated (carried from an earlier
-                      month or worked out from transactions).{" "}
-                    </>
-                  )}
-                  {ctx.leftOutCount > 0 && (
-                    <>
-                      {ctx.leftOutCount === 1 ? "1 account" : `${ctx.leftOutCount} accounts`} left out of{" "}
-                      {ctx.monthName}&apos;s net worth (no value then).
-                    </>
-                  )}
-                </p>
+                </div>
               )}
           </>
         )}
@@ -364,7 +376,7 @@ async function renderOverview() {
                       key={s.label}
                       href={transactionsHref(s.categoryIds, data.currentPeriod, "SPENDING")}
                       className="grid grid-cols-[11px_minmax(0,1fr)_76px_34px] items-center gap-1.5 rounded-[2px] hover:bg-chip"
-                      title={
+                      aria-label={
                         s.isOther
                           ? `View the ${s.categoryIds.length} categories in Other`
                           : `View ${s.label} transactions`

@@ -101,12 +101,7 @@ function GroupRow({
         <div className="text-[0.85rem]">
           {group.label}
           {group.isP2P && (
-            <span
-              className={`${CHIP} ml-2 border border-neg text-neg`}
-              title="Peer-to-peer payment. The rule will match this specific counterparty in the description, not the payment rail; other Zelle/Venmo payees stay untouched."
-            >
-              p2p
-            </span>
+            <span className={`${CHIP} ml-2 border border-neg text-neg`}>p2p</span>
           )}
         </div>
         {/* Below md the flow and total ride under the name: five columns
@@ -129,6 +124,12 @@ function GroupRow({
             <div className="opacity-70">+{group.count - Math.min(3, group.samples.length)} more</div>
           )}
         </div>
+        {group.isP2P && (
+          <div className="pt-1 text-[0.72rem] text-faint">
+            A peer-to-peer payment: the rule matches this counterparty in the description, not the payment rail, so other
+            Zelle and Venmo payees stay untouched.
+          </div>
+        )}
         {/* Why the suggestion, in words, so a wrong one is caught by reading
             it rather than by applying it. A guess is a button: it fills the
             choice only when tapped. */}
@@ -163,7 +164,6 @@ function GroupRow({
             disabled={locked}
             onChange={(e) => onChoose(e.target.value)}
             className="tap44 max-w-[130px] rounded-[2px] border border-rule bg-paper py-0.5 pl-1 pr-4 text-[0.78rem] text-ink md:max-w-[150px]"
-            title={`Pick a category for all ${group.count}, then confirm`}
           >
             <option value="">{pending ? "applying…" : "categorize all…"}</option>
             <optgroup label="Spending">
@@ -190,9 +190,8 @@ function GroupRow({
             <button
               onClick={onSkip}
               className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
-              title="Not now: hide this payee for the rest of this session. Nothing is written."
             >
-              Skip
+              Not now
             </button>
           )}
           {choice !== "" && !locked && (
@@ -201,10 +200,14 @@ function GroupRow({
             <button
               onClick={apply}
               className={`${CONTROL} tap44 border-acc bg-acc text-paper`}
-              title={`Write a rule for "${group.key}" and categorize all ${group.count} as ${labelFor(choice)}`}
             >
               Apply to {group.count} →
             </button>
+          )}
+          {choice !== "" && !locked && (
+            <span className="basis-full text-[0.68rem] text-faint">
+              Writes a rule for “{group.key}” and sets all {group.count} to {labelFor(choice)}.
+            </span>
           )}
         </span>
       </td>
@@ -285,7 +288,7 @@ export function GroupedReview({
     <>
       {last !== null && (
         <div className="flex flex-wrap items-center gap-3 border-b border-rule py-2 text-[0.78rem]">
-          <span className="text-faint">{last.summary}</span>
+          <span className="text-faint">{last.summary} Undo puts every one back and removes those rules.</span>
           <button
             disabled={busy}
             onClick={() =>
@@ -299,7 +302,6 @@ export function GroupedReview({
               })
             }
             className={`${CONTROL} tap44 border-rule text-faint hover:border-acc hover:text-acc`}
-            title="Restore every one of those transactions and remove the rules this created"
           >
             {undoing ? "Undoing…" : "Undo"}
           </button>
@@ -327,11 +329,11 @@ export function GroupedReview({
       {skipped.length > 0 && (
         <div className="flex items-center gap-3 py-2 text-[0.78rem] text-faint">
           <span>
-            {skipped.length} payee{skipped.length === 1 ? "" : "s"} skipped this session
+            {skipped.length} payee{skipped.length === 1 ? "" : "s"} set aside until you leave this page; nothing was written
           </span>
           <button
             onClick={() => setShowSkipped(!showSkipped)}
-            className="font-semibold text-acc hover:underline"
+            className="tap44 font-semibold text-acc hover:underline"
           >
             {showSkipped ? "hide them" : "show them"}
           </button>

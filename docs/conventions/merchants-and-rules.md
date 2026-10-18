@@ -196,7 +196,7 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   snapshot; rows already categorized are left alone, and future payments still
   arrive as suggestions.
   THE SLICE: `computeSpendingByCategory` relabels unconfirmed P2P OUTFLOWS as
-  `p2p-unreviewed` / "P2P — Unreviewed" BEFORE totals or reimbursement credits
+  `p2p-unreviewed` / "P2P unreviewed" BEFORE totals or reimbursement credits
   read a category, so a repayment linked to one nets against the same bucket.
   Unconfirmed P2P INFLOWS are flagged on /transactions and Overview only,
   never counted. The slice is kept out of transaction anomalies (its only

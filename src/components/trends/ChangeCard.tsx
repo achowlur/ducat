@@ -3,7 +3,7 @@
 import { money, monthAbbrev, monthLabel, shortMonthLabel } from "../../lib/ui/format";
 import { spanName, type CompareKey, type Comparison, type GroupBy, type Measure, type Span } from "../../lib/ui/report";
 import { B_DEFAULTS, B_VIEWS, type BView } from "../../lib/ui/trendsParams";
-import { CardFrame, Fig, Hero, Lead, Note } from "./CardFrame";
+import { CardFrame, Fig, Fold, Hero, Lead, Note } from "./CardFrame";
 import { ChangeView, signedMoney } from "./ChangeView";
 import { ReportSelect } from "./ReportSelect";
 import { useCardView, ViewSwitch } from "./ViewSwitch";
@@ -136,25 +136,33 @@ export function ChangeCard({
         priorName={names.prior}
         noun={NOUNS[by]}
       />
-      {comparison.priorMonthsMissing > 0 && firstMonth !== null && (
-        <Note>
-          Records begin in {shortMonthLabel(firstMonth)}, so the earlier span holds{" "}
-          {Math.max(0, priorMonths - comparison.priorMonthsMissing)} of its {priorMonths} months; its total is short
-          by the rest.
-        </Note>
-      )}
-      {lateAccounts.length > 0 && (
-        <Note>
-          {lateAccounts.map((a, i) => (
-            <span key={a.name}>
-              {i > 0 && "; "}
-              {a.name} begins {dayLabel(a.firstDay)}
-            </span>
-          ))}
-          . The earlier span holds none of {lateAccounts.length === 1 ? "its" : "their"} activity before that, so part
-          of any rise is records starting rather than money spent.
-        </Note>
-      )}
+      {/* The caveat is one line in view; which records start late is behind a tap. */}
+      {(comparison.priorMonthsMissing > 0 && firstMonth !== null) || lateAccounts.length > 0 ? (
+        <>
+          <Note>Part of this change may be records starting, not money spent.</Note>
+          <Fold label="Which records start late">
+            {comparison.priorMonthsMissing > 0 && firstMonth !== null && (
+              <Note>
+                Records begin in {shortMonthLabel(firstMonth)}, so the earlier span holds{" "}
+                {Math.max(0, priorMonths - comparison.priorMonthsMissing)} of its {priorMonths} months; its total is
+                short by the rest.
+              </Note>
+            )}
+            {lateAccounts.length > 0 && (
+              <Note>
+                {lateAccounts.map((a, i) => (
+                  <span key={a.name}>
+                    {i > 0 && "; "}
+                    {a.name} begins {dayLabel(a.firstDay)}
+                  </span>
+                ))}
+                . The earlier span holds none of {lateAccounts.length === 1 ? "its" : "their"} activity before that, so
+                part of any rise is records starting rather than money spent.
+              </Note>
+            )}
+          </Fold>
+        </>
+      ) : null}
     </CardFrame>
   );
 }

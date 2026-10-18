@@ -312,7 +312,7 @@ describe('computeDigest and P2P awaiting confirmation', () => {
       ...spending([]),
       totalSpending: amount,
       categories: [
-        { categoryId: 'p2p-unreviewed', categoryName: 'P2P — Unreviewed', spending: amount, previousSpending: null, deltaPct: null },
+        { categoryId: 'p2p-unreviewed', categoryName: 'P2P unreviewed', spending: amount, previousSpending: null, deltaPct: null },
       ],
     });
     const items = computeDigest({ ...base, spending: p2p(900), priorSpending: [p2p(100), p2p(120)] });

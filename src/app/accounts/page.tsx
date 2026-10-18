@@ -37,6 +37,7 @@ export default async function AccountsPage() {
 
 async function renderAccounts() {
   const data = await getAccountsData();
+  const behind = data.groups.reduce((n, g) => n + g.accounts.filter((a) => a.staleByAge).length, 0);
 
   if (data.groups.length === 0) {
     return (
@@ -47,25 +48,36 @@ async function renderAccounts() {
   return (
     <div className="py-5">
       <PageTitle>Accounts</PageTitle>
-      {/* The clock every "Nd behind" below is measured against. Overview has
-          carried this instant since it was built; this page did not, so its
-          rows quoted an age against something the reader could not see — the
-          one thing that made the same figure harder to read here than there.
-          The row chip's `title=` STAYS: it carries both clocks and asserts no
-          cause, which was a deliberate 2026-08-03 correction. What changes is
-          that it is no longer the only place the second clock lives, so a
-          reader on a phone — where hover does not exist — is no longer the one
-          who goes without it. */}
-      <p className="pb-3 text-[0.78rem] text-faint">
+      {/* LEADS with the figure the page exists for and how fresh it is. The
+          clock every "Nd behind" below counts from is named once, here, in
+          text; each chip carries the balance's own age as text, and the rest
+          of how it is counted is behind one tap. */}
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <span className="font-money text-[2.1rem] tabular">{amount(data.totalBalance)}</span>
+        <span className="text-[0.78rem] text-faint">net worth</span>
+      </div>
+      <p className="pb-2 pt-1 text-[0.78rem] text-faint">
         {data.lastSyncAt === null ? (
           "No sync has finished successfully yet, so the balance ages below have nothing to measure against."
         ) : (
           <>
-            Balance ages below count from the last successful sync,{" "}
-            <span className="font-money">{dateTime(data.lastSyncAt)}</span>.
+            Last successful sync <span className="font-money">{dateTime(data.lastSyncAt)}</span>
+            {behind > 0
+              ? `; ${behind} ${behind === 1 ? "account is" : "accounts are"} behind it.`
+              : "; every balance is current."}
           </>
         )}
       </p>
+      <details className="pb-3">
+        <summary className="tap44 inline-flex cursor-pointer items-center text-[0.75rem] text-acc hover:underline">
+          How ages and history are counted
+        </summary>
+        <ul className="grid max-w-[60ch] gap-1 text-[0.78rem] text-faint">
+          <li>A balance age counts from the last successful sync, not from today: a row is not late when the sync itself is.</li>
+          <li>A red chip means the balance is that many days older than the last sync; its own age is printed under it.</li>
+          <li>Snapshots are the balances a sync recorded. Without them, past months are rebuilt from transactions and marked estimated.</li>
+        </ul>
+      </details>
       <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
@@ -127,31 +139,26 @@ async function renderAccounts() {
                           this page cannot tell a stalled feed from a late
                           sync and used to claim it could. */}
                       {a.staleByAge && (
-                        <span
-                          className={`${CHIP} ml-1.5 bg-neg text-paper`}
-                          title={`${a.balanceLagDays}d behind at the last sync; the balance itself is ${a.daysSinceBalance}d old`}
-                        >
-                          {a.balanceLagDays}d behind
-                        </span>
+                        <>
+                          <span className={`${CHIP} ml-1.5 bg-neg text-paper`}>{a.balanceLagDays}d behind</span>
+                          <span className="block">balance is {a.daysSinceBalance}d old</span>
+                        </>
                       )}
                     </span>
                   </td>
                   <td className="hidden py-2 pr-3 md:table-cell">
                     {a.snapshotCount >= 2 ? (
-                      <span className="inline-flex items-center gap-2" title={`${a.snapshotCount} balance snapshots, latest ${a.latestSnapshotDate}`}>
+                      <span className="inline-flex items-center gap-2">
                         <Sparkline values={a.snapshotSeries} totalCount={a.snapshotCount} />
                         <span className="text-[0.68rem] text-faint">
-                          {a.snapshotCount} snapshots
+                          {a.snapshotCount} snapshots, latest {a.latestSnapshotDate}
                           {a.snapshotCount > a.snapshotSeries.length && (
                             <span className="text-faint"> · last {a.snapshotSeries.length} shown</span>
                           )}
                         </span>
                       </span>
                     ) : (
-                      <span
-                        className="text-[0.72rem] text-faint"
-                        title="Balances for past months are reconstructed from transactions until syncs write snapshots"
-                      >
+                      <span className="text-[0.72rem] text-faint">
                         {a.snapshotCount === 1 ? "1 snapshot" : "no snapshots; history estimated"}
                       </span>
                     )}
@@ -172,7 +179,7 @@ async function renderAccounts() {
                     <Link
                       href={accountsHref([a.id])}
                       className="inline-flex min-h-[44px] items-center justify-end whitespace-nowrap text-[0.75rem] text-acc hover:underline md:min-h-0"
-                      title={`View ${a.name} transactions`}
+                      aria-label={`View ${a.name} transactions`}
                     >
                       transactions →
                     </Link>
