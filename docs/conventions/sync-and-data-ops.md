@@ -842,3 +842,50 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   pinned by previewImport.test.ts against a real runSync. Other banks' category
   columns (Amex, Capital One, Discover) wait for a real export to measure:
   a map written from a guess at their names is the "assumed" this avoids.
+- SYNC SAFETY (2026-10-17, syncSafety.test.ts). Four failures a read-only
+  review named and a test reproduced before each fix:
+  - TWO RUNS AT ONCE. The feed takes seconds to answer, so the nightly cron
+    and a tap on "Sync now" can both be waiting on it, and neither has
+    inserted when the other reads what is stored. With the account already
+    known, the second insert failed on the (accountId, externalId) unique. On
+    a FIRST sync it was worse: both runs created the account, and the same
+    real account was stored twice, each copy holding every row, doubling net
+    worth. The fix is a lock, not insert-or-ignore: insert-or-ignore cures
+    the unique and leaves the forked account. Setting `sync.running` is
+    claimed by compare-and-set, the TOTP replay floor's pattern (create, or
+    replace only from the exact value read), and carries an expiry, because a
+    run the host kills at maxDuration never reaches its `finally`. Five
+    minutes, not sixty seconds: a local import:csv or import:pdf runs the
+    same pipeline with no limit and must not lose the lock mid-run. The
+    refused run throws SyncAlreadyRunningError BEFORE it logs, so health
+    never shows a run that never started as one that broke.
+  - KILLED BETWEEN THE INSERT AND THE RULES. The rules ran over "fresh" rows
+    only, one UPDATE per row, after createMany. A run stopped there (the 60s
+    limit, a dropped connection) left its rows stored and uncategorized, and
+    the next run's dedupe never called them fresh again, so they stayed that
+    way for good. Now the rules run over every WAITING row (AGGREGATOR, no
+    category, no transfer pair; MANUAL is never in reach and the write
+    repeats the guard), one updateMany per outcome. A row stored earlier
+    that the closed box would leave unchanged is skipped as reapplyRules
+    skips it; on a backup copy of real data that was every row the wider
+    read reached, so the first sync after the change wrote nothing new. A
+    row a person CLEARED is AGGREGATOR with no category too, so a rule that
+    matches it applies again at the next sync: what clearing already meant
+    ("hands the row back to the rules", closedBox.ts), and what creating any
+    rule or `npm run upgrade` already did to it.
+  - A GAP PAST THE FEED'S REACH. SimpleFIN answers 90 days a request, and a
+    longer window (a lapsed token, an instance left off) came back narrowed
+    without a word. A connector now declares `maxHistoryDays`; the sync asks
+    for no more and records a feed warning naming the dates it could not
+    fetch and the CSV import that fills them. The default first-sync window
+    and the reach share one clock, or every first sync warns about the few
+    milliseconds between two `Date.now()` calls.
+  - "SYNC NOW" COULD SPEND THE TOKEN. The bridge disables a token that keeps
+    passing 24 requests a day, and a sync costs one or two. Sync now refuses
+    from 20 counted today (stored plus this instance's unflushed count),
+    which leaves the cron its run; the cron itself is never capped, because
+    the data depends on it. Its failures are sentences: a held lock names
+    when it lapses, a database refusal goes through databaseFailure
+    (actionResult.ts `databaseRefusal`), and a call that never comes back
+    (the function stopped at its limit) is caught in the button by
+    `settleAction` instead of reaching the page's error boundary.

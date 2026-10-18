@@ -4,7 +4,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '../../generated/prisma/client';
-import { countedPartway, paceShareOf, readUsage, TURSO_FREE, usageLines, type UsageReading } from './limits';
+import { dateTime } from '../ui/format';
+import {
+  countedPartway,
+  paceShareOf,
+  readUsage,
+  SIMPLEFIN_DAILY_REQUESTS,
+  SIMPLEFIN_SYNC_NOW_CAP,
+  simplefinRequestsToday,
+  syncNowRefusal,
+  TURSO_FREE,
+  usageLines,
+  type UsageReading,
+} from './limits';
 import { flushUsage, recordUsage, resetUsageMeter } from './meter';
 
 const reading = (over: Partial<UsageReading> = {}): UsageReading => ({
@@ -14,6 +26,31 @@ const reading = (over: Partial<UsageReading> = {}): UsageReading => ({
   simplefinBusiestDay: 0,
   countedSince: null,
   ...over,
+});
+
+describe('syncNowRefusal', () => {
+  // The bridge disables a token that keeps passing 24 requests a day, and
+  // nothing stopped a run of taps on "Sync now" from getting there.
+  const now = new Date('2026-03-14T15:00:00Z');
+
+  it('lets Sync now run below the cap', () => {
+    expect(syncNowRefusal(0, now)).toBeNull();
+    expect(syncNowRefusal(SIMPLEFIN_SYNC_NOW_CAP - 1, now)).toBeNull();
+  });
+
+  it('refuses at the cap, naming the count, the limit and when it lifts', () => {
+    const refusal = syncNowRefusal(SIMPLEFIN_SYNC_NOW_CAP, now);
+    expect(refusal).toContain(`${SIMPLEFIN_SYNC_NOW_CAP} requests today`);
+    expect(refusal).toContain(`${SIMPLEFIN_DAILY_REQUESTS} a day`);
+    expect(refusal).toContain(dateTime(new Date('2026-03-15T00:00:00Z')));
+    expect(refusal).not.toContain('—');
+    expect(syncNowRefusal(SIMPLEFIN_DAILY_REQUESTS + 3, now)).not.toBeNull();
+  });
+
+  it('leaves the cron room for its run inside the daily limit', () => {
+    // A sync costs the bridge at most two requests: one tap at CAP - 1, then the cron.
+    expect(SIMPLEFIN_SYNC_NOW_CAP - 1 + 2 + 2).toBeLessThanOrEqual(SIMPLEFIN_DAILY_REQUESTS);
+  });
 });
 
 describe('paceShareOf', () => {
@@ -133,6 +170,20 @@ describe('readUsage', () => {
     await flushUsage(run, later);
     resetUsageMeter();
     expect((await readUsage(prisma, later))?.countedSince).toEqual(new Date('2026-03-09T14:00:00Z'));
+  });
+
+  it('counts today\'s SimpleFIN requests from the store and from what this instance has not flushed', async () => {
+    resetUsageMeter();
+    const run = (sql: string, args: (string | number)[]) => prisma.$executeRawUnsafe(sql, ...args);
+    const day = new Date('2026-03-14T15:00:00Z');
+    recordUsage('simplefin.requests', 18, day);
+    await flushUsage(run, day);
+    expect(await simplefinRequestsToday(prisma, day)).toBe(18);
+    // Two more taps whose counts are still in memory: the cap must see them.
+    recordUsage('simplefin.requests', 2, day);
+    expect(await simplefinRequestsToday(prisma, day)).toBe(20);
+    expect(syncNowRefusal(await simplefinRequestsToday(prisma, day), day)).not.toBeNull();
+    resetUsageMeter();
   });
 
   it('returns null on a database one schema push behind, instead of failing the page', async () => {
