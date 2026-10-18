@@ -29,7 +29,7 @@ import {
   type ReadinessAssessment,
 } from "../insights/readiness";
 import { MORTGAGE_RATE_KEY, parseMortgageRate } from "../rates/mortgageRate";
-import { DEFAULT_RECURRING_OPTIONS } from "../insights/recurring";
+import { DEFAULT_RECURRING_OPTIONS, priceNow } from "../insights/recurring";
 import { periodCoverage, type PeriodCoverage } from "../insights/coverage";
 import { recentMonths, type RecentMonths } from "../insights/recentMonths";
 import { periodEndExclusive, periodStart } from "../insights/periods";
@@ -250,7 +250,7 @@ interface RecurringState {
 function renderRecurring(p: RecurringChargePayload, tracked: boolean, state: RecurringState): RowBody {
   const price = p.priceIncreased
     ? `raised to ${money(p.lastAmount)} (was ${money(p.previousAverageAmount ?? p.averageAmount)})`
-    : `${money(p.averageAmount)} ${p.cadence.toLowerCase()}`;
+    : `${money(priceNow(p))} ${p.cadence.toLowerCase()}`;
   // shortDate, not the raw ISO string: this line sits among "Jul 9 – Jul 20",
   // "in 3d · Aug 6" and "~September 2028", so a bare 2026-07-06 was the only
   // machine-shaped date on the page. It carries its YEAR under "No longer

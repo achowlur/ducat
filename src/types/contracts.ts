@@ -162,8 +162,16 @@ export interface RecurringChargePayload {
   /** ISO date (YYYY-MM-DD) of the most recent occurrence. */
   lastDate: string;
   occurrences: number;
-  /** Median of all occurrences before the most recent one. */
+  /**
+   * The price before today's: the median of the previous price run (insights/
+   * recurring.ts, priceRuns), or of every earlier charge when there is none.
+   */
   previousAverageAmount: number | null;
+  /**
+   * What it bills now: the median of the current price run, which the yearly
+   * total and the next charge use. Absent on rows stored before 2026-10-17.
+   */
+  currentAmount?: number;
   priceIncreased: boolean;
   /**
    * ISO date of the newest transaction of ANY kind on the account that carried

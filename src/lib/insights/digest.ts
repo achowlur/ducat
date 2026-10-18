@@ -5,6 +5,7 @@ import type {
   SpendingByCategoryPayload,
 } from '../../types/contracts';
 import { P2P_UNREVIEWED_ID } from '../p2p';
+import { priceNow } from './recurring';
 import { round2 } from './stats';
 
 /**
@@ -250,9 +251,9 @@ export function computeDigest(input: {
       items.push({
         kind: 'NEW_COMMITMENT',
         subject: r.merchant,
-        amount: round2(r.averageAmount),
+        amount: round2(priceNow(r)),
         baseline: null,
-        stake: round2(r.averageAmount * perYear),
+        stake: round2(priceNow(r) * perYear),
         dedupeKey: null,
       });
     }

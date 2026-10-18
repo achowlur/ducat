@@ -1,5 +1,5 @@
 import type { RecurringCadence } from '../../types/contracts';
-import { longestGapDays } from '../insights/recurring';
+import { longestGapDays, priceNow } from '../insights/recurring';
 import { projectNextPayment } from './subscriptions';
 
 /**
@@ -18,6 +18,8 @@ export interface DetectedCharge {
   cadence: RecurringCadence;
   averageAmount: number;
   lastAmount: number;
+  /** Today's price run (RecurringChargePayload.currentAmount); absent on older rows. */
+  currentAmount?: number;
   lastDate: string;
   occurrences: number;
   priceIncreased: boolean;
@@ -116,7 +118,7 @@ export function nextChargeOf(charge: DetectedCharge, now: Date): { date: Date; d
   return {
     date,
     daysAway: Math.max(0, Math.round((dueDay - today) / 86_400_000)),
-    amount: Math.round((charge.priceIncreased ? charge.lastAmount : charge.averageAmount) * 100) / 100,
+    amount: Math.round(priceNow(charge) * 100) / 100,
   };
 }
 
@@ -143,7 +145,7 @@ export function mergeDetectedSubscriptions(
       priceIncreased: existing.priceIncreased || charge.priceIncreased,
       // The newest charge's account is where the next one is expected.
       ...(charge.lastDate > existing.lastDate
-        ? { lastDate: charge.lastDate, accountThrough: charge.accountThrough }
+        ? { lastDate: charge.lastDate, accountThrough: charge.accountThrough, currentAmount: charge.currentAmount }
         : {}),
     });
   }
@@ -156,7 +158,11 @@ export function mergeDetectedSubscriptions(
     );
 }
 
-/** Annualised cost of everything detected, for the section header. */
+/**
+ * Annualised cost of everything detected, for the section header, at what
+ * each plan bills NOW: the median of all its history kept a plan that rose a
+ * year ago at its old price in the total until most of its charges were new.
+ */
 export function annualisedTotal(subs: DetectedSubscription[]): number {
   const perYear: Record<RecurringCadence, number> = {
     WEEKLY: 52,
@@ -165,5 +171,5 @@ export function annualisedTotal(subs: DetectedSubscription[]): number {
     QUARTERLY: 4,
     YEARLY: 1,
   };
-  return Math.round(subs.reduce((sum, s) => sum + s.averageAmount * perYear[s.cadence], 0) * 100) / 100;
+  return Math.round(subs.reduce((sum, s) => sum + priceNow(s) * perYear[s.cadence], 0) * 100) / 100;
 }

@@ -715,3 +715,23 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   two old paychecks count at $6,087.50, a top-up of $2,087.50. The demo
   changed employers three months back at a tenth more, so its net worth
   working-out names the change.
+- TODAY'S PRICE, AND A RISE THAT IS NEWS (2026-10-17). Three subscription
+  figures leaned on the median of a plan's whole history. The yearly total
+  billed a plan that rose a year ago at its old price until half of all its
+  charges were at the new one. The price-rise flag compared the newest
+  charge with that same median, so a rise stayed "Price up" for about two
+  years on a monthly plan bought long ago, and a bill that moves (power
+  peaking in summer and winter) read as a rise every month it climbed. A
+  plan now has PRICE RUNS (recurring.ts, priceRuns): today's run is the
+  newest charge and those before it within a band of it, the run before is
+  the same walk from there, and the band is the plan's own wobble, twice the
+  middle step between charges, never under the 2% threshold, so a fixed
+  price still shows a $0.40 rise while a bill moving a tenth a month is one
+  price. The /yr, the next charge and the digest's new commitment bill
+  today's run (currentAmount, priceNow); a rise is flagged against the run
+  before it, and only while the new price has billed three times or fewer:
+  news, not a standing fact. Detection itself is untouched (no gate moved,
+  so subs:audit has nothing to mirror). None of it reproduced on the real
+  history's live plans, all at one price; the operator asked for it built
+  anyway. The demo's streaming plan still reads raised; its power bill is
+  pinned as not.
