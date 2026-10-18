@@ -20,7 +20,7 @@ export function Swatch({ part }: { part: "saved" | "markets" }) {
  * printed twice. A share of a whole is drawn only when both parts grew; when
  * one shrank there is no whole to divide, and the two figures stand alone.
  */
-export function GrowthSplit({ saved, markets }: { saved: number; markets: number }) {
+export function GrowthSplit({ saved, markets, joined = 0 }: { saved: number; markets: number; joined?: number }) {
   const both = saved > 0 && markets > 0;
   const [savedShare, marketShare] = both ? wholePercents([saved / (saved + markets), markets / (saved + markets)]) : [null, null];
   return (
@@ -43,6 +43,14 @@ export function GrowthSplit({ saved, markets }: { saved: number; markets: number
           {marketShare !== null && <span>{marketShare}%</span>}
         </span>
       </div>
+      {/* An account joining the total brings its whole balance: part of the
+          change, and neither saved nor markets, so it is named apart. */}
+      {Math.abs(joined) >= 0.5 && (
+        <p className="pt-1 text-[0.78rem] text-faint">
+          The rest, <span className="font-money tabular text-ink">{money(Math.abs(joined))}</span>, is accounts{" "}
+          {joined > 0 ? "joining" : "leaving"} the total, not saving.
+        </p>
+      )}
     </div>
   );
 }

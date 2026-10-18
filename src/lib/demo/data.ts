@@ -405,9 +405,9 @@ export function buildDemoData(now: Date): DemoPlan {
     return between(-0.028, 0.041);
   };
   /** Month-end values from the money that crossed into the account and the markets' move on it. */
-  const invest = (key: string, start: number): number => {
+  const invest = (key: string, start: number, fromIndex = 0): number => {
     let value = start;
-    for (const mo of months) {
+    for (const mo of months.filter((m) => m.index >= fromIndex)) {
       const flows = txns
         .filter((t) => t.accountKey === key && t.date.getUTCFullYear() === mo.y && t.date.getUTCMonth() === mo.m0)
         .reduce((sum, t) => sum + t.amount, 0);
@@ -419,6 +419,12 @@ export function buildDemoData(now: Date): DemoPlan {
   };
   const brokerage = invest('brokerage', 2000);
   const ira = invest('ira', 1500);
+  // An old workplace plan rolled into an IRA, whose statements start two
+  // years back with no opening at zero: before them its value is unknown and
+  // left out, so the month it joins the total is named on Trends as
+  // accounts joining, never as saving (ui/netWorthGrowth.ts).
+  const rolloverFrom = DEMO_HISTORY_MONTHS - 24;
+  const rollover = invest('rollover', 18_400, rolloverFrom);
 
   const accounts: DemoAccount[] = [
     { key: 'checking', name: 'Everyday Checking ...0001', institution: 'Harbor Community Bank', type: 'DEPOSITORY', balance: round2(checkingOpening + sumOf('checking')) },
@@ -427,6 +433,7 @@ export function buildDemoData(now: Date): DemoPlan {
     { key: 'fuelcard', name: 'Summit Rewards Card ...0007', institution: 'Summit Card Services', type: 'CREDIT', balance: round2(sumOf('fuelcard')) },
     { key: 'brokerage', name: 'Individual Brokerage ...0003', institution: 'Northwind Investments', type: 'INVESTMENT', balance: brokerage },
     { key: 'ira', name: 'Roth IRA ...0004', institution: 'Northwind Investments', type: 'INVESTMENT', balance: ira },
+    { key: 'rollover', name: 'Rollover IRA ...0008', institution: 'Northwind Investments', type: 'INVESTMENT', balance: rollover },
     { key: 'loan', name: 'Student Loan ...0005', institution: 'Bluestone Loan Servicing', type: 'LOAN', balance: round2(-41400 + sumOf('loan')) },
   ];
   // Every other account gets month-end snapshots too, as a live feed writes

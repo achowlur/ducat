@@ -73,15 +73,18 @@ const neg = (n: number) => (n < 0 ? "text-neg" : "");
 /**
  * Each calendar year's growth, newest first, with what made it: saved and
  * markets as figures and as a bar. Rounded to dollars, saved is printed as the
- * rounded change less the rounded markets, so every row adds up as printed.
+ * rounded change less the rounded markets and the rounded accounts joining,
+ * so every row adds up as printed with the note under the table.
  */
 export function NetWorthYears({ years }: { years: YearGrowth[] }) {
   if (years.length === 0) return null;
   const rows: Row[] = years.map((y) => {
     const change = Math.round(y.change);
     const markets = Math.round(y.markets);
-    return { year: y, change, markets, saved: change - markets };
+    const joined = Math.round(y.joined);
+    return { year: y, change, markets, saved: change - markets - joined };
   });
+  const joinedYears = rows.filter((r) => Math.round(r.year.joined) !== 0);
   const maxUp = Math.max(0, ...rows.map((r) => Math.max(r.saved, 0) + Math.max(r.markets, 0)));
   const maxDown = Math.max(0, ...rows.map((r) => Math.max(-r.saved, 0) + Math.max(-r.markets, 0)));
   // A star marks a year that leans on estimates only when some year does not:
@@ -167,6 +170,14 @@ export function NetWorthYears({ years }: { years: YearGrowth[] }) {
         bigger year.
         {allEstimated && <> Every year includes partly estimated months, so every split is partly estimated too.</>}
         {!allEstimated && anyEstimated && <> A year marked * includes partly estimated months, so its split is too.</>}
+        {joinedYears.length > 0 && (
+          <span className="text-ink">
+            {" "}
+            Accounts joining the total moved{" "}
+            {joinedYears.map((r, k) => `${k > 0 ? ", " : ""}${r.year.year} by ${Math.round(r.year.joined) < 0 ? "−$" : "$"}${dollars(Math.abs(Math.round(r.year.joined)))}`).join("")}; that
+            is in Change, and in neither Saved nor Markets.
+          </span>
+        )}
       </Note>
     </div>
   );
