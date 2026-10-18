@@ -17,6 +17,10 @@ anything below; several entries record "tried and failed, don't retry".
   Date.UTC normalises impossible days instead of clamping.
 - Subscription charge matching prefers charges NEAR the expected amount;
   detected subscriptions LAPSE after two silent cadence cycles.
+- A plan bills at its CURRENT price run (priceRuns: charges within twice
+  the plan's own wobble, never under the 2% threshold), in the /yr and the
+  next charge, never the all-history median; a rise is news only against the
+  run before it, while the new price has billed 3 times or fewer.
 - Before it lapses, a detected charge is MISSED once its ACCOUNT's records run
   past the detector's longest gap for the cadence with no charge
   (missedCharge), never by the clock alone: it stays listed, flagged, and

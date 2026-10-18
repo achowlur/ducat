@@ -1,4 +1,5 @@
 import type { RecurringCadence } from '../../types/contracts';
+import { priceNow } from '../insights/recurring';
 import { round2 } from '../insights/stats';
 import { isActive, missedCharge, type DetectedSubscription } from './detectedSubscriptions';
 import { matchesSubscription, projectNextPayment } from './subscriptions';
@@ -30,8 +31,8 @@ export interface Commitment {
   /** Whole days from `now`; 0 means today. */
   daysAway: number;
   /**
-   * The last charge came in above the prior median, so `amount` is that new
-   * price rather than the median — a raised price is what you will pay next.
+   * The price rose recently against the price run before it (insights/
+   * recurring.ts, priceRuns); `amount` is today's price either way.
    */
   priceIncreased: boolean;
   /**
@@ -109,9 +110,9 @@ export function upcomingCommitments(
     items.push({
       merchant: sub.merchant,
       cadence: sub.cadence,
-      // A price rise is the one case where the median is the wrong predictor:
-      // the next charge will be the new price, not the average of the old ones.
-      amount: round2(sub.priceIncreased ? sub.lastAmount : sub.averageAmount),
+      // What it bills now, never the median of its history: the next charge
+      // is today's price, not the average of the old ones.
+      amount: round2(priceNow(sub)),
       dueDate,
       daysAway: daysAway(dueDate),
       priceIncreased: sub.priceIncreased,

@@ -345,6 +345,8 @@ describe('the demo through the real pipeline', () => {
   it('shows a price rise, a one-off this month, and no groceries or fuel mistaken for subscriptions', async () => {
     const recurring = await payloads<RecurringChargePayload>('RECURRING_CHARGE');
     expect(recurring.find((r) => r.merchant === 'streamflix')?.priceIncreased).toBe(true);
+    // Electricity peaks summer and winter: a bill that moves is not a rise.
+    expect(recurring.find((r) => r.merchant === 'citylight electric')?.priceIncreased).toBe(false);
     expect(recurring.map((r) => r.merchant)).not.toEqual(expect.arrayContaining(['summit fuel']));
     expect(recurring.map((r) => r.merchant)).not.toEqual(expect.arrayContaining(['corner grocer']));
     const anomalies = await payloads<AnomalyPayload>('ANOMALY', '2026-09');
