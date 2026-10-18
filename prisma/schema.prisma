@@ -81,6 +81,8 @@ model ImportBatch {
   periodEnd   DateTime
   rowsAdded   Int
   importedAt  DateTime          @default(now())
+
+  @@index([accountId])
 }
 
 model BalanceSnapshot {
@@ -129,6 +131,15 @@ model Transaction {
 
   @@unique([accountId, externalId])
   @@index([importBatchId])
+  // A foreign key's CHILD column needs an index of its own: deleting a parent
+  // makes SQLite look for rows still pointing at it, and without one that look
+  // is a scan of the whole table per deleted row. The demo's nightly reset
+  // deleted 7,097 transactions, each checked against both self-references by
+  // full scan: ~100 million rows READ per reset, and on 2026-10-17 a handful
+  // of resets spent the hosting plan's month of reads in a day.
+  @@index([transferPairId])
+  @@index([reimbursesId])
+  @@index([categoryId])
 }
 
 model Category {
@@ -143,6 +154,8 @@ model Category {
 
   transactions Transaction[]
   rules        Rule[]
+
+  @@index([parentId])
 }
 
 model Rule {
@@ -157,6 +170,8 @@ model Rule {
   setCategory    Category?         @relation(fields: [setCategoryId], references: [id])
   setFlow        TransactionFlow?
   enabled        Boolean
+
+  @@index([setCategoryId])
 }
 
 enum RecurringCadence {

@@ -15,7 +15,8 @@ ui-ledger.md.
 Every page:
 - A database that cannot be REACHED is named on the page in both modes, never
   dropped to the generic boundary, naming no culprit and never implying the
-  data is gone.
+  data is gone. A host that REFUSES on its usage limit (Turso's "BLOCKED:")
+  says so, the one cause it names because the host itself named it.
 - An /insights archive row is a NAME plus a column of FACTS
   (`InsightRow.facts`), never a punctuated sentence, and a chip that only
   repeats its group heading is null, the tone carried by a mark.

@@ -83,7 +83,28 @@ const noSuchTable = () =>
     cause: { originalCode: "1", originalMessage: "SQLITE_ERROR: no such table: main.Setting", kind: "sqlite" },
   });
 
+/**
+ * Turso refusing on quota, as the deployment logged it on 2026-10-17 from a
+ * model query (prisma 7.10.0): code P2039, the refusal in the message.
+ */
+const readsBlocked = () =>
+  Object.assign(
+    new Error(
+      "Invalid `prisma.trackedSubscription.findMany()` invocation:\n\nDatabase error. Code: `N/A`. Message: `BLOCKED: Operation was blocked: SQL read operations are forbidden (reads are blocked, do you need to upgrade your plan?)`",
+    ),
+    { name: "PrismaClientKnownRequestError", code: "P2039", clientVersion: "7.10.0", meta: {} },
+  );
+
 describe("databaseFailure", () => {
+  it("names a host that blocked reads on its usage limit, which a reload cannot fix", () => {
+    expect(databaseFailure(readsBlocked())).toEqual({ kind: "usage-blocked", detail: "reads" });
+    const writes = Object.assign(new Error("BLOCKED: Operation was blocked: writes are blocked"), { clientVersion: "7.10.0" });
+    expect(databaseFailure(writes)).toEqual({ kind: "usage-blocked", detail: "writes" });
+    // Without Prisma's stamp it is not a database error at all.
+    expect(databaseFailure(new Error("BLOCKED: Operation was blocked: reads are blocked"))).toBeNull();
+  });
+
+
   it("reports the 502 outage as unreachable, and carries the status as evidence", () => {
     expect(databaseFailure(serverError())).toEqual({ kind: "unreachable", detail: "HTTP 502" });
   });

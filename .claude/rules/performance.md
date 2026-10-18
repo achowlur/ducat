@@ -11,6 +11,10 @@ Evidence: docs/conventions/performance.md. Read it before changing anything
 below. On Turso the COUNT of round trips is the cost (CLAUDE.md). Measuring
 anything, or claiming a speed-up: the `perf-measure` skill.
 
+- Turso BILLS ROWS READ and blocks every database in the account at the
+  plan's monthly limit. Every foreign key's CHILD column carries an index
+  (scripts/foreignKeyIndexes.test.ts): without one, deleting a parent scans
+  the whole child table per row, and the demo reset read ~100M rows a time.
 - Promise.all buys ~1.13x, not parallelism — buy speed by REMOVING round
   trips; a relation include is one statement each, so select columns.
 - Page cost is DOM SIZE (parse + hydration), not bytes on the wire.
