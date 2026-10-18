@@ -25,6 +25,8 @@ import {
   type Runway,
 } from "./liquidity";
 import { periodKey } from "../insights/periods";
+import { recentMonths, type RecentMonths } from "../insights/recentMonths";
+import { accountCoverageFrom, firstRecords } from "./coverage";
 import { monthLabel, shortDate } from "./format";
 import { monthlyRows, ofType } from "./insightRows";
 import { OVERVIEW_SLICING, spendingBreakdown, type DonutSliceData } from "./spendingBreakdown";
@@ -107,6 +109,8 @@ export interface OverviewData {
   balances: BalanceSummary;
   /** Months of cash at recent spending; null when the evidence refuses. */
   runway: Runway | null;
+  /** The complete months the runway averages, and which were left out or lean short (insights/recentMonths.ts). */
+  runwayWindow: RecentMonths;
   health: ProviderHealth[];
   lastSyncAt: Date | null;
   /**
@@ -146,6 +150,7 @@ export async function getOverviewData(): Promise<OverviewData> {
     health,
     cashAccountIds,
     packDrift,
+    firsts,
   ] = await Promise.all([
       prisma.insight.findMany(),
       prisma.account.findMany(),
@@ -163,6 +168,9 @@ export async function getOverviewData(): Promise<OverviewData> {
       getProviderHealth(prisma, { ...DEFAULT_HEALTH_OPTIONS, scope: "accounts" }),
       readCashAccountIds(prisma),
       pendingPackRules(prisma),
+      // Where each account's records begin, for which months the runway can
+      // average: joins the concurrent group, no round trip of its own.
+      firstRecords(),
     ]);
 
   const p2pToConfirmCount = uncategorizedRows.filter(isP2P).length;
@@ -222,9 +230,15 @@ export async function getOverviewData(): Promise<OverviewData> {
   // Complete months only, and the app's OWN spending figure — the same
   // totalSpending /trends and /insights print, so no third definition appears.
   const spendingSeries = ofType<SpendingByCategoryPayload>(monthly, "SPENDING_BY_CATEGORY");
+  // Comparable months only: a month from before a card's records began holds
+  // none of its spending, and averaged in it makes the cash last longer.
+  const runwayWindow = recentMonths(
+    spendingSeries.filter((s) => s.period < currentPeriod).map((s) => s.period),
+    accountCoverageFrom(accountRows, firsts).map((a) => a.firstTransaction),
+  );
   const runway = computeRunway(
     balances.cash,
-    spendingSeries.filter((s) => s.period < currentPeriod).map((s) => s.payload.totalSpending),
+    spendingSeries.filter((s) => runwayWindow.used.includes(s.period)).map((s) => s.payload.totalSpending),
   );
 
   // The spending block shows the month being LIVED IN — never a past month
@@ -273,6 +287,7 @@ export async function getOverviewData(): Promise<OverviewData> {
           },
     balances,
     runway,
+    runwayWindow,
     health,
     lastSyncAt: lastOk?.finishedAt ?? null,
     uncategorizedCount,

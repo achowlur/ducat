@@ -8,6 +8,8 @@ import { generateInsights } from '../insights/engine';
 import { detectRecurringCharges } from '../insights/recurring';
 import { isActive, missedCharge } from '../health/detectedSubscriptions';
 import { periodKey } from '../insights/periods';
+import { recentMonths } from '../insights/recentMonths';
+import { accountCoverageFrom } from '../ui/coverage';
 import { isP2P, isUnreviewedP2P } from '../p2p';
 import { assessNetWorthGoal, parseNetWorthGoal } from '../ui/netWorthGoal';
 import { groupByPayee } from '../sync/grouping';
@@ -290,6 +292,20 @@ describe('the demo through the real pipeline', () => {
     // deposit; March's bonus moved into the brokerage is a lump sum it ignores.
     expect(g.contribution).toBe(1235);
     expect(g.unmatchedDeposit).toBeNull();
+  });
+
+  // The fuel card opened four months before NOW (2026-05): March and April
+  // predate its records, so the paces, readiness and the runway name them.
+  it('names the months before its newest card in the window the projections average', async () => {
+    const [accounts, firsts] = await Promise.all([
+      prisma.account.findMany({ select: { id: true, name: true, type: true } }),
+      prisma.transaction.groupBy({ by: ['accountId'], _min: { date: true } }),
+    ]);
+    const complete = Array.from({ length: 12 }, (_, i) => periodKey(new Date(Date.UTC(2025, 8 + i, 1)), 'MONTH'));
+    const w = recentMonths(complete, accountCoverageFrom(accounts, firsts).map((a) => a.firstTransaction));
+    expect(w.used).toEqual(['2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08']);
+    expect(w.dropped).toEqual([]);
+    expect(w.short).toEqual(['2026-03', '2026-04']);
   });
 
   it('shows a price rise, a one-off this month, and no groceries or fuel mistaken for subscriptions', async () => {

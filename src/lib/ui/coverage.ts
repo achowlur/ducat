@@ -14,8 +14,21 @@ import { isClosedBox } from "../sync/closedBox";
 export async function getAccountCoverage(): Promise<AccountCoverage[]> {
   const [accounts, firsts] = await Promise.all([
     prisma.account.findMany({ select: { id: true, name: true, type: true } }),
-    prisma.transaction.groupBy({ by: ["accountId"], _min: { date: true } }),
+    firstRecords(),
   ]);
+  return accountCoverageFrom(accounts, firsts);
+}
+
+/** Each account's earliest transaction date, as getAccountCoverage reads it: for a page that already has its accounts. */
+export function firstRecords() {
+  return prisma.transaction.groupBy({ by: ["accountId"], _min: { date: true } });
+}
+
+/** Coverage from accounts and their earliest transactions, investment accounts left out. */
+export function accountCoverageFrom(
+  accounts: readonly { id: string; name: string; type: string }[],
+  firsts: readonly { accountId: string; _min: { date: Date | null } }[],
+): AccountCoverage[] {
   const firstByAccount = new Map(firsts.map((f) => [f.accountId, f._min.date]));
   return accounts
     .filter((a) => !isClosedBox(a.type))

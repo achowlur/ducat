@@ -2,6 +2,8 @@ import Link from "next/link";
 import { CoverageNotice } from "../../components/CoverageNotice";
 import { DismissButton } from "../../components/DismissButton";
 import { getInsightsPageData, type InsightRow } from "../../lib/ui/insights";
+import type { RecentMonths } from "../../lib/insights/recentMonths";
+import { droppedNote, shortNote, windowSpan } from "../../lib/ui/recentMonthsNote";
 import { GOAL_RATE_MIN_MONTHS } from "../../lib/insights/goals";
 import { monthlyPiti, type ReadinessAssessment } from "../../lib/insights/readiness";
 import { money, monthLabel, shortDate, titleCase } from "../../lib/ui/format";
@@ -119,8 +121,11 @@ function ReadinessBlock({
   fundName,
   targetHousePrice,
   depositLands,
+  window,
 }: {
   r: ReadinessAssessment;
+  /** The months the budget averages, shared with the goal that funds it. */
+  window: RecentMonths | null;
   fundName: string | null;
   targetHousePrice: number | null;
   /** When the fund's goal is projected to be reached ("2029-01"); null when it has no date. */
@@ -137,6 +142,9 @@ function ReadinessBlock({
           return { price: targetHousePrice, cash, payment: monthlyPiti(targetHousePrice, c, cash) };
         })();
   const monthsWord = (n: number) => (n === 1 ? "month" : "months");
+  const span = window === null ? `your last ${r.basisMonths} complete ${monthsWord(r.basisMonths)}` : windowSpan(window);
+  // Left out, or kept but short an account: said where the averaging is.
+  const windowNotes = window === null ? [] : [droppedNote(window), shortNote(window, "the budget may run high")].filter((n) => n !== null);
   const fundLabel = fundName === null ? "declared fund" : `${fundName} fund`;
   const fundCaps = (
     <>
@@ -158,7 +166,7 @@ function ReadinessBlock({
         <p className="leading-relaxed text-faint">
           Income <Money n={r.incomeMean ?? 0} about />
           /mo minus non-housing spending <Money n={r.nonHousingMean ?? 0} about />
-          /mo, over your last {r.basisMonths} complete {monthsWord(r.basisMonths)}, leaves no mortgage
+          /mo, over {span}, leaves no mortgage
           budget once the <Money n={c.savingsFloor} />
           /mo savings floor you declared is kept: it comes to{" "}
           <span className="font-money tabular text-ink">{money(r.pitiBudget ?? 0)}</span>/mo, so the
@@ -261,8 +269,8 @@ function ReadinessBlock({
                 </tbody>
               </table>
               <p>
-                Averaged over your last {r.basisMonths} complete {monthsWord(r.basisMonths)}, one-off pay such as a bonus
-                left out of income.
+                Averaged over {span}, one-off pay such as a bonus left out of income.
+                {windowNotes.map((n) => ` ${n}`).join("")}
               </p>
             </div>
           </details>
@@ -555,7 +563,12 @@ async function renderInsights({
           )}
           {data.goals.map((g, i) => (
             <div key={g.goal.id} className="border-b border-rule py-4 last:border-b-0">
-              <SavingsGoalCard g={g} history={data.goalHistory[g.goal.id] ?? []} anchor={data.period} />
+              <SavingsGoalCard
+                g={g}
+                history={data.goalHistory[g.goal.id] ?? []}
+                anchor={data.period}
+                window={data.projectionWindow}
+              />
               {i === 0 && data.readiness !== null && (
                 <div className="mt-4 border-l-2 border-rule pl-3">
                   <SubsectionTitle>House readiness</SubsectionTitle>
@@ -564,6 +577,7 @@ async function renderInsights({
                     fundName={g.goal.name}
                     targetHousePrice={g.goal.housePrice ?? null}
                     depositLands={g.reached ? null : g.landsMonth}
+                    window={data.projectionWindow}
                   />
                 </div>
               )}

@@ -6,6 +6,7 @@ import { wholePercents } from "../lib/ui/spendingBreakdown";
 import { SyncNowButton } from "../components/SyncNowButton";
 import { amount, dateTime, money, pct } from "../lib/ui/format";
 import { getOverviewData, STALE_DISPLAY_DAYS } from "../lib/ui/overview";
+import { droppedNote, shortNote } from "../lib/ui/recentMonthsNote";
 import { STATUS_DOT } from "../lib/ui/providers";
 import { CHIP, COLUMN_HEADER, FIELD_LABEL, PageTitle, SectionTitle } from "../components/ui/headings";
 import { transactionsHref } from "../lib/ui/categoryFilter";
@@ -493,6 +494,16 @@ async function renderOverview() {
                 <span className="block font-money text-[0.68rem] tabular">
                   {data.runway.basisMonths} months ran {money(data.runway.low)}–{money(data.runway.high)}
                 </span>
+                {/* Which months, when the window is not simply the last six:
+                    one left out as not comparable with today, or one kept
+                    that holds nothing from some account, leaning long. */}
+                {[droppedNote(data.runwayWindow), shortNote(data.runwayWindow, "the runway may run long")]
+                  .filter((n) => n !== null)
+                  .map((n) => (
+                    <span key={n} className="block pt-0.5">
+                      {n}
+                    </span>
+                  ))}
               </span>
             )
           }
