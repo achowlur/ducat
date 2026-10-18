@@ -72,8 +72,10 @@ Overview:
 - Net worth ZOOMS by gesture, never by preset buttons: pinch (two fingers
   also move along), Ctrl/trackpad-pinch wheel, drag; a plain wheel scrolls
   the page. The figures above follow the months on show: growth splits into
-  markets (the months' own marketGains) and saved (the rest), adding up
-  exactly, and no ratio is printed from the first month on record.
+  markets (the months' own marketGains), accounts JOINING the total (a
+  month counting different accounts from the one before, named apart in
+  text) and saved (the rest), adding up exactly, and no ratio is printed
+  from the first month on record.
 
 /insights, /accounts, /providers:
 - /insights is THREE questions, in order: This month (the spending figure,

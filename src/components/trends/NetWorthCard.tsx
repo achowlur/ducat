@@ -117,7 +117,7 @@ export function NetWorthCard({
               </>
             )}
           </Hero>
-          <GrowthSplit saved={growth.saved} markets={growth.markets} />
+          <GrowthSplit saved={growth.saved} markets={growth.markets} joined={growth.joined} />
         </>
       )}
 

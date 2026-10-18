@@ -26,6 +26,22 @@ describe("growthBetween", () => {
     expect(g.markets + g.saved).toBe(g.change);
   });
 
+  // Invented: a brokerage holding $30,000 enters the total in March, its
+  // records starting there. Its balance arriving is not saving.
+  it("names an account joining the total apart from saved and markets, the three adding up exactly", () => {
+    const points = [
+      { ...point("2026-01", 10_000, null), leftOut: ["Brokerage"] },
+      { ...point("2026-02", 11_000, 0), leftOut: ["Brokerage"] },
+      point("2026-03", 42_200, null),
+      point("2026-04", 43_500, 300),
+    ];
+    const g = growthBetween(points, 0, 3);
+    expect(g).toMatchObject({ change: 33_500, markets: 300, joined: 31_200, saved: 2000 });
+    expect(g.saved + g.markets + g.joined).toBe(g.change);
+    // A span over the same accounts throughout has nothing joining.
+    expect(growthBetween(points, 2, 3).joined).toBe(0);
+  });
+
   it("never counts the base month's own market movement: that happened before the span", () => {
     const points = [point("2026-01", 5000, 999), point("2026-02", 5200, 50)];
     expect(growthBetween(points, 0, 1).markets).toBe(50);
