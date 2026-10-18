@@ -111,6 +111,8 @@ export async function claimSetupToken(setupToken: string): Promise<string> {
 
 export class SimplefinConnector implements Connector {
   readonly type = 'SIMPLEFIN';
+  /** The bridge answers at most 90 days of transactions a request. */
+  readonly maxHistoryDays = 90;
 
   private readonly baseUrl: string;
   private readonly authHeader: string;
