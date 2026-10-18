@@ -32,7 +32,7 @@ import { MORTGAGE_RATE_KEY, parseMortgageRate } from "../rates/mortgageRate";
 import { DEFAULT_RECURRING_OPTIONS, priceNow } from "../insights/recurring";
 import { periodCoverage, type PeriodCoverage } from "../insights/coverage";
 import { recentMonths, type RecentMonths } from "../insights/recentMonths";
-import { periodEndExclusive, periodStart } from "../insights/periods";
+import { periodEndExclusive, periodKey, periodStart } from "../insights/periods";
 import { tripsForPeriod, type TripRow } from "./trips";
 import { countsAsCash, readCashAccountIds } from "./liquidity";
 import { fundGrowthOver, fundHistory } from "./goalFunds";
@@ -326,8 +326,18 @@ function toRow(
 }
 
 export async function getInsightsPageData(requestedPeriod?: string): Promise<InsightsPageData | null> {
+  // One `now` for the whole request: the period admission, the current-period
+  // gate and the commitment windows must agree on which month is being lived
+  // in, or a render straddling midnight could admit one month and gate another.
+  const now = new Date();
+  // Anomalies are the bulk of the Insight table (one per category per month)
+  // and the page shows one month of them, so it reads the month it expects to
+  // land on and fetches another only when the selection lands elsewhere.
+  const expected = requestedPeriod !== undefined && /^d{4}-d{2}$/.test(requestedPeriod) ? requestedPeriod : periodKey(now, "MONTH");
   const [insightRows, registered, settingRows, accountRows, cashIds, taggedRows] = await Promise.all([
-    prisma.insight.findMany(),
+    prisma.insight.findMany({
+      where: { OR: [{ type: { not: "ANOMALY" } }, { type: "ANOMALY", period: expected }] },
+    }),
     getSubscriptionStatuses(prisma),
     // Goals, readiness config and the stored rate observation in ONE
     // statement — on Turso the count of round trips is the cost, so four
@@ -347,23 +357,23 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     // few rows that carry a tag, joining the concurrent group (one round
     // trip, no gate: a gate would cost about what it saves).
     prisma.transaction.findMany({
-      where: { groupLabel: { not: null } },
+      // `>= ""` rather than `not: null`: SQLite plans IS NOT NULL as a scan of
+      // the table, and a range on the label's index reads only the tagged rows.
+      where: { groupLabel: { gte: "" } },
       select: { groupLabel: true, date: true, amount: true, flow: true },
     }),
   ]);
   const settingValue = (key: string) => settingRows.find((r) => r.key === key)?.value ?? null;
-  const monthly = monthlyRows(insightRows);
-  // One `now` for the whole request: the period admission, the current-period
-  // gate and the commitment windows must agree on which month is being lived
-  // in, or a render straddling midnight could admit one month and gate another.
-  const now = new Date();
   const selection = selectPeriod(
-    monthly.map((r) => r.period),
+    monthlyRows(insightRows).map((r) => r.period),
     requestedPeriod,
     now,
   );
   if (selection === null) return null;
   const { period, prevPeriod, nextPeriod, clampedFrom } = selection;
+  const landedAnomalies =
+    period === expected ? [] : await prisma.insight.findMany({ where: { type: "ANOMALY", period } });
+  const monthly = monthlyRows([...insightRows, ...landedAnomalies]);
   // Same predicate the commitments fold uses, so a row cannot read "registered"
   // while the panel below bills it a second time as undetected.
   const isRegistered = (merchant: string) =>

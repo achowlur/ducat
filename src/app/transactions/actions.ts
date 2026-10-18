@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { revalidateInsightPages } from "../revalidate";
 import { prisma } from "../../lib/prisma";
-import { generateInsights } from "../../lib/insights/engine";
+import { regenerateForRows } from "../../lib/insights/scope";
 import { confirmP2PMatches, reapplyRules, restoreTransactions, type GroupUndo } from "../../lib/sync/rulePack";
 import { renameGroupRows } from "../../lib/sync/groups";
 import { MAX_GROUP_LABEL, normalizeGroupLabel } from "../../lib/ui/groupFilter";
@@ -64,7 +64,7 @@ export async function setTransactionCategory(
       data: { categoryId, categorySource: "MANUAL" },
     });
   }
-  await generateInsights(prisma);
+  await regenerateForRows(prisma, { id: transactionId });
   revalidatePath("/transactions");
   revalidateInsightPages();
 }
@@ -158,7 +158,9 @@ async function upsertRules(decisions: RuleDecision[]): Promise<{ recategorized: 
   );
   const reapplied = await reapplyRules(prisma);
   // reapplyRules regenerates insights only when IT changed rows.
-  if (confirmed.length > 0 && reapplied.changed === 0) await generateInsights(prisma);
+  if (confirmed.length > 0 && reapplied.changed === 0) {
+    await regenerateForRows(prisma, { id: { in: confirmed.map((r) => r.id) } });
+  }
   revalidatePath("/transactions");
   revalidateInsightPages();
   return {
@@ -207,8 +209,9 @@ export async function undoCategorizeGroup(undo: GroupUndo): Promise<void> {
       });
     }
   }
-  await restoreTransactions(prisma, Array.isArray(undo?.restore) ? undo.restore : []);
-  await generateInsights(prisma);
+  const restore = Array.isArray(undo?.restore) ? undo.restore : [];
+  await restoreTransactions(prisma, restore);
+  await regenerateForRows(prisma, { id: { in: restore.map((r) => r.id).filter((id) => typeof id === "string") } });
   revalidatePath("/transactions");
   revalidateInsightPages();
 }
@@ -482,7 +485,7 @@ export async function linkReimbursement(inflowId: string, outflowId: string): Pr
     where: { id: inflowId },
     data: { reimbursesId: outflowId },
   });
-  await generateInsights(prisma);
+  await regenerateForRows(prisma, { id: { in: [inflowId, outflowId] } });
   revalidatePath("/transactions");
   revalidateInsightPages();
   return { ok: true };
@@ -551,11 +554,15 @@ export async function unregisterSubscription(merchantPattern: string): Promise<v
 
 export async function unlinkReimbursement(inflowId: string): Promise<void> {
   await requireSession();
+  // Read first: once the link is cut the repaid expense is no longer known.
+  const linked = await prisma.transaction.findUnique({ where: { id: inflowId }, select: { reimbursesId: true } });
   await prisma.transaction.update({
     where: { id: inflowId },
     data: { reimbursesId: null },
   });
-  await generateInsights(prisma);
+  await regenerateForRows(prisma, {
+    id: { in: linked?.reimbursesId == null ? [inflowId] : [inflowId, linked.reimbursesId] },
+  });
   revalidatePath("/transactions");
   revalidateInsightPages();
 }

@@ -1,5 +1,7 @@
 import { granularityOfKey } from "../insights/periods";
 
+export { monthKeyBack } from "../insights/periods";
+
 /** A stored insight row, narrowed to what every screen actually reads. */
 export interface InsightLike {
   type: string;

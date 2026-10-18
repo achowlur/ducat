@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { revalidateInsightPages } from "../revalidate";
 import { prisma } from "../../lib/prisma";
-import { generateInsights } from "../../lib/insights/engine";
+import { earliestTouched, regenerateForRows, regenerateSince } from "../../lib/insights/scope";
 import { requireSession } from "../../lib/auth/requireSession";
 import { deleteUserCategory, renameUserCategory } from "../../lib/categoryEdits";
 import type { ActionResult } from "../../lib/actionResult";
@@ -30,7 +30,8 @@ export async function renameCategory(id: string, name: string): Promise<ActionRe
   const renamed = await renameUserCategory(prisma, id, name);
   if (!renamed.ok) return renamed;
   if (renamed.changed) {
-    await generateInsights(prisma);
+    // Payloads carry the name: every month holding the category is stale.
+    await regenerateForRows(prisma, { categoryId: id });
     expireCategoryPages();
   }
   return { ok: true, name: renamed.name };
@@ -46,9 +47,11 @@ export async function deleteCategory(
   moveTo: string | null,
 ): Promise<ActionResult<{ name: string; moved: number; rulesMoved: number; rulesRemoved: number }>> {
   await requireSession();
+  // The rows move on delete, so the earliest of them is read before it.
+  const earliest = await earliestTouched(prisma, { categoryId: id });
   const deleted = await deleteUserCategory(prisma, id, moveTo);
   if (!deleted.ok) return deleted;
-  await generateInsights(prisma);
+  await regenerateSince(prisma, earliest);
   expireCategoryPages();
   return deleted;
 }

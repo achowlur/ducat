@@ -93,6 +93,8 @@ model BalanceSnapshot {
   balance   Decimal
 
   @@unique([accountId, date])
+  // Net worth history reads snapshots by date range.
+  @@index([date])
 }
 
 model Transaction {
@@ -140,6 +142,11 @@ model Transaction {
   @@index([transferPairId])
   @@index([reimbursesId])
   @@index([categoryId])
+  // Read cost as history grows: the ledger and every period read filter or
+  // order by date, and a trip view filters by its label. Without these each is
+  // a scan of the whole table (page plans: src/lib/ui/pagePlans.test.ts).
+  @@index([date])
+  @@index([groupLabel])
 }
 
 model Category {
@@ -195,6 +202,9 @@ model SyncLog {
   transactionsSkipped  Int
   rulesApplied         Int
   transfersLinked      Int
+
+  // Health reads the latest run of a connector.
+  @@index([connectorType, finishedAt])
 }
 
 model TrackedSubscription {
@@ -216,6 +226,9 @@ model Insight {
   payload   Json
   dismissed Boolean
   createdAt DateTime @default(now())
+
+  // Every page reads one type or one period; regeneration replaces by period.
+  @@index([type, period])
 }
 
 model Setting {

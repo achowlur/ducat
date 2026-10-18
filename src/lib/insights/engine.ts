@@ -3,13 +3,30 @@ import type { Prisma, PrismaClient } from '../../generated/prisma/client';
 import { detectCategoryTotalAnomalies, detectTransactionAnomalies, DEFAULT_ANOMALY_OPTIONS, type AnomalyOptions } from './anomalies';
 import { computeCashFlowTrend } from './cashFlow';
 import { computeNetWorthGrowth } from './netWorth';
-import { enumeratePeriods } from './periods';
+import { enumeratePeriods, monthKeyBack } from './periods';
 import { detectRecurringCharges, DEFAULT_RECURRING_OPTIONS, type RecurringOptions } from './recurring';
 import { computeSpendingByCategory } from './spendingByCategory';
 import type { AccountData, SnapshotData, TxnData } from './types';
 
+/**
+ * Months before an edit's own month that a scoped run still regenerates. An
+ * analyzer reads across periods: the previous month (deltas), the paydays
+ * around a deposit (oneOffPay judges 3 of 8, irregularIncome 7 months), so a
+ * row edited in one month can change how a neighbour reads. Forward needs no
+ * margin: every period after the edit is regenerated, since anomaly baselines
+ * are the history before a period.
+ */
+export const SCOPE_LOOKBACK_MONTHS = 12;
+
 export interface GenerateOptions {
   granularity?: PeriodGranularity;
+  /**
+   * Regenerate only what an edit to rows dated at or after this instant can
+   * have changed: SCOPE_LOOKBACK_MONTHS before its month, through the latest
+   * period. Every other period keeps its stored rows. MONTH granularity only;
+   * sync, upgrade and scripts omit it and run in full.
+   */
+  since?: Date;
   anomalyOptions?: AnomalyOptions;
   recurringOptions?: RecurringOptions;
 }
@@ -97,6 +114,13 @@ export async function generateInsights(
   const dates = txns.map((t) => t.date.getTime());
   const periods = enumeratePeriods(new Date(Math.min(...dates)), new Date(Math.max(...dates)), granularity);
   const latestPeriod = periods[periods.length - 1];
+  // The periods this run writes. Every analyzer below still sees the whole
+  // history (baselines, pay judgement), so a scoped row is the row a full run
+  // would write; only the writes are fewer.
+  const scopeFrom =
+    options.since !== undefined && granularity === 'MONTH' ? monthKeyBack(options.since, SCOPE_LOOKBACK_MONTHS) : null;
+  const scope = scopeFrom === null ? periods : periods.filter((p) => p >= scopeFrom);
+  const inScope = new Set(scope);
 
   const fresh: NewInsight[] = [];
   for (const [period, payload] of computeNetWorthGrowth(accounts, snapshots, txns, periods, granularity)) {
@@ -132,25 +156,33 @@ export async function generateInsights(
     // Every (type, period) in scope is replaced wholesale — stale insights for
     // periods that no longer produce one must not survive a regeneration.
     const existing = await tx.insight.findMany({
-      where: { period: { in: periods } },
+      where: { period: { in: scope } },
     });
     const dismissedByKey = new Map<string, boolean>();
     for (const row of existing) {
       const type = row.type as InsightType;
       dismissedByKey.set(`${type}|${row.period}|${identityOf(type, row.payload)}`, row.dismissed);
     }
-    await tx.insight.deleteMany({ where: { period: { in: periods } } });
+    await tx.insight.deleteMany({ where: { period: { in: scope } } });
     await tx.insight.createMany({
-      data: fresh.map((i) => ({
+      data: fresh.filter((i) => inScope.has(i.period)).map((i) => ({
         type: i.type,
         period: i.period,
         payload: i.payload as unknown as Prisma.InputJsonValue,
         dismissed: dismissedByKey.get(`${i.type}|${i.period}|${i.identity}`) ?? false,
       })),
     });
+    // A full MONTH run also clears the strays: every screen reads months, and a
+    // WEEK, QUARTER or YEAR row left by a one-off run of the script is read by
+    // nothing (monthlyRows drops it) while every Insight read still pays for it.
+    if (scopeFrom === null && granularity === 'MONTH') {
+      await tx.insight.deleteMany({
+        where: { OR: [{ period: { contains: '-W' } }, { period: { contains: '-Q' } }, { NOT: { period: { contains: '-' } } }] },
+      });
+    }
   });
 
   const byType = { ...emptyCounts };
-  for (const i of fresh) byType[i.type] += 1;
-  return { granularity, periods, created: fresh.length, byType };
+  for (const i of fresh) if (inScope.has(i.period)) byType[i.type] += 1;
+  return { granularity, periods: scope, created: fresh.filter((i) => inScope.has(i.period)).length, byType };
 }

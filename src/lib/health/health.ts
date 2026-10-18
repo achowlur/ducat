@@ -100,9 +100,46 @@ export function findStaleAccounts(
  */
 const GAP_EXEMPT_TYPES = new Set(['INVESTMENT']);
 
+/**
+ * What gap detection reads of one account: how many rows came before the
+ * recent window, the oldest of them, and how many fall inside it. A database
+ * aggregate yields these without loading a row per transaction.
+ */
+export interface AccountActivity {
+  accountId: string;
+  historicalCount: number;
+  oldestHistorical: Date | null;
+  recentCount: number;
+}
+
+/** Summarises loaded rows the way the aggregate query does (tests, small callers). */
+export function summariseActivity(accounts: AccountLite[], txns: TxnLite[], windowStart: number): AccountActivity[] {
+  return accounts.map((account) => {
+    const own = txns.filter((t) => t.accountId === account.id);
+    const historical = own.filter((t) => t.date.getTime() < windowStart);
+    const oldest = historical.reduce((min, t) => Math.min(min, t.date.getTime()), Infinity);
+    return {
+      accountId: account.id,
+      historicalCount: historical.length,
+      oldestHistorical: historical.length === 0 ? null : new Date(oldest),
+      recentCount: own.length - historical.length,
+    };
+  });
+}
+
 export function findGappedAccounts(
   accounts: AccountLite[],
   txns: TxnLite[],
+  now: Date,
+  options: Pick<HealthOptions, 'gapWindowDays' | 'gapMinTypicalPerMonth' | 'gapThresholdRatio'>,
+): GappedAccountSignal[] {
+  const windowStart = now.getTime() - options.gapWindowDays * DAY_MS;
+  return findGappedFromActivity(accounts, summariseActivity(accounts, txns, windowStart), now, options);
+}
+
+export function findGappedFromActivity(
+  accounts: AccountLite[],
+  activity: AccountActivity[],
   now: Date,
   options: Pick<HealthOptions, 'gapWindowDays' | 'gapMinTypicalPerMonth' | 'gapThresholdRatio'>,
 ): GappedAccountSignal[] {
@@ -111,18 +148,16 @@ export function findGappedAccounts(
 
   for (const account of accounts) {
     if (GAP_EXEMPT_TYPES.has(account.type)) continue;
-    const own = txns.filter((t) => t.accountId === account.id);
-    const historical = own.filter((t) => t.date.getTime() < windowStart);
-    if (historical.length === 0) continue;
+    const mine = activity.find((a) => a.accountId === account.id);
+    if (mine === undefined || mine.historicalCount === 0 || mine.oldestHistorical === null) continue;
 
-    const oldest = historical.reduce((min, t) => Math.min(min, t.date.getTime()), Infinity);
-    const historyMonths = (windowStart - oldest) / (30 * DAY_MS);
+    const historyMonths = (windowStart - mine.oldestHistorical.getTime()) / (30 * DAY_MS);
     if (historyMonths < 1) continue; // not enough history to define "typical"
 
-    const typicalPerMonth = historical.length / historyMonths;
+    const typicalPerMonth = mine.historicalCount / historyMonths;
     if (typicalPerMonth < options.gapMinTypicalPerMonth) continue;
 
-    const recentCount = own.length - historical.length;
+    const recentCount = mine.recentCount;
     const expectedInWindow = typicalPerMonth * (options.gapWindowDays / 30);
     if (recentCount < expectedInWindow * options.gapThresholdRatio) {
       signals.push({
@@ -315,13 +350,35 @@ export async function getProviderHealth(
 
     const isPolling = pollsForBalances(connectorType);
     const staleAccounts = isPolling ? findStaleAccounts(accounts, now, options.staleBalanceDays) : [];
-    const txns = isPolling
-      ? await prisma.transaction.findMany({
-          where: { accountId: { in: accounts.map((a) => a.id) } },
-          select: { accountId: true, date: true },
-        })
-      : [];
-    const gappedAccounts = isPolling ? findGappedAccounts(accounts, txns, now, options) : [];
+    // Two aggregates, never a row per transaction: this runs on Overview, and
+    // the rows came back only to be counted. Exempt accounts are left out.
+    const gapIds = accounts.filter((a) => !GAP_EXEMPT_TYPES.has(a.type)).map((a) => a.id);
+    const windowStart = new Date(now.getTime() - options.gapWindowDays * DAY_MS);
+    const [before, within] = isPolling && gapIds.length > 0
+      ? await Promise.all([
+          prisma.transaction.groupBy({
+            by: ['accountId'],
+            where: { accountId: { in: gapIds }, date: { lt: windowStart } },
+            _count: { _all: true },
+            _min: { date: true },
+          }),
+          prisma.transaction.groupBy({
+            by: ['accountId'],
+            where: { accountId: { in: gapIds }, date: { gte: windowStart } },
+            _count: { _all: true },
+          }),
+        ])
+      : [[], []];
+    const activity: AccountActivity[] = gapIds.map((accountId) => {
+      const old = before.find((b) => b.accountId === accountId);
+      return {
+        accountId,
+        historicalCount: old?._count._all ?? 0,
+        oldestHistorical: old?._min?.date ?? null,
+        recentCount: within.find((w) => w.accountId === accountId)?._count._all ?? 0,
+      };
+    });
+    const gappedAccounts = isPolling ? findGappedFromActivity(accounts, activity, now, options) : [];
 
     const { status, reasons } = deriveStatus(
       lastSync,
