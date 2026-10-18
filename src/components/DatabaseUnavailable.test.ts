@@ -30,6 +30,15 @@ const render = (failure: DatabaseFailure, cloud: boolean, target: string | null 
 const UNREACHABLE: DatabaseFailure = { kind: "unreachable", detail: "HTTP 502" };
 
 describe("DatabaseUnavailable", () => {
+  it("says the host blocked access on its usage limit, that nothing was lost, and that reloading will not help", () => {
+    const html = render({ kind: "usage-blocked", detail: "reads" }, true, "ducat.turso.io");
+    expect(html).toContain("Database host blocked access");
+    expect(html).toContain("reads are blocked because the plan");
+    expect(html).toContain("Nothing was lost");
+    expect(html).toContain("Reloading will not help");
+  });
+
+
   it("names the condition instead of saying something went wrong", () => {
     const html = render(UNREACHABLE, true, "ducat-prod.turso.io");
     expect(html).toContain("Database unreachable");

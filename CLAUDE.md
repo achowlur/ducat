@@ -123,7 +123,7 @@ regeneration.
   sessions, for this or anything else. When something genuinely needs an
   authenticated session the in-app browser does not have — the Vercel
   dashboard, Turso's console — ASK, and never enter credentials anywhere.
-- On Turso the COUNT of round trips is the cost, never the size of any one.
+- On Turso round trips cost latency; ROWS READ are billed: index every foreign key.
 
 ## Every rendered surface (evidence: docs/conventions/ui-and-pages.md)
 

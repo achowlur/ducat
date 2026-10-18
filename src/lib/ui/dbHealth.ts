@@ -37,7 +37,13 @@ export type DatabaseFailureKind =
   /** A local file that opened and is not SQLite. */
   | "not-a-database"
   /** Reached and opened, but the table this query needs does not exist. */
-  | "no-tables";
+  | "no-tables"
+  /**
+   * Reached, and the HOST refused the query: the plan's monthly usage limit is
+   * spent and it blocks reads (or writes) until it resets or the plan changes.
+   * Turso says so in words, so unlike an outage this one names its cause.
+   */
+  | "usage-blocked";
 
 export interface DatabaseFailure {
   kind: DatabaseFailureKind;
@@ -139,6 +145,15 @@ export function databaseFailure(error: unknown): DatabaseFailure | null {
 
   const messages = messagesOf(error);
   const codes = codesOf(error);
+
+  // Turso refusing on quota: "BLOCKED: Operation was blocked: SQL read
+  // operations are forbidden (reads are blocked, do you need to upgrade your
+  // plan?)", measured on 2026-10-17 when a demo reset spent the month's reads.
+  const blocked = firstMatch(messages, /\bBLOCKED\b[^]*?\b(reads?|writes?) (?:are|is) blocked/i);
+  if (blocked !== null) return { kind: "usage-blocked", detail: blocked[1].toLowerCase().startsWith("read") ? "reads" : "writes" };
+  if (messages.some((message) => /\bBLOCKED: Operation was blocked\b/.test(message))) {
+    return { kind: "usage-blocked", detail: null };
+  }
 
   const transport = codes.find((code) => TRANSPORT_CODES.has(code));
   if (transport !== undefined) return { kind: "unreachable", detail: transport };

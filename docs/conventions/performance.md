@@ -123,3 +123,26 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   stays under REIMBURSE_POOL_TAKE (2000; largest observed 281), and both
   pool queries order date desc THEN id desc so same-date SQL ties cannot
   resolve differently between the wide and narrow forms.
+- ROWS READ, AND THE FOREIGN KEYS THAT SPENT A MONTH OF THEM (2026-10-17).
+  The hosting plan (Turso free) allows 500 million rows read a month across
+  the account and, at the limit, BLOCKS every database in it: the operator's
+  own instance went down with the demo's. The dashboard put 632 million reads
+  on the demo database and 6.4 million on the operator's, 606 million of them
+  on one day. The operator's first read was a visitor hammering the demo;
+  the demo's traffic that day peaked near 20 requests. The cause was the
+  nightly reset, measured on a scratch copy with every query logged and each
+  shape run through EXPLAIN QUERY PLAN: `DELETE FROM Transaction` took 7.6
+  of the reset's 10.2 seconds and planned as three scans of Transaction.
+  Transaction references itself twice (transferPairId, reimbursesId) and
+  neither child column had an index, so deleting each of 7,097 rows made
+  SQLite scan the whole table twice to check nothing still pointed at it:
+  about 100 million rows read per reset. Nulling the links first does not
+  help; the check runs regardless. The demo had grown from about 900
+  transactions to 7,097 the day before (eleven years of history), so each
+  reset cost sixty times what it had, and that day saw several resets (the
+  nightly one and a few run by hand). With an index on every foreign key's
+  child column the delete takes 61ms and the reset 2.7s, its reads falling to
+  tens of thousands. scripts/foreignKeyIndexes.test.ts now fails on any
+  foreign key without one. The page that showed the operator "That action
+  didn't complete... a lapsed sign-in looks exactly like this" now names the
+  refusal (dbHealth.ts, usage-blocked).

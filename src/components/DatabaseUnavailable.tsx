@@ -61,6 +61,22 @@ export function adviceFor(failure: DatabaseFailure, cloud: boolean): Advice {
     };
   }
 
+  // The one refusal that names its own cause: the host said its plan's usage
+  // limit is spent. Still no guess beyond what it said.
+  if (failure.kind === "usage-blocked") {
+    return {
+      heading: "Database host blocked access",
+      what: `The database host answered but refused to run the query: ${failure.detail === null ? "it blocked access" : `${failure.detail} are blocked`} because the plan's usage limit for the month is spent.`,
+      reassurance:
+        "Nothing was lost. The host stops serving queries at the limit; what is stored is untouched and comes back when access does.",
+      next: [
+        cloud
+          ? "In the database host's dashboard, raise the plan or allow usage beyond it, or wait for the monthly allowance to reset. Reloading will not help until one of those happens."
+          : "A local database has no usage limit, so check that DATABASE_URL points where you expect.",
+      ],
+    };
+  }
+
   if (failure.kind === "unopenable") {
     return {
       heading: "Database file could not be opened",
