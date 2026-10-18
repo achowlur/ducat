@@ -3,6 +3,7 @@ import { isCloudMode } from "../lib/auth/mode";
 import { prisma } from "../lib/prisma";
 import { shortDate } from "../lib/ui/format";
 import { readUsageCached, usageLines, usageResetsOn, type UsageLine, type UsageReading } from "../lib/usage/limits";
+import { CHIP } from "./ui/headings";
 import { countLabel, shareLabel } from "./UsageLimits";
 
 /** What happens past each host's limit, in one sentence. */
@@ -28,18 +29,26 @@ export function UsageAlertBanner({ reading, now }: { reading: UsageReading; now:
   const urgent = usageLines(reading, now).filter((l) => l.warn);
   if (urgent.length === 0) return null;
   const services = [...new Set(urgent.map((l) => l.service))];
+  // The app's notice idiom (CoverageNotice, the net-worth card): a --warn rule
+  // on the chip paper, made louder by weight and a status chip, never a slab of
+  // road-sign amber. globals.css keeps that fill for chips, dots and borders.
   return (
-    <div role="alert" className="mt-3 bg-warn px-4 py-3 text-on-warn">
-      <p className="text-[0.95rem] font-bold">Close to a free-plan limit</p>
-      <ul className="mt-1 grid gap-0.5 text-[0.85rem] leading-relaxed">
+    <div role="alert" className="mt-4 border-l-4 border-warn bg-chip px-4 py-3">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.95rem] font-semibold">
+        <span className={`${CHIP} bg-warn text-on-warn`}>Limit</span>
+        Close to a free-plan limit
+      </p>
+      <ul className="mt-1.5 grid gap-0.5 text-[0.85rem] leading-relaxed">
         {urgent.map((l) => (
           <li key={`${l.service} ${l.label}`}>{sentence(l, reading)}</li>
         ))}
       </ul>
-      <p className="mt-1 text-[0.8rem] leading-relaxed">{services.map((s) => CONSEQUENCE[s]).join(" ")}</p>
-      <Link href="/providers" className="tap44 mt-1 inline-flex items-center text-[0.8rem] font-semibold underline">
-        Details on Providers
-      </Link>
+      <p className="mt-1 text-[0.8rem] leading-relaxed text-faint">
+        {services.map((s) => CONSEQUENCE[s]).join(" ")}{" "}
+        <Link href="/providers" className="tap44 inline-flex items-center font-semibold text-acc hover:underline">
+          Details on Providers →
+        </Link>
+      </p>
     </div>
   );
 }
