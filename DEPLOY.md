@@ -623,8 +623,8 @@ to try. Everything above applies, with these differences:
   password and says the data is invented, and the nightly cron **reseeds** the
   invented data as of that day instead of syncing, undoing whatever visitors
   changed. It reseeds only when there is something to undo or refresh (a
-  visitor changed the data, a new release or month arrived, or the last
-  reseed is two days old); an untouched demo is left as it is, because a
+  visitor changed the data, or a new release or month arrived); an
+  untouched demo is left as it is, however old its dates, because a
   reseed rewrites every row and the account's free plan counts them.
 - Set `AUTH_PASSWORD_HASH`, `SESSION_SECRET` and `CRON_SECRET` exactly as for a
   real instance — the login gate is never bypassed, its key is just printed.

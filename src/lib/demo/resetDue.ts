@@ -1,19 +1,15 @@
 import { createHash } from 'node:crypto';
 import type { PrismaClient } from '../../generated/prisma/client';
-import { DEFAULT_HEALTH_OPTIONS } from '../health/health';
 
 /**
  * Whether tonight's demo cron has to reseed, or may leave the demo alone.
  *
  * A reseed rewrites every row, about 8,000 rows written and a few hundred
  * thousand read, and an untouched demo gains nothing from one but fresher
- * dates. So it reseeds only when:
+ * dates. So it reseeds only when one of these holds, and never on age alone
+ * (the operator's call: an untouched demo stays as it is, dates included):
  *   - a visitor CHANGED something since the last reseed (the data's content
  *     digest moved), which is what the reset exists to undo; or
- *   - the data is about to look stale: Providers calls a sync overdue after
- *     syncOverdueDays, and a demo whose newest "sync" is the last reseed would
- *     show that warning to every visitor. Reseeding once the last one is two
- *     UTC days old keeps the oldest a visitor can see under three; or
  *   - a new month began, so the month being lived in is never empty; or
  *   - a new release is serving it, whose demo data may differ (and the cron
  *     run by hand after a deploy is how the demo is refreshed on purpose).
@@ -23,9 +19,6 @@ import { DEFAULT_HEALTH_OPTIONS } from '../health/health';
  */
 
 export const DEMO_RESET_KEY = 'demo.lastReset';
-
-/** Reseed once the last reseed is this many UTC days old, even untouched. */
-export const DEMO_MAX_AGE_DAYS = DEFAULT_HEALTH_OPTIONS.syncOverdueDays - 1;
 
 /**
  * Every table a visitor can change, in copyDatabase.ts's TABLES order (a test
@@ -67,17 +60,11 @@ export interface DemoResetDecision {
   reason: string;
 }
 
-function utcDayNumber(d: Date): number {
-  return Math.floor(d.getTime() / 86_400_000);
-}
-
 /** The reason a reseed is due without reading the data, or null. */
 export function resetDueUnseen(record: DemoResetRecord | null, now: Date, release: string | null): string | null {
   if (record === null) return 'no earlier reset is recorded';
   if (release !== null && record.release !== release) return 'a new release is serving the demo';
   if (record.at.toISOString().slice(0, 7) !== now.toISOString().slice(0, 7)) return 'a new month began';
-  const days = utcDayNumber(now) - utcDayNumber(record.at);
-  if (days >= DEMO_MAX_AGE_DAYS) return `the data was ${days} days old`;
   return null;
 }
 

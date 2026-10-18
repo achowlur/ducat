@@ -56,7 +56,7 @@ anything below. The auth gate itself is a HARD RULE (CLAUDE.md).
 - The PUBLIC DEMO is DUCAT_DEMO_PASSWORD, nothing else: the login gate stays
   configured and is never bypassed (its password is printed on the login
   page), the cron RESEEDS instead of syncing, only when lib/demo/resetDue.ts
-  says it is due (visitor change, release, month, or two days old), and a
+  says it is due (visitor change, release or month, never age), and a
   demo holding a SimpleFIN URL 503s EVERY request in middleware. It owns its
   own Turso database.
 - package.json `allowScripts` approves install scripts by NAME, never

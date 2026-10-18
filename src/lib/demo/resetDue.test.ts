@@ -7,7 +7,6 @@ import { TABLES } from '../../../scripts/copyDatabase';
 import { PrismaClient } from '../../generated/prisma/client';
 import { reseedDemo } from './reseed';
 import {
-  DEMO_MAX_AGE_DAYS,
   demoDigest,
   demoResetDue,
   digestTables,
@@ -23,23 +22,16 @@ const record = (at: string, release: string | null = 'abc123'): DemoResetRecord 
 });
 
 describe('resetDueUnseen', () => {
-  it('reseeds with no record, on a new release, in a new month, and once the data is two UTC days old', () => {
+  it('reseeds with no record, on a new release, and in a new month', () => {
     const now = new Date('2026-03-16T23:20:00Z');
     expect(resetDueUnseen(null, now, 'abc123')).toBe('no earlier reset is recorded');
     expect(resetDueUnseen(record('2026-03-16T01:00:00Z', 'old999'), now, 'abc123')).toBe('a new release is serving the demo');
     expect(resetDueUnseen(record('2026-02-28T23:40:00Z'), new Date('2026-03-01T23:10:00Z'), 'abc123')).toBe('a new month began');
-    expect(resetDueUnseen(record('2026-03-14T23:59:00Z'), now, 'abc123')).toBe('the data was 2 days old');
   });
 
-  it('leaves a reset from the day before to the digest', () => {
-    // 23:59 one night to 23:00 the next is under 24 hours, and still one UTC day.
-    expect(resetDueUnseen(record('2026-03-15T23:59:00Z'), new Date('2026-03-16T23:00:00Z'), 'abc123')).toBeNull();
+  it('never reseeds on age alone: an untouched demo is left to the digest however old', () => {
+    expect(resetDueUnseen(record('2026-03-02T23:59:00Z'), new Date('2026-03-30T23:00:00Z'), 'abc123')).toBeNull();
     expect(resetDueUnseen(record('2026-03-15T23:59:00Z', null), new Date('2026-03-16T23:00:00Z'), null)).toBeNull();
-  });
-
-  it('keeps the oldest data a visitor can see under the overdue-sync warning', () => {
-    // Providers warns past 3 days; the cron fires once a UTC day.
-    expect(DEMO_MAX_AGE_DAYS).toBe(2);
   });
 });
 

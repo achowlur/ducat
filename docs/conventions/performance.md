@@ -171,7 +171,9 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   Vercel's edge requests and CPU time exist only on its Usage page, and
   schema:push and turso:push open their own connections. With the counts in
   hand, the demo's nightly reseed became conditional (lib/demo/resetDue.ts):
-  it reseeds when a content digest of the visitor-changeable rows moved, when
-  a new release or month arrives, or once the last reseed is two UTC days old
-  (Providers calls a sync overdue past three); otherwise the night costs one
-  read of the data instead of a rewrite of it.
+  it reseeds when a content digest of the visitor-changeable rows moved, or
+  when a new release or month arrives; otherwise the night costs one read of
+  the data instead of a rewrite of it. A first draft also reseeded once the
+  data was two days old, to keep Providers' overdue-sync warning off the
+  demo; the operator removed it: a demo does not need fresh dates every other
+  day, and the warning is the honest state of untouched data.
