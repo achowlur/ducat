@@ -1,8 +1,10 @@
 "use client";
 
 import { GOAL_RATE_MIN_MONTHS, type GoalAssessment } from "../../lib/insights/goals";
+import type { RecentMonths } from "../../lib/insights/recentMonths";
 import { money, monthLabel } from "../../lib/ui/format";
 import { recordThroughToday } from "../../lib/ui/goalFunds";
+import { droppedNote, shortNote, windowSpan } from "../../lib/ui/recentMonthsNote";
 import { CHIP, FIELD_LABEL, PROJECTED_CHIP } from "../ui/headings";
 import { GoalPathChart, type GoalProjectionLine } from "./GoalPathChart";
 
@@ -27,13 +29,20 @@ export function SavingsGoalCard({
   g,
   history,
   anchor,
+  window,
 }: {
   g: GoalAssessment;
   /** The fund at past month-ends, oldest first. */
   history: { period: string; value: number }[];
   /** The month being lived in: the projection starts here, from the live balance. */
   anchor: string;
+  /** The months the pace averages: those left out, and those still short an account. */
+  window: RecentMonths | null;
 }) {
+  const span = window === null ? `your last ${g.basisMonths} complete ${monthsWord(g.basisMonths)}` : windowSpan(window);
+  const left = window === null ? null : droppedNote(window);
+  // Months short an account read cheaper than they were, so the pace leans high.
+  const leans = window === null ? null : shortNote(window, "the pace may run high");
   const lands = g.landsMonth === null ? null : Math.max(0, monthsBetween(anchor, g.landsMonth));
   const rate = g.monthlyRate ?? 0;
   const projections: GoalProjectionLine[] =
@@ -90,11 +99,12 @@ export function SavingsGoalCard({
         <p className="pt-2 text-faint">
           {g.basisMonths === 0
             ? "No complete months of cash-flow history yet, so there is nothing to project a landing date from."
-            : `Only ${g.basisMonths} complete ${monthsWord(g.basisMonths)} of cash-flow history, too few to project a landing date (${GOAL_RATE_MIN_MONTHS} needed).`}
+            : `Only ${g.basisMonths} complete ${monthsWord(g.basisMonths)} of cash-flow history to compare, too few to project a landing date (${GOAL_RATE_MIN_MONTHS} needed).`}
+          {left !== null && ` ${left}`}
         </p>
       ) : g.refusal === "RATE_NOT_POSITIVE" ? (
         <p className="pt-2 text-faint">
-          Averaged over your last {g.basisMonths} complete months you are not saving (
+          Averaged over {span} you are not saving (
           <span className="font-money tabular">{money(g.monthlyRate ?? 0)}</span>/mo net), so there is no landing date
           worth printing.
         </p>
@@ -141,6 +151,8 @@ export function SavingsGoalCard({
               <span className="font-money tabular">~{money(rate)}</span>/mo this date assumes.
             </p>
           )}
+          {/* A month short an account is something to discount, so it stays in view. */}
+          {leans !== null && <p className="pt-1 text-[0.78rem] text-faint">{leans}</p>}
           <details className="group pt-2 text-[0.78rem] text-faint">
             <summary className="flex cursor-pointer list-none items-center gap-1.5 max-md:min-h-[44px] [&::-webkit-details-marker]:hidden">
               How this date is worked out
@@ -151,7 +163,7 @@ export function SavingsGoalCard({
             <p className="pt-1.5 leading-relaxed">
               From your balance today: saving{" "}
               <span className="font-money tabular text-ink">~{money(rate)}</span>/mo, your income less spending averaged
-              over your last {g.basisMonths} complete months, one-off pay such as a bonus left out.
+              over {span}, one-off pay such as a bonus left out.{left !== null && ` ${left}`}
             </p>
           </details>
         </>

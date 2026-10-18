@@ -604,3 +604,29 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   cash held. On the demo, investing $4,000 brought both dates years nearer;
   saving lowered to $0 read "Investing $4,000/mo of $0 saved: the other
   $4,000/mo comes out of cash, which lasts about 24 months."
+- COMPARABLE MONTHS ONLY (2026-10-17). The savings goal's pace, house
+  readiness and Overview's runway each averaged the last six complete months
+  whatever they held, and on a real history the oldest of them predated a
+  card's records: it held none of that card's spending, so it read cheaper
+  than it was. The pace call had refused to compare
+  such months since it was built (pace.ts, isComparableBaseline: a month
+  reaching back over fewer than two thirds of today's accounts), so the same
+  month was "not comparable" in the pace sentence and averaged as whole two
+  inches below it. The three projections now share one window
+  (recentMonths.ts): the last six complete months, less any under that bar.
+  It does not reach further back to make up the count: older months miss
+  more accounts and hold older pay. A month KEPT that still predates some
+  account's records entirely is named in text with the way it leans ("April
+  and May predate an account's records, so the pace may run high"; the
+  runway "may run long"), in view on the goal card and Overview, inside the
+  working-out on readiness, which sits under the goal that already says it.
+  A month an account merely STARTED in is not named: its spending is there
+  from the first day (money-and-analytics.md, a mid-period start is complete
+  data). Leaving a month out can move a figure either way: its spending was
+  understated, but it may also hold a yearly bill, which then leaves the
+  average with it. The month is not comparable either way, and the screens
+  name it. The demo gained a second
+  card opened four months back, taking the fuel from then on, so the two
+  months before it are named on its screens; leaving a month OUT needs a
+  third of the accounts missing, more than the demo's few accounts can show
+  without rewriting its history, so the unit tests pin that wording instead.

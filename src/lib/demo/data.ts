@@ -136,6 +136,11 @@ export function buildDemoData(now: Date): DemoPlan {
   };
 
   const cardSpendByMonth: number[] = [];
+  // A second card, opened four months ago, takes the fuel from then on, so
+  // the months before it hold none of its spending: the savings pace,
+  // readiness and the runway name them (insights/recentMonths.ts).
+  const fuelCardFrom = DEMO_HISTORY_MONTHS - 4;
+  const fuelSpendByMonth: number[] = [];
   // The cancelled gym's last charge (see the subscriptions below). Day 28 at
   // most, so it bills in every month.
   const gymLast = new Date(today.getTime() - 40 * DAY_MS);
@@ -149,6 +154,7 @@ export function buildDemoData(now: Date): DemoPlan {
   let savingsHeld = 3000;
   for (const mo of months) {
     let card = 0;
+    let fuel = 0;
     /** Calendar years since the first, so raises and rent rises land in January. */
     const yrs = mo.y - firstYear;
     /** Everyday spending grows with the pay, from three quarters of today's. */
@@ -210,6 +216,8 @@ export function buildDemoData(now: Date): DemoPlan {
     const prior = cardSpendByMonth[cardSpendByMonth.length - 1];
     const t25 = on(mo, 25);
     if (t25 !== null && prior !== undefined) pair('checking', 'card', t25, round2(prior), 'RIVERSTONE CARD PAYMENT ...0006', 'PAYMENT THANK YOU');
+    const priorFuel = fuelSpendByMonth[fuelSpendByMonth.length - 1];
+    if (t25 !== null && priorFuel !== undefined && priorFuel > 0) pair('checking', 'fuelcard', t25, round2(priorFuel), 'SUMMIT REWARDS PAYMENT ...0007', 'PAYMENT THANK YOU');
 
     // Subscriptions: the streaming price rose two months before the current one.
     const streaming = mo.index >= DEMO_HISTORY_MONTHS - 2 ? 17.99 : 15.49;
@@ -265,8 +273,15 @@ export function buildDemoData(now: Date): DemoPlan {
     }
     // Fuel whenever the tank runs low: anywhere in each half of the month, at
     // whatever the fill costs — two days of jitter still read as "biweekly".
-    spend(1 + Math.floor(rand() * 14), between(26, 64), 'SUMMIT FUEL', 'summit fuel', 'Gas');
-    spend(15 + Math.floor(rand() * 13), between(26, 64), 'SUMMIT FUEL', 'summit fuel', 'Gas');
+    const fill = (day: number, amount: number) => {
+      if (mo.index < fuelCardFrom) return spend(day, amount, 'SUMMIT FUEL', 'summit fuel', 'Gas');
+      const d = on(mo, day);
+      if (d === null) return;
+      add({ accountKey: 'fuelcard', date: d, amount: -amount, description: 'SUMMIT FUEL', merchant: 'summit fuel', flow: 'OUTFLOW', category: 'Gas' });
+      fuel += amount;
+    };
+    fill(1 + Math.floor(rand() * 14), between(26, 64));
+    fill(15 + Math.floor(rand() * 13), between(26, 64));
     // Holiday shopping in December, and a pricier summer.
     if (mo.m0 === 11) spend(jitter(12), between(280, 420), 'ORBITMART ONLINE', 'orbitmart', 'Gifts');
     // The summer splurge is the pottery studio the review panel's last
@@ -299,6 +314,7 @@ export function buildDemoData(now: Date): DemoPlan {
     }
 
     cardSpendByMonth.push(card);
+    fuelSpendByMonth.push(fuel);
   }
 
   // --- the last few days --------------------------------------------------------
@@ -401,13 +417,14 @@ export function buildDemoData(now: Date): DemoPlan {
     { key: 'checking', name: 'Everyday Checking ...0001', institution: 'Harbor Community Bank', type: 'DEPOSITORY', balance: round2(checkingOpening + sumOf('checking')) },
     { key: 'savings', name: 'High-Yield Savings ...0002', institution: 'Harbor Community Bank', type: 'DEPOSITORY', balance: round2(3000 + sumOf('savings')) },
     { key: 'card', name: 'Riverstone Rewards Visa ...0006', institution: 'Riverstone Card Services', type: 'CREDIT', balance: round2(-640 + sumOf('card')) },
+    { key: 'fuelcard', name: 'Summit Rewards Card ...0007', institution: 'Summit Card Services', type: 'CREDIT', balance: round2(sumOf('fuelcard')) },
     { key: 'brokerage', name: 'Individual Brokerage ...0003', institution: 'Northwind Investments', type: 'INVESTMENT', balance: brokerage },
     { key: 'ira', name: 'Roth IRA ...0004', institution: 'Northwind Investments', type: 'INVESTMENT', balance: ira },
     { key: 'loan', name: 'Student Loan ...0005', institution: 'Bluestone Loan Servicing', type: 'LOAN', balance: round2(-41400 + sumOf('loan')) },
   ];
   // Every other account gets month-end snapshots too, as a live feed writes
   // them: without one, a card's and a loan's history is only "estimated".
-  for (const key of ['checking', 'savings', 'card', 'loan']) {
+  for (const key of ['checking', 'savings', 'card', 'fuelcard', 'loan']) {
     const account = accounts.find((a) => a.key === key)!;
     for (const mo of months.filter((m) => !m.current)) {
       const end = new Date(Date.UTC(mo.y, mo.m0 + 1, 0, 23, 59, 59));

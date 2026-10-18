@@ -104,6 +104,10 @@ anything below; several entries record "tried and failed, don't retry".
   clamps to months with rows PLUS that month (selectPeriod in
   ui/periodNav.ts), so the panel renders from day 1 and its absence means
   the Setting is missing, not the month.
+- The savings pace, readiness and the runway average the last six complete
+  months LESS any under the pace call's comparability bar (recentMonths.ts,
+  isComparableBaseline), never reaching further back; a month kept that
+  predates an account's records entirely is NAMED, with the way it leans.
 - A cash goal prints its RECONCILIATION beside the projected landing —
   observed cash growth over the same window the rate averages — because the
   rate assumes every saved dollar stays in cash, and with a single goal

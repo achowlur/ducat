@@ -31,6 +31,7 @@ import {
 import { MORTGAGE_RATE_KEY, parseMortgageRate } from "../rates/mortgageRate";
 import { DEFAULT_RECURRING_OPTIONS } from "../insights/recurring";
 import { periodCoverage, type PeriodCoverage } from "../insights/coverage";
+import { recentMonths, type RecentMonths } from "../insights/recentMonths";
 import { periodEndExclusive, periodStart } from "../insights/periods";
 import { tripsForPeriod, type TripRow } from "./trips";
 import { countsAsCash, readCashAccountIds } from "./liquidity";
@@ -131,6 +132,12 @@ export interface InsightsPageData {
    * the one being lived in: the same opt-in-and-current gate as `goals`.
    */
   netWorthGoal: NetWorthGoalAssessment | null;
+  /**
+   * The complete months the savings goals' pace and house readiness average
+   * (insights/recentMonths.ts): which were left out as not comparable with
+   * today, and which kept ones predate an account's records. Null for a past month.
+   */
+  projectionWindow: RecentMonths | null;
   /** Each savings goal's fund at past month-ends, by goal id, for its chart; empty for a past month. */
   goalHistory: Record<string, { period: string; value: number }[]>;
   /**
@@ -588,6 +595,13 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   );
   const regular = (r: { period: string; payload: CashFlowTrendPayload }) =>
     (pay.topUps[r.period] ?? 0) - (r.payload.oneOffIncome ?? 0);
+  // The months the paces and readiness average: the last six complete ones,
+  // less any from before too many of today's accounts' records begin.
+  const projectionWindow = recentMonths(
+    completeCashFlow.map((r) => r.period),
+    accountCoverage.map((a) => a.firstTransaction),
+  );
+  const windowFlow = completeCashFlow.filter((r) => projectionWindow.used.includes(r.period));
 
   // Complete month-ends as the NET_WORTH_GROWTH rows record them, each
   // account's value included: the net worth goal reads them, and so do the
@@ -615,7 +629,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // growing had been shrinking every month. The transaction sum
   // remains only for rows stored before per-account values existed.
   let observedCashGrowth: number | null = null;
-  const basisKeys = completeCashFlow.map((r) => r.period).slice(-GOAL_RATE_MONTHS);
+  const basisKeys = projectionWindow.used;
   const cashFundIds = cashAccountRows.map((a) => a.id);
   const fromBalances =
     viewingCurrentPeriod && declaredGoals.some((g) => g.cash === true)
@@ -644,7 +658,9 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
           // declaration says TODAY, not what it said at declaration time.
           cashAccounts: cashAccountRows.map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) })),
           // One-off pay (a bonus beside a paycheck) left out, paychecks at today's pay.
-          completeMonthlyNet: completeCashFlow.map((r) => r.payload.net + regular(r)),
+          // Only the comparable months, so a month before a card's records
+          // began is not averaged in as a cheap one.
+          completeMonthlyNet: windowFlow.map((r) => r.payload.net + regular(r)),
           observedCashGrowth,
           now,
         })
@@ -731,8 +747,8 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
       fund: goals[0].saved,
       // Regular pay at today's amount: a bonus month is not a budget, and a
       // raise is.
-      completeMonthlyIncome: completeCashFlow.map((r) => r.payload.income + regular(r)),
-      completeMonthlyNonHousing: completeCashFlow.map((r) => {
+      completeMonthlyIncome: windowFlow.map((r) => r.payload.income + regular(r)),
+      completeMonthlyNonHousing: windowFlow.map((r) => {
         const s = spendingByPeriod.get(r.period);
         return s === undefined ? r.payload.spending : nonHousingSpending(s);
       }),
@@ -766,6 +782,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     goals,
     readiness,
     netWorthGoal,
+    projectionWindow: viewingCurrentPeriod ? projectionWindow : null,
     goalHistory,
     trips,
     emptyPeriod: inPeriod.length === 0,
