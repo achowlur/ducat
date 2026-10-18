@@ -20,7 +20,7 @@ import { spanLabel, spanParam } from "./periodSpan";
  *   spending entry filed under the row it nets against: the linked bill's
  *   category, month, merchant and account, or its own when unlinked;
  * - any other INFLOW is income;
- * - an unconfirmed P2P outflow files under "P2P — Unreviewed", before
+ * - an unconfirmed P2P outflow files under "P2P unreviewed", before
  *   credits resolve, exactly as computeSpendingByCategory relabels it.
  *
  * Amounts are summed in whole CENTS: a twelve-month span adds a few thousand

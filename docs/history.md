@@ -458,14 +458,14 @@ turned up so it isn't rediscovered:
   these as USER docs — README plus docs/ — not more of this file.
 - **P2P review, still open:** (c) recurring-pattern detection on P2P (same
   payee, same amount, monthly) to pre-fill rule suggestions; (d) an explicit
-  "P2P — Unreviewed" bucket so analytics are visibly-incomplete rather than
+  "P2P unreviewed" bucket so analytics are visibly-incomplete rather than
   silently wrong while the pile shrinks. (Bulk grouping-by-payee and
   reimbursement auto-suggest are both DONE — see Conventions.)
   DECIDED 2026-09-16, BOTH, scheduled after the Overview donut — BUILT the
   same day. Two further decisions came with the build: rows the old rules had
   already categorized stay as they are, and a user rule that marks a P2P
   payee a TRANSFER still applies on its own.
-  - Every UNCONFIRMED P2P payment sits in "P2P — Unreviewed", including the
+  - Every UNCONFIRMED P2P payment sits in "P2P unreviewed", including the
     ones carrying a suggestion. Outflows count toward spending as that slice
     of their own; inflows stay out of spending and are flagged on
     Transactions only, since counting them would shrink the spending total.

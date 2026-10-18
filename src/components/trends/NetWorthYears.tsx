@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { monthAbbrev } from "../../lib/ui/format";
 import type { YearGrowth } from "../../lib/ui/netWorthGrowth";
 import { COLUMN_HEADER, SubsectionTitle } from "../ui/headings";
-import { Note } from "./CardFrame";
+import { Fold, Note } from "./CardFrame";
 import { Swatch } from "./GrowthSplit";
 
 /** Whole dollars with a true minus: five figure columns fit a phone only without cents. */
@@ -162,23 +162,29 @@ export function NetWorthYears({ years }: { years: YearGrowth[] }) {
           })}
         </tbody>
       </table>
-      <Note>
-        Each year runs from the December before it to its last month on record, in whole dollars. Markets is how much
-        your investment accounts moved beyond the money put in or taken out; saved is everything else that moved your
-        balances, which is income left after spending, interest included. Growth is the change against where the year
-        started, and none is printed when that start was zero or below. The bars share one scale, so a longer bar is a
-        bigger year.
-        {allEstimated && <> Every year includes partly estimated months, so every split is partly estimated too.</>}
-        {!allEstimated && anyEstimated && <> A year marked * includes partly estimated months, so its split is too.</>}
-        {joinedYears.length > 0 && (
-          <span className="text-ink">
-            {" "}
-            Accounts joining the total moved{" "}
-            {joinedYears.map((r, k) => `${k > 0 ? ", " : ""}${r.year.year} by ${Math.round(r.year.joined) < 0 ? "−$" : "$"}${dollars(Math.abs(Math.round(r.year.joined)))}`).join("")}; that
-            is in Change, and in neither Saved nor Markets.
-          </span>
-        )}
-      </Note>
+      {(anyEstimated || joinedYears.length > 0) && (
+        <Note>
+          {allEstimated && <>Every year includes partly estimated months, so every split is partly estimated too.</>}
+          {!allEstimated && anyEstimated && <>A year marked * includes partly estimated months, so its split is too.</>}
+          {joinedYears.length > 0 && (
+            <span className="text-ink">
+              {" "}
+              Accounts joining the total moved{" "}
+              {joinedYears.map((r, k) => `${k > 0 ? ", " : ""}${r.year.year} by ${Math.round(r.year.joined) < 0 ? "−$" : "$"}${dollars(Math.abs(Math.round(r.year.joined)))}`).join("")}; that
+              is in Change, and in neither Saved nor Markets.
+            </span>
+          )}
+        </Note>
+      )}
+      <Fold label="How the years are worked out">
+        <Note>
+          Each year runs from the December before it to its last month on record, in whole dollars. Markets is how much
+          your investment accounts moved beyond the money put in or taken out; saved is everything else that moved your
+          balances, which is income left after spending, interest included. Growth is the change against where the year
+          started, and none is printed when that start was zero or below. The bars share one scale, so a longer bar is a
+          bigger year.
+        </Note>
+      </Fold>
     </div>
   );
 }

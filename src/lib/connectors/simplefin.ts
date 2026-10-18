@@ -104,7 +104,7 @@ export async function claimSetupToken(setupToken: string): Promise<string> {
   }
   const res = await fetch(claimUrl, { method: 'POST' });
   if (!res.ok) {
-    throw new Error(`Claim failed (${res.status}): setup tokens are single-use — generate a fresh one`);
+    throw new Error(`Claim failed (${res.status}): setup tokens are single-use. Generate a fresh one`);
   }
   return (await res.text()).trim();
 }

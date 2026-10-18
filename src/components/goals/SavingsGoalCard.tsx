@@ -57,10 +57,40 @@ export function SavingsGoalCard({
         ]
       : [];
 
+  // The date leads when there is one: the name, then WHEN, then how far along.
+  const showsWhen = !g.reached && g.refusal === null;
+  const whenBlock = (
+    <div className="mt-1.5 grid gap-0.5">
+      <span className="inline-flex items-center gap-1.5">
+        <span aria-hidden className="inline-block h-[9px] w-[9px] rounded-[2px] bg-chart1" />
+        <span className={FIELD_LABEL}>At your saving pace</span>
+        <span className={PROJECTED_CHIP}>Projected</span>
+      </span>
+      {(g.monthsToTarget ?? 0) > 600 ? (
+        <span className="text-[0.85rem] text-faint">more than 50 years out</span>
+      ) : (
+        <span className="font-money text-[1.25rem] font-semibold tabular">~{monthLabel(g.landsMonth ?? "")}</span>
+      )}
+      {g.deltaMonths !== null && g.goal.targetMonth !== undefined && (
+        <span className="text-[0.72rem] text-faint">
+          {g.deltaMonths === 0
+            ? `on target for ${monthLabel(g.goal.targetMonth)}`
+            : `${Math.abs(g.deltaMonths)} ${monthsWord(Math.abs(g.deltaMonths))} ${g.deltaMonths < 0 ? "ahead of" : "behind"} ${monthLabel(g.goal.targetMonth)}`}
+        </span>
+      )}
+    </div>
+  );
+
   return (
     <div className="text-[0.85rem]">
-      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-        <span className="font-semibold">{g.goal.name}</span>
+      {showsWhen && (
+        <>
+          <div className="font-semibold">{g.goal.name}</div>
+          {whenBlock}
+        </>
+      )}
+      <div className={`flex flex-wrap items-baseline gap-x-2.5 gap-y-1 ${showsWhen ? "pt-2" : ""}`}>
+        {!showsWhen && <span className="font-semibold">{g.goal.name}</span>}
         <span className="font-money tabular">
           <span className="font-semibold">{money(g.saved)}</span>
           <span className="text-faint"> of {money(g.goal.target)}</span>
@@ -116,25 +146,6 @@ export function SavingsGoalCard({
         </p>
       ) : (
         <>
-          <div className="mt-3 grid gap-0.5">
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="inline-block h-[9px] w-[9px] rounded-[2px] bg-chart1" />
-              <span className={FIELD_LABEL}>At your saving pace</span>
-              <span className={PROJECTED_CHIP}>Projected</span>
-            </span>
-            {(g.monthsToTarget ?? 0) > 600 ? (
-              <span className="text-[0.85rem] text-faint">more than 50 years out</span>
-            ) : (
-              <span className="font-money text-[1.25rem] font-semibold tabular">~{monthLabel(g.landsMonth ?? "")}</span>
-            )}
-            {g.deltaMonths !== null && g.goal.targetMonth !== undefined && (
-              <span className="text-[0.72rem] text-faint">
-                {g.deltaMonths === 0
-                  ? `on target for ${monthLabel(g.goal.targetMonth)}`
-                  : `${Math.abs(g.deltaMonths)} ${monthsWord(Math.abs(g.deltaMonths))} ${g.deltaMonths < 0 ? "ahead of" : "behind"} ${monthLabel(g.goal.targetMonth)}`}
-              </span>
-            )}
-          </div>
           {projections.length > 0 && (
             <div className="mt-3">
               <GoalPathChart

@@ -73,7 +73,7 @@ describe("the two buckets with no category", () => {
     expect(parseCategoryParam(encoded)).toEqual({ ids: ["cat-gas"], uncategorized: false, p2p: true });
   });
 
-  it("keeps Uncategorized and P2P — Unreviewed disjoint, so each lists what its slice counts", () => {
+  it("keeps Uncategorized and P2P unreviewed disjoint, so each lists what its slice counts", () => {
     const uncategorizedOnly = nullBucketFilter(parseCategoryParam(UNCATEGORIZED))!;
     expect([zelle, plain, dining].map(uncategorizedOnly)).toEqual([false, true, true]);
     const p2pOnly = nullBucketFilter(parseCategoryParam(P2P_UNREVIEWED_ID))!;

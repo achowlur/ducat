@@ -195,7 +195,7 @@ function Popover({
     // Untagging is not a trip, so it sits above the list — and only exists
     // for a row that has something to clear.
     if (target.groupLabel !== null && (q === "" || "none untag".includes(q))) {
-      out.push({ value: null, name: "— untag —", kind: "clear" });
+      out.push({ value: null, name: "Remove tag", kind: "clear" });
     }
     for (const label of labels) {
       if (q === "" || label.toLowerCase().includes(q)) {
@@ -466,14 +466,12 @@ export function GroupTrigger({
   groupLabel,
   rowLabel,
   className,
-  title,
   children,
 }: {
   transactionId: string;
   groupLabel: string | null;
   rowLabel: string;
   className: string;
-  title: string;
   children: React.ReactNode;
 }) {
   const ctx = useGroupPicker();
@@ -491,7 +489,6 @@ export function GroupTrigger({
         ctx.openPicker({ transactionId, groupLabel, rowLabel, anchor: ref.current });
       }}
       className={`tap44 ${className} ${pending ? "opacity-50" : ""}`}
-      title={title}
     >
       {children}
     </button>

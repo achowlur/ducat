@@ -1,11 +1,19 @@
 import Link from "next/link";
-import { cronSummary, getBackupSignal, getProvidersData, LOGS_PAGE_SIZE, STATUS_CHIP, STATUS_DOT } from "../../lib/ui/providers";
+import {
+  cronSummary,
+  getBackupSignal,
+  getProvidersData,
+  LOGS_PAGE_SIZE,
+  providersVerdict,
+  STATUS_CHIP,
+  STATUS_DOT,
+} from "../../lib/ui/providers";
 import { calendarDaysAgo, dateTime } from "../../lib/ui/format";
 import { isCloudMode, isTotpConfigured } from "../../lib/auth/mode";
 import vercelConfig from "../../../vercel.json";
 import { CHIP, COLUMN_HEADER, PageTitle, SectionTitle, SubsectionTitle } from "../../components/ui/headings";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
-import { UsageLimits } from "../../components/UsageLimits";
+import { shareLabel, UsageLimits } from "../../components/UsageLimits";
 import { prisma } from "../../lib/prisma";
 import { readUsage, usageLines } from "../../lib/usage/limits";
 
@@ -55,9 +63,32 @@ async function renderProviders({
     cloud ? readUsage(prisma, now) : Promise.resolve(null),
   ]);
 
+  const lines = usage === null ? [] : usageLines(usage, now);
+  const topLine = lines.reduce<(typeof lines)[number] | null>((m, l) => (m === null || l.share > m.share ? l : m), null);
+  const verdict = providersVerdict({
+    feeds: providers.map((p) => ({ name: p.health.trustCard.displayName, status: p.health.status })),
+    backup:
+      backup === null
+        ? null
+        : { status: backup.status, calendarDays: calendarDaysAgo(new Date(backup.run.at)) },
+    plan: topLine === null ? null : { label: shareLabel(topLine.share), warn: lines.some((l) => l.warn) },
+  });
+
   return (
     <div className="grid gap-10 py-5">
       <PageTitle>Providers</PageTitle>
+      {/* The verdict, ONE line, before anything that explains it. Each part
+          that is not fine names itself; the detail is below, and the trust
+          detail folds behind a tap. */}
+      <p className="flex items-baseline gap-2 text-[1.05rem] font-semibold">
+        <span
+          aria-hidden="true"
+          className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${STATUS_DOT[verdict.level] ?? STATUS_DOT.UNKNOWN}`}
+        />
+        <span className={verdict.level === "OK" ? "" : verdict.level === "ERROR" ? "text-neg" : "text-warn-ink"}>
+          {verdict.parts.join(" · ")}
+        </span>
+      </p>
       {/* Where the data RESTS, which the per-connector cards deliberately do not
           claim. They were written when localhost was the only mode and said
           things like "fully local; no third party involved" — true then, false
@@ -104,6 +135,18 @@ async function renderProviders({
             "days since the last PROVEN copy". Absent until the first verified
             run ever, then present forever — a backup job that dies quietly is
             worse than none, and all-clear must be stated. */}
+        {backup !== null && backup.reason !== null && (
+          <p
+            className={`mt-3 text-[0.82rem] font-semibold leading-relaxed ${backup.status === "ERROR" ? "text-neg" : "text-warn-ink"}`}
+          >
+            {backup.reason}
+          </p>
+        )}
+        {(cloud || backup !== null) && (
+        <details className="mt-1">
+          <summary className="tap44 inline-flex cursor-pointer items-center text-[0.78rem] text-acc hover:underline">
+            {cloud ? "Backup detail and the risks you accept" : "Backup detail"}
+          </summary>
         {backup !== null && (
           <p className="mt-3 text-[0.82rem] leading-relaxed">
             <span
@@ -125,13 +168,6 @@ async function renderProviders({
             <span className="font-money">data/backups/{backup.run.file}</span> on the machine that runs the
             nightly schedule.{" "}
             {backup.localMirrorLine !== null && <>{backup.localMirrorLine} </>}
-            {backup.reason !== null && (
-              <span
-                className={`font-semibold ${backup.status === "ERROR" ? "text-neg" : "text-warn-ink"}`}
-              >
-                {backup.reason}
-              </span>
-            )}
           </p>
         )}
 
@@ -143,6 +179,7 @@ async function renderProviders({
             times. An addition, never a softening — the sentence above is
             CLAUDE.md's own claim and is correct; what was missing is what you
             accept by believing it. */}
+
         {cloud && (
           <div className="mt-3">
             <SubsectionTitle>Residual risks you are accepting</SubsectionTitle>
@@ -156,13 +193,16 @@ async function renderProviders({
             </ul>
           </div>
         )}
+
+        </details>
+        )}
       </section>
 
       {/* What the hosts' free plans allow and how close this month is, counted
           by the app itself. Before the connector cards: on 2026-10-17 the
           month's reads ran out in a day and took every page down, and the
           Providers page is where the reader looks when that happens. */}
-      <UsageLimits cloud={cloud} reading={usage} lines={usage === null ? [] : usageLines(usage, now)} />
+      <UsageLimits cloud={cloud} reading={usage} lines={lines} />
 
       {providers.map(({ health, configured, setupHint, syncLogs, logsTotal, logsPage }) => (
         <section key={health.connectorType}>
@@ -217,7 +257,7 @@ async function renderProviders({
               <ul className="grid gap-1 text-[0.85rem]">
                 {health.reasons.map((reason) => (
                   <li key={reason} className="flex gap-2">
-                    <span className="text-faint">—</span>
+                    <span className="text-faint">·</span>
                     <span className={health.status === "ERROR" ? "font-semibold text-neg" : ""}>{reason}</span>
                   </li>
                 ))}
@@ -249,6 +289,10 @@ async function renderProviders({
             </div>
 
             <div className="border-rule lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-l lg:pl-6">
+              <details>
+              <summary className="tap44 inline-flex cursor-pointer items-center text-[0.78rem] text-acc hover:underline">
+                Data path, risks and revocation
+              </summary>
               <SubsectionTitle>Data path</SubsectionTitle>
               <p className="mb-4 text-[0.82rem] leading-relaxed">{health.trustCard.dataPath}</p>
 
@@ -264,6 +308,7 @@ async function renderProviders({
 
               <SubsectionTitle>Revocation</SubsectionTitle>
               <p className="text-[0.8rem] leading-relaxed">{health.trustCard.revocation}</p>
+              </details>
             </div>
 
             {/* LAST in the DOM, so a phone reads status, then the trust card,
@@ -317,7 +362,7 @@ async function renderProviders({
                               {log.ok ? (
                                 <span className="font-semibold text-pos">ok</span>
                               ) : (
-                                <span className="font-semibold text-neg" title={log.errorText ?? undefined}>
+                                <span className="font-semibold text-neg">
                                   failed{log.errorText !== null && `: ${log.errorText}`}
                                 </span>
                               )}

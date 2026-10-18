@@ -5,7 +5,7 @@ import { amount, monthAbbrev } from "../../lib/ui/format";
 import type { MonthSoFar } from "../../lib/ui/report";
 import { A_VIEWS, type AView } from "../../lib/ui/trendsParams";
 import { ChartReadout, TimeChart, type TimeSeries } from "../charts/report/TimeChart";
-import { CardFrame, CardLink, Note } from "./CardFrame";
+import { CardFrame, CardLink, Fold, Note } from "./CardFrame";
 import { useCardView, ViewSwitch } from "./ViewSwitch";
 import { COLUMN_HEADER } from "../ui/headings";
 
@@ -130,22 +130,25 @@ export function MonthSoFarCard({ data, initialView }: { data: MonthSoFar; initia
           ariaLabel={`Spending each day of ${now} against ${before}`}
         />
       )}
-      {(lagging || view !== "daily") && (
+      {/* The one thing to discount stays in view; how to read the rest is behind a tap. */}
+      {lagging && (
         <Note>
-          {view === "table" && "Each row is everything spent from the 1st to that day. "}
-          {lagging && (
-            <>
-              Recorded through {monthAbbrev(newest.month)} {newest.day}; the days since fill in as transactions
-              post.{" "}
-            </>
-          )}
-          {view !== "daily" &&
-            (data.band === null
-              ? "No typical range yet: it needs three complete months of records among the last six."
-              : `Typical is the middle half of ${fullMonth(data.band.months[0])} to ${fullMonth(
-                  data.band.months[data.band.months.length - 1],
-                )} at the same day of the month.`)}
+          Recorded through {monthAbbrev(newest.month)} {newest.day}; the days since fill in as transactions post.
         </Note>
+      )}
+      {view !== "daily" && data.band === null && (
+        <Note>No typical range yet: it needs three complete months of records among the last six.</Note>
+      )}
+      {view !== "daily" && (data.band !== null || view === "table") && (
+        <Fold label="How to read this">
+          <Note>
+            {view === "table" && "Each row is everything spent from the 1st to that day. "}
+            {data.band !== null &&
+              `Typical is the middle half of ${fullMonth(data.band.months[0])} to ${fullMonth(
+                data.band.months[data.band.months.length - 1],
+              )} at the same day of the month.`}
+          </Note>
+        </Fold>
       )}
       <CardLink href={`/trends?${driving.toString()}#what-changed`}>What changed this month</CardLink>
     </CardFrame>
