@@ -51,6 +51,12 @@ export interface BalanceSummary {
   debtAccounts: number;
   /** The LOANs among debtAccounts; the rest are cards. */
   loanAccounts: number;
+  /**
+   * The cards' balances alone, signed like `debt` (loans left out). What
+   * cash has to cover soon: the runway and a cash goal count cash AFTER it,
+   * since a card balance is paid from the very cash they would count.
+   */
+  cards: number;
 }
 
 /**
@@ -91,6 +97,7 @@ export function summariseBalances(
   let investmentAccounts = 0;
   let debtAccounts = 0;
   let loanAccounts = 0;
+  let cards = 0;
   for (const a of accounts) {
     if (countsAsCash(a, extraIds)) {
       cash += a.balance;
@@ -99,6 +106,7 @@ export function summariseBalances(
       debt += a.balance;
       debtAccounts += 1;
       if (a.type === 'LOAN') loanAccounts += 1;
+      else cards += a.balance;
     } else {
       investments += a.balance;
       investmentAccounts += 1;
@@ -113,6 +121,7 @@ export function summariseBalances(
     investmentAccounts,
     debtAccounts,
     loanAccounts,
+    cards: round(cards),
   };
 }
 
@@ -127,25 +136,30 @@ export const RUNWAY_MIN_MONTHS = 3;
 
 export interface Runway {
   months: number;
-  /** Mean monthly spending the figure divides by. */
+  /** A typical month's spending the figure divides by: the middle of the months. */
   monthlySpending: number;
-  /** How many complete months that mean is drawn from. */
+  /** How many complete months it is drawn from. */
   basisMonths: number;
-  /** Lowest and highest of those months — a mean hides how variable it is. */
+  /** Lowest and highest of those months: the middle hides how variable they are. */
   low: number;
   high: number;
 }
 
 /**
- * Months of cash at recent spending. Takes the SAME `totalSpending` the rest of
- * the app reports rather than summing outflows again: a second definition of
- * spending on one screen is how two tabs come to disagree, and outflow sums
- * would also swallow investment trades, which SimpleFIN reports as plain
- * OUTFLOW rather than TRANSFER.
+ * Months of cash at a typical month's spending. The caller passes the cash
+ * AFTER open card balances (they are paid from it) and each month's EVERYDAY
+ * spending (SpendingByCategoryPayload.everydayAfterDay[0]: the app's own
+ * spending figure, travel and one-off purchases left out), never a second
+ * summation of outflows, which would also swallow investment trades.
  *
- * Refuses rather than guessing when there is too little history, when spending
- * is zero or negative (a month of net refunds divides into nonsense), or when
- * there is no cash to divide.
+ * The MIDDLE of the months, never their mean. A mean of every month's total
+ * counted each trip and one-off purchase as a monthly habit, and the everyday
+ * series can still read one month far off (a payment the anomaly pass called
+ * a one-off with its refund left in), which a mean takes a sixth of and the
+ * middle ignores, as the pace call and the idle-cash buffer already do.
+ *
+ * Refuses rather than guessing when there is too little history, when a
+ * typical month nets to zero or below, or when there is no cash to divide.
  */
 export function computeRunway(
   cash: number,
@@ -153,14 +167,15 @@ export function computeRunway(
 ): Runway | null {
   const recent = completeMonthlySpending.slice(-RUNWAY_MONTHS);
   if (recent.length < RUNWAY_MIN_MONTHS) return null;
-  const total = recent.reduce((s, n) => s + n, 0);
-  const mean = total / recent.length;
-  if (mean <= 0 || cash <= 0) return null;
+  const sorted = [...recent].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const typical = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  if (typical <= 0 || cash <= 0) return null;
   return {
-    months: Math.round((cash / mean) * 10) / 10,
-    monthlySpending: Math.round(mean * 100) / 100,
+    months: Math.round((cash / typical) * 10) / 10,
+    monthlySpending: Math.round(typical * 100) / 100,
     basisMonths: recent.length,
-    low: Math.round(Math.min(...recent) * 100) / 100,
-    high: Math.round(Math.max(...recent) * 100) / 100,
+    low: Math.round(sorted[0] * 100) / 100,
+    high: Math.round(sorted[sorted.length - 1] * 100) / 100,
   };
 }

@@ -630,3 +630,26 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   months before it are named on its screens; leaving a month OUT needs a
   third of the accounts missing, more than the demo's few accounts can show
   without rewriting its history, so the unit tests pin that wording instead.
+- CASH AFTER CARDS, AN EVERYDAY MONTH (2026-10-17). Two more of the runway's
+  assumptions did not hold. It divided raw cash, but a card balance is paid
+  from that cash within the month, so a day with a large statement open
+  read as more months than there were; a cash goal's fund the same. Both now
+  count cash after the cards (loans are years of payments, not this
+  month's), and say it beside the figure: "Cash after $X on cards" under the
+  runway, "less $X on cards" beside the goal's accounts, whose record and
+  reconciliation take the cards' month-end balances too. And it divided by
+  the MEAN of six months' total spending, so a trip, a new laptop or a
+  yearly bill counted a sixth of itself as every month's burn. It now takes
+  each month's EVERYDAY spending (the pace call's series: travel and the
+  month's one-off purchases left out) and the MIDDLE of the months, as the
+  pace call and the idle-cash buffer do. The middle and not the mean
+  because the series can still read one month far off: the anomaly pass
+  can call a rent payment at a new high a one-off and leave it out while a
+  credit filed under rent stays in, and the month reads below zero; a mean
+  takes a sixth of that, the middle none. The
+  credit leak that made it worse is fixed at the source: a repayment linked
+  to a one-off now leaves everyday spending with the purchase it repays.
+  The range the middle hides is behind the runway's tap, with the months
+  it covers; in view stay the figure, one line of assumptions and anything
+  to discount. Invented, from the tests: five months near $2,000 and one at
+  $9,000 averaged $3,167 a month; the middle says $2,025.

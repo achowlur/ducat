@@ -111,6 +111,12 @@ export interface OverviewData {
   runway: Runway | null;
   /** The complete months the runway averages, and which were left out or lean short (insights/recentMonths.ts). */
   runwayWindow: RecentMonths;
+  /**
+   * False when a month in the window was stored before the everyday series
+   * existed, so the runway divides by its total spending, travel and one-offs
+   * in; the next sync regenerates every row with it.
+   */
+  runwayEveryday: boolean;
   health: ProviderHealth[];
   lastSyncAt: Date | null;
   /**
@@ -236,9 +242,13 @@ export async function getOverviewData(): Promise<OverviewData> {
     spendingSeries.filter((s) => s.period < currentPeriod).map((s) => s.period),
     accountCoverageFrom(accountRows, firsts).map((a) => a.firstTransaction),
   );
+  // Cash AFTER the cards, which it pays, at a typical month's EVERYDAY
+  // spending: a trip or a one-off purchase is not a month's burn.
+  const runwayMonths = spendingSeries.filter((s) => runwayWindow.used.includes(s.period));
+  const runwayEveryday = runwayMonths.every((s) => (s.payload.everydayAfterDay?.length ?? 0) > 0);
   const runway = computeRunway(
-    balances.cash,
-    spendingSeries.filter((s) => runwayWindow.used.includes(s.period)).map((s) => s.payload.totalSpending),
+    balances.cash + balances.cards,
+    runwayMonths.map((s) => (runwayEveryday ? s.payload.everydayAfterDay![0] : s.payload.totalSpending)),
   );
 
   // The spending block shows the month being LIVED IN — never a past month
@@ -288,6 +298,7 @@ export async function getOverviewData(): Promise<OverviewData> {
     balances,
     runway,
     runwayWindow,
+    runwayEveryday,
     health,
     lastSyncAt: lastOk?.finishedAt ?? null,
     uncategorizedCount,

@@ -43,7 +43,10 @@ export const NOT_EVERYDAY_CATEGORIES = new Set(['Travel']);
 /**
  * Everyday spending after each day of a month (SpendingByCategoryPayload.
  * everydayAfterDay): outflows less reimbursement credits, travel and the
- * month's one-off purchases left out, by UTC day.
+ * month's one-off purchases left out, by UTC day. A credit against a one-off
+ * leaves with it: a friend's share of a one-off dinner, subtracted from the
+ * everyday spending the dinner never joined, read a month as cheaper than
+ * its everyday spending was.
  */
 function everydayAfterDay(txns: TxnData[], credits: ReimbursementCredit[], key: string, oneOffIds: ReadonlySet<string>): number[] {
   const days = Math.round((periodEndExclusive(key).getTime() - periodStart(key).getTime()) / 86_400_000);
@@ -54,7 +57,7 @@ function everydayAfterDay(txns: TxnData[], credits: ReimbursementCredit[], key: 
     byDay[t.date.getUTCDate()] += -t.amount;
   }
   for (const c of credits) {
-    if (!inPeriod(c.date, key) || !everyday(c.categoryName)) continue;
+    if (!inPeriod(c.date, key) || !everyday(c.categoryName) || oneOffIds.has(c.sourceId)) continue;
     byDay[c.date.getUTCDate()] -= c.amount;
   }
   // after[d] = spending on days d+1 .. end.

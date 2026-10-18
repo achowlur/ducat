@@ -278,6 +278,31 @@ describe('assessGoals', () => {
     expect(a.refusal).toBeNull();
   });
 
+  // Invented: $30,000 across checking and a money market, $1,800 on two
+  // cards. The cash pays the cards, so the fund is what is left after them.
+  it('counts a cash goal after what the cards owe, and a nominated fund without', () => {
+    const out = assessGoals({
+      goals: [goal({ id: 'cash-goal', cash: true, accountIds: [] }), goal({ id: 'nominated', accountIds: ['sav'] })],
+      accounts,
+      cashAccounts: [
+        { id: 'chk', name: 'Checking', balance: 16_000 },
+        { id: 'mm', name: 'Money Market', balance: 14_000 },
+      ],
+      cards: [
+        { id: 'visa', name: 'Visa', balance: -1_500 },
+        { id: 'amex', name: 'Amex', balance: -300 },
+      ],
+      completeMonthlyNet: NETS,
+      now: NOW,
+    });
+    expect(out[0].saved).toBe(28_200);
+    expect(out[0].cardsOwed).toBe(1_800);
+    expect(out[0].remaining).toBe(31_800);
+    expect(out[0].accountNames).toEqual(['Checking', 'Money Market']);
+    expect(out[1].saved).toBe(10_000);
+    expect(out[1].cardsOwed).toBe(0);
+  });
+
   it('refuses a cash goal when nothing counts as cash', () => {
     const [a] = assessGoals({
       goals: [goal({ cash: true, accountIds: [] })],

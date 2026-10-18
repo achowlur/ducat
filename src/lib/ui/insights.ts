@@ -630,7 +630,10 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // remains only for rows stored before per-account values existed.
   let observedCashGrowth: number | null = null;
   const basisKeys = projectionWindow.used;
-  const cashFundIds = cashAccountRows.map((a) => a.id);
+  // A cash goal's fund is cash AFTER the cards it pays: its balance, its
+  // record and its reconciliation all count the cards' balances against it.
+  const cardRows = accountRows.filter((a) => a.type === "CREDIT");
+  const cashFundIds = [...cashAccountRows, ...cardRows].map((a) => a.id);
   const fromBalances =
     viewingCurrentPeriod && declaredGoals.some((g) => g.cash === true)
       ? fundGrowthOver(netWorthMonths, cashFundIds, basisKeys)
@@ -641,7 +644,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     const grown = await prisma.transaction.aggregate({
       _sum: { amount: true },
       where: {
-        accountId: { in: cashAccountRows.map((a) => a.id) },
+        accountId: { in: cashFundIds },
         date: { gte: periodStart(basisKeys[0]), lt: periodStart(period) },
       },
     });
@@ -657,6 +660,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
           // here, at render, so a cash goal tracks whatever the operator's
           // declaration says TODAY, not what it said at declaration time.
           cashAccounts: cashAccountRows.map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) })),
+          cards: cardRows.map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) })),
           // One-off pay (a bonus beside a paycheck) left out, paychecks at today's pay.
           // Only the comparable months, so a month before a card's records
           // began is not averaged in as a cheap one.

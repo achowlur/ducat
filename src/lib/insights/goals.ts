@@ -98,6 +98,11 @@ export interface GoalAssessment {
   accountNames: string[];
   /** Nominated ids no longer matching an account — `saved` is understated when > 0. */
   missingAccounts: number;
+  /**
+   * Cash goals only: what the cards owe, as positive dollars, already taken
+   * off `saved`. 0 for a nominated fund, or with nothing owed.
+   */
+  cardsOwed: number;
   /** target − saved; negative once the goal is overshot. */
   remaining: number;
   /** saved / target clamped to [0, 1], for a progress figure. */
@@ -177,13 +182,17 @@ export function assessGoals(input: {
    * `cash: true` goal. Resolved at render, never frozen at declaration, so
    * "whatever counts as cash" stays whatever the operator last declared. */
   cashAccounts?: readonly GoalAccount[];
+  /** The cards, whose balances (negative while owed) a CASH goal counts
+   * against its fund: the cash pays them, so it is cash after cards. */
+  cards?: readonly GoalAccount[];
   /** Observed mean monthly growth of the cash fund over the rate's window,
    * computed by the caller from cash-account transactions. */
   observedCashGrowth?: number | null;
   completeMonthlyNet: readonly number[];
   now: Date;
 }): GoalAssessment[] {
-  const { goals, accounts, cashAccounts = [], observedCashGrowth = null, completeMonthlyNet, now } = input;
+  const { goals, accounts, cashAccounts = [], cards = [], observedCashGrowth = null, completeMonthlyNet, now } = input;
+  const onCards = round2(cards.reduce((s, a) => s + a.balance, 0));
   const byId = new Map(accounts.map((a) => [a.id, a]));
 
   // One rate for every goal: it is the operator's savings rate, not a goal's.
@@ -199,7 +208,9 @@ export function assessGoals(input: {
       goal.cash === true
         ? [...cashAccounts]
         : goal.accountIds.map((id) => byId.get(id)).filter((a): a is GoalAccount => a !== undefined);
-    const saved = round2(held.reduce((s, a) => s + a.balance, 0));
+    // A cash fund is cash AFTER the cards it pays.
+    const cardsOwed = goal.cash === true ? Math.max(0, -onCards) : 0;
+    const saved = round2(held.reduce((s, a) => s + a.balance, 0) + (goal.cash === true ? onCards : 0));
 
     const base = {
       goal,
@@ -207,6 +218,7 @@ export function assessGoals(input: {
       accountNames: held.map((a) => a.name),
       // A cash goal nominates a DEFINITION, not ids — nothing can go missing.
       missingAccounts: goal.cash === true ? 0 : goal.accountIds.length - held.length,
+      cardsOwed,
       remaining: round2(goal.target - saved),
       progress: Math.min(1, Math.max(0, saved / goal.target)),
       reached: false,

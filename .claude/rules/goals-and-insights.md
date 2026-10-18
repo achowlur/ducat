@@ -108,6 +108,11 @@ anything below; several entries record "tried and failed, don't retry".
   months LESS any under the pace call's comparability bar (recentMonths.ts,
   isComparableBaseline), never reaching further back; a month kept that
   predates an account's records entirely is NAMED, with the way it leans.
+- The runway and a CASH goal count cash AFTER open card balances
+  (BalanceSummary.cards; loans aside), said in their assumptions line; the
+  runway divides by the MIDDLE of the window's EVERYDAY months
+  (everydayAfterDay[0]), never a mean of totals, and a credit against a
+  one-off leaves the everyday series with it.
 - A cash goal prints its RECONCILIATION beside the projected landing —
   observed cash growth over the same window the rate averages — because the
   rate assumes every saved dollar stays in cash, and with a single goal

@@ -436,6 +436,20 @@ describe('computeSpendingByCategory', () => {
     expect(computeSpendingByCategory(txns, ['2026-Q3'], 'QUARTER').get('2026-Q3')?.everydayAfterDay).toBeUndefined();
   });
 
+  // Invented: a one-off $400 dinner, half repaid and LINKED to it. The
+  // repayment used to come off everyday spending the dinner never joined.
+  it('leaves a repayment of a one-off out of everyday spending with it', () => {
+    const txns = [
+      txn({ date: utc(2026, 7, 2), amount: -1800, categoryId: 'cat-rent', categoryName: 'Rent & Housing' }),
+      txn({ id: 'feast', date: utc(2026, 7, 10), amount: -400, categoryId: 'cat-dining', categoryName: 'Dining' }),
+      txn({ date: utc(2026, 7, 12), amount: 200, flow: 'INFLOW', reimbursesId: 'feast' }),
+      txn({ date: utc(2026, 7, 14), amount: -60, categoryId: 'cat-dining', categoryName: 'Dining' }),
+    ];
+    const july = computeSpendingByCategory(txns, ['2026-07'], 'MONTH', new Set(['feast'])).get('2026-07')!;
+    expect(july.totalSpending).toBe(2060);
+    expect(july.everydayAfterDay![0]).toBe(1860);
+  });
+
 
   it('sums outflows per category and excludes transfers', () => {
     const txns = [

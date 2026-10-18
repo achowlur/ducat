@@ -32,6 +32,8 @@ export function creditsLinkedRow<T extends { flow: string }>(linked: T | null | 
 }
 
 export interface ReimbursementCredit {
+  /** The row it nets against: the linked original, or the inflow itself. */
+  sourceId: string;
   /** Category the credit nets against (the original's for linked ones). */
   categoryId: string | null;
   categoryName: string | null;
@@ -80,6 +82,7 @@ export function reimbursementSources<T extends TxnData>(txns: T[]): Reimbursemen
 /** Every reimbursement inflow as the (category, date) it credits. */
 export function reimbursementCredits(txns: TxnData[]): ReimbursementCredit[] {
   return reimbursementSources(txns).map(({ source, amount }) => ({
+    sourceId: source.id,
     categoryId: source.categoryId,
     categoryName: source.categoryName,
     date: source.date,
