@@ -188,3 +188,34 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   statement's own pass in SQLite's query plan, the per-row shape. Its control
   plans the same statements against the schema without the foreign-key
   indexes and must flag the deletes that spent the month.
+- READ COST AS HISTORY GROWS, PAGE BY PAGE (2026-10-18). After the blocked month
+  the question was what a page view costs once the history is long, not only
+  the nightly job. Four findings, each from the plan or the statement list of
+  a page run on the demo's eleven years: (1) Transaction had no index on date
+  or groupLabel, so the ledger's page and its period filter planned as scans
+  of the whole table; (2) every categorize, link or retype ran generateInsights
+  over the whole history and rewrote every row, though an edit changes rows
+  only from its own date onward; (3) Overview and /insights read the whole
+  Insight table (anomalies are the bulk of it) to draw two types and one month;
+  (4) health loaded a row per transaction of every polling account on Overview
+  only to count them. The fixes: five additive indexes (migration
+  20261020000000_index_page_reads, applied to both cloud databases before the
+  merge); scoped regeneration; bounded and typed insight reads; two aggregates
+  for the gap signal. pagePlans.test.ts captures every statement the loaders
+  run (the ledger page itself, called with a filter of each kind, through a
+  mocked prisma) and plans them in SQLite; its control plans the same
+  statements without the new indexes and must flag the ledger's page and a
+  period range. What scoped regeneration does NOT save: the TRANSACTION READ.
+  Anomaly baselines and pay judgement read history, so a scoped run still reads
+  every row and recomputes every analyzer; only the writes (delete and create
+  of Insight rows) shrink, to the months from the lookback on. A random-edit
+  test (nine edits across the history, both flows, dismissals set inside and
+  outside the scope) found no difference from a full run, and it also passes
+  with the lookback at zero: the 12-month margin is a safety bound for paychecks
+  and sources, which the demo's data did not exercise. Left as they are, with
+  the reason: the ledger's totals read every row of the filtered list (id,
+  flow, amount) by design, and its repaid and trip queries use IS NOT NULL on a
+  link column, which SQLite plans as a scan (a range on the label read only the
+  tagged rows in /insights; the ledger's own copy is a one-line change on a
+  page file). SQLite does not use an index for IS NOT NULL without table
+  statistics, and Turso has none.

@@ -140,3 +140,14 @@ export function inPeriod(date: Date, key: string): boolean {
   const t = date.getTime();
   return t >= start && t < end;
 }
+
+/**
+ * The MONTH key `months` before the one `now` falls in, for a `period: { gte }`
+ * bound. Keys sort as text ("2026-07"), and a WEEK or QUARTER key sorts after
+ * every month of its year, so a stray one passes this bound and monthlyRows
+ * still drops it.
+ */
+export function monthKeyBack(now: Date, months: number): string {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - months, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}

@@ -1,6 +1,5 @@
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
-import { createClient, type InArgs } from '@libsql/client';
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -8,7 +7,9 @@ import { PrismaClient } from '../../generated/prisma/client';
 import { prismaRunner } from '../prisma';
 import { readUsage } from '../usage/limits';
 import { flushUsage, recordUsage, resetUsageMeter } from '../usage/meter';
+import { flaggedPerRow } from './queryPlans';
 import { reseedDemo } from './reseed';
+import { fileUrl, migrateFile } from './tempDatabase';
 import { demoResetDue, recordDemoReset } from './resetDue';
 
 /**
@@ -29,43 +30,6 @@ import { demoResetDue, recordDemoReset } from './resetDue';
  * bug it exists for.
  */
 
-type PlanRow = { detail: string };
-
-/** Full scans that run per row: every SCAN of a table after the statement's own pass. */
-function perRowScans(sql: string, plan: PlanRow[]): string[] {
-  const access = plan
-    .map((p) => p.detail)
-    // Literal rows are not a table: SQLite says "N-ROW VALUES CLAUSE", the
-    // SQLite inside libSQL "N CONSTANT ROWS".
-    .filter((d) => /^(SCAN|SEARCH) /.test(d) && !/^SCAN (CONSTANT ROW|\d+ CONSTANT ROWS|\d+-ROW VALUES CLAUSE|\()/.test(d));
-  // An INSERT has no pass of its own: anything it scans, it scans per row.
-  const own = /^\s*INSERT/i.test(sql) ? 0 : 1;
-  return access.slice(own).filter((d) => d.startsWith('SCAN '));
-}
-
-const fileUrl = (file: string) => `file:${file.replace(/\\/g, '/')}`;
-
-async function migrate(file: string, skip: (name: string) => boolean): Promise<void> {
-  const db = createClient({ url: fileUrl(file) });
-  const dir = join(process.cwd(), 'prisma', 'migrations');
-  for (const name of readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort()) {
-    if (!skip(name)) await db.executeMultiple(readFileSync(join(dir, name, 'migration.sql'), 'utf8'));
-  }
-  db.close();
-}
-
-async function flagged(statements: Map<string, unknown[]>, file: string): Promise<string[]> {
-  const db = createClient({ url: fileUrl(file) });
-  const out: string[] = [];
-  for (const [sql, params] of statements) {
-    const plan = (await db.execute({ sql: `EXPLAIN QUERY PLAN ${sql}`, args: params as InArgs })).rows as unknown as PlanRow[];
-    const scans = perRowScans(sql, plan);
-    if (scans.length > 0) out.push(`${sql.slice(0, 90)}  →  ${scans.join(', ')}`);
-  }
-  db.close();
-  return out;
-}
-
 describe("the demo's nightly job reads no table once per row", () => {
   let dir: string;
   let indexed: string;
@@ -76,8 +40,8 @@ describe("the demo's nightly job reads no table once per row", () => {
     dir = mkdtempSync(join(tmpdir(), 'ducat-reset-plans-'));
     indexed = join(dir, 'indexed.db');
     unindexed = join(dir, 'unindexed.db');
-    await migrate(indexed, () => false);
-    await migrate(unindexed, (name) => name.endsWith('_index_transaction_links'));
+    await migrateFile(indexed);
+    await migrateFile(unindexed, (name) => !name.endsWith('_index_transaction_links'));
 
     const url = fileUrl(indexed);
     const prisma = new PrismaClient({
@@ -123,11 +87,11 @@ describe("the demo's nightly job reads no table once per row", () => {
   });
 
   it('plans no full scan per row', async () => {
-    expect(await flagged(statements, indexed)).toEqual([]);
+    expect(await flaggedPerRow(statements, indexed)).toEqual([]);
   });
 
   it('would have caught the reset that spent the month: the same job without the foreign-key indexes', async () => {
-    const found = await flagged(statements, unindexed);
+    const found = await flaggedPerRow(statements, unindexed);
     expect(found.some((f) => f.startsWith('DELETE FROM `main`.`Category`') && f.includes('SCAN Transaction'))).toBe(true);
     expect(found.some((f) => f.includes('SCAN Transaction, SCAN Transaction'))).toBe(true);
   });

@@ -24,7 +24,7 @@ import {
   type BalanceSummary,
   type Runway,
 } from "./liquidity";
-import { periodKey } from "../insights/periods";
+import { monthKeyBack, periodKey } from "../insights/periods";
 import { recentMonths, type RecentMonths } from "../insights/recentMonths";
 import { accountCoverageFrom, firstRecords } from "./coverage";
 import { monthLabel, shortDate } from "./format";
@@ -143,7 +143,19 @@ export interface OverviewData {
 
 const TYPE_ORDER: Record<string, number> = { DEPOSITORY: 0, INVESTMENT: 1, CREDIT: 2, LOAN: 3 };
 
+/**
+ * Months of insight rows Overview reads: the runway averages at most six
+ * complete months and the context line wants the latest complete one, so a
+ * year back leaves room for a gap in the records.
+ */
+const OVERVIEW_MONTHS_BACK = 12;
+
 export async function getOverviewData(): Promise<OverviewData> {
+  // ONE `now` for the whole page: the rows read, the spending block's month,
+  // the runway's complete-month cut and the context's "complete" boundary must
+  // agree on which month is being lived in, or a render straddling UTC
+  // midnight puts different months on one screen.
+  const now = new Date();
   // Everything this page needs, read once and in parallel. It used to issue
   // its queries one after another — four of them full scans of the Insight
   // table, with RECURRING_CHARGE fetched twice over.
@@ -158,7 +170,15 @@ export async function getOverviewData(): Promise<OverviewData> {
     packDrift,
     firsts,
   ] = await Promise.all([
-      prisma.insight.findMany(),
+      // Only the two types this page draws, over the months it draws: the
+      // table holds every type for every month of the history, and the
+      // anomalies and recurring charges among them are the bulk of it.
+      prisma.insight.findMany({
+        where: {
+          type: { in: ["NET_WORTH_GROWTH", "SPENDING_BY_CATEGORY"] },
+          period: { gte: monthKeyBack(now, OVERVIEW_MONTHS_BACK) },
+        },
+      }),
       prisma.account.findMany(),
       prisma.balanceSnapshot.groupBy({ by: ["accountId"], _max: { date: true } }),
       // Two narrow columns rather than a COUNT: the P2P split is a regex SQL
@@ -183,12 +203,7 @@ export async function getOverviewData(): Promise<OverviewData> {
   const uncategorizedCount = uncategorizedRows.length - p2pToConfirmCount;
 
   const monthly = monthlyRows(insightRows);
-  // ONE `now` for the whole page: the spending block's month, the runway's
-  // complete-month cut and the context's "complete" boundary must agree on
-  // which month is being lived in, or a render straddling UTC midnight puts
-  // different months on one screen. UTC via periodKey, like every period
-  // bound in the app.
-  const now = new Date();
+  // UTC via periodKey, like every period bound in the app.
   const currentPeriod = periodKey(now, "MONTH");
   // ofType is oldest-first, the order charts plot in. This page reads the
   // latest COMPLETE month for context, so it takes from the end rather than

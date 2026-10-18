@@ -30,3 +30,17 @@ anything, or claiming a speed-up: the `perf-measure` skill.
   equivalence is pinned by test and holds under REIMBURSE_POOL_TAKE.
 - Analyzer cost is BUCKETING: period bounds memoized, per-period buckets
   computed once — generateInsights runs synchronously inside server actions.
+- Every page loader's statements are planned on demo data
+  (ui/pagePlans.test.ts): no full scan per row, and no whole-table read of
+  Transaction under a page or a test of an indexed column. A new filter on
+  Transaction owes an index (schema, additive: schema:push on BOTH cloud
+  databases BEFORE the merge). Indexed today: date, groupLabel, categoryId and
+  both self-links; Insight(type, period); SyncLog(connectorType, finishedAt).
+- An EDIT regenerates insights from its earliest touched date (regenerateForRows,
+  insights/scope.ts: SCOPE_LOOKBACK_MONTHS back, through the latest), never the
+  whole history; sync, upgrade and scripts run in full, and a full MONTH run
+  clears WEEK/QUARTER/YEAR strays. scopedRegeneration.test.ts holds a scoped
+  run to a full one byte for byte.
+- A page reads only the insight types and months it draws (Overview: net worth
+  and spending, 12 months; /insights: not ANOMALY except its month); health
+  counts rows per account with aggregates, never one row per transaction.

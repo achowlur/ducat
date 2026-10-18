@@ -31,6 +31,13 @@ Each item checked against the code after PR #29.
 
 ### Ready to scope
 
+- **The ledger's whole-set reads** (raised 2026-10-18 by ui/pagePlans.test.ts):
+  its totals band reads id, flow and amount of EVERY row in the filtered list,
+  which is every row of the table on the default view, and its trip and repaid
+  queries test `groupLabel` / `reimbursesId` with IS NOT NULL (a scan; the
+  insights copy now uses a range). Replace the totals with aggregates (sum by
+  flow) where the filter is SQL-only, and the two tests with a range on the
+  column. Page file: after the UX pass.
 - **The CSV backfill path** (full entry below): `--skip-insights` for a
   multi-file import; `--until` per account (the connector already takes it per
   account, only `scripts/import-csv.ts` parses one global value); historical

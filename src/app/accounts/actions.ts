@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { revalidateInsightPages } from "../revalidate";
 import { prisma } from "../../lib/prisma";
-import { generateInsights } from "../../lib/insights/engine";
+import { earliestOfAccount, regenerateSince } from "../../lib/insights/scope";
 import { isClosedBox } from "../../lib/sync/closedBox";
 import { reapplyRules, releaseClosedBox } from "../../lib/sync/rulePack";
 import { requireSession } from "../../lib/auth/requireSession";
@@ -35,7 +35,8 @@ export async function setAccountType(accountId: string, type: string): Promise<v
     if (isClosedBox(before.type)) await releaseClosedBox(prisma, accountId);
     await reapplyRules(prisma);
   }
-  await generateInsights(prisma);
+  // A retype recomputes the account's whole history, rows and balances alike.
+  await regenerateSince(prisma, await earliestOfAccount(prisma, accountId));
   revalidatePath("/accounts");
   // The ledger prints each row's flow, which a move across the box rewrites.
   revalidatePath("/transactions");
