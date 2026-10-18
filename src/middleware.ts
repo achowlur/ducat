@@ -57,7 +57,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   if (!cloud) {
     const host = hostnameOnly(request.headers.get("host"));
     if (host === null || !ALLOWED_HOSTS.has(host)) {
-      return textResponse("Forbidden — this app serves localhost only.", 403);
+      return textResponse("Forbidden. This app serves localhost only.", 403);
     }
   }
 

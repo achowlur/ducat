@@ -62,6 +62,21 @@ export function Note({ children }: { children: ReactNode }) {
   return <p className="mt-2 max-w-[760px] text-[0.72rem] leading-relaxed text-faint">{children}</p>;
 }
 
+/**
+ * How a figure is worked out, behind a tap, never a hover: a card leads with
+ * its answer and one line of what to discount, and the method waits here.
+ */
+export function Fold({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <details className="mt-1">
+      <summary className="tap44 inline-flex cursor-pointer items-center text-[0.75rem] text-acc hover:underline">
+        {label}
+      </summary>
+      {children}
+    </details>
+  );
+}
+
 /** A card's way onward, in the voice of Overview's "full breakdown →". */
 export function CardLink({ href, children }: { href: string; children: ReactNode }) {
   return (

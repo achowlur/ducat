@@ -64,7 +64,7 @@ export function CoverageNotice({ coverage }: { coverage: PeriodCoverage | null }
           <ul className="mt-1 grid gap-0.5">
             {gaps.map((g) => (
               <li key={g.name} className="flex gap-2">
-                <span>—</span>
+                <span aria-hidden="true">·</span>
                 <span>
                   {g.name}:{" "}
                   {g.kind === "NO_DATA" ? (

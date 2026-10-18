@@ -5,7 +5,7 @@ import { fullWindow, isFull, shownMonths, type ChartWindow } from "../../lib/ui/
 import { money, shortMonthLabel } from "../../lib/ui/format";
 import { growthBetween, growthByYear } from "../../lib/ui/netWorthGrowth";
 import { NetWorthChart } from "../charts/NetWorthChart";
-import { CardFrame, Fig, Hero, Lead, Note } from "./CardFrame";
+import { CardFrame, Fig, Fold, Hero, Lead, Note } from "./CardFrame";
 import { GrowthSplit } from "./GrowthSplit";
 import { growthRate, NetWorthYears } from "./NetWorthYears";
 
@@ -59,12 +59,18 @@ export function NetWorthCard({
   }
 
   const historyStartsHere = (
-    <p className="mb-3 border-l-2 border-warn bg-chip/50 px-2.5 py-1.5 text-[0.75rem] text-faint">
-      <span className="font-semibold text-acc">History starts here.</span> A month appears once an account has a
-      value in it. Imported transactions can&apos;t give a brokerage one: its value moves with the market, which
-      leaves no transaction to reconstruct from. Statement imports and month-end balances supply earlier months, and
-      each sync records a value, so this line grows from today forward.
-    </p>
+    <div className="mb-3 border-l-2 border-warn bg-chip/50 px-2.5 py-1.5 text-[0.75rem] text-faint">
+      <p>
+        <span className="font-semibold text-acc">History starts here.</span> A month appears once an account has a
+        value in it, and each sync adds one, so this line grows from today forward.
+      </p>
+      <Fold label="Why it starts here">
+        <p className="mt-1">
+          Imported transactions can&apos;t give a brokerage a value: it moves with the market, which leaves no
+          transaction to reconstruct from. Statement imports and month-end balances supply earlier months.
+        </p>
+      </Fold>
+    </div>
   );
 
   // Analyzers legitimately emit nothing: no month has a value yet.
@@ -148,28 +154,31 @@ export function NetWorthCard({
         <span className="md:hidden">Pinch to zoom, two fingers to move</span>
         <span className="hidden md:inline">Ctrl and scroll, or pinch, to zoom; drag to move; double-click for all</span>
       </div>
-      <Note>
-        Month-end, {leftOut.length === 0 ? "all accounts" : "every account with a value that month"}, from{" "}
-        {shortMonthLabel(shown[0].period)} to {shortMonthLabel(shown[shown.length - 1].period)}. Tap or hover a month
-        for its figures. Partly estimated means an investment account&apos;s value carried from an earlier month, its
-        market movement since unseen, or a balance worked out from transactions.
-        {/* A month missing an account is SMALLER than the truth, so the
-            account is named in text, with the last month it is missing from:
-            never left for a hover to reveal. */}
-        {leftOut.length > 0 && (
-          <>
-            {" "}
+      {/* What a reader must discount stays in view: an account a month leaves
+          out (a month missing one is SMALLER than the truth, named in text with
+          the last month it is missing from), and a line shorter than the
+          history above it. How the line is worked out is behind a tap. */}
+      {(leftOut.length > 0 || (!zoomed && spendingFrom !== null && months[0].period > spendingFrom)) && (
+        <Note>
+          {leftOut.length > 0 && (
             <span className="text-ink">
               Left out where it has no value yet:{" "}
-              {leftOut.map((l) => `${l.name} (through ${shortMonthLabel(l.through)})`).join(", ")}
+              {leftOut.map((l) => `${l.name} (through ${shortMonthLabel(l.through)})`).join(", ")}.
             </span>
-            .
-          </>
-        )}
-        {!zoomed && spendingFrom !== null && months[0].period > spendingFrom && (
-          <> Shorter than the spending history above: a month appears once some account has a value in it.</>
-        )}
-      </Note>
+          )}
+          {!zoomed && spendingFrom !== null && months[0].period > spendingFrom && (
+            <> Shorter than the spending history above: a month appears once some account has a value in it.</>
+          )}
+        </Note>
+      )}
+      <Fold label="How this line is worked out">
+        <Note>
+          Month-end, {leftOut.length === 0 ? "all accounts" : "every account with a value that month"}, from{" "}
+          {shortMonthLabel(shown[0].period)} to {shortMonthLabel(shown[shown.length - 1].period)}. Tap a month for its
+          figures. Partly estimated means an investment account&apos;s value carried from an earlier month, its market
+          movement since unseen, or a balance worked out from transactions.
+        </Note>
+      </Fold>
 
       <NetWorthYears years={growthByYear(months)} />
     </CardFrame>

@@ -1016,7 +1016,7 @@ describe('P2P payments awaiting confirmation', () => {
     const july = computeSpendingByCategory(txns, ['2026-07'], 'MONTH').get('2026-07')!;
     expect(july.totalSpending).toBe(430);
     expect(july.categories.map((c) => [c.categoryId, c.categoryName, c.spending])).toEqual([
-      ['p2p-unreviewed', 'P2P — Unreviewed', 300],
+      ['p2p-unreviewed', 'P2P unreviewed', 300],
       ['cat-groceries', 'Groceries', 80],
       [null, null, 50],
     ]);

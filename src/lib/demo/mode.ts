@@ -23,7 +23,7 @@ export function isDemo(): boolean {
 /** Why this instance must not serve, or null when it may. */
 export function demoMisconfiguration(): string | null {
   if (isDemo() && (process.env.SIMPLEFIN_ACCESS_URL ?? '') !== '') {
-    return 'This is a public demo (DUCAT_DEMO_PASSWORD is set) and it holds a SimpleFIN access URL. A demo must never reach a real bank feed — remove SIMPLEFIN_ACCESS_URL, then redeploy.';
+    return 'This is a public demo (DUCAT_DEMO_PASSWORD is set) and it holds a SimpleFIN access URL. A demo must never reach a real bank feed. Remove SIMPLEFIN_ACCESS_URL, then redeploy.';
   }
   return null;
 }

@@ -105,7 +105,7 @@ export class CsvConnector implements Connector {
         r.some((c) => c.trim().toLowerCase() === String(mapping.date).toLowerCase()),
       );
       if (headerIndex === -1) {
-        throw new Error(`CSV header row with column "${String(mapping.date)}" not found — wrong mapping?`);
+        throw new Error(`CSV header row with column "${String(mapping.date)}" not found. Wrong mapping?`);
       }
       header = parsed[headerIndex].map((c) => c.trim().toLowerCase());
       dataRows = parsed.slice(headerIndex + 1);
@@ -156,14 +156,17 @@ export class CsvConnector implements Connector {
       }
       if (!this.accounts.some((a) => a.externalId === target.externalId)) this.accounts.push(target);
       const signed = mapping.invertAmount === true ? -amount : amount;
-      const description = mapping.description
-        .map((s) => col(row, s).trim())
-        .filter((s) => s !== '')
-        .join(' — ');
+      const parts = mapping.description.map((s) => col(row, s).trim()).filter((s) => s !== '');
+      // The ID, the merchant and the transfer test keep reading the dash-joined
+      // text they always read: the ID hashes it, so a new separator would make
+      // a re-import of an old file duplicate every multi-column row. Only the
+      // description a reader sees takes a separator that is not an em dash.
+      const joined = parts.join(' — ');
+      const description = parts.join('; ');
       const merchantRaw = mapping.merchant === undefined ? '' : col(row, mapping.merchant).trim();
-      const merchant = normalizeMerchant(merchantRaw !== '' ? merchantRaw : description);
+      const merchant = normalizeMerchant(merchantRaw !== '' ? merchantRaw : joined);
 
-      const isTransfer = (mapping.transferPatterns ?? []).some((p) => p.test(description));
+      const isTransfer = (mapping.transferPatterns ?? []).some((p) => p.test(joined));
       const flow: TransactionFlow = isTransfer ? 'TRANSFER' : signed >= 0 ? 'INFLOW' : 'OUTFLOW';
 
       const balanceRaw = mapping.balance === undefined ? null : parseAmount(col(row, mapping.balance));
@@ -171,7 +174,7 @@ export class CsvConnector implements Connector {
       const sourceCategory =
         mapping.category === undefined ? undefined : mapping.categoryMap?.[col(row, mapping.category).trim()];
 
-      const fingerprint = `${date.toISOString().slice(0, 10)}|${signed.toFixed(2)}|${description}`;
+      const fingerprint = `${date.toISOString().slice(0, 10)}|${signed.toFixed(2)}|${joined}`;
       // Counter is scoped per account so a transaction's id is the same whether
       // it arrived in a combined export or a single-account one. The hash input
       // stays account-free (ids may collide across accounts, which is harmless:

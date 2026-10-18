@@ -1411,3 +1411,21 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   takes the rule colour when a month dips under it. A line wholly above zero
   is unchanged (starting at zero or above) and one wholly below keeps the
   rounded ticks.
+
+- VERDICT FIRST, THE REST BEHIND A TAP (2026-10-18). The net worth goal and
+  house readiness had been cut to one figure, the controls, lines that ask for
+  an action and one assumptions line; the pass that followed applied it to the
+  other pages. /providers opens on one line built by providersVerdict (feeds,
+  backup, free plan; a part with no signal is left out, never reassuring),
+  /accounts on net worth and freshness, the savings goal on WHEN, Overview
+  keeps the net worth delta, and /trends folds each card's method behind a
+  tap (Fold). What a reader must discount stays in view: an account left out,
+  a line shorter than the history above it, no typical range yet. The same
+  pass took the last load-bearing title= attributes off the listed screens
+  (text, a line under the control, or the ledger's one-line key) and rewrote
+  the picker's none and untag rows and a coverage bullet that wore an em dash.
+  The CSV description join changed its visible separator only: the dedupe id
+  hashes the dash-joined text, so a new join would have duplicated every
+  multi-column row on a re-import. A derived bucket's name lives in stored
+  insight payloads, so renaming one is an insight regeneration (npm run
+  upgrade on the cloud), never a category migration.

@@ -207,7 +207,7 @@ export function computeDigest(input: {
 
     for (const c of spending.categories) {
       if (c.spending <= 0) continue;
-      // A review backlog is not a spending trend: "P2P — Unreviewed is up"
+      // A review backlog is not a spending trend: "P2P unreviewed is up"
       // says only that fewer payments have been confirmed yet.
       if (c.categoryId === P2P_UNREVIEWED_ID) continue;
       const past = (history.get(keyOf(c)) ?? []).slice(-DRIFT_BASELINE_PERIODS);

@@ -7,7 +7,7 @@ import {
 } from "../health/backup";
 import { getProviderHealth } from "../health/health";
 import { PROVIDER_TRUST_CARDS } from "../health/providers";
-import type { ProviderHealth, ProviderId } from "../health/types";
+import type { ProviderHealth, ProviderId, ProviderStatusLevel } from "../health/types";
 import { FRED_API_KEY_ENV, FRED_SERIES_ID } from "../rates/mortgageRate";
 
 /**
@@ -229,4 +229,55 @@ export async function getProvidersData(
     });
   }
   return views;
+}
+
+export interface ProvidersVerdict {
+  /** The worst level among the parts; the dot beside the line wears it. */
+  level: ProviderStatusLevel;
+  /** The line's parts, in reading order, joined with " · " on screen. */
+  parts: string[];
+}
+
+/**
+ * The one line /providers opens on: feeds, backup, free plan. A part that has
+ * no signal at all (no backup ever recorded, local mode's absent allowance)
+ * is left out rather than printed as a reassurance it has not earned; a part
+ * that is not fine names who and what, so the line is a verdict and never
+ * only a colour. Pure, so its wording is pinned by test.
+ */
+export function providersVerdict(input: {
+  feeds: { name: string; status: ProviderStatusLevel }[];
+  /** Calendar days since the last verified backup; null when none recorded. */
+  backup: { status: ProviderStatusLevel; calendarDays: number } | null;
+  /** The largest share of any free-plan allowance, as printed, and whether any line warns; null in local mode. */
+  plan: { label: string; warn: boolean } | null;
+}): ProvidersVerdict {
+  const parts: string[] = [];
+  let level: ProviderStatusLevel = 'OK';
+  const worse = (s: ProviderStatusLevel) => {
+    if (s === 'ERROR' || (s === 'WARN' && level === 'OK')) level = s;
+  };
+
+  const trouble = input.feeds.filter((f) => f.status === 'WARN' || f.status === 'ERROR');
+  if (trouble.length > 0) {
+    for (const f of trouble) worse(f.status);
+    parts.push(`${trouble.map((f) => f.name).join(', ')} ${trouble.length === 1 ? 'needs' : 'need'} a look`);
+  } else if (input.feeds.some((f) => f.status === 'OK')) {
+    parts.push('All feeds OK');
+  } else {
+    parts.push('No feed signals yet');
+  }
+
+  if (input.backup !== null) {
+    const { status, calendarDays } = input.backup;
+    const when = calendarDays <= 0 ? 'today' : calendarDays === 1 ? 'yesterday' : `${calendarDays} days ago`;
+    worse(status);
+    parts.push(status === 'OK' ? `backup verified ${when}` : `backup needs a look (last verified ${when})`);
+  }
+
+  if (input.plan !== null) {
+    if (input.plan.warn) worse('WARN');
+    parts.push(`free plan ${input.plan.label}`);
+  }
+  return { level, parts };
 }

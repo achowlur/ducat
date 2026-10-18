@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProviderHealth } from '../health/types';
-import { cronSummary, showsProvider, STATUS_CHIP, STATUS_DOT } from './providers';
+import { cronSummary, providersVerdict, showsProvider, STATUS_CHIP, STATUS_DOT } from './providers';
 import vercelConfig from '../../../vercel.json';
 
 describe('cronSummary', () => {
@@ -58,5 +58,47 @@ describe('which provider cards /providers shows', () => {
     expect(showsProvider('FRED', null, false)).toBe(false);
     expect(showsProvider('FRED', null, true)).toBe(true);
     expect(showsProvider('FRED', { connectorType: 'FRED' } as ProviderHealth, false)).toBe(true);
+  });
+});
+
+describe('providersVerdict', () => {
+  const ok = [{ name: 'SimpleFIN', status: 'OK' as const }];
+
+  it('reads as one line when everything is fine', () => {
+    const v = providersVerdict({ feeds: ok, backup: { status: 'OK', calendarDays: 0 }, plan: { label: '3%', warn: false } });
+    expect(v.level).toBe('OK');
+    expect(v.parts.join(' · ')).toBe('All feeds OK · backup verified today · free plan 3%');
+  });
+
+  it('names the feed that needs a look, and the worst level wins', () => {
+    const v = providersVerdict({
+      feeds: [...ok, { name: 'FRED', status: 'WARN' }, { name: 'CSV', status: 'ERROR' }],
+      backup: null,
+      plan: null,
+    });
+    expect(v.level).toBe('ERROR');
+    expect(v.parts).toEqual(['FRED, CSV need a look']);
+  });
+
+  it('leaves out a part that has no signal rather than reassuring', () => {
+    const v = providersVerdict({ feeds: ok, backup: null, plan: null });
+    expect(v.parts).toEqual(['All feeds OK']);
+  });
+
+  it('does not call a backup fine when its own status is not', () => {
+    const v = providersVerdict({ feeds: ok, backup: { status: 'WARN', calendarDays: 3 }, plan: null });
+    expect(v.level).toBe('WARN');
+    expect(v.parts[1]).toBe('backup needs a look (last verified 3 days ago)');
+  });
+
+  it('says yesterday, and carries a plan warning into the level', () => {
+    const v = providersVerdict({ feeds: ok, backup: { status: 'OK', calendarDays: 1 }, plan: { label: '85%', warn: true } });
+    expect(v.level).toBe('WARN');
+    expect(v.parts).toEqual(['All feeds OK', 'backup verified yesterday', 'free plan 85%']);
+  });
+
+  it('is not all-clear when no feed has reported', () => {
+    const v = providersVerdict({ feeds: [{ name: 'FRED', status: 'UNKNOWN' }], backup: null, plan: null });
+    expect(v.parts).toEqual(['No feed signals yet']);
   });
 });

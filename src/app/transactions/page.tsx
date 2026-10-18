@@ -304,7 +304,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
   const selection = parseCategoryParam(params.category);
   if (selection !== null) {
     // Both null buckets are `categoryId: null` in SQL; nullBucketFilter below
-    // separates Uncategorized from P2P — Unreviewed.
+    // separates Uncategorized from P2P unreviewed.
     const nullBucket = selection.uncategorized || selection.p2p;
     if (!nullBucket) {
       where.categoryId = { in: selection.ids };
@@ -929,7 +929,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
             <span className="text-ink">{selectedNames.join(", ")}</span>
             <Link
               href={buildHref(params, { category: undefined, page: undefined })}
-              className="font-semibold text-acc hover:underline"
+              className="tap44 font-semibold text-acc hover:underline"
             >
               clear categories
             </Link>
@@ -942,7 +942,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
             <span className="text-ink">{selectedAccountNames.join(", ")}</span>
             <Link
               href={buildHref(params, { account: undefined, page: undefined })}
-              className="font-semibold text-acc hover:underline"
+              className="tap44 font-semibold text-acc hover:underline"
             >
               clear accounts
             </Link>
@@ -951,7 +951,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
         {tripLabel !== null && !groupMode && (
           <Link
             href={buildHref(params, { group: undefined, page: undefined })}
-            className="font-semibold text-acc hover:underline"
+            className="tap44 font-semibold text-acc hover:underline"
           >
             clear trip
           </Link>
@@ -987,14 +987,14 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
             <span className="text-ink">{merchantName}</span>
             <Link
               href={buildHref(params, { merchant: undefined, page: undefined })}
-              className="font-semibold text-acc hover:underline"
+              className="tap44 font-semibold text-acc hover:underline"
             >
               clear merchant
             </Link>
           </span>
         )}
         {groupMode ? (
-          <Link href={buildHref(params, { payees: undefined, page: undefined })} className="font-semibold text-acc hover:underline">
+          <Link href={buildHref(params, { payees: undefined, page: undefined })} className="tap44 font-semibold text-acc hover:underline">
             ← transaction list
           </Link>
         ) : (
@@ -1013,7 +1013,6 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
           <Link
             href={buildHref(params, { payees: "1", category: "uncategorized", review: undefined, page: undefined })}
             className={`${CONTROL} tap44 border-acc font-semibold text-acc hover:bg-chip`}
-            title="Group the uncategorized backlog by payee: one decision categorizes every occurrence and future ones too"
           >
             Group by payee to categorize in bulk
           </Link>
@@ -1022,14 +1021,13 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
         {!groupMode && olderPeriod !== null && (
           <Link
             href={buildHref(params, { period: olderPeriod, page: undefined })}
-            className="font-semibold text-acc hover:underline"
-            title={`Jump to ${monthLabel(olderPeriod)}`}
+            className="tap44 font-semibold text-acc hover:underline"
           >
             ← older ({monthLabel(olderPeriod)})
           </Link>
         )}
         {!groupMode && newerPeriod !== null && (
-          <Link href={buildHref(params, { period: newerPeriod, page: undefined })} className="font-semibold text-acc hover:underline">
+          <Link href={buildHref(params, { period: newerPeriod, page: undefined })} className="tap44 font-semibold text-acc hover:underline">
             newer ({monthLabel(newerPeriod)}) →
           </Link>
         )}
@@ -1043,7 +1041,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
         )}
         {!groupMode &&
           (params.review === "1" ? (
-          <Link href={buildHref(params, { review: undefined, page: undefined })} className="font-semibold text-acc hover:underline">
+          <Link href={buildHref(params, { review: undefined, page: undefined })} className="tap44 font-semibold text-acc hover:underline">
             ← all transactions
           </Link>
         ) : (
@@ -1230,7 +1228,6 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
                         groupLabel={null}
                         rowLabel={merchantLabel(t).label || "this transfer"}
                         className="text-[0.75rem] text-faint hover:text-ink"
-                        title="Transfers are excluded from spending analytics and carry no category, but one can be tagged into a trip/project"
                       >
                         transfer
                       </GroupTrigger>
@@ -1241,7 +1238,6 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
                           groupLabel={t.groupLabel}
                           rowLabel={merchantLabel(t).label || "this transfer"}
                           className="text-[0.75rem] text-faint hover:text-ink"
-                          title="Transfers are excluded from spending analytics and carry no category, but one can be tagged into a trip/project"
                         >
                           transfer
                         </GroupTrigger>
@@ -1275,7 +1271,6 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
                         groupLabel={null}
                         rowLabel={merchantLabel(t).label || "this transaction"}
                         className={`${CONTROL} border-rule text-faint hover:border-acc hover:text-acc`}
-                        title="Tag this reimbursement into a trip/project"
                       >
                         Trip
                       </GroupTrigger>
@@ -1395,6 +1390,13 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
         </tbody>
       </table>
       </div>
+      {/* The marks in the list, in words: they carried it in title=, which a
+          phone never shows. */}
+      {visible.length > 0 && !groupMode && (
+        <p className="pt-2 text-[0.72rem] text-faint">
+          ✎ set by you, and rules never override it · ↻ tracked subscription · transfer: left out of spending, tap the word to tag it into a trip
+        </p>
+      )}
       {/* On a single page too, where it repeats the band above, so the page
           reads the same at one page as at ten. */}
       {visible.length > 0 && (

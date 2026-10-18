@@ -18,11 +18,6 @@ export function DismissButton({ insightId, dismissed }: { insightId: string; dis
           ? "border-rule text-faint hover:border-pos hover:text-pos"
           : "border-rule text-faint hover:border-neg hover:text-neg"
       }`}
-      title={
-        dismissed
-          ? "Restore this insight"
-          : "Dismiss; stays dismissed even when insights regenerate after a sync"
-      }
     >
       {dismissed ? "Restore" : "Dismiss"}
     </button>

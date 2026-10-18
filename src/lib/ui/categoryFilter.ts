@@ -24,7 +24,7 @@ export const UNCATEGORIZED = "uncategorized";
 /*
  * The other bucket of rows with no category is `p2p-unreviewed`
  * (P2P_UNREVIEWED_ID): P2P payments awaiting confirmation, see ../p2p.ts.
- * Uncategorized and P2P — Unreviewed are DISJOINT — each drills into exactly
+ * Uncategorized and P2P unreviewed are DISJOINT — each drills into exactly
  * the rows its own slice counts — so a row with no category belongs to one or
  * the other, never both.
  */
