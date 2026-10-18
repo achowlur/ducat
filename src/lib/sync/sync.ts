@@ -1,8 +1,10 @@
-import type { Connector, PeriodGranularity } from '../../types/contracts';
+import type { Connector, PeriodGranularity, TransactionFlow } from '../../types/contracts';
 import type { Account, PrismaClient } from '../../generated/prisma/client';
 import { generateInsights, type GenerateResult } from '../insights/engine';
 import { refreshMortgageRate } from '../rates/mortgageRate';
-import { crossesTheBoundary } from './closedBox';
+import { shortDateYear } from '../ui/format';
+import { CLOSED_BOX_RULE_ID, crossesTheBoundary } from './closedBox';
+import { claimSyncLock, releaseSyncLock } from './lock';
 import { applyRules, toRuleTxns } from './rules';
 import { sourceCategoryToApply } from './sourceCategory';
 import { detectTransferPairs } from './transfers';
@@ -90,11 +92,28 @@ export async function existingTransactionKeys(
  * import new transactions → apply category rules → link transfer pairs →
  * regenerate insights → record sync time. Every run — success or failure —
  * is persisted to SyncLog; the health panel reads that history.
+ *
+ * One run at a time (lock.ts): a second one throws SyncAlreadyRunningError
+ * BEFORE it starts, so it writes no SyncLog. It never ran, and health must not
+ * show it as a sync that broke.
  */
 export async function runSync(
   prisma: PrismaClient,
   connector: Connector,
   options: SyncOptions = {},
+): Promise<SyncResult> {
+  const claim = await claimSyncLock(prisma);
+  try {
+    return await loggedPipeline(prisma, connector, options);
+  } finally {
+    await releaseSyncLock(prisma, claim);
+  }
+}
+
+async function loggedPipeline(
+  prisma: PrismaClient,
+  connector: Connector,
+  options: SyncOptions,
 ): Promise<SyncResult> {
   const startedAt = new Date();
   try {
@@ -139,14 +158,33 @@ async function runPipeline(
   connector: Connector,
   options: SyncOptions,
 ): Promise<SyncResult> {
+  // One clock for the default window and the feed's reach, or a first sync
+  // would sit a few milliseconds past its own feed and warn about nothing.
+  const now = Date.now();
   let since = options.since ?? null;
   if (since === null) {
     const lastSync = await prisma.setting.findUnique({ where: { key: lastSyncKey(connector.type) } });
     since = lastSync === null
-      ? new Date(Date.now() - 90 * DAY_MS)
+      ? new Date(now - 90 * DAY_MS)
       // Overlap the previous sync window: reimporting is free (dedupe),
       // missing late-posted transactions is not.
       : new Date(new Date(lastSync.value).getTime() - 7 * DAY_MS);
+  }
+
+  // A feed that keeps only so much history narrows a longer window itself,
+  // without a word: a gap of months (a token that lapsed, an instance left
+  // off) would lose its oldest rows and every total would quietly read low.
+  // Ask only for what the feed holds and name what it could not give.
+  const warnings: string[] = [];
+  if (connector.maxHistoryDays !== undefined) {
+    const reach = new Date(now - connector.maxHistoryDays * DAY_MS);
+    if (since < reach) {
+      warnings.push(
+        `Transactions from ${shortDateYear(since)} until ${shortDateYear(reach)} could not be fetched: ` +
+          `the feed reaches back only ${connector.maxHistoryDays} days. Import a CSV for that span.`,
+      );
+      since = reach;
+    }
   }
 
   const normalizedAccounts = await connector.listAccounts();
@@ -239,29 +277,59 @@ async function runPipeline(
     })),
   });
 
-  // Category rules over the freshly imported transactions only. Not gated on
-  // there BEING rules: a row inside an investment account is classified by its
-  // account's type (closedBox.ts), which needs none.
+  // Category rules over every row still waiting for them: this run's fresh
+  // rows, and any a run killed between its insert and this step left behind.
+  // Those are stored, so the next run's dedupe never calls them fresh, and
+  // without this they stayed uncategorized for good. "Waiting" is what an
+  // insert leaves: AGGREGATOR, no category, no transfer pair. MANUAL is never
+  // in reach; a pair's category was cleared on purpose by its detection.
+  // Not gated on there BEING rules: a row inside an investment account is
+  // classified by its account's type (closedBox.ts), which needs none.
   const ruleRows = await prisma.rule.findMany({ where: { enabled: true } });
   let rulesApplied = 0;
   let sourceCategorized = 0;
-  if (fresh.length > 0) {
-    const freshRows = await prisma.transaction.findMany({
-      where: {
-        externalId: { in: fresh.map((t) => t.externalId) },
-        accountId: { in: [...accountIdByExternalId.values()] },
-      },
-      include: { account: true },
+  const waitingRows = await prisma.transaction.findMany({
+    where: { categorySource: 'AGGREGATOR', categoryId: null, transferPairId: null },
+    select: {
+      id: true,
+      accountId: true,
+      externalId: true,
+      amount: true,
+      description: true,
+      normalizedMerchant: true,
+      flow: true,
+      categorySource: true,
+      account: { select: { name: true, type: true } },
+    },
+  });
+  if (waitingRows.length > 0) {
+    // One write per outcome, not per row: the per-row loop is the step a 60s
+    // limit cut short. The MANUAL guard is repeated in the write because the
+    // operator can categorize a row between the read above and here.
+    //
+    // A row stored earlier that the closed box would leave as it is (already a
+    // transfer, no category) is skipped, as reapplyRules skips it: the box
+    // changes nothing there, and writing it would only relabel its source.
+    const freshKeys = new Set(
+      fresh.map((t) => transactionKey(accountIdByExternalId.get(t.accountExternalId) as string, t.externalId)),
+    );
+    const waitingById = new Map(waitingRows.map((r) => [r.id, r]));
+    const applications = applyRules(ruleRows, toRuleTxns(waitingRows)).filter((app) => {
+      const row = waitingById.get(app.txnId);
+      if (row === undefined || app.ruleId !== CLOSED_BOX_RULE_ID) return true;
+      return row.flow !== 'TRANSFER' || freshKeys.has(transactionKey(row.accountId, row.externalId));
     });
-    const applications = applyRules(ruleRows, toRuleTxns(freshRows));
+    const byOutcome = new Map<string, { categoryId: string | null; flow: TransactionFlow | null; ids: string[] }>();
     for (const app of applications) {
-      await prisma.transaction.update({
-        where: { id: app.txnId },
-        data: {
-          categoryId: app.categoryId,
-          categorySource: 'RULE',
-          ...(app.flow === null ? {} : { flow: app.flow }),
-        },
+      const key = `${app.categoryId ?? ''}|${app.flow ?? ''}`;
+      const group = byOutcome.get(key) ?? { categoryId: app.categoryId, flow: app.flow, ids: [] };
+      group.ids.push(app.txnId);
+      byOutcome.set(key, group);
+    }
+    for (const { categoryId, flow, ids } of byOutcome.values()) {
+      await prisma.transaction.updateMany({
+        where: { id: { in: ids }, categorySource: { not: 'MANUAL' } },
+        data: { categoryId, categorySource: 'RULE', ...(flow === null ? {} : { flow }) },
       });
     }
     rulesApplied = applications.length;
@@ -269,10 +337,12 @@ async function runPipeline(
     // Then the source's own category (a card export's), on rows no rule spoke
     // for. It stays an AGGREGATOR category: a rule made or reapplied later
     // still outranks it, and the operator's MANUAL choice is never in reach,
-    // as no fresh row carries one. Rows headed for one category go together.
+    // as no waiting row carries one. Rows headed for one category go together.
+    // The hint travels with the feed's row and is not stored, so a stranded
+    // row gets it back only while it is still inside the window fetched.
     const ruled = new Set(applications.map((a) => a.txnId));
     const hinted = new Map(
-      fresh
+      mappable
         .filter((t) => t.sourceCategory !== undefined)
         .map((t) => [`${accountIdByExternalId.get(t.accountExternalId)}|${t.externalId}`, t.sourceCategory as string]),
     );
@@ -281,7 +351,7 @@ async function runPipeline(
         (await prisma.category.findMany({ select: { id: true, name: true } })).map((c) => [c.name, c.id]),
       );
       const byCategory = new Map<string, string[]>();
-      for (const row of freshRows) {
+      for (const row of waitingRows) {
         const name = sourceCategoryToApply(
           { ...row, sourceCategory: hinted.get(`${row.accountId}|${row.externalId}`) },
           row.account.type,
@@ -292,7 +362,7 @@ async function runPipeline(
         byCategory.set(categoryId, [...(byCategory.get(categoryId) ?? []), row.id]);
       }
       for (const [categoryId, ids] of byCategory) {
-        await prisma.transaction.updateMany({ where: { id: { in: ids } }, data: { categoryId } });
+        await prisma.transaction.updateMany({ where: { id: { in: ids }, categorySource: { not: 'MANUAL' } }, data: { categoryId } });
         sourceCategorized += ids.length;
       }
     }
@@ -383,7 +453,7 @@ async function runPipeline(
     rulesApplied,
     sourceCategorized,
     transfersLinked: pairs.length,
-    feedWarnings: connector.feedWarnings?.() ?? [],
+    feedWarnings: [...warnings, ...(connector.feedWarnings?.() ?? [])],
     insights,
   };
 }

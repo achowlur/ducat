@@ -100,7 +100,11 @@ anything below; several entries record "tried and failed, don't retry".
 - The paces project from pay as it is NOW (ui/payLevel.ts): once a new
   paycheck amount repeats, or the operator presses "This is my new pay"
   (Setting pay.newPay), every earlier paycheck counts at it (a cut too);
-  until then the new amount counts as itself and the panel asks.
+  until then the new amount counts as itself and the panel asks. A JOB
+  CHANGE (a payer silent two of its cycles and 35 days, ONE payer starting
+  after its last payday) counts the old job's months at a MONTH of the new
+  pay; one new paycheck, or several new payers, ask through the same button;
+  two payers at once are two jobs.
 - "Counts as cash" is a Setting (cash.additionalAccountIds via
   accounts:cash), never an account-type change — retyping breaks net worth.
 - npm run goals --add is NOT idempotent (slugs dedupe, content does not):

@@ -10,6 +10,7 @@ import { isActive, missedCharge } from '../health/detectedSubscriptions';
 import { periodKey } from '../insights/periods';
 import { recentMonths } from '../insights/recentMonths';
 import { accountCoverageFrom } from '../ui/coverage';
+import { payLevels } from '../ui/payLevel';
 import { isP2P, isUnreviewedP2P } from '../p2p';
 import { assessNetWorthGoal, parseNetWorthGoal } from '../ui/netWorthGoal';
 import { groupByPayee } from '../sync/grouping';
@@ -306,6 +307,14 @@ describe('the demo through the real pipeline', () => {
     expect(w.used).toEqual(['2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08']);
     expect(w.dropped).toEqual([]);
     expect(w.short).toEqual(['2026-03', '2026-04']);
+  });
+
+  it('reads its new job three months back as a job change, the old months at the new pay', async () => {
+    const flows = await payloads<CashFlowTrendPayload>('CASH_FLOW_TREND');
+    const pay = payLevels(flows.flatMap((f) => f.paychecks ?? []), []);
+    expect(pay.changes.find((c) => c.replaces !== undefined)).toMatchObject({ payer: 'lakeshore analytics', replaces: 'northwind labs', since: '2026-06-01' });
+    expect(pay.topUps['2026-05']).toBeGreaterThan(0);
+    expect(pay.pending).toEqual([]);
   });
 
   it('leaves its April tax refund and its March bonus out of the paces as one-off income', async () => {

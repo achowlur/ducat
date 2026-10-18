@@ -57,6 +57,18 @@ Import and sync:
   also writes that opening (the account held nothing before it existed); the
   snapshots land BEFORE the rows' sync, which regenerates insights from them,
   and ImportBatch is written LAST so a failed write can simply re-run.
+- ONE SYNC AT A TIME: runSync claims Setting `sync.running` by
+  compare-and-set with a 5-minute expiry (lock.ts); a refused run throws
+  SyncAlreadyRunningError BEFORE it writes a SyncLog.
+- Rules run over every WAITING row (AGGREGATOR, no category, no pair), not
+  only fresh ones, one updateMany per outcome, so a run killed after its
+  insert is finished by the next; a stored box row already TRANSFER is
+  skipped, as reapplyRules skips it.
+- A connector's `maxHistoryDays` caps the window it is asked for, and the cut
+  is a feed warning naming the dates and the CSV import that fills them.
+- "Sync now" refuses from SIMPLEFIN_SYNC_NOW_CAP (20) requests counted today;
+  the cron is never capped. Its failures return a sentence (databaseRefusal,
+  settleAction), never driver text or the error boundary.
 - Provider health derives from LOCAL signals only — no network call on
   launch, ever; staleBalanceDays: 5 is deliberate; a new connector owes a
   trust card in providers.ts.

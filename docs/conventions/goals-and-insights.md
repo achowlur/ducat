@@ -718,3 +718,23 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   $1,475 rents with a $1.75 fee each and a $35 key fob, then a $1,590 rent
   and an $850 credit under rent; the month read -$765 everyday and now
   reads $825, its total.
+- A NEW JOB IS A RAISE ACROSS PAYERS (2026-10-17). Pay is judged per payer,
+  so after a job change the old salary stayed in the six-month window at its
+  own level, read as today's, while a raise at the same employer would have
+  been topped up. It did not reproduce inside the window on the real
+  history, and the operator asked for it built anyway. A
+  payer whose paychecks STOPPED (silent for two of its own cycles and at
+  least 35 days before the newest paycheck on record, never the clock) and
+  the ONE payer that started after its last payday make a change: each month
+  the old payer paid and the new one did not counts at a MONTH of the new
+  pay, the new paycheck times its paydays a month, since one may pay every
+  two weeks and the other twice a month; the old payer's own raises and
+  top-ups go. A single new paycheck is not yet a pattern and several new
+  payers are not one choice, so both ask through the "This is my new pay"
+  button the raise already had (the Setting it writes names the payer and
+  day, which is all a job change needs). Two payers paying at once are two
+  jobs and stay apart. Invented, from the tests: $2,000 every other Friday
+  until June, then $2,800 every other Friday from another employer; April's
+  two old paychecks count at $6,087.50, a top-up of $2,087.50. The demo
+  changed employers three months back at a tenth more, so its net worth
+  working-out names the change.
