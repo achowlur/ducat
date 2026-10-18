@@ -2,7 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { syncNow, type SyncNowResult } from "../app/actions";
+import { settleAction } from "../lib/actionResult";
 import { CONTROL } from "./ui/headings";
+
+/**
+ * What a sync that never answered most likely was: a function stopped at its
+ * 60s limit. What it saved stays, and the next sync finishes the rest: it
+ * refetches the same window and applies rules to rows left waiting (sync.ts).
+ */
+export const SYNC_NO_ANSWER =
+  "The sync stopped answering, most likely at the server's time limit. Anything it saved is kept, and the next sync picks up the rest.";
 
 /**
  * On-demand refresh. Pulls the latest from SimpleFIN whenever you tap it —
@@ -16,7 +25,7 @@ export function SyncNowButton() {
   function handleClick() {
     setResult(null);
     startTransition(async () => {
-      setResult(await syncNow());
+      setResult(await settleAction(syncNow, SYNC_NO_ANSWER));
     });
   }
 
