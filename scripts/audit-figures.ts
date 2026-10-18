@@ -111,8 +111,14 @@ async function report(copy: string): Promise<void> {
     for (const d of window.dropped) console.log(`   ${d.period} left out: ${d.missing} of ${d.total} accounts' records begin after it starts.`);
     const oneOffs = flows.filter((r) => window.used.includes(r.period)).flatMap((r) => r.payload.oneOffPay ?? []);
     console.log(`   One-off income left out of the paces: ${oneOffs.length === 0 ? 'none' : oneOffs.map((o) => `${usd(o.amount)} ${o.date} ${o.payer}`).join('; ')}`);
-    for (const c of pay.changes) console.log(`   Pay counted at ${usd(c.to)} since ${c.since} (${c.payer}, from ${usd(c.from)}${c.told ? ', as told' : ''}).`);
-    for (const p of pay.pending) console.log(`   Pending pay: ${usd(p.amount)} on ${p.date} (${p.payer}, was ${usd(p.from)}), counted as itself.`);
+    for (const c of pay.changes) {
+      console.log(
+        c.replaces === undefined
+          ? `   Pay counted at ${usd(c.to)} since ${c.since} (${c.payer}, from ${usd(c.from)}${c.told ? ', as told' : ''}).`
+          : `   Job change: ${c.payer} since ${c.since} replaces ${c.replaces}; its months count at ${usd(c.to)}/mo (was ${usd(c.from)}/mo)${c.told ? ', as told' : ''}.`,
+      );
+    }
+    for (const p of pay.pending) console.log(`   Pending pay: ${usd(p.amount)} on ${p.date} (${p.payer}, was ${usd(p.from)}${p.replaces === undefined ? '' : ` from ${p.replaces}`}), counted as itself.`);
 
     console.log('\n== Overview: cash runway');
     const b = overview.balances;

@@ -174,15 +174,19 @@ export function buildDemoData(now: Date): DemoPlan {
     // Dining creeps up over the last quarter — the digest's category drift.
     const diningLift = mo.index >= DEMO_HISTORY_MONTHS - 2 ? 1.35 : 1;
 
-    // Paid twice a month, with a raise every January.
-    const pay = round2(1900 * Math.pow(1.035, yrs));
-    checking(1, pay, 'NORTHWIND LABS PAYROLL', 'northwind labs', 'Income', 'INFLOW');
-    checking(15, pay, 'NORTHWIND LABS PAYROLL', 'northwind labs', 'Income', 'INFLOW');
+    // Paid twice a month, with a raise every January, and a new job three
+    // months back at a tenth more: the paces count the old job's months at
+    // the new pay (ui/payLevel.ts, a job change).
+    const newJob = mo.index >= DEMO_HISTORY_MONTHS - 3;
+    const employer = newJob ? { text: 'LAKESHORE ANALYTICS', key: 'lakeshore analytics' } : { text: 'NORTHWIND LABS', key: 'northwind labs' };
+    const pay = round2(1900 * Math.pow(1.035, yrs) * (newJob ? 1.1 : 1));
+    checking(1, pay, `${employer.text} PAYROLL`, employer.key, 'Income', 'INFLOW');
+    checking(15, pay, `${employer.text} PAYROLL`, employer.key, 'Income', 'INFLOW');
     // A yearly bonus in March, most of it moved straight into the brokerage:
     // the lump sum the net worth goal's deposit rule must not read as a habit.
     if (mo.m0 === 2) {
       const bonus = 2400 + 150 * yrs;
-      checking(20, bonus, 'NORTHWIND LABS BONUS', 'northwind labs', 'Income', 'INFLOW');
+      checking(20, bonus, `${employer.text} BONUS`, employer.key, 'Income', 'INFLOW');
       const moved = on(mo, 21);
       if (moved !== null) pair('checking', 'brokerage', moved, round2(bonus * 0.8), 'NORTHWIND BROKERAGE CONTRIBUTION', 'ELECTRONIC CONTRIBUTION RECEIVED');
     }
