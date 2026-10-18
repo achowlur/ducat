@@ -269,7 +269,7 @@ function ReadinessBlock({
                 </tbody>
               </table>
               <p>
-                Averaged over {span}, one-off pay such as a bonus left out of income.
+                Averaged over {span}; left out of income: one-off income (a bonus, a refund, a sale, money a person sent) and what the fund itself earns.
                 {windowNotes.map((n) => ` ${n}`).join("")}
               </p>
             </div>

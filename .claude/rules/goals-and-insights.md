@@ -91,7 +91,11 @@ anything below; several entries record "tried and failed, don't retry".
   never judged. It stays in income and cash flow but is LEFT OUT of every
   saving pace and of readiness income, and the screens say so. A deposit
   where a paycheck should be IS the paycheck, a raise counting the day it
-  lands; a bonus beside one never asks and never reads as a raise.
+  lands; a bonus beside one never asks and never reads as a raise. Income
+  from NO REGULAR SOURCE is one-off too (irregularIncome: a source paying
+  in under 3 of the 7 months around it; a payment rail is never a source),
+  and readiness income also leaves out what the FUND itself earns
+  (CashFlowTrendPayload.earnedByAccount).
 - The paces project from pay as it is NOW (ui/payLevel.ts): once a new
   paycheck amount repeats, or the operator presses "This is my new pay"
   (Setting pay.newPay), every earlier paycheck counts at it (a cut too);

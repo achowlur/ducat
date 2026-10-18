@@ -626,7 +626,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
                 {g.paceLeavesOut.length > 0 && (
                   <>
                     {" "}
-                    It leaves out one-off pay:{" "}
+                    It leaves out one-off income:{" "}
                     {g.paceLeavesOut.map((o, k) => (
                       <span key={`${o.date}:${o.amount}`}>
                         {k > 0 && ", "}

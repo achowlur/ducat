@@ -186,6 +186,9 @@ export function buildDemoData(now: Date): DemoPlan {
       const moved = on(mo, 21);
       if (moved !== null) pair('checking', 'brokerage', moved, round2(bonus * 0.8), 'NORTHWIND BROKERAGE CONTRIBUTION', 'ELECTRONIC CONTRIBUTION RECEIVED');
     }
+    // A tax refund each April: income from no regular source, which the
+    // saving paces leave out with the bonus (insights/oneOffPay.ts).
+    if (mo.m0 === 3) checking(16, round2(480 + 35 * yrs), 'US TREASURY TAX REFUND', 'us treasury tax refund', 'Income', 'INFLOW');
     checking(1, -(1300 + 50 * yrs), 'MAPLE COURT APARTMENTS RENT', 'maple court apartments', 'Rent & Housing', 'OUTFLOW');
     checking(12, -round2(78 + 62 * season + between(-6, 6)), 'CITYLIGHT ELECTRIC', 'citylight electric', 'Utilities', 'OUTFLOW');
     checking(17, -65, 'BRIGHTWAVE INTERNET', 'brightwave internet', 'Utilities', 'OUTFLOW');

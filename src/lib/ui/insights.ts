@@ -746,12 +746,17 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     goals[0].refusal !== 'NO_ACCOUNTS'
   ) {
     const spendingByPeriod = new Map(spendingRows.map((r) => [r.period, r.payload]));
+    // What the fund itself earns ends with the purchase that spends it, so it
+    // is no part of the budget the payment comes out of.
+    const fundIds = goals[0].goal.cash === true ? cashFundIds : goals[0].goal.accountIds;
+    const fundEarned = (r: { payload: CashFlowTrendPayload }) =>
+      fundIds.reduce((sum, id) => sum + (r.payload.earnedByAccount?.[id] ?? 0), 0);
     readiness = assessReadiness({
       config: readinessConfig,
       fund: goals[0].saved,
       // Regular pay at today's amount: a bonus month is not a budget, and a
-      // raise is.
-      completeMonthlyIncome: windowFlow.map((r) => r.payload.income + regular(r)),
+      // raise is. The fund's own interest left out.
+      completeMonthlyIncome: windowFlow.map((r) => r.payload.income + regular(r) - fundEarned(r)),
       completeMonthlyNonHousing: windowFlow.map((r) => {
         const s = spendingByPeriod.get(r.period);
         return s === undefined ? r.payload.spending : nonHousingSpending(s);
