@@ -1,3 +1,4 @@
+import { isP2P } from '../p2p';
 import { round2 } from './stats';
 import type { TxnData } from './types';
 
@@ -35,6 +36,9 @@ const NEEDED = 3;
 /** Share of a payer's deposits that must be regular before its odd ones are judged. */
 const MOSTLY = 0.75;
 const EARNED = /\b(interest|dividend)\b/i;
+
+/** Interest or a dividend, by its wording: earned on money held, never pay. */
+export const isEarned = (t: Pick<TxnData, 'description'>) => EARNED.test(t.description);
 const DAY_MS = 86_400_000;
 
 export interface PayDeposit {
@@ -52,7 +56,7 @@ export function judgePay(txns: readonly TxnData[]): { paychecks: PayDeposit[]; o
   const byPayer = new Map<string, TxnData[]>();
   for (const t of txns) {
     if (t.flow !== 'INFLOW' || t.amount <= 0 || !t.categoryIsIncome || t.reimbursesId !== null) continue;
-    if (EARNED.test(t.description)) continue;
+    if (isEarned(t)) continue;
     const key = `${t.accountId}\u0001${t.normalizedMerchant}`;
     const list = byPayer.get(key);
     if (list === undefined) byPayer.set(key, [t]);
@@ -115,4 +119,62 @@ export function judgePay(txns: readonly TxnData[]): { paychecks: PayDeposit[]; o
 /** One-off pay alone. */
 export function oneOffPay(txns: readonly TxnData[]): PayDeposit[] {
   return judgePay(txns).oneOffs;
+}
+
+/** Months either side of a deposit in which its source must pay again to be a regular source. */
+const SOURCE_REACH = 3;
+/** Months, of the seven around a deposit, its source must pay in. */
+const SOURCE_MONTHS = 3;
+
+const monthIndex = (d: Date) => d.getUTCFullYear() * 12 + d.getUTCMonth();
+
+/**
+ * Income from NO REGULAR SOURCE: a tax refund, the proceeds of a sale, money
+ * a person sent that is not linked to what it repays. Real income, but like a
+ * bonus it does not come again next month, so every saving pace and readiness
+ * income leave it out with one-off pay, and the screens say so.
+ *
+ * Judged only among income-category inflows that are neither a paycheck nor
+ * one-off pay (judgePay has the salary-like payers), never interest or
+ * dividends. A source is REGULAR when it paid in at least three of the seven
+ * months around the deposit (rent from a lodger, a side job's monthly
+ * invoice), both sides counted, so a new stream counts once it continues. A
+ * payment rail (Zelle, Venmo, PayPal...) is never a source: it pools every
+ * person who ever sent money, and three gifts from three people in three
+ * months would read as a stream.
+ */
+export function irregularIncome(
+  txns: readonly TxnData[],
+  judged: { paychecks: readonly PayDeposit[]; oneOffs: readonly PayDeposit[] } = judgePay(txns),
+): PayDeposit[] {
+  const pay = new Set([...judged.paychecks, ...judged.oneOffs].map((p) => p.id));
+  const candidates = txns.filter(
+    (t) =>
+      t.flow === 'INFLOW' &&
+      t.amount > 0 &&
+      t.categoryIsIncome &&
+      t.reimbursesId === null &&
+      !isEarned(t) &&
+      !pay.has(t.id),
+  );
+  const monthsBySource = new Map<string, Set<number>>();
+  for (const t of candidates) {
+    if (isP2P(t)) continue;
+    const key = `${t.accountId}${t.normalizedMerchant}`;
+    const months = monthsBySource.get(key) ?? new Set<number>();
+    months.add(monthIndex(t.date));
+    monthsBySource.set(key, months);
+  }
+  const regular = (t: TxnData) => {
+    if (isP2P(t)) return false;
+    const months = monthsBySource.get(`${t.accountId}${t.normalizedMerchant}`)!;
+    const m = monthIndex(t.date);
+    let paid = 0;
+    for (let k = m - SOURCE_REACH; k <= m + SOURCE_REACH; k += 1) if (months.has(k)) paid += 1;
+    return paid >= SOURCE_MONTHS;
+  };
+  return candidates
+    .filter((t) => !regular(t))
+    .map((t) => ({ id: t.id, date: t.date, amount: round2(t.amount), payer: t.normalizedMerchant }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
 }

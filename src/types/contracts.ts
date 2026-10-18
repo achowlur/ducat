@@ -126,15 +126,24 @@ export interface CashFlowTrendPayload {
   incomeDeltaPct: number | null;
   spendingDeltaPct: number | null;
   /**
-   * The part of `income` that is ONE-OFF pay (insights/oneOffPay.ts): a bonus
-   * beside a paycheck, back pay. Counted in income, left out of every saving
-   * pace and of house readiness. Absent on payloads stored before 2026-10-17.
+   * The part of `income` that is ONE-OFF (insights/oneOffPay.ts): extra pay
+   * beside a paycheck (a bonus, back pay), and since 2026-10-17 income from
+   * no regular source (irregularIncome: a refund, a sale, money a person
+   * sent). Counted in income, left out of every saving pace and of house
+   * readiness. Absent on payloads stored before 2026-10-17.
    */
   oneOffIncome?: number;
   /** Those deposits. */
   oneOffPay?: PayItem[];
   /** The period's PAYCHECKS, from payers paying on a schedule: what the paces project from at the current amount (ui/payLevel.ts). */
   paychecks?: PayItem[];
+  /**
+   * The interest and dividends inside `income`, by account (accounts with
+   * none absent): house readiness leaves out what the fund itself earns,
+   * since the fund is spent on the house. Absent on payloads stored before
+   * 2026-10-17.
+   */
+  earnedByAccount?: Record<string, number>;
 }
 
 export interface PayItem {

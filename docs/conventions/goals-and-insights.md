@@ -653,3 +653,27 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   it covers; in view stay the figure, one line of assumptions and anything
   to discount. Invented, from the tests: five months near $2,000 and one at
   $9,000 averaged $3,167 a month; the middle says $2,025.
+- ONE-OFF INCOME, NOT ONLY PAY (2026-10-17). One-off pay caught a bonus
+  beside a paycheck, and nothing else: a tax refund, a sale, money a person
+  sent that was not linked to what it repaid, card rewards cashed out, all
+  categorized Income, all counted in every saving pace and in readiness
+  income as if they came monthly. On a real history they landed in most
+  months of the window and moved the savings date by months. They are now one-off income (irregularIncome): an income
+  inflow that is neither a paycheck nor extra pay, whose source paid in
+  fewer than three of the seven months around it. Both sides are counted,
+  as paychecks are, so a new monthly source (a lodger, a side job's
+  invoice) counts from its first month once it continues. A payment rail
+  is never a source: Zelle pools everyone who ever sent money, and three
+  gifts from three people in three months read as a stream. That costs a
+  reader paid monthly by Zelle their pace; it is the operator's to say
+  (categorize it as a reimbursement or link it) and the screens list every
+  deposit left out. Interest and dividends are still never judged: they are
+  regular by nature. They stay in income and cash flow; the paces leave
+  them out with the bonuses, under one name, one-off income.
+  The house fund's own interest left readiness income at the same time: the
+  purchase spends the fund, and what it earned goes with it. Read per
+  account from what each month's income held (earnedByAccount), never from
+  the net worth rows' interestByAccount, which also counts interest a rule
+  filed as a transfer and so was never income to take back out. The demo
+  gained a yearly tax refund in April, which the net worth panel's
+  working-out names beside the March bonus.

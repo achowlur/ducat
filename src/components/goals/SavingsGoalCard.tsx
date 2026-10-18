@@ -169,7 +169,7 @@ export function SavingsGoalCard({
             <p className="pt-1.5 leading-relaxed">
               From your balance today: saving{" "}
               <span className="font-money tabular text-ink">~{money(rate)}</span>/mo, your income less spending averaged
-              over {span}, one-off pay such as a bonus left out.{left !== null && ` ${left}`}
+              over {span}, one-off income such as a bonus or a refund left out.{left !== null && ` ${left}`}
             </p>
           </details>
         </>

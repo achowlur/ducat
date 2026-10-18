@@ -499,6 +499,7 @@ describe('computeCashFlowTrend', () => {
       oneOffIncome: 0,
       oneOffPay: [],
       paychecks: [],
+      earnedByAccount: {},
     });
   });
 });

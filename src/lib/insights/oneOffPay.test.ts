@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { judgePay, oneOffPay } from './oneOffPay';
+import { computeCashFlowTrend } from './cashFlow';
+import { irregularIncome, judgePay, oneOffPay } from './oneOffPay';
 import type { TxnData } from './types';
 
 // Invented: an employer paying every two weeks, a raise, bonuses beside
@@ -70,5 +71,46 @@ describe('judgePay', () => {
     );
     const refund = deposit(payday(3), 80, 'oakline hardware', false);
     expect(oneOffPay([...paychecks(8), ...interest, refund])).toEqual([]);
+  });
+});
+
+// Invented: the same paychecks, a tax refund, a sale, a monthly side job and
+// money sent by Zelle in three months by three people.
+describe('irregularIncome', () => {
+  const month = (m: number, d = 12) => new Date(Date.UTC(2026, m, d, 12));
+  const refund = deposit(month(3), 1240, 'irs treas 310', true, 'IRS TREAS 310 TAX REF');
+  const sale = deposit(month(5), 900, 'marketplace payout', true, 'MARKETPLACE PAYOUT');
+  const sideJob = [0, 1, 2, 3, 4, 5, 6].map((m) => deposit(month(m, 20), 300 + m * 25, 'brightpath tutoring', true, 'BRIGHTPATH TUTORING'));
+  const gifts = [2, 3, 4].map((m) => deposit(month(m, 8), 200, 'zelle transfer', true, 'ZELLE FROM A PERSON'));
+  const interest = [0, 1, 2].map((m) => deposit(month(m, 28), 12, 'harbor savings', true, 'INTEREST PAYMENT'));
+  const all = [...paychecks(16), refund, sale, ...sideJob, ...gifts, ...interest];
+
+  it('finds a refund, a sale and money a person sent; never pay, a monthly source or interest', () => {
+    expect(irregularIncome(all).map((o) => o.id)).toEqual([gifts[0].id, gifts[1].id, refund.id, gifts[2].id, sale.id]);
+  });
+
+  it('counts a new source as regular once it pays in three of the seven months around a deposit', () => {
+    const fresh = [4, 5, 6].map((m) => deposit(month(m, 20), 450, 'lodger rent', true, 'LODGER RENT'));
+    expect(irregularIncome(fresh)).toEqual([]);
+    expect(irregularIncome(fresh.slice(0, 2)).map((o) => o.id)).toEqual(fresh.slice(0, 2).map((t) => t.id));
+  });
+
+  // The failure: a refund counted in a month's income, read as a saving habit.
+  it('reaches the cash-flow rows as one-off income, left out of every pace', () => {
+    const rows = computeCashFlowTrend(all, ['2026-04'], 'MONTH');
+    const april = rows.get('2026-04')!;
+    expect(april.oneOffIncome).toBe(1440);
+    expect(april.oneOffPay?.map((o) => o.amount)).toEqual([200, 1240]);
+    expect(april.income).toBeGreaterThan(april.oneOffIncome!);
+  });
+});
+
+describe('earned income on the cash-flow rows', () => {
+  // Invented: $12 of interest on a savings account inside March's income.
+  it('carries the interest inside income by account, for readiness to leave the fund\'s out', () => {
+    const interest = { ...deposit(new Date(Date.UTC(2026, 2, 28, 12)), 12, 'harbor savings', true, 'INTEREST PAYMENT'), accountId: 'savings' };
+    const march = computeCashFlowTrend([...paychecks(8), interest], ['2026-03'], 'MONTH').get('2026-03')!;
+    expect(march.earnedByAccount).toEqual({ savings: 12 });
+    expect(march.oneOffIncome).toBe(0);
   });
 });

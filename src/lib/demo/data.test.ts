@@ -16,7 +16,7 @@ import { groupByPayee } from '../sync/grouping';
 import { suggestGroupCategories } from '../sync/groupSuggest';
 import { suggestP2PCategories } from '../sync/p2pSuggest';
 import { installRulePack, pendingPackRules } from '../sync/rulePack';
-import type { AnomalyPayload, NetWorthGrowthPayload, RecurringChargePayload } from '../../types/contracts';
+import type { AnomalyPayload, CashFlowTrendPayload, NetWorthGrowthPayload, RecurringChargePayload } from '../../types/contracts';
 import { buildDemoData, DEMO_HISTORY_MONTHS, writeDemoData, type DemoPlan } from './data';
 import { scanText } from '../../../scripts/privacyScan';
 
@@ -306,6 +306,13 @@ describe('the demo through the real pipeline', () => {
     expect(w.used).toEqual(['2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08']);
     expect(w.dropped).toEqual([]);
     expect(w.short).toEqual(['2026-03', '2026-04']);
+  });
+
+  it('leaves its April tax refund and its March bonus out of the paces as one-off income', async () => {
+    const [april] = await payloads<CashFlowTrendPayload>('CASH_FLOW_TREND', '2026-04');
+    expect(april.oneOffPay?.map((o) => o.payer)).toEqual(['us treasury tax refund']);
+    const [march] = await payloads<CashFlowTrendPayload>('CASH_FLOW_TREND', '2026-03');
+    expect(march.oneOffPay?.map((o) => o.payer)).toEqual(['northwind labs']);
   });
 
   it('shows a price rise, a one-off this month, and no groceries or fuel mistaken for subscriptions', async () => {
