@@ -3,6 +3,8 @@ import { prisma } from "../../../../lib/prisma";
 import { SimplefinConnector } from "../../../../lib/connectors/simplefin";
 import { isDemo } from "../../../../lib/demo/mode";
 import { reseedDemo } from "../../../../lib/demo/reseed";
+import { demoResetDue, recordDemoReset } from "../../../../lib/demo/resetDue";
+import { meterRequest } from "../../../../lib/usage/request";
 import { runSync } from "../../../../lib/sync/sync";
 
 export const runtime = "nodejs";
@@ -39,14 +41,21 @@ export async function GET(request: NextRequest): Promise<Response> {
   if (!safeEqual(provided, `Bearer ${secret}`)) {
     return new Response("Unauthorized.", { status: 401 });
   }
+  meterRequest();
 
   // The public demo has no feed: its nightly job puts the invented data back
-  // as of today instead — undoing whatever visitors changed, and moving the
-  // month being lived in forward so it is never empty.
+  // as of today instead, undoing whatever visitors changed and moving the
+  // month being lived in forward so it is never empty. Only when that is
+  // needed (lib/demo/resetDue.ts): a reseed rewrites every row, and an
+  // untouched demo is left as it is.
   if (isDemo()) {
     try {
-      const result = await reseedDemo(prisma, new Date());
-      return Response.json({ ok: true, demo: "reseeded", ...result });
+      const now = new Date();
+      const decision = await demoResetDue(prisma, now);
+      if (!decision.due) return Response.json({ ok: true, demo: "unchanged", reason: decision.reason });
+      const result = await reseedDemo(prisma, now);
+      await recordDemoReset(prisma, now);
+      return Response.json({ ok: true, demo: "reseeded", reason: decision.reason, ...result });
     } catch (e) {
       const error = e instanceof Error ? e.message : "reseed failed";
       return Response.json({ ok: false, error }, { status: 500 });

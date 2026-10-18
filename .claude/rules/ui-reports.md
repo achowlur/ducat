@@ -111,3 +111,7 @@ Overview:
 - /providers' "This instance" block owes the same three parts a connector
   card does, residual risks included, and states the sync CADENCE, read from
   vercel.json so it cannot drift (the CLOUD data-locality HARD RULE).
+- /providers' free-plan limits are COUNTED by the app, never read from a
+  host's account API; each limit is a constant dated LIMITS_CHECKED, and
+  whatever the count cannot see (other databases on the account, statements
+  Turso did not report, a month counted partway) is said in view.

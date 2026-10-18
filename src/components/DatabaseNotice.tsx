@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { isCloudMode } from "../lib/auth/mode";
 import { databaseFailure, databaseTarget } from "../lib/ui/dbHealth";
+import { meterRequest } from "../lib/usage/request";
 import { DatabaseUnavailable } from "./DatabaseUnavailable";
 
 /**
@@ -23,6 +24,9 @@ import { DatabaseUnavailable } from "./DatabaseUnavailable";
 export async function withDatabaseNotice(
   render: () => Promise<React.ReactNode>,
 ): Promise<React.ReactNode> {
+  // Being the one call every page makes, this is also where a page is counted
+  // against the hosts' allowances (lib/usage/request.ts).
+  meterRequest();
   try {
     return await render();
   } catch (error) {

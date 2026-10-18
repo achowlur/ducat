@@ -46,6 +46,7 @@ import { basename, join } from 'node:path';
 import { createClient } from '@libsql/client';
 import { parse } from 'dotenv';
 import { BACKUP_SETTING_KEY, type StoredBackupRun } from '../src/lib/health/backup';
+import { flushUsage, meteredFetch } from '../src/lib/usage/meter';
 import { backupToFile, renameWhenReleased } from './copyDatabase';
 import { databaseLabel } from './database-label';
 import { fingerprintOf, type DatabaseFingerprint } from './fingerprintDatabase';
@@ -138,7 +139,10 @@ async function main(): Promise<void> {
   log(`Source: ${databaseLabel(url)}`);
   log(`Dest:   ${path} (via .partial until verified)`);
 
-  const cloud = createClient({ url, authToken });
+  // Through the usage meter, so the rows this copy reads count on /providers
+  // like any page's: a whole-database read twice a night is the largest
+  // regular reader after the app itself.
+  const cloud = createClient({ url, authToken, fetch: meteredFetch });
   try {
     // 1. Copy + the count/aggregate verification cloud:backup has always done.
     const { ok, totalRows } = await backupToFile(cloud, partial, log);
@@ -226,6 +230,8 @@ async function main(): Promise<void> {
     } else {
       await cloud.execute({ sql: upsertSettingSql, args: [BACKUP_SETTING_KEY, value] });
       log(`  written to ${databaseLabel(url)}`);
+      // Only on the success path: a failed run writes nothing to the cloud.
+      await flushUsage((sql, args) => cloud.execute({ sql, args }));
       if (mirror.status === 'mirrored') {
         const local = createClient({ url: LOCAL_URL });
         try {

@@ -40,7 +40,14 @@ export async function renameWhenReleased(
   }
 }
 
-/** Parents before children. Within a table, self-references are deferred. */
+/**
+ * Parents before children. Within a table, self-references are deferred.
+ *
+ * UsageCount is left out ON PURPOSE: it counts what the instance spends against
+ * its hosts' limits, every page view adds to it, and a backup that copied or
+ * fingerprinted it would race the reader it is counting. Losing it costs a
+ * month's tally, not a row of anyone's money.
+ */
 export const TABLES = [
   'Account',
   'Category',

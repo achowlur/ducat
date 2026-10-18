@@ -39,8 +39,8 @@ export default async function LoginPage({
       {demo !== null ? (
         <div className="mt-2 border-l-2 border-acc bg-chip px-3 py-2 text-[0.8rem]">
           <p>
-            This is a public demo. Every account, transaction and figure in it is invented, and it
-            resets to fresh data every night, so change anything you like.
+            This is a public demo. Every account, transaction and figure in it is invented, and
+            whatever you change is put back overnight, so change anything you like.
           </p>
           <p className="mt-1.5">
             Password: <span className="font-money font-semibold tracking-[0.04em]">{demo}</span>

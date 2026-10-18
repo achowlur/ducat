@@ -222,3 +222,17 @@ model Setting {
   key   String @id
   value String
 }
+
+// What this instance spent against its hosts' free-plan limits, counted by the
+// app itself (src/lib/usage/meter.ts): Turso's rows read and written as Turso
+// reports them per statement, pages served, SimpleFIN requests. Operational,
+// not financial data: deliberately outside the backup's TABLES, because every
+// page view adds to it and a backup that fingerprints it could never match.
+model UsageCount {
+  // "2026-10" for a monthly allowance, "2026-10-17" (UTC) for a daily one.
+  period String
+  metric String
+  count  BigInt
+
+  @@id([period, metric])
+}

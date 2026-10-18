@@ -146,3 +146,32 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   foreign key without one. The page that showed the operator "That action
   didn't complete... a lapsed sign-in looks exactly like this" now names the
   refusal (dbHealth.ts, usage-blocked).
+- COUNTING WHAT THE HOSTS BILL, FROM INSIDE THE APP (2026-10-17). After the
+  blocked month the operator asked for every free limit (Turso, Vercel,
+  GitHub, SimpleFIN) on /providers with how close the month is, counted by
+  the app rather than read off four dashboards. Turso's HTTP protocol
+  reports `rows_read` and `rows_written` on every statement result in its
+  JSON encoding (HRANA_3_SPEC's StmtResult); the protobuf schema stops at
+  `last_insert_rowid`. `@libsql/client` 0.17 speaks the JSON v2 pipeline and
+  parses neither field, but it takes a custom `fetch`, so lib/usage/meter.ts
+  reads them off the response TEXT (patterns, not a second parse: a quote
+  inside JSON data is escaped, so `"rows_read":` cannot match inside a
+  value) and hands the client a fresh Response with the same body. A real
+  client was run through it in meter.test.ts, and the whole app in cloud mode
+  against a local stand-in for the pipeline: pages, the cron and the after()
+  flush all worked, and page views moved no row a visitor could change. A
+  statement returned WITHOUT the fields, or any protobuf response, counts as
+  UNREPORTED and the page names how many: a meter that read zero when its
+  host stopped reporting would be worse than none. Counts are written in ONE
+  upsert after the response (Next's `after`), never on the request's path;
+  UsageCount stays out of copyDatabase.ts TABLES, because every page view
+  writes it and a backup fingerprinting it would race the reader it counts.
+  What it cannot see is said on the page, not left out: Turso's limit spans
+  every database on the account (the demo's own instance counts its own),
+  Vercel's edge requests and CPU time exist only on its Usage page, and
+  schema:push and turso:push open their own connections. With the counts in
+  hand, the demo's nightly reseed became conditional (lib/demo/resetDue.ts):
+  it reseeds when a content digest of the visitor-changeable rows moved, when
+  a new release or month arrives, or once the last reseed is two UTC days old
+  (Providers calls a sync overdue past three); otherwise the night costs one
+  read of the data instead of a rewrite of it.

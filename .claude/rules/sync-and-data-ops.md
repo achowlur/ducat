@@ -123,6 +123,8 @@ Upgrades and schema:
   turso:push.
 - A new TABLE joins copyDatabase.ts TABLES or every backup and mirror drops
   it; that moves the pinned OVERALL fingerprint, never a table's digest.
+  UsageCount alone stays out ON PURPOSE: operational counts every page view
+  writes, which a backup fingerprint would race.
 - The 00:30 UTC backup builds from the MAIN checkout's schema and TABLES:
   schema work waits in a worktree; cloud AND demo take it BEFORE the merge;
   pull, local schema and one db:mirror --confirm land the same day.

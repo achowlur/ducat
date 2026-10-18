@@ -10,7 +10,7 @@
 </h3>
 
 <p align="center">
-  <sub>Demo password <code>ducat-demotest*</code> · every figure in it is invented · it resets every night</sub>
+  <sub>Demo password <code>ducat-demotest*</code> · every figure in it is invented · what you change is put back overnight</sub>
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@ credential. If you want it on your phone, an optional cloud mode runs on your
 own Vercel and Turso behind a login that fails closed ([DEPLOY.md](DEPLOY.md)).
 
 Every screenshot, the walkthrough and the [live demo](https://ducat-demo.vercel.app)
-use invented data. The demo resets every night, so change anything you like there.
+use invented data. Whatever you change there is put back overnight, so change anything you like.
 
 ## What you get
 
