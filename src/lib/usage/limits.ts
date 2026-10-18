@@ -1,6 +1,7 @@
 import type { PrismaClient } from '../../generated/prisma/client';
 import { databaseFailure } from '../ui/dbHealth';
-import { usageDay, usageMonth, type UsageMetric } from './meter';
+import { dateTime } from '../ui/format';
+import { pendingUsage, usageDay, usageMonth, type UsageMetric } from './meter';
 
 /**
  * The free-plan allowances this instance runs inside, and how close the
@@ -15,6 +16,12 @@ export const LIMITS_CHECKED = '2026-10-17';
 export const TURSO_FREE = { rowsRead: 500_000_000, rowsWritten: 10_000_000, storageGb: 5 } as const;
 export const VERCEL_HOBBY = { invocations: 1_000_000, activeCpuHours: 4, transferGb: 100 } as const;
 export const SIMPLEFIN_DAILY_REQUESTS = 24;
+/**
+ * Where "Sync now" stops for the day. A sync costs the bridge one or two
+ * requests (the account list, then a longer window when the gap needs one), so
+ * stopping here leaves the nightly cron its run inside the 24.
+ */
+export const SIMPLEFIN_SYNC_NOW_CAP = 20;
 export const GITHUB_PRIVATE_ACTIONS_MINUTES = 2_000;
 
 /** At or past this share of an allowance (used, or on pace by month end) a line warns. */
@@ -174,4 +181,28 @@ export async function readUsageCached(prisma: PrismaClient, now: Date = new Date
 
 export function clearUsageCache(): void {
   delete globalForUsage.ducatUsageReading;
+}
+
+/**
+ * Today's SimpleFIN requests as this instance knows them: what is stored, plus
+ * what it has counted and not yet flushed (the meter writes after a response,
+ * so a second tap a moment after the first would otherwise not see it).
+ */
+export async function simplefinRequestsToday(prisma: PrismaClient, now: Date = new Date()): Promise<number> {
+  const stored = (await readUsage(prisma, now))?.simplefinToday ?? 0;
+  return stored + (pendingUsage()[`${usageDay(now)}|simplefin.requests`] ?? 0);
+}
+
+/**
+ * Why "Sync now" refuses today, or null when it may run. The bridge disables a
+ * token that keeps passing 24 requests a day, and only the cron, which the
+ * data depends on, is allowed to spend what is left past the cap.
+ */
+export function syncNowRefusal(requestsToday: number, now: Date = new Date()): string | null {
+  if (requestsToday < SIMPLEFIN_SYNC_NOW_CAP) return null;
+  const resets = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  return (
+    `SimpleFIN has had ${requestsToday} requests today, and it disables a token that keeps going past ${SIMPLEFIN_DAILY_REQUESTS} a day. ` +
+    `Sync now is off until ${dateTime(resets)} so the nightly sync still runs.`
+  );
 }

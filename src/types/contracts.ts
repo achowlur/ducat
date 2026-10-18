@@ -260,6 +260,12 @@ export interface Connector {
   listAccounts(): Promise<NormalizedAccount[]>;
   fetchTransactions(since: Date): Promise<NormalizedTransaction[]>;
   /**
+   * How many days back the source can answer, when it is limited (SimpleFIN:
+   * 90 a request). The sync asks for no more and records a feed warning naming
+   * the dates it could not fetch. Absent means a file, which holds what it holds.
+   */
+  readonly maxHistoryDays?: number;
+  /**
    * Non-fatal provider warnings observed during this session (e.g.
    * SimpleFIN's errors array: "Connection to X needs attention").
    * The sync pipeline persists them to SyncLog for the health panel.
