@@ -1,4 +1,5 @@
 import { isP2P } from '../p2p';
+import { payerNames } from './samePayer';
 import { round2 } from './stats';
 import type { TxnData } from './types';
 
@@ -11,7 +12,8 @@ import type { TxnData } from './types';
  * (docs/conventions/goals-and-insights.md, ONE-OFF PAY).
  *
  * A deposit is REGULAR pay when the same amount (within 2%) from the same
- * payer arrives on at least three of the eight paydays around it, four
+ * payer (a renamed descriptor of one employer is one payer: samePayer.ts,
+ * the newest name standing for all) arrives on at least three of the eight paydays around it, four
  * before and four after. Both sides together, so a raise counts from its
  * first paycheck once it repeats, the last paycheck at the old amount still
  * counts, and one extra payday (a bonus paid on its own date) cannot break a
@@ -53,19 +55,34 @@ const dayOf = (d: Date) => d.toISOString().slice(0, 10);
 
 /** Every payer's deposits sorted: the paychecks, and the one-off pay beside or between them. */
 export function judgePay(txns: readonly TxnData[]): { paychecks: PayDeposit[]; oneOffs: PayDeposit[] } {
-  const byPayer = new Map<string, TxnData[]>();
+  const byAccount = new Map<string, TxnData[]>();
   for (const t of txns) {
     if (t.flow !== 'INFLOW' || t.amount <= 0 || !t.categoryIsIncome || t.reimbursesId !== null) continue;
     if (isEarned(t)) continue;
-    const key = `${t.accountId}\u0001${t.normalizedMerchant}`;
-    const list = byPayer.get(key);
-    if (list === undefined) byPayer.set(key, [t]);
+    const list = byAccount.get(t.accountId);
+    if (list === undefined) byAccount.set(t.accountId, [t]);
     else list.push(t);
+  }
+  // One payer per employer: a renamed descriptor continues the name before
+  // it (samePayer.ts), so its first paychecks are judged against the run
+  // they continue, never as a new payer's odd deposits.
+  const payerOf = new Map<string, string>();
+  const byPayer = new Map<string, TxnData[]>();
+  for (const [account, deposits] of byAccount) {
+    const names = payerNames(deposits.map((t) => ({ payer: t.normalizedMerchant, date: dayOf(t.date), amount: t.amount })));
+    for (const t of deposits) {
+      const payer = names.get(t.normalizedMerchant) ?? t.normalizedMerchant;
+      payerOf.set(t.id, payer);
+      const key = `${account}\u0001${payer}`;
+      const list = byPayer.get(key);
+      if (list === undefined) byPayer.set(key, [t]);
+      else list.push(t);
+    }
   }
 
   const paychecks: PayDeposit[] = [];
   const oneOffs: PayDeposit[] = [];
-  const of = (t: TxnData): PayDeposit => ({ id: t.id, date: t.date, amount: round2(t.amount), payer: t.normalizedMerchant });
+  const of = (t: TxnData): PayDeposit => ({ id: t.id, date: t.date, amount: round2(t.amount), payer: payerOf.get(t.id)! });
   for (const deposits of byPayer.values()) {
     // Paydays: the distinct days this payer paid, oldest first, each with its amounts.
     const days = new Map<string, number[]>();

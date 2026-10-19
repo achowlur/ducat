@@ -738,6 +738,26 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   two old paychecks count at $6,087.50, a top-up of $2,087.50. The demo
   changed employers three months back at a tenth more, so its net worth
   working-out names the change.
+- A RENAMED PAYCHECK IS NOT A NEW JOB (2026-10-18). `npm run audit:figures`
+  on the real history printed a job change the operator never made: the
+  bank had renamed one employer's deposit descriptor (invented: "Acme
+  Payroll direct dep" became "Acme Payroll"), so the old string read as a
+  payer whose paychecks stopped and the new one as the job replacing it.
+  The figures came out much like a raise, but the wording was false, and
+  one-off pay judged the new string alone, so a renamed payer's first
+  paychecks fell to income from no regular source. Pay now follows one
+  payer across descriptors (insights/samePayer.ts, the recurring detector's
+  `continues` rule for pay), in judgePay per account and again in
+  payLevels over the stored paychecks: a shared NAME word (payeeWords.ts,
+  with PAY_WORDS also set aside: "direct", "payroll", "salary" and the
+  payroll services, which run many employers' pay under one name), the new
+  name's first payday at least half a cycle after the old name's last (two
+  payers in the same weeks stay two jobs), and its first paychecks within
+  25% of the old name's last (one pay run, or a raise; further is not
+  assumed). Every name maps to the newest, and the raise rule takes it from
+  there. A different employer, or overlapping pay, is a job change exactly
+  as before. On the real history the job-change line went and every other
+  figure stayed put, the old name's months being outside the window.
 - TODAY'S PRICE, AND A RISE THAT IS NEWS (2026-10-17). Three subscription
   figures leaned on the median of a plan's whole history. The yearly total
   billed a plan that rose a year ago at its old price until half of all its
