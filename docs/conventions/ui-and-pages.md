@@ -1429,3 +1429,19 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   multi-column row on a re-import. A derived bucket's name lives in stored
   insight payloads, so renaming one is an insight regeneration (npm run
   upgrade on the cloud), never a category migration.
+
+- THE MONTHLY RECAP (2026-10-18). On days 1 to 7 Overview states the month
+  that closed: Spent, Net worth and the goal, three figures under the net
+  worth row and a tap for the category furthest over typical and the nudges
+  still open. It was built as a recap, not an alert (an alert asks for an
+  answer, this asks for none). Spent is spendingBreakdown's total against
+  the middle of recentMonths' comparable months before it (the runway's
+  window), never a second sum; saved and markets are growthBetween's, the
+  /trends split; the goal is assessNetWorthGoal fed the inputs /insights
+  feeds it (every month's cash flow for the pay), so the date agrees to the
+  month. A figure with no record says so and is never zero (analyzers may
+  emit nothing); the queues (Uncategorized, unreviewed P2P) and a category
+  with no typical month are never "the category that moved". The window's
+  extra reads join the page's existing concurrent group and run only inside
+  it, so the round trips do not change (pagePlans plans the recap days too).
+  The README screenshots are taken mid-month and cannot show it.
