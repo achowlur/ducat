@@ -4,6 +4,8 @@ import { prisma } from "../prisma";
 import { isClosedBox } from "../sync/closedBox";
 import { monthlyRows, ofType } from "./insightRows";
 import { buildEntries, type Entry } from "./report";
+import { dailyNetWorth, type DailyNetWorth } from "./dailyNetWorth";
+import { localDayKey } from "./format";
 
 export interface MonthPoint {
   period: string; // "2026-07"
@@ -27,6 +29,8 @@ export interface TrendsSource {
     leftOut: string[];
     marketGains: number | null;
   })[];
+  /** Net worth day by day where every account has a balance (dailyNetWorth.ts): the line zoomed past three months. */
+  daily: DailyNetWorth;
 }
 
 function shortMonth(period: string): string {
@@ -41,7 +45,7 @@ function shortMonth(period: string): string {
  * own on Turso, and category names join in memory from a table of a few dozen.
  */
 export async function getTrendsSource(): Promise<TrendsSource> {
-  const [txnRows, categories, accounts, netWorthRows] = await Promise.all([
+  const [txnRows, categories, accounts, netWorthRows, snapshots] = await Promise.all([
     prisma.transaction.findMany({
       select: {
         id: true,
@@ -58,6 +62,9 @@ export async function getTrendsSource(): Promise<TrendsSource> {
     prisma.category.findMany({ select: { id: true, name: true, isIncome: true }, orderBy: { name: "asc" } }),
     prisma.account.findMany({ select: { id: true, name: true, type: true }, orderBy: { name: "asc" } }),
     prisma.insight.findMany({ where: { type: "NET_WORTH_GROWTH" } }),
+    // Every balance on record, three narrow columns: the daily line needs each
+    // account's newest one too, to tell a closed account from a silent one.
+    prisma.balanceSnapshot.findMany({ select: { accountId: true, date: true, balance: true } }),
   ]);
 
   const categoryById = new Map(categories.map((c) => [c.id, c]));
@@ -102,5 +109,12 @@ export async function getTrendsSource(): Promise<TrendsSource> {
         marketGains: payload.marketGains ?? null,
       }),
     ),
+    daily: dailyNetWorth({
+      accounts,
+      snapshots: snapshots.map((s) => ({ accountId: s.accountId, date: s.date, balance: Number(s.balance) })),
+      txns,
+      dayOf: localDayKey,
+      today: localDayKey(new Date()),
+    }),
   };
 }

@@ -164,7 +164,7 @@ const OUTBOUND_WORDING = /\b(withdrawal|transferred to|distribution|rollover out
  * for.
  */
 const STATED_DIRECTION = /\btransferred (to|from)\b/i;
-function crossingAmount(t: TxnData): number {
+export function crossingAmount(t: Pick<TxnData, 'amount' | 'description'>): number {
   if (INTERNAL_INVESTMENT_ACTIVITY.test(t.description)) return 0;
   const magnitude = Math.abs(t.amount);
   const stated = STATED_DIRECTION.exec(t.description);

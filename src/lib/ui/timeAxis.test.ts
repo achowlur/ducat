@@ -68,3 +68,20 @@ describe("yearLabels", () => {
     expect(label.at).toBeCloseTo((42 + 53.5) / 2);
   });
 });
+
+describe("day axis", () => {
+  it("steps on calendar days: every day, every other, weekly from the 1st, the 1st 15th and 29th, the 1st", async () => {
+    const { dayStep } = await import("./timeAxis");
+    expect(dayStep(50, 44)).toBe(1);
+    expect(dayStep(25, 44)).toBe(2);
+    expect(dayStep(8, 44)).toBe(7);
+    expect(dayStep(4, 44)).toBe(14);
+    expect(dayStep(1, 44)).toBe(31);
+  });
+  it("labels the days that fall on the step, wherever the window starts", async () => {
+    const { dayTicks } = await import("./timeAxis");
+    const days = Array.from({ length: 40 }, (_, i) => new Date(Date.UTC(2026, 7, 1 + i)).toISOString().slice(0, 10));
+    expect(dayTicks(days, 0, 39, 7).map((i) => days[i].slice(5))).toEqual(["08-01", "08-08", "08-15", "08-22", "08-29", "09-01", "09-08"]);
+    expect(dayTicks(days, 10, 20, 14).map((i) => days[i].slice(5))).toEqual(["08-15"]);
+  });
+});

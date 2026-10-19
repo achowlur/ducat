@@ -82,6 +82,15 @@ const DISPLAY_TZ =
   process.env.DUCAT_TIMEZONE?.trim() || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 /**
+ * The calendar day an INSTANT falls on in the display zone, as "2026-10-16": a
+ * bank's balance stamped 9:45pm Eastern is that evening's close, though it is
+ * already the next day in UTC.
+ */
+export function localDayKey(d: Date): string {
+  return d.toLocaleDateString("en-CA", { timeZone: DISPLAY_TZ });
+}
+
+/**
  * An anomaly's magnitude as a RANK: "higher than 96% of your Dining".
  *
  * Replaces "9.6× typical", which invited reading the median as what a dinner
