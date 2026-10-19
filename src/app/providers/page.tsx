@@ -143,9 +143,12 @@ async function renderProviders({
           </p>
         )}
         {(cloud || backup !== null) && (
-        <details className="mt-1">
-          <summary className="tap44 inline-flex cursor-pointer items-center text-[0.78rem] text-acc hover:underline">
+        <details className="group mt-1">
+          <summary className="tap44 inline-flex cursor-pointer list-none items-center gap-1.5 text-[0.78rem] text-acc hover:underline [&::-webkit-details-marker]:hidden">
             {cloud ? "Backup detail and the risks you accept" : "Backup detail"}
+            <span aria-hidden="true" className="text-[0.7rem] transition-transform group-open:rotate-90">
+              ›
+            </span>
           </summary>
         {backup !== null && (
           <p className="mt-3 text-[0.82rem] leading-relaxed">
@@ -289,9 +292,12 @@ async function renderProviders({
             </div>
 
             <div className="border-rule lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-l lg:pl-6">
-              <details>
-              <summary className="tap44 inline-flex cursor-pointer items-center text-[0.78rem] text-acc hover:underline">
+              <details className="group">
+              <summary className="tap44 inline-flex cursor-pointer list-none items-center gap-1.5 text-[0.78rem] text-acc hover:underline [&::-webkit-details-marker]:hidden">
                 Data path, risks and revocation
+                <span aria-hidden="true" className="text-[0.7rem] transition-transform group-open:rotate-90">
+                  ›
+                </span>
               </summary>
               <SubsectionTitle>Data path</SubsectionTitle>
               <p className="mb-4 text-[0.82rem] leading-relaxed">{health.trustCard.dataPath}</p>

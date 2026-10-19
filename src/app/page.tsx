@@ -63,6 +63,16 @@ function BalanceGroup({
   );
 }
 
+/** "+$1,200.00" / "−$310.40" in the gain or loss ink: a part of the month's move. */
+function SignedMoney({ n, strong }: { n: number; strong?: boolean }) {
+  return (
+    <span className={`${n > 0 ? "text-pos" : n < 0 ? "text-neg" : ""} ${strong === true ? "font-semibold" : ""}`}>
+      {n > 0 ? "+" : ""}
+      {money(n)}
+    </span>
+  );
+}
+
 interface ReviewItem {
   text: string;
   detail: string;
@@ -88,7 +98,6 @@ async function renderOverview() {
   // synced there is no instant to print, and the line is correctly absent.
   const stripSyncAt = simplefin === undefined ? data.lastSyncAt : simplefin.lastSuccessfulSyncAt;
   const ctx = data.monthContext;
-  const hasMarketLine = ctx !== null && ctx.marketGains !== null && ctx.marketGains !== 0;
   /** "August", for the spending block's caption. */
   const currentMonthName = data.currentPeriodLabel.split(" ")[0];
 
@@ -145,9 +154,11 @@ async function renderOverview() {
       : []),
   ];
 
-  const doThisNext = (
+  // Empty with nothing to do: net worth then has the row to itself.
+  const slot = data.nextAction.lead !== null || data.accounts.length === 0;
+  const doThisNext = slot && (
     <div className="max-md:mt-3 md:col-start-2 md:row-span-3 md:row-start-1 md:self-start md:pt-1">
-      <DoThisNext next={data.nextAction} checked={data.accounts.length > 0} news={data.goodNews} />
+      <DoThisNext next={data.nextAction} checked={data.accounts.length > 0} />
     </div>
   );
 
@@ -187,7 +198,7 @@ async function renderOverview() {
           context and everything else, because a phone's first screen is the
           headline and whatever follows it. The DOM is in phone order, so it is
           also the reading order; md places the slot by grid position. */}
-      <section className="pt-5 md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] md:gap-x-7">
+      <section className={`pt-5 ${slot ? "md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] md:gap-x-7" : ""}`}>
         <div className="md:col-start-1">
           <SectionTitle>Net worth</SectionTitle>
         </div>
@@ -208,12 +219,14 @@ async function renderOverview() {
             </div>
             {doThisNext}
             {ctx !== null &&
-              (ctx.growthRate !== null || hasMarketLine || ctx.estimatedCount > 0 || ctx.leftOutCount > 0) && (
+              (ctx.growthRate !== null || ctx.growth !== null || ctx.estimatedCount > 0 || ctx.leftOutCount > 0) && (
                 <div className="mt-1 text-[0.78rem] text-faint max-md:mt-3 md:col-start-1">
-                  {/* The delta is the one line in view; what moved it, and what
-                      the month estimates or leaves out, waits behind a tap. */}
-                  <p>
-                    <span className="font-semibold text-ink">{ctx.label}:</span>{" "}
+                  {/* One line: the delta, then what moved it beside it, the
+                      way /trends splits it (markets, saved, any accounts
+                      joining) and the net they add up to. What the month
+                      estimates or leaves out is said after it, never hidden. */}
+                  <p className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+                    <span className="font-semibold text-ink">{ctx.label}:</span>
                     {ctx.growthRate !== null && (
                       <span
                         className={`font-money whitespace-nowrap font-semibold ${
@@ -223,39 +236,25 @@ async function renderOverview() {
                         {ctx.growthRate >= 0 ? "▲" : "▼"} {pct(ctx.growthRate).slice(1)}
                       </span>
                     )}
+                    {ctx.growth !== null &&
+                      [
+                        { label: "markets", n: ctx.growth.markets },
+                        { label: "saved", n: ctx.growth.saved },
+                        ...(ctx.growth.joined !== 0 ? [{ label: "accounts joined", n: ctx.growth.joined }] : []),
+                        { label: "net", n: ctx.growth.net, strong: true },
+                      ].map((part) => (
+                        <span key={part.label} className="whitespace-nowrap font-money tabular">
+                          {part.label} <SignedMoney n={part.n} strong={part.strong} />
+                        </span>
+                      ))}
                   </p>
-                  {(hasMarketLine || ctx.estimatedCount > 0 || ctx.leftOutCount > 0) && (
-                    <details>
-                      <summary className="tap44 inline-flex cursor-pointer items-center text-[0.75rem] text-acc hover:underline">
-                        What moved it
-                      </summary>
-                      <p className="max-w-[60ch]">
-                        {hasMarketLine && ctx.marketGains !== null && (
-                          <>
-                            <span
-                              className={`font-money font-semibold ${
-                                ctx.marketGains > 0 ? "text-pos" : "text-neg"
-                              }`}
-                            >
-                              {money(ctx.marketGains)}
-                            </span>{" "}
-                            of {ctx.monthName}&apos;s change was investment market movement (not income).{" "}
-                          </>
-                        )}
-                        {ctx.estimatedCount > 0 && (
-                          <>
-                            {ctx.estimatedCount} of {ctx.monthName}&apos;s balances estimated (carried from an earlier
-                            month or worked out from transactions).{" "}
-                          </>
-                        )}
-                        {ctx.leftOutCount > 0 && (
-                          <>
-                            {ctx.leftOutCount === 1 ? "1 account" : `${ctx.leftOutCount} accounts`} left out of{" "}
-                            {ctx.monthName}&apos;s net worth (no value then).
-                          </>
-                        )}
-                      </p>
-                    </details>
+                  {(ctx.estimatedCount > 0 || ctx.leftOutCount > 0) && (
+                    <p className="max-w-[60ch]">
+                      {ctx.estimatedCount > 0 &&
+                        `${ctx.estimatedCount} of ${ctx.monthName}'s balances estimated. `}
+                      {ctx.leftOutCount > 0 &&
+                        `${ctx.leftOutCount === 1 ? "1 account" : `${ctx.leftOutCount} accounts`} left out (no value then).`}
+                    </p>
                   )}
                 </div>
               )}
@@ -544,14 +543,6 @@ async function renderOverview() {
                 </span>
                 <span className="font-money font-semibold text-ink">{data.runway.months} months</span> at{" "}
                 {money(data.runway.monthlySpending)}/mo
-                {/* The one line of assumptions: the cash it divides is AFTER
-                    the cards it pays, and the month is an everyday one. */}
-                <span className="block pt-0.5">
-                  {data.balances.cards < 0
-                    ? `Cash after ${money(-data.balances.cards)} on cards`
-                    : "Cash, no card balance owed"}
-                  , at a typical month&apos;s {data.runwayEveryday ? "everyday " : ""}spending.
-                </span>
                 {/* A month kept that holds nothing from some account leans
                     long: something to discount, so it stays in view. */}
                 {shortNote(data.runwayWindow, "the runway may run long") !== null && (
@@ -567,6 +558,14 @@ async function renderOverview() {
                       ›
                     </span>
                   </summary>
+                  {/* The assumptions first: the cash it divides is AFTER the
+                      cards it pays, and the month is an everyday one. */}
+                  <span className="block leading-relaxed">
+                    {data.balances.cards < 0
+                      ? `Cash after ${money(-data.balances.cards)} on cards`
+                      : "Cash, no card balance owed"}
+                    , at a typical month&apos;s {data.runwayEveryday ? "everyday " : ""}spending.
+                  </span>
                   <span className="block pb-1 leading-relaxed">
                     The middle of {windowSpan(data.runwayWindow)}
                     {data.runwayEveryday

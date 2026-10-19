@@ -2,7 +2,6 @@ import { SectionTitle } from "./ui/headings";
 import { dateTime, shortDate } from "../lib/ui/format";
 import {
   countedPartway,
-  GITHUB_PRIVATE_ACTIONS_MINUTES,
   LIMITS_CHECKED,
   SIMPLEFIN_DAILY_REQUESTS,
   TURSO_FREE,
@@ -98,15 +97,6 @@ export function UsageLimits({
         {lines.map((l) => (
           <UsageRow key={`${l.service} ${l.label}`} line={l} />
         ))}
-        <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-1.5">
-          <span className="text-[0.85rem]">
-            GitHub <span className="text-faint">Actions</span>
-          </span>
-          <span className="text-[0.8rem] text-faint">
-            unmetered on a public repository; {GITHUB_PRIVATE_ACTIONS_MINUTES.toLocaleString("en-US")} min a month if
-            private
-          </span>
-        </li>
       </ul>
 
       {passing.map((l) => (

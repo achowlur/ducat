@@ -34,12 +34,12 @@ export function GrowthSplit({ saved, markets, joined = 0 }: { saved: number; mar
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-[0.78rem] text-faint">
         <span className="inline-flex items-center gap-1.5">
           <Swatch part="saved" />
-          Saved <span className="font-money font-semibold text-ink tabular">{money(saved)}</span>
+          Saved <span className={`font-money font-semibold tabular ${saved < 0 ? "text-neg" : "text-ink"}`}>{money(saved)}</span>
           {savedShare !== null && <span>{savedShare}%</span>}
         </span>
         <span className="inline-flex items-center gap-1.5">
           <Swatch part="markets" />
-          Markets <span className="font-money font-semibold text-ink tabular">{money(markets)}</span>
+          Markets <span className={`font-money font-semibold tabular ${markets < 0 ? "text-neg" : "text-ink"}`}>{money(markets)}</span>
           {marketShare !== null && <span>{marketShare}%</span>}
         </span>
       </div>

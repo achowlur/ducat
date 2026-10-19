@@ -57,9 +57,12 @@ export function CoverageNotice({ coverage }: { coverage: PeriodCoverage | null }
           number is missing. A native disclosure, closed by default, so the
           notice keeps its one-line weight. */}
       {gaps.length > 2 && (
-        <details className="mt-1">
-          <summary className="tap44 inline-flex cursor-pointer text-[0.72rem] text-acc hover:underline">
+        <details className="group mt-1">
+          <summary className="tap44 inline-flex cursor-pointer list-none items-center gap-1.5 text-[0.72rem] text-acc hover:underline [&::-webkit-details-marker]:hidden">
             which accounts
+            <span aria-hidden="true" className="text-[0.7rem] transition-transform group-open:rotate-90">
+              ›
+            </span>
           </summary>
           <ul className="mt-1 grid gap-0.5">
             {gaps.map((g) => (

@@ -22,7 +22,6 @@ export const SIMPLEFIN_DAILY_REQUESTS = 24;
  * stopping here leaves the nightly cron its run inside the 24.
  */
 export const SIMPLEFIN_SYNC_NOW_CAP = 20;
-export const GITHUB_PRIVATE_ACTIONS_MINUTES = 2_000;
 
 /** At or past this share of an allowance (used, or on pace by month end) a line warns. */
 export const WARN_SHARE = 0.8;
