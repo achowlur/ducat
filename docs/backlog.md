@@ -31,6 +31,21 @@ Each item checked against the code after PR #29.
 
 ### Ready to scope
 
+- **The ledger's filters, beyond accounts** (raised 2026-10-19 by the
+  operator: the account filter is decent, the rest are poor). Today
+  /transactions filters through one form of native controls
+  (src/app/transactions/page.tsx): a period `<select>` of single months (a
+  span only arrives by URL), a category `<select>` that picks ONE category
+  (several only by URL, shown as "N categories"), a flow `<select>`, and a
+  free-text search; there is no amount filter, and only AccountFilter is a
+  purpose-built control. Scope it from how the operator actually filters:
+  likely a multi-select category picker in AccountFilter's style, a period
+  control that sets a span (this month, last 3 months, a custom range),
+  an amount range, and the active filters shown as removable chips, all on
+  a phone first (tap44, no hover) and still one URL the ledger's links and
+  "Try again" can reproduce (ui-ledger.md). Draft it live on demo data before
+  building, as the goal panels were.
+
 - **The ledger's whole-set reads** (raised 2026-10-18 by ui/pagePlans.test.ts):
   its totals band reads id, flow and amount of EVERY row in the filtered list,
   which is every row of the table on the default view, and its trip and repaid
