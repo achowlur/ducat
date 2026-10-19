@@ -64,9 +64,15 @@ anything below; several entries record "tried and failed, don't retry".
 - Category DRIFT is measured NET of that period's one-offs in the category —
   a one-off is scored once, never annualised as a trend.
 - Baselines are RECENT, never all history: drift against a category's last
-  12 periods with spending, the pace call against the same month of the last
-  3 years (else the trailing 3 months). On a long history every price or pay
-  rise otherwise reads as a trend all the year after it.
+  12 periods with spending, the pace call against the LAST 6 COMPARABLE
+  MONTHS (BAND_MONTHS, isComparableBaseline, never back-filled from older
+  ones), the MIDDLE of their everydayAfterDay: the window the over-pace band,
+  the goals and the runway read, so the headline and OVER PACE agree on
+  "typical". Never the same month of past years (amended 2026-10-19): a
+  changed life makes them an older one; the same month a year ago, when
+  comparable, is only an aside in the working-out ("Last October: $X").
+  On a long history every price or pay rise otherwise reads as a trend all
+  the year after it.
 - The pace call projects the REST of the month from what typical months
   spent AFTER this day, EVERYDAY spending only
   (SpendingByCategoryPayload.everydayAfterDay: travel, by category name, and
@@ -127,7 +133,12 @@ anything below; several entries record "tried and failed, don't retry".
   CHANGE (a payer silent two of its cycles and 35 days, ONE payer starting
   after its last payday) counts the old job's months at a MONTH of the new
   pay; one new paycheck, or several new payers, ask through the same button;
-  two payers at once are two jobs.
+  two payers at once are two jobs. A RENAMED paycheck descriptor is the same
+  payer, never a job change (insights/samePayer.ts, in judgePay and
+  payLevels both): a shared NAME word (payeeWords.ts, PAY_WORDS like
+  "direct", "payroll" or a payroll service never count), no pay period in
+  common, and the first new paychecks within a raise's step (25%) of the
+  last old ones; it goes by its newest name and a new amount is a raise.
 - "Counts as cash" is a Setting (cash.additionalAccountIds via
   accounts:cash), never an account-type change — retyping breaks net worth.
 - npm run goals --add is NOT idempotent (slugs dedupe, content does not):

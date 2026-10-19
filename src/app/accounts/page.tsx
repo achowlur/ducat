@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { AccountTypeSelect } from "../../components/AccountTypeSelect";
 import { Sparkline } from "../../components/Sparkline";
-import { amount, dateTime, shortDate } from "../../lib/ui/format";
+import { amount, shortDate } from "../../lib/ui/format";
 import { accountsHref } from "../../lib/ui/accountFilter";
 import { getAccountsData } from "../../lib/ui/accounts";
 import { CHIP, COLUMN_HEADER, PageTitle } from "../../components/ui/headings";
@@ -38,7 +38,6 @@ export default async function AccountsPage() {
 
 async function renderAccounts() {
   const data = await getAccountsData();
-  const behind = data.groups.reduce((n, g) => n + g.accounts.filter((a) => a.staleByAge).length, 0);
 
   if (data.groups.length === 0) {
     return (
@@ -49,26 +48,9 @@ async function renderAccounts() {
   return (
     <div className="py-5">
       <PageTitle>Accounts</PageTitle>
-      {/* LEADS with the figure the page exists for and how fresh it is. The
-          clock every "Nd behind" below counts from is named once, here, in
-          text; each chip carries the balance's own age as text, and the rest
-          of how it is counted is behind one tap. */}
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <span className="font-money text-[2.1rem] tabular">{amount(data.totalBalance)}</span>
-        <span className="text-[0.78rem] text-faint">net worth</span>
-      </div>
-      <p className="pb-2 pt-1 text-[0.78rem] text-faint">
-        {data.lastSyncAt === null ? (
-          "No sync has finished successfully yet, so the balance ages below have nothing to measure against."
-        ) : (
-          <>
-            Last successful sync <span className="font-money">{dateTime(data.lastSyncAt)}</span>
-            {behind > 0
-              ? `; ${behind} ${behind === 1 ? "account is" : "accounts are"} behind it.`
-              : "; every balance is current."}
-          </>
-        )}
-      </p>
+      {/* LEADS with the table: no headline figure, no freshness line (operator,
+          2026-10-19). Net worth is the total row at the foot; each row carries its
+          own age as text and StaleAlert names an account that is behind. */}
       <div className="mb-3 empty:hidden">
         <StaleAlert
           accounts={data.groups.flatMap((g) =>
@@ -81,16 +63,6 @@ async function renderAccounts() {
           )}
         />
       </div>
-      <details className="pb-3">
-        <summary className="tap44 inline-flex cursor-pointer items-center text-[0.75rem] text-acc hover:underline">
-          How ages and history are counted
-        </summary>
-        <ul className="grid max-w-[60ch] gap-1 text-[0.78rem] text-faint">
-          <li>A balance age counts from the last successful sync, not from today: a row is not late when the sync itself is.</li>
-          <li>A red chip means the balance is that many days older than the last sync; its own age is printed under it.</li>
-          <li>Snapshots are the balances a sync recorded. Without them, past months are rebuilt from transactions and marked estimated.</li>
-        </ul>
-      </details>
       <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>

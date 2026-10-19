@@ -738,6 +738,26 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   two old paychecks count at $6,087.50, a top-up of $2,087.50. The demo
   changed employers three months back at a tenth more, so its net worth
   working-out names the change.
+- A RENAMED PAYCHECK IS NOT A NEW JOB (2026-10-18). `npm run audit:figures`
+  on the real history printed a job change the operator never made: the
+  bank had renamed one employer's deposit descriptor (invented: "Acme
+  Payroll direct dep" became "Acme Payroll"), so the old string read as a
+  payer whose paychecks stopped and the new one as the job replacing it.
+  The figures came out much like a raise, but the wording was false, and
+  one-off pay judged the new string alone, so a renamed payer's first
+  paychecks fell to income from no regular source. Pay now follows one
+  payer across descriptors (insights/samePayer.ts, the recurring detector's
+  `continues` rule for pay), in judgePay per account and again in
+  payLevels over the stored paychecks: a shared NAME word (payeeWords.ts,
+  with PAY_WORDS also set aside: "direct", "payroll", "salary" and the
+  payroll services, which run many employers' pay under one name), the new
+  name's first payday at least half a cycle after the old name's last (two
+  payers in the same weeks stay two jobs), and its first paychecks within
+  25% of the old name's last (one pay run, or a raise; further is not
+  assumed). Every name maps to the newest, and the raise rule takes it from
+  there. A different employer, or overlapping pay, is a job change exactly
+  as before. On the real history the job-change line went and every other
+  figure stayed put, the old name's months being outside the window.
 - TODAY'S PRICE, AND A RISE THAT IS NEWS (2026-10-17). Three subscription
   figures leaned on the median of a plan's whole history. The yearly total
   billed a plan that rose a year ago at its old price until half of all its
@@ -833,3 +853,25 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   Nothing is backfilled. Spending is untouched, pinned byte-identical after
   the detector runs. Invented, from the tests: a $110 bill with two $36.50
   links a month bills $37, $444 a year instead of $1,320.
+- THE PACE CALL READS THE LAST SIX MONTHS (2026-10-19, the operator's
+  decision; amends RECENT BASELINES above). "A typical rest of the month"
+  was the same calendar month of the last three years, else the trailing
+  three months. The operator's spending changed a lot within the year, so
+  last year's months described an older way of living, and on their data the
+  headline carried "may run low, earlier months miss an account": the old
+  Octobers predated cards opened since. The reason for the same month was a
+  trailing window "dominated by rent", blind to the months that differ; that
+  stopped holding once the figure became EVERYDAY spending AFTER the day
+  (THE REST OF THE MONTH, above), rent paid early never in it. So the pace
+  call now reads the last six months less any under the comparability bar
+  (BAND_MONTHS and isComparableBaseline, never back-filled from older ones,
+  the recentMonths.ts rule), at least two of them, and takes the MIDDLE of
+  their everydayAfterDay. It is the window the over-pace band, the goals and
+  the runway already read: the headline and the OVER PACE alert used to
+  disagree on "typical", one from three Octobers and one from six recent
+  months. Seasonality is kept as an aside only: the working-out says "Last
+  October: $X" (the same month a year ago, its whole spending, when
+  comparable; Pace.lastYear), never folded into the baseline. The working-out
+  names the window ("your last 6 months", or "5 of your last 6 months" when
+  one was left out). Invented, from the tests: five quiet months whose rest
+  ran near $500 and one at $3,000 project $505; a mean would say $917.

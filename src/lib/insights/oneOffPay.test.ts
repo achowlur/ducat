@@ -72,6 +72,21 @@ describe('judgePay', () => {
     const refund = deposit(payday(3), 80, 'oakline hardware', false);
     expect(oneOffPay([...paychecks(8), ...interest, refund])).toEqual([]);
   });
+
+  // Invented: the bank renames "Acme Payroll direct dep" to "Acme Payroll"
+  // two paydays before the newest, at a slightly higher amount. Judged apart,
+  // the new name had too few deposits to be a payer, and its paychecks fell
+  // to income from no regular source.
+  it("judges a renamed payer's first paychecks with the run they continue, under its newest name", () => {
+    const renamed = Array.from({ length: 12 }, (_, i) =>
+      i < 10 ? deposit(payday(i), 2000, 'acme payroll direct dep') : deposit(payday(i), 2080, 'acme payroll'),
+    );
+    const pay = judgePay(renamed);
+    expect(pay.oneOffs).toEqual([]);
+    expect(pay.paychecks).toHaveLength(12);
+    expect(new Set(pay.paychecks.map((p) => p.payer))).toEqual(new Set(['acme payroll']));
+    expect(irregularIncome(renamed, pay)).toEqual([]);
+  });
 });
 
 // Invented: the same paychecks, a tax refund, a sale, a monthly side job and

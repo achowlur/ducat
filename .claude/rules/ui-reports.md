@@ -57,7 +57,9 @@ Overview:
   table (a deadline or money at risk, then idle money, then tidying), each
   candidate from its own page's code (goalInputs, recurringAlertsFor,
   staleAction), never measured twice; the lead is not printed again in Needs
-  review or the stale alert, and with none the slot STATES all clear. Mark
+  review or the stale alert, and with none the slot STATES all clear with ONE
+  true line of good news (ui/goodNews.ts: under typical, a goal sooner, saved
+  above usual, else the main goal's progress), never an ActionAlert. Mark
   done (Setting nudges.done, {key, at}) hides a nudge until data NEWER than
   the click arrives for what it is about (an account's balanceDate, never
   merely a sync), then the data decides again.
@@ -123,6 +125,9 @@ Overview:
   attention" — all clear cannot be told from not checked. ONE `now` drives
   both admission and the current-period gate, or a render straddling UTC
   midnight splits them.
+- /accounts LEADS with the table (operator, 2026-10-19): no net worth headline,
+  no last-sync line, no how-counted tap; net worth is the total row at the
+  foot, and freshness is each row's chip and age text plus the stale alert.
 - Per-account "Nd behind" measures against the LAST SYNC, never against now,
   and never labels a statement-only (CSV/PDF) account (pollsForBalances).
 - Net worth says in TEXT what a month estimates or leaves out (Trends names
