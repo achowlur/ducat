@@ -13,6 +13,7 @@ import { NetWorthGoalPanel } from "../../components/NetWorthGoalPanel";
 import { SavingsGoalCard } from "../../components/goals/SavingsGoalCard";
 import { Fig, Lead } from "../../components/ui/figure";
 import type { Pace } from "../../lib/insights/pace";
+import { OverPaceAlert } from "../../components/OverPaceAlert";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
@@ -523,6 +524,10 @@ async function renderInsights({
       <section>
         <SectionTitle>{data.isCurrentPeriod ? "This month" : data.periodLabel}</SectionTitle>
         <MonthHeadline pace={data.pace} spent={data.spent} periodLabel={data.periodLabel} />
+        {/* Below the headline, whose one context line stays as it is. */}
+        <div className="mt-3">
+          <OverPaceAlert pace={data.pace} month={data.periodLabel.split(" ")[0]} />
+        </div>
         <div className="mt-6">
           <SubsectionTitle>Worth your attention</SubsectionTitle>
           {data.digest.map((row, i) => (

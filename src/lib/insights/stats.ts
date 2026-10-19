@@ -79,3 +79,13 @@ export function pctDelta(current: number, previous: number | null): number | nul
   if (current < 0) return null;
   return round4((current - previous) / previous);
 }
+
+/** Linear-interpolated quantile of a list (the common "type 7"); the list need not be sorted. */
+export function quantile(values: number[], q: number): number {
+  if (values.length === 0) throw new Error('quantile of empty array');
+  const sorted = [...values].sort((a, b) => a - b);
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
