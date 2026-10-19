@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computePace, type PriorPeriod } from './pace';
+import { computePace, overPace, type PriorPeriod } from './pace';
 
 const utc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d, 12));
 
@@ -205,5 +205,70 @@ describe('computePace', () => {
     });
     expect(p.daysInPeriod).toBe(28);
     expect(p.typical).toBe(1200);
+  });
+});
+
+// Invented: Julys of 3000 and 4000 project the month; April to June of 3000,
+// 4000 and 3600 are the last six months. The top of a typical month is the
+// 75th percentile of those three, 3800; with no everyday series the
+// rest of the month is a share of the typical July, 3500.
+const typicalMonths: PriorPeriod[] = [
+  ...julys,
+  { period: '2026-04', total: 3000 },
+  { period: '2026-05', total: 4000 },
+  { period: '2026-06', total: 3600 },
+];
+describe('overPace', () => {
+  const over = (o: Partial<Parameters<typeof computePace>[0]> = {}) => pace({ priors: typicalMonths, ...o });
+
+  it('is the room under the top of the range, spread over the days left', () => {
+    const p = over({ spentSoFar: 2400 });
+    expect(p.typicalHigh).toBe(3800);
+    expect(p.projected).toBe(4150);
+    // 1400 of room over the 16th to the 31st: 16 days, today included.
+    expect(overPace(p)).toEqual({ kind: 'perDay', perDay: 87.5, daysLeft: 16 });
+  });
+
+  it('says nothing for a month projected inside the range', () => {
+    const p = over({ spentSoFar: 1800 });
+    expect(p.projected!).toBeLessThan(p.typicalHigh!);
+    expect(overPace(p)).toBeNull();
+  });
+
+  it('says how far past the range a month already is', () => {
+    expect(overPace(over({ spentSoFar: 3900 }))).toEqual({ kind: 'past', over: 100 });
+  });
+
+  it('leaves the last day of the month ONE day, never zero', () => {
+    const p = over({ now: utc(2026, 7, 31), spentSoFar: 3750 });
+    expect(p.dayOfPeriod).toBe(31);
+    expect(overPace(p)).toEqual({ kind: 'perDay', perDay: 50, daysLeft: 1 });
+  });
+
+  it('does not ask for a daily figure the recurring charges still due make impossible', () => {
+    // 800 of room, 900 of charges that are due whatever is spent per day.
+    expect(overPace(over({ spentSoFar: 3000, committedRemaining: 900 }))).toEqual({ kind: 'committed', over: 100 });
+  });
+
+  it('is silent when the pace call refuses', () => {
+    const early = over({ now: utc(2026, 7, 3), spentSoFar: 5000 });
+    expect(early.refusal).toBe('TOO_EARLY');
+    expect(early.typicalHigh).toBeNull();
+    expect(overPace(early)).toBeNull();
+    const thin = over({ priors: [], spentSoFar: 5000 });
+    expect(thin.refusal).toBe('NO_BASELINE');
+    expect(overPace(thin)).toBeNull();
+  });
+
+  it('is silent without three months to draw a range from, as the chart is', () => {
+    const p = pace({ spentSoFar: 5000 }); // two Julys only
+    expect(p.projected).not.toBeNull();
+    expect(p.typicalHigh).toBeNull();
+    expect(overPace(p)).toBeNull();
+  });
+
+  it('reads only the last six months for the range', () => {
+    const old = [...typicalMonths, { period: '2025-12', total: 9000 }]; // older than six months before July
+    expect(over({ priors: old }).typicalHigh).toBe(3800);
   });
 });

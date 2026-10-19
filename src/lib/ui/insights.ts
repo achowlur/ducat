@@ -45,6 +45,7 @@ import {
 import { NEW_PAY_KEY, parseNewPay, payLevels } from "./payLevel";
 import { getAccountCoverage, getPeriodCoverage } from "./coverage";
 import { monthlyRows, ofType } from "./insightRows";
+import { priorPeriods } from "./currentPace";
 import { selectPeriod } from "./periodNav";
 import { higherThan, money, monthLabel, shortDate, shortDateYear, titleCase } from "./format";
 
@@ -482,17 +483,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // period counts as incomplete and the pace call would go dark for months.
   const spendingRows = ofType<SpendingByCategoryPayload>(monthly, "SPENDING_BY_CATEGORY");
   const thisPeriod = spendingRows.find((r) => r.period === period);
-  const priors = spendingRows
-    .filter((r) => r.period < period)
-    .map((r) => {
-      const c = coverageOf(r.period);
-      return {
-        period: r.period,
-        total: r.payload.totalSpending,
-        coverage: c === null ? undefined : { covered: c.covered, total: c.total },
-        everydayAfterDay: r.payload.everydayAfterDay,
-      };
-    });
+  const priors = priorPeriods(spendingRows, period, coverageOf);
 
   // Same comparability gate as the pace call, from the same function: two
   // answers to "is this month comparable?" on one screen would be one too many.
