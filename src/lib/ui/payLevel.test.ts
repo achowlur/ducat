@@ -100,3 +100,40 @@ describe("payLevels across a job change", () => {
     expect(pay.pending.map((p) => p.payer).sort()).toEqual(["corner bookshop", "lakeside data payroll"]);
   });
 });
+
+// Invented: "Acme Payroll direct dep" every other Friday, then the bank calls
+// the same employer "Acme Payroll" from June, at a slightly higher amount.
+describe("payLevels across a renamed descriptor", () => {
+  const DAY = 86_400_000;
+  const fortnightly = (from: string, count: number, amount: number, who: string): PayItem[] =>
+    Array.from({ length: count }, (_, i) => ({
+      date: new Date(Date.parse(`${from}T00:00:00Z`) + i * 14 * DAY).toISOString().slice(0, 10),
+      amount,
+      payer: who,
+    }));
+  const before = fortnightly("2026-01-02", 12, 2000, "acme payroll direct dep"); // last 2026-06-05
+  const after = fortnightly("2026-06-19", 8, 2080, "acme payroll"); // to 2026-09-25
+
+  // The failure: the old name read as a job whose paychecks stopped.
+  it("reads one payer and a raise, never a job change", () => {
+    const pay = payLevels([...before, ...after], []);
+    expect(pay.changes).toEqual([{ payer: "acme payroll", from: 2000, to: 2080, since: "2026-06-19", told: false }]);
+    // Each paycheck before the raise is topped up by the step, in its month.
+    expect(pay.topUps["2026-04"]).toBe(160);
+    expect(pay.topUps["2026-01"]).toBe(240);
+    expect(pay.pending).toEqual([]);
+  });
+
+  it("asks about the renamed payer's first paycheck as a raise, and honours the answer", () => {
+    const one = [...before, after[0]];
+    expect(payLevels(one, []).pending).toEqual([{ payer: "acme payroll", date: "2026-06-19", amount: 2080, from: 2000 }]);
+    expect(payLevels(one, [{ payer: "acme payroll", date: "2026-06-19" }]).changes[0]).toMatchObject({ payer: "acme payroll", told: true });
+  });
+
+  it("still reads a different employer after it as a job change", () => {
+    const pay = payLevels([...fortnightly("2026-01-02", 12, 2000, "acme payroll"), ...fortnightly("2026-07-03", 7, 2800, "birchwood labs")], []);
+    expect(pay.changes).toEqual([
+      { payer: "birchwood labs", from: 4348.21, to: 6087.5, since: "2026-07-03", told: false, replaces: "acme payroll" },
+    ]);
+  });
+});

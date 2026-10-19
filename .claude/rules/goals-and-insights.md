@@ -133,7 +133,12 @@ anything below; several entries record "tried and failed, don't retry".
   CHANGE (a payer silent two of its cycles and 35 days, ONE payer starting
   after its last payday) counts the old job's months at a MONTH of the new
   pay; one new paycheck, or several new payers, ask through the same button;
-  two payers at once are two jobs.
+  two payers at once are two jobs. A RENAMED paycheck descriptor is the same
+  payer, never a job change (insights/samePayer.ts, in judgePay and
+  payLevels both): a shared NAME word (payeeWords.ts, PAY_WORDS like
+  "direct", "payroll" or a payroll service never count), no pay period in
+  common, and the first new paychecks within a raise's step (25%) of the
+  last old ones; it goes by its newest name and a new amount is a raise.
 - "Counts as cash" is a Setting (cash.additionalAccountIds via
   accounts:cash), never an account-type change — retyping breaks net worth.
 - npm run goals --add is NOT idempotent (slugs dedupe, content does not):

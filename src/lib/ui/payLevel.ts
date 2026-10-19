@@ -1,4 +1,5 @@
 import { samePay } from "../insights/oneOffPay";
+import { payerNames } from "../insights/samePayer";
 import { round2 } from "../insights/stats";
 import type { PayItem } from "../../types/contracts";
 
@@ -26,6 +27,11 @@ import type { PayItem } from "../../types/contracts";
  * several new payers, it is not assumed: the panel asks, through the same
  * "This is my new pay" the operator presses for a raise. Two payers paying
  * at once are two jobs, never a change.
+ *
+ * A RENAMED descriptor is not a new job: a payer string that continues an
+ * earlier one (insights/samePayer.ts: a shared name word, no pay period in
+ * common, the same pay run or a step like a raise) is judged as that payer,
+ * under its newest name, so its new amount is a raise by the rule above.
  */
 
 /** Paychecks the operator confirmed as their new pay: payer and day. */
@@ -120,7 +126,12 @@ function usualGap(days: readonly { date: string }[]): number | null {
   return gaps[Math.floor(gaps.length / 2)];
 }
 
-export function payLevels(paychecks: readonly PayItem[], told: readonly NewPay[]): PayLevels {
+export function payLevels(paid: readonly PayItem[], toldRaw: readonly NewPay[]): PayLevels {
+  // One payer per employer, whatever its descriptor was called when.
+  const names = payerNames(paid);
+  const nameOf = (payer: string) => names.get(payer) ?? payer;
+  const paychecks = paid.map((p) => ({ ...p, payer: nameOf(p.payer) }));
+  const told = toldRaw.map((t) => ({ ...t, payer: nameOf(t.payer) }));
   // Kept per payer, so a payer a job change replaces can give its own up.
   const topUpsBy = new Map<string, Record<string, number>>();
   const changes: PayChange[] = [];
