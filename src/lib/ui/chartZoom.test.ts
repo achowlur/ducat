@@ -62,3 +62,13 @@ describe("windows on a short series", () => {
     expect(shownMonths({ start: 10, end: 22 })).toEqual({ first: 10, last: 22 });
   });
 });
+
+describe("a day window's own minimum", () => {
+  it("narrows to a week of days, where months stop at three", async () => {
+    const { clampWindow, atNarrowest, MIN_DAY_SPAN } = await import("./chartZoom");
+    expect(clampWindow({ start: 10, end: 11 }, 90, MIN_DAY_SPAN)).toEqual({ start: 10, end: 16 });
+    expect(clampWindow({ start: 10, end: 11 }, 90)).toEqual({ start: 10, end: 13 });
+    expect(atNarrowest({ start: 4, end: 10 }, 90, MIN_DAY_SPAN)).toBe(true);
+    expect(atNarrowest({ start: 4, end: 11 }, 90, MIN_DAY_SPAN)).toBe(false);
+  });
+});

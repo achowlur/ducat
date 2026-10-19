@@ -2,7 +2,9 @@
 
 import { useEffect, useId, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import {
+  atNarrowest,
   isFull,
+  MIN_SPAN,
   panBy,
   pinchWindow,
   shownMonths,
@@ -10,11 +12,13 @@ import {
   type ChartWindow,
 } from "../../lib/ui/chartZoom";
 import { money } from "../../lib/ui/format";
-import { monthStep, monthTicks, yearLabels, yearSpans } from "../../lib/ui/timeAxis";
+import { dayStep, dayTicks, monthStep, monthTicks, yearLabels, yearSpans } from "../../lib/ui/timeAxis";
 import { axisMoney, monthWithYear, valueAxis } from "./scale";
 
 /** Room a month label needs, and a year label, in viewBox units at 10px type. */
 const MONTH_LABEL = 34;
+/** "Oct 15" needs more room than "Oct". */
+const DAY_LABEL = 44;
 const YEAR_LABEL = 28;
 
 interface MonthValue {
@@ -57,6 +61,28 @@ function qualifier(m: MonthValue, open: string, close: string): string {
 const DESKTOP = { w: 940, h: 320 };
 const MOBILE = { w: 340, h: 250 };
 
+/** "Oct 16, 2026" from a day key: the readout's heading on the daily line. */
+function dayWithYear(key: string): string {
+  return new Date(`${key}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+/**
+ * The line's scale and what lies past its zoom limits. `unit` is what one
+ * point is (a month-end, or a day: "YYYY-MM-DD" keys); `drillIn` and
+ * `drillOut` are asked when a gesture goes past the narrowest or the whole
+ * window, and say whether they took it (the card switches between months and
+ * days there).
+ */
+export interface ChartScale {
+  unit: "month" | "day";
+  minSpan: number;
+  drillIn?: (anchor: number) => boolean;
+  drillOut?: () => boolean;
+  /** Double-click: back to the whole history. */
+  onAll?: () => void;
+}
+const MONTHS: ChartScale = { unit: "month", minSpan: MIN_SPAN };
+
 /**
  * Net worth line: hairline grid, emphasized endpoint with a static label,
  * hover or tap snaps to the nearest month with a crosshair and tooltip, and
@@ -67,10 +93,12 @@ export function NetWorthChart({
   months,
   window: shown,
   onWindow,
+  scale = MONTHS,
 }: {
   months: MonthValue[];
   window: ChartWindow;
   onWindow: (w: ChartWindow) => void;
+  scale?: ChartScale;
 }) {
   // Net worth is emitted only for periods where some account's balance is
   // known, so this list is legitimately empty until the first snapshot lands —
@@ -89,10 +117,10 @@ export function NetWorthChart({
   return (
     <>
       <div className="md:hidden">
-        <Plot months={months} view={MOBILE} shown={shown} onWindow={onWindow} />
+        <Plot months={months} view={MOBILE} shown={shown} onWindow={onWindow} scale={scale} />
       </div>
       <div className="hidden md:block">
-        <Plot months={months} view={DESKTOP} shown={shown} onWindow={onWindow} />
+        <Plot months={months} view={DESKTOP} shown={shown} onWindow={onWindow} scale={scale} />
       </div>
     </>
   );
@@ -103,12 +131,16 @@ function Plot({
   view,
   shown,
   onWindow,
+  scale,
 }: {
   months: MonthValue[];
   view: { w: number; h: number };
   shown: ChartWindow;
   onWindow: (w: ChartWindow) => void;
+  scale: ChartScale;
 }) {
+  const daily = scale.unit === "day";
+  const min = scale.minSpan;
   const [hovered, setHovered] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -152,18 +184,22 @@ function Plot({
   // and "Oct" to fragments at the plot's edges.
   const unitsPerMonth = count < 2 ? PLOT_W : PLOT_W / span;
   const periods = months.map((m) => m.period);
-  const step = monthStep(unitsPerMonth, MONTH_LABEL);
+  // On the daily line the same rules hold for days: calendar steps, the
+  // newest day always named.
+  const labelUnits = daily ? DAY_LABEL : MONTH_LABEL;
+  const step = daily ? dayStep(unitsPerMonth, DAY_LABEL) : monthStep(unitsPerMonth, MONTH_LABEL);
   const monthLabels = (() => {
     if (step === null) return [];
     const newest = lastShown;
-    const room = MONTH_LABEL / unitsPerMonth;
-    const calendar = monthTicks(periods, firstShown, lastShown, step).filter((i) => i === newest || newest - i >= room);
+    const room = labelUnits / unitsPerMonth;
+    const ticksAt = daily ? dayTicks(periods, firstShown, lastShown, step) : monthTicks(periods, firstShown, lastShown, step);
+    const calendar = ticksAt.filter((i) => i === newest || newest - i >= room);
     return calendar.includes(newest) ? calendar : [...calendar, newest];
   })();
   const anchorAt = (px: number): "start" | "middle" | "end" =>
     px < PLOT_LEFT + 10 ? "start" : px > PLOT_RIGHT - 10 ? "end" : "middle";
   const spans = yearSpans(periods);
-  const years = yearLabels(spans, shown, unitsPerMonth, YEAR_LABEL);
+  const years = yearLabels(spans, shown, unitsPerMonth, YEAR_LABEL, daily ? 365 : 12);
   // A year's left boundary, where one is on show: a hairline guide through
   // the plot and a tick through the label band.
   const boundaries = spans.filter((s) => s.start > 0 && s.start - 0.5 > shown.start && s.start - 0.5 < shown.end);
@@ -205,8 +241,8 @@ function Plot({
   // Gestures read the latest window through a ref: they are attached once,
   // natively, because React's touch and wheel listeners are passive and could
   // not stop the page from zooming or scrolling under a pinch.
-  const latest = useRef({ shown, count, onWindow });
-  latest.current = { shown, count, onWindow };
+  const latest = useRef({ shown, count, onWindow, scale });
+  latest.current = { shown, count, onWindow, scale };
 
   /** A client x as a place across the plot, 0 at its left edge and 1 at its right. */
   const across = (clientX: number, rect: DOMRect) =>
@@ -224,18 +260,24 @@ function Plot({
     // chart, or reading past it would zoom it; a sideways swipe moves along
     // the line once it is zoomed.
     const onWheel = (e: WheelEvent) => {
-      const { shown: w, count: n, onWindow: set } = latest.current;
+      const { shown: w, count: n, onWindow: set, scale: s } = latest.current;
       if (n < 3) return;
-      const scale = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
       const rect = svg.getBoundingClientRect();
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         setHovered(null);
-        set(zoomAround(w, Math.exp(e.deltaY * scale * 0.01), across(e.clientX, rect), n));
+        const factor = Math.exp(e.deltaY * unit * 0.01);
+        const anchor = across(e.clientX, rect);
+        // Past the narrowest months the line can go on into days, and past
+        // the whole of the days back out to months.
+        if (factor < 1 && atNarrowest(w, n, s.minSpan) && s.drillIn?.(anchor) === true) return;
+        if (factor > 1 && isFull(w, n) && s.drillOut?.() === true) return;
+        set(zoomAround(w, factor, anchor, n, s.minSpan));
       } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && !isFull(w, n)) {
         e.preventDefault();
         const perPx = (w.end - w.start) / ((rect.width * PLOT_W) / VIEW_W);
-        set(panBy(w, e.deltaX * scale * perPx, n));
+        set(panBy(w, e.deltaX * unit * perPx, n, s.minSpan));
       }
     };
 
@@ -247,12 +289,23 @@ function Plot({
       }
     };
     const onTouchMove = (e: TouchEvent) => {
-      const { count: n, onWindow: set } = latest.current;
+      const { count: n, onWindow: set, scale: s } = latest.current;
       if (pinch === null || e.touches.length !== 2) return;
       // Two fingers belong to the chart: without this the page zooms too.
       e.preventDefault();
       const rect = svg.getBoundingClientRect();
-      set(pinchWindow(pinch.from, pinch.spread, spreadOf(e.touches), pinch.anchor, across(midOf(e.touches), rect), n));
+      const anchor = across(midOf(e.touches), rect);
+      const wanted = (pinch.from.end - pinch.from.start) * (pinch.spread / Math.max(spreadOf(e.touches), 1));
+      // A pinch past either limit hands over once; the next pinch goes on.
+      if (wanted < Math.min(s.minSpan, n - 1) - 1e-6 && s.drillIn?.(anchor) === true) {
+        pinch = null;
+        return;
+      }
+      if (wanted > n - 1 + 1e-6 && s.drillOut?.() === true) {
+        pinch = null;
+        return;
+      }
+      set(pinchWindow(pinch.from, pinch.spread, spreadOf(e.touches), pinch.anchor, anchor, n, s.minSpan));
     };
     const onTouchEnd = (e: TouchEvent) => {
       if (e.touches.length < 2) pinch = null;
@@ -312,7 +365,7 @@ function Plot({
         setDragging(true);
         setHovered(null);
       }
-      onWindow(panBy(from, -(ev.clientX - startX) * perPx, count));
+      onWindow(panBy(from, -(ev.clientX - startX) * perPx, count, min));
     };
     const up = () => {
       window.removeEventListener("mousemove", move);
@@ -333,13 +386,13 @@ function Plot({
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         className={`w-full touch-pan-y select-none ${isFull(shown, count) ? "" : dragging ? "cursor-grabbing" : "cursor-grab"}`}
         role="img"
-        aria-label={`Net worth by month: ${summary}`}
+        aria-label={`Net worth by ${daily ? "day" : "month"}: ${summary}`}
         onMouseMove={(e) => {
           if (!dragging) snapTo(e.clientX, e.currentTarget);
         }}
         onMouseLeave={() => setHovered(null)}
         onMouseDown={startDrag}
-        onDoubleClick={() => onWindow({ start: 0, end: last })}
+        onDoubleClick={() => (scale.onAll !== undefined ? scale.onAll() : onWindow({ start: 0, end: last }))}
         onTouchStart={(e) => {
           if (e.touches.length === 1) snapTo(e.touches[0].clientX, e.currentTarget);
         }}
@@ -481,7 +534,9 @@ function Plot({
             top: `${Math.max((y(months[point].value) / VIEW_H) * 100 - 22, 0)}%`,
           }}
         >
-          <div className="mb-0.5 text-[0.65rem] opacity-80">{monthWithYear(months[point].period)}</div>
+          <div className="mb-0.5 text-[0.65rem] opacity-80">
+            {daily ? dayWithYear(months[point].period) : monthWithYear(months[point].period)}
+          </div>
           <div>
             {money(months[point].value)}
             {qualifier(months[point], " · ", "")}

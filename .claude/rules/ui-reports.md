@@ -94,6 +94,13 @@ Overview:
   month counting different accounts from the one before, named apart in
   text) and saved (the rest), adding up exactly, and no ratio is printed
   from the first month on record.
+- Zoomed in past three months where days are on record, the line goes on
+  into DAYS (ui/dailyNetWorth.ts), and zoomed out past them back to months:
+  a day is every account's balance by its LOCAL day (localDayKey), each
+  bank's last one carried up to CARRY_DAYS (3), a day beyond that LEFT OUT
+  and named; the record starts at the first full week every account
+  reported; a transfer counts against markets on the day AFTER it posts,
+  when the balance shows it. Never a balance reconstructed from trades.
 
 /insights, /accounts, /providers:
 - /insights is THREE questions, in order: This month (the spending figure,

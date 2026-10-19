@@ -24,6 +24,26 @@ export function monthTicks(periods: string[], first: number, last: number, step:
   return out;
 }
 
+/**
+ * The same for a DAY axis: days of the month labelled on calendar steps
+ * (every day, every other, the 1st, 8th, 15th, 22nd and 29th, the 1st, 15th
+ * and 29th, the 1st), so panning never moves a label to another day.
+ */
+const DAY_STEPS = [1, 2, 7, 14, 31] as const;
+
+export function dayStep(unitsPerDay: number, minLabelUnits: number): number {
+  return DAY_STEPS.find((step) => unitsPerDay * step >= minLabelUnits) ?? 31;
+}
+
+/** Indices in [first, last] whose day falls on the step; `days` are "YYYY-MM-DD". */
+export function dayTicks(days: string[], first: number, last: number, step: number): number[] {
+  const out: number[] = [];
+  for (let i = Math.max(0, first); i <= Math.min(days.length - 1, last); i++) {
+    if ((Number(days[i].slice(8, 10)) - 1) % step === 0) out.push(i);
+  }
+  return out;
+}
+
 export interface YearSpan {
   year: string;
   /** Index of the year's first and last month in the series. */
@@ -55,8 +75,10 @@ export function yearLabels(
   window: { start: number; end: number },
   unitsPerMonth: number,
   minLabelUnits: number,
+  /** Points in a year: 12 on a month axis, 365 on a day axis. */
+  perYear = 12,
 ): { year: string; at: number }[] {
-  const every = unitsPerMonth * 12 >= minLabelUnits ? 1 : 2;
+  const every = unitsPerMonth * perYear >= minLabelUnits ? 1 : 2;
   // A year owns the half-month either side of its first and last points.
   const onShow = (s: YearSpan) => ({ from: Math.max(s.start - 0.5, window.start), to: Math.min(s.end + 0.5, window.end) });
   const newest = spans.filter((s) => onShow(s).to > onShow(s).from).at(-1);

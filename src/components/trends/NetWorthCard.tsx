@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { fullWindow, isFull, shownMonths, type ChartWindow } from "../../lib/ui/chartZoom";
+import { clampWindow, fullWindow, isFull, MIN_DAY_SPAN, MIN_SPAN, shownMonths, type ChartWindow } from "../../lib/ui/chartZoom";
+import { CARRY_DAYS, dayLabel, type DailyNetWorth } from "../../lib/ui/dailyNetWorth";
 import { money, shortMonthLabel } from "../../lib/ui/format";
 import { growthBetween, growthByYear } from "../../lib/ui/netWorthGrowth";
 import { NetWorthChart } from "../charts/NetWorthChart";
@@ -43,20 +44,62 @@ function LineKey({ dashed }: { dashed: boolean }) {
  */
 export function NetWorthCard({
   months,
+  daily,
   spendingFrom,
 }: {
   months: NetWorthMonth[];
+  /** Day by day where every account has a balance: what the line zooms into past three months. */
+  daily: DailyNetWorth;
   /** The first month of the spending history, for the note when this line is shorter. */
   spendingFrom: string | null;
 }) {
-  const [shownWindow, setWindow] = useState<ChartWindow>(() => fullWindow(months.length));
+  const days = daily.points;
+  const [mode, setMode] = useState<"month" | "day">("month");
+  const [monthWindow, setMonthWindow] = useState<ChartWindow>(() => fullWindow(months.length));
+  const [dayWindow, setDayWindow] = useState<ChartWindow>(() => fullWindow(days.length));
   // A new history (a statement import, a sync) resets the zoom rather than
   // holding a window measured against the old one.
-  const [anchorCount, setAnchorCount] = useState(months.length);
-  if (anchorCount !== months.length) {
-    setAnchorCount(months.length);
-    setWindow(fullWindow(months.length));
+  const [anchorCount, setAnchorCount] = useState(`${months.length}/${days.length}`);
+  if (anchorCount !== `${months.length}/${days.length}`) {
+    setAnchorCount(`${months.length}/${days.length}`);
+    setMode("month");
+    setMonthWindow(fullWindow(months.length));
+    setDayWindow(fullWindow(days.length));
   }
+  const showAll = () => {
+    setMode("month");
+    setMonthWindow(fullWindow(months.length));
+  };
+
+  // Zoomed in past three months where days are on record, the line goes on
+  // into days: the months on show become the days between their month-ends
+  // (through today when the newest month is among them). Zoomed out past all
+  // of the days, it comes back to its last three months.
+  const hasDays = days.length > MIN_DAY_SPAN;
+  const drillIn = (anchor: number): boolean => {
+    if (!hasDays) return false;
+    const { first, last } = shownMonths(monthWindow);
+    const at = Math.round(monthWindow.start + anchor * (monthWindow.end - monthWindow.start));
+    // The month under the pointer must be one the days reach.
+    if (months[at] === undefined || months[at].period < days[0].period.slice(0, 7)) return false;
+    const fromKey = `${months[first].period}-31`;
+    const toKey = last === months.length - 1 ? "9999-12-31" : `${months[last].period}-31`;
+    const start = Math.max(0, days.findIndex((d) => d.period > fromKey));
+    const end = Math.max(start, days.findLastIndex((d) => d.period <= toKey));
+    setDayWindow(clampWindow({ start, end }, days.length, MIN_DAY_SPAN));
+    setMode("day");
+    return true;
+  };
+  const drillOut = (): boolean => {
+    setMode("month");
+    setMonthWindow(clampWindow({ start: months.length - 1 - MIN_SPAN, end: months.length - 1 }, months.length));
+    return true;
+  };
+  const inDays = mode === "day" && hasDays;
+  const points = inDays ? days : months;
+  const shownWindow = inDays ? dayWindow : monthWindow;
+  const setWindow = inDays ? setDayWindow : setMonthWindow;
+  const label = inDays ? dayLabel : shortMonthLabel;
 
   const historyStartsHere = (
     <div className="mb-3 border-l-2 border-warn bg-chip/50 px-2.5 py-1.5 text-[0.75rem] text-faint">
@@ -78,15 +121,17 @@ export function NetWorthCard({
     return (
       <CardFrame id="net-worth" title="Net worth" switcher={null}>
         {historyStartsHere}
-        <NetWorthChart months={[]} window={shownWindow} onWindow={setWindow} />
+        <NetWorthChart months={[]} window={monthWindow} onWindow={setMonthWindow} />
       </CardFrame>
     );
   }
 
-  const zoomed = !isFull(shownWindow, months.length);
+  const zoomed = inDays || !isFull(shownWindow, months.length);
   const { first, last } = shownMonths(shownWindow);
-  const shown = months.slice(first, last + 1);
-  const growth = last > first ? growthBetween(months, first, last) : null;
+  const shown: (NetWorthMonth | (typeof days)[number])[] = points.slice(first, last + 1);
+  const growth = last > first ? growthBetween(points, first, last) : null;
+  // Days the daily line leaves out inside what is on show.
+  const missingShown = inDays ? daily.missing.filter((d) => d > shown[0].period && d < shown[shown.length - 1].period) : [];
   const estimatedMonths = shown.filter((m) => m.estimated).length;
   // Each account a shown month leaves out, with the LAST month it is missing from.
   const leftOut = [...new Set(shown.flatMap((m) => m.leftOut))].map((name) => ({
@@ -97,7 +142,7 @@ export function NetWorthCard({
   const reset = zoomed ? (
     <button
       type="button"
-      onClick={() => setWindow(fullWindow(months.length))}
+      onClick={showAll}
       className="tap44 rounded-sm border border-rule px-2 py-0.5 text-[0.75rem] text-faint hover:text-ink"
     >
       Show all months
@@ -110,13 +155,13 @@ export function NetWorthCard({
         <>
           <Hero figure={signedMoney(growth.change)} tone={toneOf(growth.change)}>
             <Lead>
-              {shortMonthLabel(growth.from)} to {shortMonthLabel(growth.to)}
+              {label(growth.from)} to {label(growth.to)}
             </Lead>
             {/* From the first month on record the base is wherever the records
                 happen to begin, often a near-empty first account, so its ratio
                 describes the records, not the growth. Zoomed past it, the base
                 is a real month-end. */}
-            {growth.pct !== null && first > 0 && (
+            {growth.pct !== null && (inDays || first > 0) && (
               <>
                 {" "}
                 · <Fig tone={toneOf(growth.pct)}>{`${growth.pct >= 0 ? "▲" : "▼"} ${growthRate(Math.abs(growth.pct)).slice(1)}`}</Fig>
@@ -128,7 +173,16 @@ export function NetWorthCard({
       )}
 
       {months.length < 3 && historyStartsHere}
-      <NetWorthChart months={months} window={shownWindow} onWindow={setWindow} />
+      <NetWorthChart
+        months={points}
+        window={shownWindow}
+        onWindow={setWindow}
+        scale={
+          inDays
+            ? { unit: "day", minSpan: MIN_DAY_SPAN, drillOut, onAll: showAll }
+            : { unit: "month", minSpan: MIN_SPAN, drillIn, onAll: showAll }
+        }
+      />
 
       {/* The key to the line, and how to move it, in one line under it. How
           MANY months are estimated is a fact about the whole line, not a
@@ -146,24 +200,39 @@ export function NetWorthCard({
             <span>
               Partly estimated,{" "}
               <span className="text-ink">
-                {estimatedMonths} of {shown.length} month{shown.length === 1 ? "" : "s"}
+                {estimatedMonths} of {shown.length} {inDays ? "day" : "month"}
+                {shown.length === 1 ? "" : "s"}
               </span>
             </span>
           </span>
         )}
         <span className="md:hidden">Pinch to zoom, two fingers to move</span>
         <span className="hidden md:inline">Ctrl and scroll, or pinch, to zoom; drag to move; double-click for all</span>
+        {/* Where the days begin, said once: zooming past three months is
+            otherwise a limit nobody would push on. */}
+        {hasDays &&
+          (inDays ? (
+            <span className="text-ink">Day by day; zoom out for months</span>
+          ) : (
+            <span className="text-ink">Day by day from {dayLabel(days[0].period)}: zoom in past three months</span>
+          ))}
       </div>
       {/* What a reader must discount stays in view: an account a month leaves
           out (a month missing one is SMALLER than the truth, named in text with
           the last month it is missing from), and a line shorter than the
           history above it. How the line is worked out is behind a tap. */}
-      {(leftOut.length > 0 || (!zoomed && spendingFrom !== null && months[0].period > spendingFrom)) && (
+      {(leftOut.length > 0 || missingShown.length > 0 || (!zoomed && spendingFrom !== null && months[0].period > spendingFrom)) && (
         <Note>
+          {missingShown.length > 0 && (
+            <span className="text-ink">
+              Left out: {missingShown.map(dayLabel).join(", ")}, where an account&apos;s newest balance was over{" "}
+              {CARRY_DAYS} days old.{" "}
+            </span>
+          )}
           {leftOut.length > 0 && (
             <span className="text-ink">
               Left out where it has no value yet:{" "}
-              {leftOut.map((l) => `${l.name} (through ${shortMonthLabel(l.through)})`).join(", ")}.
+              {leftOut.map((l) => `${l.name} (through ${label(l.through)})`).join(", ")}.
             </span>
           )}
           {!zoomed && spendingFrom !== null && months[0].period > spendingFrom && (
@@ -172,12 +241,22 @@ export function NetWorthCard({
         </Note>
       )}
       <Fold label="How this line is worked out">
-        <Note>
-          Month-end, {leftOut.length === 0 ? "all accounts" : "every account with a value that month"}, from{" "}
-          {shortMonthLabel(shown[0].period)} to {shortMonthLabel(shown[shown.length - 1].period)}. Tap a month for its
-          figures. Partly estimated means an investment account&apos;s value carried from an earlier month, its market
-          movement since unseen, or a balance worked out from transactions.
-        </Note>
+        {inDays ? (
+          <Note>
+            Each day, every account&apos;s balance as its bank last reported it, from {dayLabel(shown[0].period)} to{" "}
+            {dayLabel(shown[shown.length - 1].period)}. A bank that posts no new balance for a day (a weekend, a
+            holiday) counts at its last one for up to {CARRY_DAYS} days; past that the day is left out. Markets is the
+            investment accounts&apos; change less money moved in or out, counted on the day their balance shows it.
+            Tap a day for its figures.
+          </Note>
+        ) : (
+          <Note>
+            Month-end, {leftOut.length === 0 ? "all accounts" : "every account with a value that month"}, from{" "}
+            {shortMonthLabel(shown[0].period)} to {shortMonthLabel(shown[shown.length - 1].period)}. Tap a month for
+            its figures. Partly estimated means an investment account&apos;s value carried from an earlier month, its
+            market movement since unseen, or a balance worked out from transactions.
+          </Note>
+        )}
       </Fold>
 
       <NetWorthYears years={growthByYear(months)} />

@@ -1525,3 +1525,24 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
     colour and outlined (lossFill), named in the note: left of the zero line
     alone, a solid bar read as one more gain. GrowthSplit prints a negative
     part in the loss ink.
+
+- NET WORTH BY THE DAY, AND LOSSES YOU CAN SEE (operator, 2026-10-19).
+  Zoomed far enough, /trends' net worth shows days, only where every
+  account has a balance that day: Ducat's own syncs, one snapshot per
+  account per bank day. Three findings on real data shaped the rule:
+  - A snapshot carries the BANK's "as of" instant. One brokerage stamps its
+    close about 9:45pm Eastern, the next day in UTC, so grouped by UTC day
+    one day looked empty and the next held two: days are LOCAL
+    (localDayKey, the display zone).
+  - A bank does not post every day (a card issuer's balance went from the
+    29th to the 1st): its last balance still stands. Strict same-day
+    matching left out three or four days in eighty; carrying a balance up
+    to three days (the monthly figures' own bar for current) left out none.
+  - A transfer posts the day BEFORE the brokerage balance shows it: counted
+    on its own date, one deposit read as a market loss of its whole size
+    and a gain the next day. Counted a day later the largest daily market
+    move fell to a plausible fraction of a percent.
+  The demo generator writes ninety days of daily balances so the public
+  demo shows it. In By year, a loss is at least 6px wide (a small loss
+  beside a large year drew an invisible sliver), and the loss side keeps
+  the same room on every row so the zero line stays put.

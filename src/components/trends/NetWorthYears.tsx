@@ -41,8 +41,15 @@ interface Row {
  * a year's bar is as long as its growth: what grew it reads across the rows,
  * not only within one. Growth runs right of a zero line and a fall runs left,
  * saved always beside the line, the two parts parted by a 2px gap.
+ *
+ * A loss is never thinner than LOSS_MIN_PX: a $36 loss beside a $50,000 year
+ * drew a sliver nobody could see, so the hatch said nothing. The loss side
+ * keeps room for the widest such row on EVERY row, so the zero line stays in
+ * one place down the column.
  */
-function SplitBar({ row, maxUp, maxDown }: { row: Row; maxUp: number; maxDown: number }) {
+const LOSS_MIN_PX = 6;
+
+function SplitBar({ row, maxUp, maxDown, lossRoom }: { row: Row; maxUp: number; maxDown: number; lossRoom: number }) {
   const whole = maxUp + maxDown;
   if (whole === 0) return null;
   const part = (n: number, side: number) => `${((Math.abs(n) / side) * 100).toFixed(2)}%`;
@@ -57,20 +64,23 @@ function SplitBar({ row, maxUp, maxDown }: { row: Row; maxUp: number; maxDown: n
   return (
     <div className="flex h-2 w-full" aria-hidden>
       {maxDown > 0 && (
-        <div className="flex justify-end gap-[2px]" style={{ width: `${((maxDown / whole) * 100).toFixed(2)}%` }}>
+        <div
+          className="flex shrink-0 justify-end gap-[2px]"
+          style={{ width: `${((maxDown / whole) * 100).toFixed(2)}%`, minWidth: `${lossRoom}px` }}
+        >
           {/* A LOSS is hatched in its part's colour and outlined: left of the
               line alone, a solid bar read as one more gain. */}
           {down.map((d) => (
             <div
               key={d.key}
-              className="first:rounded-l-[2px]"
-              style={{ width: part(d.n, maxDown), ...lossFill(d.color) }}
+              className="shrink-0 first:rounded-l-[2px]"
+              style={{ width: part(d.n, maxDown), minWidth: `${LOSS_MIN_PX}px`, ...lossFill(d.color) }}
             />
           ))}
         </div>
       )}
       <div
-        className={`flex gap-[2px] ${maxDown > 0 ? "border-l border-rule" : ""}`}
+        className={`flex min-w-0 flex-1 gap-[2px] ${maxDown > 0 ? "border-l border-rule" : ""}`}
         style={{ width: `${((maxUp / whole) * 100).toFixed(2)}%` }}
       >
         {up.map((u) => (
@@ -102,6 +112,9 @@ export function NetWorthYears({ years }: { years: YearGrowth[] }) {
   const anyLoss = rows.some((r) => r.saved < 0 || r.markets < 0);
   const maxUp = Math.max(0, ...rows.map((r) => Math.max(r.saved, 0) + Math.max(r.markets, 0)));
   const maxDown = Math.max(0, ...rows.map((r) => Math.max(-r.saved, 0) + Math.max(-r.markets, 0)));
+  // Room on the loss side for the most loss parts any row draws, each at least LOSS_MIN_PX.
+  const lossParts = Math.max(0, ...rows.map((r) => (r.saved < 0 ? 1 : 0) + (r.markets < 0 ? 1 : 0)));
+  const lossRoom = lossParts === 0 ? 0 : lossParts * LOSS_MIN_PX + (lossParts - 1) * 2;
   // A star marks a year that leans on estimates only when some year does not:
   // on every row it says nothing, and the note says it once instead.
   const allEstimated = years.every((y) => y.uncertainMonths > 0);
@@ -157,7 +170,7 @@ export function NetWorthYears({ years }: { years: YearGrowth[] }) {
                 </span>
               </div>
               <div className="mt-1.5">
-                <SplitBar row={r} maxUp={maxUp} maxDown={maxDown} />
+                <SplitBar row={r} maxUp={maxUp} maxDown={maxDown} lossRoom={lossRoom} />
               </div>
               <div className="mt-1.5 flex flex-wrap gap-x-4 text-[0.75rem] text-faint">
                 <span className="inline-flex items-center gap-1.5">
@@ -210,7 +223,7 @@ export function NetWorthYears({ years }: { years: YearGrowth[] }) {
                 <td className={`${NUM} align-baseline ${neg(r.saved)}`}>{dollars(r.saved)}</td>
                 <td className={`${NUM} align-baseline pr-6 ${neg(r.markets)}`}>{dollars(r.markets)}</td>
                 <td className="py-2 align-middle">
-                  <SplitBar row={r} maxUp={maxUp} maxDown={maxDown} />
+                  <SplitBar row={r} maxUp={maxUp} maxDown={maxDown} lossRoom={lossRoom} />
                 </td>
               </tr>
             );

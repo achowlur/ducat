@@ -16,15 +16,23 @@ export function fullWindow(count: number): ChartWindow {
   return { start: 0, end: Math.max(0, count - 1) };
 }
 
-/** The narrowest window a series allows: MIN_SPAN, or all of a shorter series. */
-function minSpan(count: number): number {
-  return Math.min(MIN_SPAN, Math.max(0, count - 1));
+/** The fewest DAYS between a daily window's edges: a week. */
+export const MIN_DAY_SPAN = 6;
+
+/** The narrowest window a series allows: `min` (MIN_SPAN for months), or all of a shorter series. */
+function minSpan(count: number, min: number): number {
+  return Math.min(min, Math.max(0, count - 1));
+}
+
+/** Whether a window is already as narrow as the series allows. */
+export function atNarrowest(w: ChartWindow, count: number, min = MIN_SPAN): boolean {
+  return w.end - w.start <= minSpan(count, min) + 1e-6;
 }
 
 /** A window held inside the series and between the narrowest and the whole. */
-export function clampWindow(w: ChartWindow, count: number): ChartWindow {
+export function clampWindow(w: ChartWindow, count: number, min = MIN_SPAN): ChartWindow {
   const full = Math.max(0, count - 1);
-  const span = Math.min(full, Math.max(minSpan(count), w.end - w.start));
+  const span = Math.min(full, Math.max(minSpan(count, min), w.end - w.start));
   const start = Math.min(full - span, Math.max(0, w.start));
   return { start, end: start + span };
 }
@@ -38,16 +46,16 @@ export function isFull(w: ChartWindow, count: number): boolean {
  * pointer's place across the plot from 0 (left edge) to 1 (right edge), so
  * the month under the pointer stays under it.
  */
-export function zoomAround(w: ChartWindow, factor: number, anchor: number, count: number): ChartWindow {
+export function zoomAround(w: ChartWindow, factor: number, anchor: number, count: number, min = MIN_SPAN): ChartWindow {
   const span = w.end - w.start;
   const at = w.start + anchor * span;
   const next = span * factor;
-  return clampWindow({ start: at - anchor * next, end: at - anchor * next + next }, count);
+  return clampWindow({ start: at - anchor * next, end: at - anchor * next + next }, count, min);
 }
 
 /** Moves the window `delta` months along the series, its width kept. */
-export function panBy(w: ChartWindow, delta: number, count: number): ChartWindow {
-  return clampWindow({ start: w.start + delta, end: w.end + delta }, count);
+export function panBy(w: ChartWindow, delta: number, count: number, min = MIN_SPAN): ChartWindow {
+  return clampWindow({ start: w.start + delta, end: w.end + delta }, count, min);
 }
 
 /**
@@ -63,11 +71,12 @@ export function pinchWindow(
   fromAnchor: number,
   anchor: number,
   count: number,
+  min = MIN_SPAN,
 ): ChartWindow {
   const span = (from.end - from.start) * (fromSpread / Math.max(spread, 1));
-  const clamped = Math.min(Math.max(0, count - 1), Math.max(minSpan(count), span));
+  const clamped = Math.min(Math.max(0, count - 1), Math.max(minSpan(count, min), span));
   const at = from.start + fromAnchor * (from.end - from.start);
-  return clampWindow({ start: at - anchor * clamped, end: at - anchor * clamped + clamped }, count);
+  return clampWindow({ start: at - anchor * clamped, end: at - anchor * clamped + clamped }, count, min);
 }
 
 /** The whole months a window shows: the first and last index inside it. */

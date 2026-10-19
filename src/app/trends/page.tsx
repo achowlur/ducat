@@ -171,7 +171,7 @@ async function renderTrends({ searchParams }: { searchParams: Promise<RawSearch>
         initialView={params.e.view}
       />
 
-      <NetWorthCard months={source.netWorth} spendingFrom={first} />
+      <NetWorthCard months={source.netWorth} daily={source.daily} spendingFrom={first} />
     </div>
   );
 }

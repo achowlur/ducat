@@ -467,6 +467,33 @@ export function buildDemoData(now: Date): DemoPlan {
     snapshots.push({ accountKey: key, date: today, balance: account.balance });
   }
 
+  // The live feed's recent weeks: one balance per account per bank day,
+  // stamped at a 4pm Eastern close, so Trends' net worth zooms into days
+  // (ui/dailyNetWorth.ts). A bank account steps back from today through its
+  // transactions; an investment runs between its month-ends with a small daily
+  // wobble, as a market does.
+  const DEMO_DAILY_DAYS = 90;
+  const investments = new Set(['brokerage', 'ira', 'rollover']);
+  for (let k = DEMO_DAILY_DAYS; k >= 1; k--) {
+    const dayStart = Date.UTC(cy, cm, today.getUTCDate() - k);
+    const dayEnd = dayStart + 86_400_000;
+    const stamp = new Date(dayStart + 20 * 3_600_000);
+    for (const account of accounts) {
+      if (!investments.has(account.key)) {
+        const after = txns.filter((t) => t.accountKey === account.key && t.date.getTime() >= dayEnd).reduce((s, t) => s + t.amount, 0);
+        snapshots.push({ accountKey: account.key, date: stamp, balance: round2(account.balance - after) });
+        continue;
+      }
+      const own = snapshots.filter((s) => s.accountKey === account.key).sort((a, b) => a.date.getTime() - b.date.getTime());
+      const before = own.filter((s) => s.date.getTime() <= stamp.getTime()).at(-1);
+      const next = own.find((s) => s.date.getTime() > stamp.getTime());
+      if (before === undefined || next === undefined) continue;
+      const share = (stamp.getTime() - before.date.getTime()) / (next.date.getTime() - before.date.getTime());
+      const wobble = 1 + (rand() - 0.5) * 0.008;
+      snapshots.push({ accountKey: account.key, date: stamp, balance: round2((before.balance + (next.balance - before.balance) * share) * wobble) });
+    }
+  }
+
   // Ten months out: the demo's fund lands later than that at its saving pace, so the
   // goal card shows its BEHIND alert (a screen feature the demo must be able to show).
   const houseTargetMonth = new Date(Date.UTC(cy, cm + 10, 1));
