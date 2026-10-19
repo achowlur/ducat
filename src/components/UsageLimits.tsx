@@ -150,6 +150,13 @@ export function UsageLimits({
             transfer, which only its Usage page shows.
           </p>
           <p>
+            Vercel&apos;s Functions Storage ({VERCEL_HOBBY.functionsStorageGb} GB on Hobby) is the server code of every
+            deployment it still keeps, a running total rather than a monthly count. The app cannot measure it, so
+            nothing above includes it and no warning will come from it. Each push to a pull request adds a
+            deployment, so it grows with pushes, and the retention setting is what lets old ones go. Read it on
+            Vercel&apos;s Usage page.
+          </p>
+          <p>
             SimpleFIN expects {SIMPLEFIN_DAILY_REQUESTS} requests a day or fewer and disables a token that keeps going
             past it. A sync makes one, or two when it reaches back more than 30 days. Days here are UTC days; the
             busiest this month made {reading.simplefinBusiestDay}.

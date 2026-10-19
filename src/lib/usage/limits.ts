@@ -11,10 +11,10 @@ import { pendingUsage, usageDay, usageMonth, type UsageMetric } from './meter';
  * A host that changes its plan changes this file; nothing here is read from the
  * host, because the app makes no call to any host's account API.
  */
-export const LIMITS_CHECKED = '2026-10-17';
+export const LIMITS_CHECKED = '2026-10-18';
 
 export const TURSO_FREE = { rowsRead: 500_000_000, rowsWritten: 10_000_000, storageGb: 5 } as const;
-export const VERCEL_HOBBY = { invocations: 1_000_000, activeCpuHours: 4, transferGb: 100 } as const;
+export const VERCEL_HOBBY = { invocations: 1_000_000, activeCpuHours: 4, transferGb: 100, functionsStorageGb: 10 } as const;
 export const SIMPLEFIN_DAILY_REQUESTS = 24;
 /**
  * Where "Sync now" stops for the day. A sync costs the bridge one or two

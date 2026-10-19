@@ -29,6 +29,14 @@ describe("UsageLimits", () => {
     expect(html).toContain("this counts only this one");
   });
 
+  it("names Functions Storage as a limit the app cannot measure", () => {
+    const html = render(reading());
+    expect(html).toContain("Functions Storage (10 GB on Hobby)");
+    expect(html).toContain("The app cannot measure it");
+    expect(html).toContain("Each push to a pull request adds a");
+    expect(html).toContain("a running total rather than a monthly count");
+  });
+
   it("says in words when the pace passes a limit", () => {
     const html = render(reading({ monthly: { "turso.rowsRead": 300_000_000 } }));
     expect(html).toContain("Turso rows read pass the free limit before the month ends");
