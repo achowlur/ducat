@@ -758,3 +758,26 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   history's live plans, all at one price; the operator asked for it built
   anyway. The demo's streaming plan still reads raised; its power bill is
   pinned as not.
+- SAVINGS GOAL BEHIND SCHEDULE (2026-10-19, enhancement E2). A savings goal
+  could land after its target month and say only "6 months behind", with no
+  way to ask what it would take. The card now does what the net worth goal
+  does: a "Saved per month" field that starts as the measured pace, moves the
+  date and the path as it is typed, and saves when it settles. Stored beside
+  the goal as an optional `monthlyPace` in goals.savings, so every entry
+  written before it reads as before and a build that predates it ignores the
+  field; withGoalPace edits the RAW entries so a malformed entry or a field
+  from a newer shape is written back untouched, and an unreadable Setting
+  refuses rather than being overwritten. When the goal is behind, the one
+  alert on the card is "Save ~$X/mo more to land on time": X comes from
+  extraToLand, which inverts projectLanding (the same function assessGoals
+  and the card run, so there is no second formula), rounded UP to $10 so the
+  figure printed really does land on time, and the field inside the alert is
+  pre-filled with the measured pace plus X. Two edges found by test: a target
+  month already under way asked for about $2.2M a month, so under a month
+  left asks for nothing; and leaving a field nobody edited must not accept
+  the figure it was pre-filled with, so the field commits on leaving it only
+  once touched (Enter always commits). ActionAlert's actions slot never wraps
+  under its text, so on a phone the card gives the field the row's full
+  width; a variant that wraps is for the component's owner. Invented, from the
+  tests: $24,000 of $60,000 at $2,000 a month lands January 2028, so a June
+  2027 target asks for about $1,300 more.

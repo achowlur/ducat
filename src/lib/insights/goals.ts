@@ -80,7 +80,21 @@ export interface SavingsGoal {
   cash?: boolean;
   /** Nominated accounts whose balances count as this goal's fund. */
   accountIds: string[];
+  /**
+   * Dollars saved a month, SET by the operator in place of the measured pace
+   * (the "Saved per month" field on the card; the net worth goal's
+   * monthlyPace, same rule). Optional and additive: an entry without it, which
+   * is every entry written before 2026-10-19, follows the data exactly as
+   * before, and a reader that predates it ignores it. Absent means follow the
+   * measured pace; a value typed equal to the measured one is never stored.
+   */
+  monthlyPace?: number;
 }
+
+/** The largest monthly pace a save accepts: past it a projection is noise (the net worth goal's bound). */
+export const MAX_GOAL_PACE = 1e9;
+
+const validPace = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= MAX_GOAL_PACE;
 
 export interface GoalAccount {
   id: string;
@@ -109,8 +123,17 @@ export interface GoalAssessment {
   progress: number;
   /** saved ≥ target. A reached goal needs no rate and refuses nothing. */
   reached: boolean;
-  /** Mean monthly net over the window; present whenever the basis suffices. */
+  /**
+   * The pace the landing is projected at: the operator's `monthlyPace` when
+   * one is set, else the measured mean. Present whenever the basis suffices.
+   */
   monthlyRate: number | null;
+  /** The measured mean monthly net over the window, whatever is set; null while the basis is too short. */
+  measuredRate: number | null;
+  /** The pace the operator set, or null while the card follows the data. */
+  paceSet: number | null;
+  /** The instant the landing was projected from (ms), so the browser re-projects from the same one. */
+  nowMs: number;
   /** Complete months the mean is drawn from (0–GOAL_RATE_MONTHS). */
   basisMonths: number;
   /** Lowest and highest month in the window — a mean hides how variable it is. */
@@ -164,10 +187,107 @@ export function parseGoals(raw: string | null): SavingsGoal[] {
   if (raw === null) return [];
   try {
     const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(isGoal) : [];
+    if (!Array.isArray(parsed)) return [];
+    // An unreadable pace is ignored, never a reason to drop the whole goal.
+    return parsed.filter(isGoal).map((g) => {
+      if (g.monthlyPace === undefined || validPace(g.monthlyPace)) return g;
+      const rest = { ...g };
+      delete rest.monthlyPace;
+      return rest;
+    });
   } catch {
     return []; // a corrupted setting must not take the page down
   }
+}
+
+/**
+ * Where a fund lands: the months it takes to close `remaining` at `rate`, and
+ * the month that falls in. The ONE arithmetic behind a goal's date, run by
+ * assessGoals on the server and by the card in the browser as the pace is
+ * typed, so the two cannot disagree. Null at a pace at or below zero.
+ */
+export function projectLanding(
+  remaining: number,
+  rate: number,
+  nowMs: number,
+): { monthsToTarget: number; landsMonth: string } | null {
+  if (!(rate > 0) || !(remaining > 0)) return null;
+  const monthsToTarget = remaining / rate;
+  return {
+    monthsToTarget: Math.round(monthsToTarget * 10) / 10,
+    landsMonth: periodKey(new Date(nowMs + monthsToTarget * MONTH_MS), 'MONTH'),
+  };
+}
+
+/** landsMonth − targetMonth in months: negative = ahead, positive = behind. Null without a declared month. */
+export function monthsAfterTarget(landsMonth: string, targetMonth: string | undefined): number | null {
+  return targetMonth === undefined ? null : monthIndex(landsMonth) - monthIndex(targetMonth);
+}
+
+/** The extra a month is rounded UP to, so the figure printed really does land on time. */
+export const SHORTFALL_STEP = 10;
+
+/**
+ * What a goal projected to land AFTER its target month asks for: the pace that
+ * lands in that month (`required`) and the `extra` a month over `rate` it
+ * takes, rounded up to $10. It inverts projectLanding, whose landing month is
+ * the one `now + remaining/rate` falls in, so it lands on time when it comes
+ * before the first instant of the month after the target.
+ *
+ * Null when there is nothing to ask: no target month, no pace to build on
+ * (zero or below), nothing left to save, already on time, or a target month
+ * already over or under way with less than a month left (no pace fixes that).
+ */
+export function extraToLand(input: {
+  remaining: number;
+  rate: number | null;
+  targetMonth: string | undefined;
+  nowMs: number;
+}): { required: number; extra: number } | null {
+  const { remaining, rate, targetMonth, nowMs } = input;
+  if (targetMonth === undefined || rate === null || !(rate > 0) || !(remaining > 0)) return null;
+  const landing = projectLanding(remaining, rate, nowMs);
+  if (landing === null) return null;
+  const behind = monthsAfterTarget(landing.landsMonth, targetMonth);
+  if (behind === null || behind <= 0) return null;
+  const ends = Date.UTC(Number(targetMonth.slice(0, 4)), Number(targetMonth.slice(5, 7)), 1);
+  const available = (ends - nowMs) / MONTH_MS;
+  // Under a month left no saving rate is a believable ask: the month is as good as over.
+  if (!(available >= 1)) return null;
+  const required = remaining / available;
+  const extra = Math.ceil((required - rate) / SHORTFALL_STEP) * SHORTFALL_STEP;
+  return extra > 0 ? { required: round2(required), extra } : null;
+}
+
+/**
+ * The stored goals with one goal's set pace changed or cleared (null), as the
+ * text to write back, or why not. Works on the raw entries so every other
+ * field of every entry, a malformed one or one from a newer shape included,
+ * is written back exactly as it was read.
+ */
+export function withGoalPace(
+  raw: string | null,
+  id: string,
+  pace: number | null,
+): { ok: true; value: string } | { ok: false; message: string } {
+  if (pace !== null && !validPace(pace)) return { ok: false, message: 'The monthly saving has to be a dollar amount.' };
+  let entries: unknown;
+  try {
+    entries = raw === null ? null : JSON.parse(raw);
+  } catch {
+    entries = null;
+  }
+  if (!Array.isArray(entries)) return { ok: false, message: 'The savings goals could not be read, so nothing was saved.' };
+  let found = false;
+  const next = entries.map((e: unknown) => {
+    if (typeof e !== 'object' || e === null || (e as Record<string, unknown>).id !== id) return e;
+    found = true;
+    const rest = { ...(e as Record<string, unknown>) };
+    delete rest.monthlyPace;
+    return pace === null ? rest : { ...rest, monthlyPace: round2(pace) };
+  });
+  if (!found) return { ok: false, message: 'That goal is no longer declared.' };
+  return { ok: true, value: JSON.stringify(next) };
 }
 
 /**
@@ -223,6 +343,9 @@ export function assessGoals(input: {
       progress: Math.min(1, Math.max(0, saved / goal.target)),
       reached: false,
       monthlyRate: null as number | null,
+      measuredRate: mean === null ? null : round2(mean),
+      paceSet: goal.monthlyPace ?? null,
+      nowMs: now.getTime(),
       basisMonths,
       rateLow: null as number | null,
       rateHigh: null as number | null,
@@ -243,25 +366,27 @@ export function assessGoals(input: {
 
     if (mean === null) return { ...base, refusal: 'TOO_FEW_MONTHS' as const };
 
+    // A pace the operator set stands in for the measured one; the window's
+    // low and high stay the measured months, which is what they describe.
+    const pace = goal.monthlyPace ?? mean;
     const rate = {
-      monthlyRate: round2(mean),
+      monthlyRate: round2(pace),
       rateLow: round2(Math.min(...recent)),
       rateHigh: round2(Math.max(...recent)),
     };
 
     // The rate is observed and survives the refusal — "net −$803.44/mo" is the
     // reason there is no date, and the reader should see it.
-    if (mean <= 0) return { ...base, ...rate, refusal: 'RATE_NOT_POSITIVE' as const };
+    const landing = projectLanding(goal.target - saved, pace, now.getTime());
+    if (landing === null) return { ...base, ...rate, refusal: 'RATE_NOT_POSITIVE' as const };
 
-    const monthsToTarget = (goal.target - saved) / mean;
-    const landsMonth = periodKey(new Date(now.getTime() + monthsToTarget * MONTH_MS), 'MONTH');
     return {
       ...base,
       ...rate,
-      monthsToTarget: Math.round(monthsToTarget * 10) / 10,
-      landsMonth,
+      monthsToTarget: landing.monthsToTarget,
+      landsMonth: landing.landsMonth,
       // No declared month means no ahead/behind — the projection stands alone.
-      deltaMonths: goal.targetMonth === undefined ? null : monthIndex(landsMonth) - monthIndex(goal.targetMonth),
+      deltaMonths: monthsAfterTarget(landing.landsMonth, goal.targetMonth),
     };
   });
 }

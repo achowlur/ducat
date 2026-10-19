@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "../../lib/prisma";
 import { requireSession } from "../../lib/auth/requireSession";
 import type { ActionResult } from "../../lib/actionResult";
+import { SAVINGS_GOALS_KEY, withGoalPace } from "../../lib/insights/goals";
 import { NEW_PAY_KEY, parseNewPay } from "../../lib/ui/payLevel";
 import {
   NET_WORTH_GOAL_KEY,
@@ -70,4 +71,28 @@ export async function saveNetWorthGoal(input: {
   });
   revalidatePath("/insights");
   return next;
+}
+
+/**
+ * Save (or clear, with null) one savings goal's "Saved per month" from its
+ * card. Only that field of that entry changes: the Setting is rewritten from
+ * its raw entries (withGoalPace), so nothing else in it is touched, and an
+ * unreadable Setting refuses rather than being overwritten.
+ */
+export async function saveSavingsGoalPace(input: {
+  id: string;
+  /** Null: the card follows the measured pace. */
+  monthlyPace: number | null;
+}): Promise<ActionResult> {
+  await requireSession();
+  const row = await prisma.setting.findUnique({ where: { key: SAVINGS_GOALS_KEY } });
+  const next = withGoalPace(row?.value ?? null, input.id, input.monthlyPace);
+  if (!next.ok) return next;
+  await prisma.setting.upsert({
+    where: { key: SAVINGS_GOALS_KEY },
+    create: { key: SAVINGS_GOALS_KEY, value: next.value },
+    update: { value: next.value },
+  });
+  revalidatePath("/insights");
+  return { ok: true };
 }
