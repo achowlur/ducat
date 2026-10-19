@@ -28,6 +28,10 @@ import { monthKeyBack, periodKey } from "../insights/periods";
 import { recentMonths, type RecentMonths } from "../insights/recentMonths";
 import { accountCoverageFrom, firstRecords } from "./coverage";
 import { monthLabel, shortDate } from "./format";
+import { buildMonthRecap, recapPeriod, type MonthRecap } from "./monthRecap";
+import { NET_WORTH_GOAL_KEY } from "./netWorthGoal";
+import { NEW_PAY_KEY } from "./payLevel";
+import { SAVINGS_GOALS_KEY } from "../insights/goals";
 import { monthlyRows, ofType } from "./insightRows";
 import { OVERVIEW_SLICING, spendingBreakdown, type DonutSliceData } from "./spendingBreakdown";
 
@@ -140,6 +144,8 @@ export interface OverviewData {
    * nothing anywhere says so.
    */
   pendingPackRules: number;
+  /** The month that just closed, on days 1 to 7 of a month only (ui/monthRecap.ts); null otherwise. */
+  recap: MonthRecap | null;
 }
 
 const TYPE_ORDER: Record<string, number> = { DEPOSITORY: 0, INVESTMENT: 1, CREDIT: 2, LOAN: 3 };
@@ -151,12 +157,11 @@ const TYPE_ORDER: Record<string, number> = { DEPOSITORY: 0, INVESTMENT: 1, CREDI
  */
 const OVERVIEW_MONTHS_BACK = 12;
 
-export async function getOverviewData(): Promise<OverviewData> {
+export async function getOverviewData(now: Date = new Date()): Promise<OverviewData> {
   // ONE `now` for the whole page: the rows read, the spending block's month,
   // the runway's complete-month cut and the context's "complete" boundary must
   // agree on which month is being lived in, or a render straddling UTC
   // midnight puts different months on one screen.
-  const now = new Date();
   // Everything this page needs, read once and in parallel. It used to issue
   // its queries one after another — four of them full scans of the Insight
   // table, with RECURRING_CHARGE fetched twice over.
@@ -170,6 +175,7 @@ export async function getOverviewData(): Promise<OverviewData> {
     cashAccountIds,
     packDrift,
     firsts,
+    recapReads,
   ] = await Promise.all([
       // Only the two types this page draws, over the months it draws: the
       // table holds every type for every month of the history, and the
@@ -198,6 +204,15 @@ export async function getOverviewData(): Promise<OverviewData> {
       // Where each account's records begin, for which months the runway can
       // average: joins the concurrent group, no round trip of its own.
       firstRecords(),
+      // The recap's own reads, only on the days it speaks, INSIDE this group
+      // so they cost no round trip of their own: the goal settings, and every
+      // month's cash flow (the pay the goal's pace is projected from).
+      recapPeriod(now) === null
+        ? Promise.resolve(null)
+        : Promise.all([
+            prisma.setting.findMany({ where: { key: { in: [NET_WORTH_GOAL_KEY, SAVINGS_GOALS_KEY, NEW_PAY_KEY] } } }),
+            prisma.insight.findMany({ where: { type: "CASH_FLOW_TREND" } }),
+          ]),
     ]);
 
   const p2pToConfirmCount = uncategorizedRows.filter(isP2P).length;
@@ -277,6 +292,23 @@ export async function getOverviewData(): Promise<OverviewData> {
   const priorRow = priorRows[priorRows.length - 1] ?? null;
   const currentYear = currentPeriod.slice(0, 4);
 
+  const recapSetting = (key: string) => recapReads?.[0].find((r) => r.key === key)?.value ?? null;
+  const recap =
+    recapReads === null
+      ? null
+      : buildMonthRecap({
+          now,
+          rows: [...monthly, ...monthlyRows(recapReads[1])],
+          accounts: accounts.map((a) => ({ id: a.id, name: a.name, type: a.type, balance: a.balance })),
+          cashAccountIds: new Set(accounts.filter((a) => a.isCash).map((a) => a.id)),
+          firstRecords: accountCoverageFrom(accountRows, firsts).map((a) => a.firstTransaction),
+          settings: {
+            netWorthGoal: recapSetting(NET_WORTH_GOAL_KEY),
+            savingsGoals: recapSetting(SAVINGS_GOALS_KEY),
+            newPay: recapSetting(NEW_PAY_KEY),
+          },
+        });
+
   const contextLabel = latestComplete === null ? null : monthLabel(latestComplete.period);
 
   return {
@@ -321,5 +353,6 @@ export async function getOverviewData(): Promise<OverviewData> {
     uncategorizedCount,
     p2pToConfirmCount,
     pendingPackRules: packDrift,
+    recap,
   };
 }

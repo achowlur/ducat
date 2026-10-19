@@ -52,6 +52,12 @@ Overview:
 - Overview's review panel renders in BOTH states — "all clear" must be
   stated, not implied by absence; the three-level staleness escalation is
   deliberate.
+- Overview carries a RECAP on days 1 to 7 of a month (UTC) only, below the net
+  worth row: the closed month's spending against the middle of the comparable
+  months before it, net worth's saved and markets (growthBetween, "joined"
+  named when nonzero) and the net worth goal's date and shift, else the first
+  savings goal's. A recap, never an ActionAlert; its reads ride inside the
+  page's one Promise.all and exist only on those days (ui/monthRecap.ts).
 - Overview's ring names every category at ≥3% (eight legend rows max, the
   last being Other, drawn NEUTRAL); /trends' pie names seven, folding the
   rest into a NEUTRAL `Other · N`.
