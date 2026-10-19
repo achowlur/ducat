@@ -833,3 +833,25 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   Nothing is backfilled. Spending is untouched, pinned byte-identical after
   the detector runs. Invented, from the tests: a $110 bill with two $36.50
   links a month bills $37, $444 a year instead of $1,320.
+- THE PACE CALL READS THE LAST SIX MONTHS (2026-10-19, the operator's
+  decision; amends RECENT BASELINES above). "A typical rest of the month"
+  was the same calendar month of the last three years, else the trailing
+  three months. The operator's spending changed a lot within the year, so
+  last year's months described an older way of living, and on their data the
+  headline carried "may run low, earlier months miss an account": the old
+  Octobers predated cards opened since. The reason for the same month was a
+  trailing window "dominated by rent", blind to the months that differ; that
+  stopped holding once the figure became EVERYDAY spending AFTER the day
+  (THE REST OF THE MONTH, above), rent paid early never in it. So the pace
+  call now reads the last six months less any under the comparability bar
+  (BAND_MONTHS and isComparableBaseline, never back-filled from older ones,
+  the recentMonths.ts rule), at least two of them, and takes the MIDDLE of
+  their everydayAfterDay. It is the window the over-pace band, the goals and
+  the runway already read: the headline and the OVER PACE alert used to
+  disagree on "typical", one from three Octobers and one from six recent
+  months. Seasonality is kept as an aside only: the working-out says "Last
+  October: $X" (the same month a year ago, its whole spending, when
+  comparable; Pace.lastYear), never folded into the baseline. The working-out
+  names the window ("your last 6 months", or "5 of your last 6 months" when
+  one was left out). Invented, from the tests: five quiet months whose rest
+  ran near $500 and one at $3,000 project $505; a mean would say $917.
