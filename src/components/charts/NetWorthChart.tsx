@@ -376,6 +376,26 @@ function Plot({
     window.addEventListener("mouseup", up);
   };
 
+  // The newest value's label sits where the line is NOT: above everything
+  // the line does under the label's width, or below it when the top of the
+  // plot has no room. On a daily line the points under a fixed offset rose
+  // and fell through the figure (operator, 2026-10-19); a paper halo keeps it
+  // legible where it must still touch the line.
+  const endLabelY = (() => {
+    const yLast = y(months[last].value);
+    const width = money(months[last].value).length * 6.4;
+    const right = x(last) - 10;
+    const pitch = PLOT_W / span;
+    const under = months
+      .map((m, i) => ({ px: x(i), py: y(m.value) }))
+      .filter((p, i) => i >= lo && p.px >= right - width - pitch && p.px <= x(last));
+    const top = Math.min(yLast, ...under.map((p) => p.py));
+    const bottom = Math.max(yLast, ...under.map((p) => p.py));
+    if (top - 7 - 9 >= PLOT_TOP) return top - 7;
+    if (bottom + 15 <= PLOT_BOTTOM - 2) return bottom + 15;
+    return yLast - 10;
+  })();
+
   const summary = months.map((m) => `${m.label} ${money(m.value)}${qualifier(m, " (", ")")}`).join(", ");
   const point = hovered !== null && hovered >= firstShown && hovered <= lastShown ? hovered : null;
 
@@ -521,7 +541,16 @@ function Plot({
           </text>
         ))}
         {point === null && lastShown === last && (
-          <text x={x(last) - 10} y={y(months[last].value) - 10} textAnchor="end" className="fill-[var(--ink)] font-money text-[10.5px]">
+          <text
+            x={x(last) - 10}
+            y={endLabelY}
+            textAnchor="end"
+            stroke="var(--paper)"
+            strokeWidth="3"
+            strokeLinejoin="round"
+            paintOrder="stroke"
+            className="fill-[var(--ink)] font-money text-[10.5px]"
+          >
             {money(months[last].value)}
           </text>
         )}
