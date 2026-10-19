@@ -81,7 +81,11 @@ describe("day axis", () => {
   it("labels the days that fall on the step, wherever the window starts", async () => {
     const { dayTicks } = await import("./timeAxis");
     const days = Array.from({ length: 40 }, (_, i) => new Date(Date.UTC(2026, 7, 1 + i)).toISOString().slice(0, 10));
-    expect(dayTicks(days, 0, 39, 7).map((i) => days[i].slice(5))).toEqual(["08-01", "08-08", "08-15", "08-22", "08-29", "09-01", "09-08"]);
+    expect(dayTicks(days, 0, 39, 7).map((i) => days[i].slice(5))).toEqual(["08-01", "08-08", "08-15", "08-22", "09-01", "09-08"]);
+    // Never the 29th two days before a 1st, at any step but daily; the 1st always.
+    expect(dayTicks(days, 0, 39, 14).map((i) => days[i].slice(5))).toEqual(["08-01", "08-15", "09-01"]);
+    expect(dayTicks(days, 0, 39, 31).map((i) => days[i].slice(5))).toEqual(["08-01", "09-01"]);
+    expect(dayTicks(days, 25, 32, 1)).toHaveLength(8);
     expect(dayTicks(days, 10, 20, 14).map((i) => days[i].slice(5))).toEqual(["08-15"]);
   });
 });

@@ -148,3 +148,16 @@ describe("debtNote", () => {
     expect(debtNote(2, 2)).toBe("2 loans");
   });
 });
+
+describe("computeRunway: travel and one-offs spread, never dropped", () => {
+  it("adds their monthly average to the middle of the everyday months", async () => {
+    const { computeRunway } = await import("./liquidity");
+    const r = computeRunway(24_000, [2_000, 2_100, 1_900, 2_000, 2_050, 1_950], 400);
+    expect(r).toMatchObject({ monthlySpending: 2_400, lumpy: 400, months: 10, low: 1_900, high: 2_100 });
+  });
+  it("is the everyday figure alone with nothing lumpy, and never lowered by a negative one", async () => {
+    const { computeRunway } = await import("./liquidity");
+    expect(computeRunway(20_000, [2_000, 2_000, 2_000])).toMatchObject({ monthlySpending: 2_000, lumpy: 0 });
+    expect(computeRunway(20_000, [2_000, 2_000, 2_000], -300)).toMatchObject({ monthlySpending: 2_000, lumpy: 0 });
+  });
+});
