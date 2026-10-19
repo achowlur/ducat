@@ -87,6 +87,8 @@ beforeAll(async () => {
   const { default: TransactionsPage } = await import('../../app/transactions/page');
 
   await load('overview', () => getOverviewData());
+  // Days 1 to 7 add the recap's reads; they must plan as cleanly as the rest.
+  await load('overview (recap days)', () => getOverviewData(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 3, 12))));
   await load('insights', () => getInsightsPageData());
   await load('insights (a past month)', () => getInsightsPageData('2025-06'));
   await load('trends', () => getTrendsSource());

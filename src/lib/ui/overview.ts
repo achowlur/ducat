@@ -29,6 +29,7 @@ import { monthKeyBack, periodKey } from "../insights/periods";
 import { recentMonths, type RecentMonths } from "../insights/recentMonths";
 import { accountCoverageFrom, firstRecords } from "./coverage";
 import { monthLabel, shortDate } from "./format";
+import { buildMonthRecap, recapPeriod, type MonthRecap } from "./monthRecap";
 import { monthlyRows, ofType } from "./insightRows";
 import { OVERVIEW_SLICING, spendingBreakdown, type DonutSliceData } from "./spendingBreakdown";
 import { parseGoals, SAVINGS_GOALS_KEY } from "../insights/goals";
@@ -156,6 +157,8 @@ export interface OverviewData {
   /** Every candidate today, unranked, and what Mark done recorded: the action checks a click against them. */
   nudges: Nudge[];
   nudgesDone: DoneEntry[];
+  /** The month that just closed, on days 1 to 7 of a month only (ui/monthRecap.ts); null otherwise. */
+  recap: MonthRecap | null;
 }
 
 const TYPE_ORDER: Record<string, number> = { DEPOSITORY: 0, INVESTMENT: 1, CREDIT: 2, LOAN: 3 };
@@ -175,12 +178,11 @@ const OVERVIEW_MONTHS_BACK = 12;
  */
 const GOAL_MONTHS_BACK = 24;
 
-export async function getOverviewData(): Promise<OverviewData> {
+export async function getOverviewData(now: Date = new Date()): Promise<OverviewData> {
   // ONE `now` for the whole page: the rows read, the spending block's month,
   // the runway's complete-month cut and the context's "complete" boundary must
   // agree on which month is being lived in, or a render straddling UTC
   // midnight puts different months on one screen.
-  const now = new Date();
   // Everything this page needs, read once and in parallel. It used to issue
   // its queries one after another — four of them full scans of the Insight
   // table, with RECURRING_CHARGE fetched twice over.
@@ -195,6 +197,7 @@ export async function getOverviewData(): Promise<OverviewData> {
     packDrift,
     firsts,
     settingRows,
+    recapReads,
   ] = await Promise.all([
       // Only the two types this page draws, over the months it draws: the
       // table holds every type for every month of the history, and the
@@ -232,6 +235,11 @@ export async function getOverviewData(): Promise<OverviewData> {
       prisma.setting.findMany({
         where: { key: { in: [SAVINGS_GOALS_KEY, NET_WORTH_GOAL_KEY, NEW_PAY_KEY, RECURRING_DECISIONS_KEY, NUDGES_DONE_KEY] } },
       }),
+      // The recap's own read, only on the days it speaks, INSIDE this group
+      // so it costs no round trip of its own: every month's cash flow (the pay
+      // the goal's pace is projected from). Its goal settings come from the
+      // Settings read above.
+      recapPeriod(now) === null ? Promise.resolve(null) : prisma.insight.findMany({ where: { type: "CASH_FLOW_TREND" } }),
     ]);
 
   const p2pRows = uncategorizedRows.filter(isP2P);
@@ -313,11 +321,27 @@ export async function getOverviewData(): Promise<OverviewData> {
   const priorRow = priorRows[priorRows.length - 1] ?? null;
   const currentYear = currentPeriod.slice(0, 4);
 
+  const settingValue = (key: string) => settingRows.find((r) => r.key === key)?.value ?? null;
+  const recap =
+    recapReads === null
+      ? null
+      : buildMonthRecap({
+          now,
+          rows: [...monthly, ...monthlyRows(recapReads)],
+          accounts: accounts.map((a) => ({ id: a.id, name: a.name, type: a.type, balance: a.balance })),
+          cashAccountIds: new Set(accounts.filter((a) => a.isCash).map((a) => a.id)),
+          firstRecords: accountCoverageFrom(accountRows, firsts).map((a) => a.firstTransaction),
+          settings: {
+            netWorthGoal: settingValue(NET_WORTH_GOAL_KEY),
+            savingsGoals: settingValue(SAVINGS_GOALS_KEY),
+            newPay: settingValue(NEW_PAY_KEY),
+          },
+        });
+
   const contextLabel = latestComplete === null ? null : monthLabel(latestComplete.period);
 
   // "Do this next": each candidate from the code its own page runs, over rows
   // this page already read (goalInputs, recurringAlertsFor, staleAction).
-  const settingValue = (key: string) => settingRows.find((r) => r.key === key)?.value ?? null;
   const inputs = goalInputs({
     monthly,
     period: currentPeriod,
@@ -406,5 +430,6 @@ export async function getOverviewData(): Promise<OverviewData> {
     nextAction: nextAction(nudges, nudgesDone),
     nudges,
     nudgesDone,
+    recap,
   };
 }

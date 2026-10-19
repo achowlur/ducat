@@ -11,6 +11,7 @@ import { STATUS_DOT } from "../lib/ui/providers";
 import { CHIP, COLUMN_HEADER, FIELD_LABEL, PageTitle, SectionTitle } from "../components/ui/headings";
 import { transactionsHref } from "../lib/ui/categoryFilter";
 import { StaleAlert } from "../components/StaleAlert";
+import { MonthRecap } from "../components/MonthRecap";
 import { withDatabaseNotice } from "../components/DatabaseNotice";
 import { DoThisNext } from "../components/DoThisNext";
 import { pollsForBalances } from "../lib/health/health";
@@ -261,6 +262,12 @@ async function renderOverview() {
           </>
         )}
       </section>
+
+      {/* Days 1 to 7 only: the month that just closed, below the net worth
+          row. Stays out of that row's right-hand slot. */}
+      {data.recap !== null && (
+        <MonthRecap recap={data.recap} nudges={reviewItems.map(({ text, href }) => ({ text, href }))} />
+      )}
 
       {/* Explicit placement on desktop so NEEDS REVIEW can be a grid child in
           its own right and still sit under SPENDING in the right column. It
