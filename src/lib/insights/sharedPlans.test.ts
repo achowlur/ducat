@@ -69,11 +69,43 @@ describe("sharedPlan", () => {
     expect(s).toEqual({ share: 37, unsplit: { date: "2026-09-04", amount: BILL, repaid: 0 } });
   });
 
+  it("judges a split by its share of the bill, so a price rise split the same way stays shared and the share follows it", () => {
+    const s = sharedPlan([
+      bill("2026-07-04", 73),
+      bill("2026-08-04", 73),
+      bill("2026-09-04", 86, 129),
+      bill("2026-10-04", 86, 129),
+      bill("2026-11-04", 0, 129),
+    ]);
+    expect(s?.unsplit).toBeNull();
+    expect(s?.share).toBe(43);
+  });
+
+  it("never lets a half-repaid newest bill into the share, in either order", () => {
+    // Settled first, the newest half-repaid: the share is the settled one.
+    expect(sharedPlan([bill("2026-09-04", 2 * THIRD), bill("2026-10-04", THIRD)])?.share).toBe(37);
+    // Once shared, a half-repaid newest bill leaves the share where it was.
+    expect(sharedPlan([bill("2026-08-04", 2 * THIRD), bill("2026-09-04", 2 * THIRD), bill("2026-10-04", THIRD)])?.share).toBe(37);
+    // A settled bill half-repaid, the newest fully repaid: both are real nets,
+    // and between two the larger holds until a third settles.
+    expect(sharedPlan([bill("2026-09-04", THIRD), bill("2026-10-04", 2 * THIRD)])?.share).toBe(73.5);
+  });
+
+  it("needs two repaid bills in a row again after the sharing ended, even when the last short one was part-repaid", () => {
+    const s = sharedPlan([
+      bill("2026-05-04", 2 * THIRD),
+      bill("2026-06-04", 2 * THIRD),
+      bill("2026-07-04"),
+      bill("2026-08-04", THIRD),
+      bill("2026-09-04", 2 * THIRD),
+      bill("2026-10-04"),
+    ]);
+    expect(s).toBeNull();
+  });
+
   it("is the middle of the recent nets, never a mean, and between two the larger", () => {
     const s = sharedPlan([bill("2026-07-04", 2 * THIRD), bill("2026-08-04", 80), bill("2026-09-04", 2 * THIRD), bill("2026-10-04", 2 * THIRD)]);
     expect(s?.share).toBe(37);
-    // Two settled so far, the newest half-repaid: the share does not shrink below what is owed.
-    expect(sharedPlan([bill("2026-09-04", 2 * THIRD), bill("2026-10-04", THIRD)])?.share).toBe(73.5);
   });
 });
 
@@ -188,8 +220,8 @@ describe("the Not split alert", () => {
   it("reads as the operator agreed, with Link repayments and Not shared this month", () => {
     const { shown } = recurringAlerts(livePlans([charge], NO_DECISIONS, NOW), NO_DECISIONS, NOW);
     const alert = shown.find((a) => a.kind === "Not split");
-    expect(alert?.text).toBe("Parcel Mobile's September bill hasn't been split; counting the full $110.00");
-    expect(alert?.detail).toBe("Billed Sep 4, your share ~$37 of $110 as usual");
+    expect(alert?.text).toBe("Parcel Mobile's September bill hasn't been split yet");
+    expect(alert?.detail).toBe("Spending counts it in full until the repayments are linked · your share ~$37 of $110");
     expect(alert?.actions).toEqual([
       { label: "Link repayments", href: "/transactions?flow=INFLOW&period=2026-09..2026-10" },
       { label: "Not shared this month", choice: "unshared" },
@@ -203,9 +235,9 @@ describe("the Not split alert", () => {
     rows.push(txn({ date: utc(2026, 9, 6), amount: THIRD, description: "ZELLE FROM ALEX", normalizedMerchant: "zelle alex", categoryId: null, categoryName: null, reimbursesId: sept.id }));
     const part = { ...detectRecurringCharges(rows).get("parcel mobile")!, accountThrough: "2026-10-18" };
     const { shown } = recurringAlerts(livePlans([part], NO_DECISIONS, NOW), NO_DECISIONS, NOW);
-    expect(shown.find((a) => a.kind === "Not split")?.text).toBe(
-      "Parcel Mobile's September bill hasn't been fully split; counting $73.50 of $110.00",
-    );
+    const alert = shown.find((a) => a.kind === "Not split");
+    expect(alert?.text).toBe("Parcel Mobile's September bill is only part split");
+    expect(alert?.detail).toBe("Spending counts $73.50 of it until the rest is linked · your share ~$37 of $110");
   });
 
   it("Not shared this month records the bill, and the alert is gone", () => {
@@ -249,9 +281,8 @@ describe("the Not split alert", () => {
     };
     const nudges = nudgeCandidates(none);
     const split = nudges.find((n) => n.key.startsWith("recurring:unsplit|"));
-    expect(split?.text).toBe(
-      "Parcel Mobile's September bill hasn't been split; counting the full $110.00: link the repayments, or mark it not shared",
-    );
+    expect(split?.text).toBe("Parcel Mobile's September bill isn't split yet");
+    expect(split?.short).toBe("Parcel Mobile not split");
     expect(split?.kind).toBe("recurring");
     expect(split?.order).toBeGreaterThan(7);
   });

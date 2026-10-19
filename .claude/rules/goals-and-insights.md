@@ -39,8 +39,9 @@ anything below; several entries record "tried and failed, don't retry".
 - A SHARED plan is read from repayments LINKED to its bills, never a typed
   share (insights/sharedPlans.ts, one pure function in the detector, carried
   as RecurringChargePayload.shared): two settled bills in a row repaid makes
-  it shared, its share the MIDDLE of recent settled nets, and every figure
-  reads it through costNow (priceNow stays the bill). Once the next bill
+  it shared, its share the MIDDLE of recent settled nets as a PART of each
+  bill (so a rise split alike stays shared), a half-linked newest bill never
+  in it, and every figure reads it through costNow (priceNow stays the bill). Once the next bill
   arrives a short one counts at bill less repaid and asks "Not split" (Link
   repayments, Not shared this month: decision `unshared`, by bill day); two
   short in a row end the sharing silently. Spending is never netted twice.

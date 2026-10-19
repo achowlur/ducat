@@ -177,10 +177,13 @@ export function nudgeCandidates(s: NudgeSources): Nudge[] {
 
   for (const a of s.recurring) {
     if (a.kind === "Not split") {
+      // Short: the alert on Recurring charges carries the detail and the two
+      // answers, one tap away on Details.
+      const month = a.bill === undefined ? "last" : monthLabel(a.bill.slice(0, 7)).split(" ")[0];
       out.push({
         key: `recurring:${a.id}`,
         kind: "recurring",
-        text: `${a.text}: link the repayments, or mark it not shared`,
+        text: `${titleCase(a.plan)}'s ${month} bill isn't split yet`,
         short: `${titleCase(a.plan)} not split`,
         href: "/insights#recurring-charges",
         asOf: Date.parse(`${a.lastDate}T12:00:00Z`),

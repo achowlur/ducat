@@ -22,11 +22,17 @@ import type { TxnData } from './types';
  *   has arrived. The newest bill with nothing linked is still waiting.
  * - A plan becomes SHARED when two settled bills in a row both had linked
  *   repayments. One repaid bill is a one-off reimbursement, not a split.
- * - A shared plan bills its SHARE: the middle of its last few settled nets,
- *   never a mean (between two, the larger, so a bill half-repaid so far never
- *   shrinks the share below what it costs).
+ * - A shared plan bills its SHARE as a PART of the bill: the middle of its
+ *   last few settled nets, each as a fraction of its own bill, never a mean
+ *   (between two, the larger), times the newest bill. A split is the same
+ *   fraction whatever the price, so a price rise split the same way stays
+ *   shared and the share follows it; dollars fixed at the old price read
+ *   every bill after a rise as short.
+ * - The newest bill joins the sample only once it is repaid as the sample
+ *   expects: half-linked so far, it would raise the share until the second
+ *   repayment lands. It still counts toward two repaid bills in a row.
  * - Fail safe: once the next bill has arrived, a bill repaid less than
- *   expected (bill less the share, within a small tolerance) is UNSPLIT. It
+ *   expected (the bill less its share, within a small tolerance) is UNSPLIT. It
  *   leaves the share's sample and is named so the operator can link the rest
  *   or say it was not shared. Two unsplit bills in a row and the plan is no
  *   longer shared: it goes back to full price with nothing to answer.
@@ -52,9 +58,9 @@ export interface PlanBill {
   repaid: number;
 }
 
-/** The middle of the recent nets; between two, the larger. */
-function middle(nets: number[]): number {
-  const s = nets.slice(-SHARE_SAMPLE).sort((a, b) => a - b);
+/** The middle of the recent parts; between two, the larger. */
+function middle(parts: number[]): number {
+  const s = parts.slice(-SHARE_SAMPLE).sort((a, b) => a - b);
   return s[Math.floor(s.length / 2)];
 }
 
@@ -64,7 +70,8 @@ function middle(nets: number[]): number {
  * charges and what is linked to each.
  */
 export function sharedPlan(bills: readonly PlanBill[]): SharedPlanPayload | null {
-  let nets: number[] = [];
+  // Each settled net as a fraction of its own bill.
+  let parts: number[] = [];
   let shared = false;
   let shortRun = 0;
   let prevSplit = false;
@@ -76,21 +83,28 @@ export function sharedPlan(bills: readonly PlanBill[]): SharedPlanPayload | null
     const split = b.repaid > 0.005;
     // The newest bill with nothing linked yet is waiting, not settled.
     if (newest && !split) break;
-    const net = round2(b.amount - b.repaid);
+    const part = b.amount > 0 ? (b.amount - b.repaid) / b.amount : 1;
+    // Repaid as the sample expects: the bill less its share, within tolerance.
+    const repaidInFull = () =>
+      parts.length > 0 && b.repaid >= b.amount * (1 - middle(parts)) - shortfallTolerance(b.amount);
 
     if (shared) {
-      const expected = b.amount - middle(nets);
       // The newest bill is never judged short: its other repayments may
       // simply not be linked yet. The next bill's arrival is what settles it.
-      const short = !newest && b.repaid < expected - shortfallTolerance(b.amount);
+      if (newest) {
+        if (repaidInFull()) parts.push(part);
+        break;
+      }
+      const short = !repaidInFull();
       if (short) {
         shortRun += 1;
         if (shortRun >= 2) {
           shared = false;
-          nets = [];
+          parts = [];
           shortRun = 0;
           unsplit = null;
-          prevSplit = split;
+          // Sharing starts over from two repaid bills, whatever this one had.
+          prevSplit = false;
           continue;
         }
         unsplit = { date: b.date, amount: round2(b.amount), repaid: round2(b.repaid) };
@@ -98,10 +112,19 @@ export function sharedPlan(bills: readonly PlanBill[]): SharedPlanPayload | null
         // An unsplit bill stays news through the next one (checked below),
         // even once that next bill has its repayments linked.
         shortRun = 0;
-        nets.push(net);
+        parts.push(part);
       }
     } else if (split) {
-      nets = prevSplit ? [...nets, net] : [net];
+      if (newest) {
+        // Two repaid in a row make it shared, but a newest bill linked only
+        // in part never sets the share: that comes from the settled ones.
+        if (prevSplit) {
+          shared = true;
+          if (repaidInFull()) parts.push(part);
+        }
+        break;
+      }
+      parts = prevSplit ? [...parts, part] : [part];
       if (prevSplit) shared = true;
     }
     prevSplit = split;
@@ -112,7 +135,7 @@ export function sharedPlan(bills: readonly PlanBill[]): SharedPlanPayload | null
   // had its cycle to be answered.
   const previous = bills.length >= 2 ? bills[bills.length - 2] : undefined;
   return {
-    share: round2(middle(nets)),
+    share: round2(middle(parts) * bills[bills.length - 1].amount),
     unsplit: unsplit !== null && previous !== undefined && unsplit.date === previous.date ? unsplit : null,
   };
 }

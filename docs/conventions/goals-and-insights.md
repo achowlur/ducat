@@ -813,8 +813,16 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   bill is settled once something is linked, or once the next bill arrives;
   two settled bills in a row with links make a plan shared, one does not (a
   one-off reimbursement); the share is the middle of the last three settled
-  nets, the larger between two, so a bill half-repaid so far never shrinks
-  it. Fail safe: the newest bill counts at the share while it waits, and
+  nets, each as a PART of its own bill (the larger between two), times the
+  newest bill. Review found three holes, each now pinned: dollars fixed at
+  the old price read every bill after a rise as short (a $110 plan rising
+  to $129, repaid $43 + $43, raised a false alert, and two of them ended
+  the sharing); a newest bill linked only in part entered the sample, and
+  between two the larger set the share near two thirds of the bill until
+  the second repayment landed; and the reset after two short bills kept the
+  last bill's "repaid", so one repaid bill re-shared the plan. The wording
+  is literally true: only SPENDING counts an unsplit bill in full, while
+  the subscription figures keep the share. Fail safe: the newest bill counts at the share while it waits, and
   once the next one is in, a bill repaid less than bill less share (within
   $1 or 2%) leaves the sample, counts at the bill less what WAS repaid, and
   raises "Not split" with Link repayments (the ledger's money in over that

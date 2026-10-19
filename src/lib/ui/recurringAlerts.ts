@@ -24,6 +24,8 @@ export interface RecurringAlert {
   daysAway: number | null;
   /** The plan's last charge ("2026-10-03"): a newer one is new data about it. */
   lastDate: string;
+  /** Not split: the day of the bill it is about. */
+  bill?: string;
 }
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -113,16 +115,20 @@ export function recurringAlerts(
     const unsplit = missed === null ? notSplitNews(plan, d) : null;
     if (unsplit !== null && plan.shared !== undefined) {
       const bill = new Date(`${unsplit.date}T12:00:00Z`);
+      // Literally true: SPENDING counts the bill less what was repaid; the
+      // subscription figures keep billing the share.
       const counted = Math.round((unsplit.amount - unsplit.repaid) * 100) / 100;
+      const month = MONTH_NAMES[bill.getUTCMonth()];
+      const share = yourShare(plan.shared.share, priceNow(plan));
       all.push({
         id: `unsplit|${plan.merchant}|${unsplit.date}`,
         plan: plan.merchant,
         kind: "Not split",
-        text:
+        text: unsplit.repaid > 0 ? `${name}'s ${month} bill is only part split` : `${name}'s ${month} bill hasn't been split yet`,
+        detail:
           unsplit.repaid > 0
-            ? `${name}'s ${MONTH_NAMES[bill.getUTCMonth()]} bill hasn't been fully split; counting ${money(counted)} of ${money(unsplit.amount)}`
-            : `${name}'s ${MONTH_NAMES[bill.getUTCMonth()]} bill hasn't been split; counting the full ${money(unsplit.amount)}`,
-        detail: `Billed ${shortDate(bill)}, ${yourShare(plan.shared.share, unsplit.amount)} as usual`,
+            ? `Spending counts ${money(counted)} of it until the rest is linked · ${share}`
+            : `Spending counts it in full until the repayments are linked · ${share}`,
         actions: [
           { label: "Link repayments", href: linkRepaymentsHref(unsplit.date) },
           { label: "Not shared this month", choice: "unshared" },
@@ -130,6 +136,7 @@ export function recurringAlerts(
         stake,
         daysAway: null,
         lastDate: plan.lastDate,
+        bill: unsplit.date,
       });
     }
   }
