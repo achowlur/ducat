@@ -3,8 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "../../lib/prisma";
 import { requireSession } from "../../lib/auth/requireSession";
-import type { ActionResult } from "../../lib/actionResult";
 import { SAVINGS_GOALS_KEY, withGoalPace } from "../../lib/insights/goals";
+import { databaseRefusal, refuse, type ActionResult } from "../../lib/actionResult";
+import type { RecurringChargePayload } from "../../types/contracts";
+import { periodKey } from "../../lib/insights/periods";
+import {
+  decide,
+  livePlans,
+  parseDecisions,
+  RECURRING_DECISIONS_KEY,
+  type Choice,
+} from "../../lib/ui/recurringDecisions";
 import { NEW_PAY_KEY, parseNewPay } from "../../lib/ui/payLevel";
 import {
   NET_WORTH_GOAL_KEY,
@@ -85,14 +94,60 @@ export async function saveSavingsGoalPace(input: {
   monthlyPace: number | null;
 }): Promise<ActionResult> {
   await requireSession();
-  const row = await prisma.setting.findUnique({ where: { key: SAVINGS_GOALS_KEY } });
-  const next = withGoalPace(row?.value ?? null, input.id, input.monthlyPace);
-  if (!next.ok) return next;
-  await prisma.setting.upsert({
-    where: { key: SAVINGS_GOALS_KEY },
-    create: { key: SAVINGS_GOALS_KEY, value: next.value },
-    update: { value: next.value },
-  });
+  try {
+    const row = await prisma.setting.findUnique({ where: { key: SAVINGS_GOALS_KEY } });
+    const next = withGoalPace(row?.value ?? null, input.id, input.monthlyPace);
+    if (!next.ok) return next;
+    await prisma.setting.upsert({
+      where: { key: SAVINGS_GOALS_KEY },
+      create: { key: SAVINGS_GOALS_KEY, value: next.value },
+      update: { value: next.value },
+    });
+  } catch (error) {
+    const refusal = databaseRefusal(error);
+    if (refusal !== null) return refusal;
+    throw error;
+  }
   revalidatePath("/insights");
   return { ok: true };
+}
+
+/**
+ * An alert's button on Recurring charges (components/RecurringAlerts): keep a
+ * price rise, say a plan is still charging, or mark it cancelled. The decision
+ * is stored in a Setting and changes what the page shows and counts; it never
+ * touches a transaction. The plan is looked up in this month's recurring rows
+ * on the server, so a stale page is refused in a sentence, never trusted.
+ */
+export async function decideRecurring(input: { plan: string; choice: Choice }): Promise<ActionResult<{ message: string }>> {
+  await requireSession();
+  if (typeof input.plan !== "string" || input.plan === "" || input.plan.length > 200) {
+    return refuse("That plan could not be read.");
+  }
+  if (input.choice !== "keep" && input.choice !== "still" && input.choice !== "cancel") {
+    return refuse("That answer could not be read.");
+  }
+  const now = new Date();
+  try {
+    const [rows, setting] = await Promise.all([
+      prisma.insight.findMany({ where: { type: "RECURRING_CHARGE", period: periodKey(now, "MONTH") } }),
+      prisma.setting.findUnique({ where: { key: RECURRING_DECISIONS_KEY } }),
+    ]);
+    const decisions = parseDecisions(setting?.value ?? null);
+    const plans = livePlans(rows.map((r) => r.payload as unknown as RecurringChargePayload), decisions, now);
+    const next = decide(input.choice, input.plan, plans, decisions, now);
+    if (!next.ok) return next;
+    const value = JSON.stringify(next.decisions);
+    await prisma.setting.upsert({
+      where: { key: RECURRING_DECISIONS_KEY },
+      create: { key: RECURRING_DECISIONS_KEY, value },
+      update: { value },
+    });
+  } catch (error) {
+    const refusal = databaseRefusal(error);
+    if (refusal !== null) return refusal;
+    throw error;
+  }
+  revalidatePath("/insights");
+  return { ok: true, message: "Saved." };
 }

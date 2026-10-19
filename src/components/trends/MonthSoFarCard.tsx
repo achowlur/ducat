@@ -8,6 +8,8 @@ import { ChartReadout, TimeChart, type TimeSeries } from "../charts/report/TimeC
 import { CardFrame, CardLink, Fold, Note } from "./CardFrame";
 import { useCardView, ViewSwitch } from "./ViewSwitch";
 import { COLUMN_HEADER } from "../ui/headings";
+import { OverPaceAlert } from "../OverPaceAlert";
+import type { Pace } from "../../lib/insights/pace";
 
 const TH = `py-1 ${COLUMN_HEADER}`;
 
@@ -25,7 +27,7 @@ function fullMonth(period: string): string {
  * The readout IS the card's answer, opening on today: a sentence above it
  * stating the same three figures said everything twice.
  */
-export function MonthSoFarCard({ data, initialView }: { data: MonthSoFar; initialView: AView }) {
+export function MonthSoFarCard({ data, pace, initialView }: { data: MonthSoFar; pace: Pace | null; initialView: AView }) {
   const [view, setView] = useCardView<AView>("a", initialView);
   // The pace says HOW MUCH; the next question is ON WHAT. One step to the
   // comparison that answers it, keeping every other card's question.
@@ -130,6 +132,8 @@ export function MonthSoFarCard({ data, initialView }: { data: MonthSoFar; initia
           ariaLabel={`Spending each day of ${now} against ${before}`}
         />
       )}
+      {/* The same alert /insights shows, from the same overPace call. */}
+      <OverPaceAlert pace={pace} month={now} />
       {/* The one thing to discount stays in view; how to read the rest is behind a tap. */}
       {lagging && (
         <Note>

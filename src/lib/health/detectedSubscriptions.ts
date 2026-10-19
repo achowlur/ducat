@@ -20,6 +20,8 @@ export interface DetectedCharge {
   lastAmount: number;
   /** Today's price run (RecurringChargePayload.currentAmount); absent on older rows. */
   currentAmount?: number;
+  /** The price before today's (RecurringChargePayload.previousAverageAmount). */
+  previousAverageAmount?: number | null;
   lastDate: string;
   occurrences: number;
   priceIncreased: boolean;
@@ -30,6 +32,8 @@ export interface DetectedCharge {
 export interface DetectedSubscription extends DetectedCharge {
   /** True when a registered TrackedSubscription already covers this merchant. */
   tracked: boolean;
+  /** Every merchant string folded into this plan (lowercased); absent on a hand-built one. */
+  members?: string[];
 }
 
 /**
@@ -145,13 +149,26 @@ export function mergeDetectedSubscriptions(
       priceIncreased: existing.priceIncreased || charge.priceIncreased,
       // The newest charge's account is where the next one is expected.
       ...(charge.lastDate > existing.lastDate
-        ? { lastDate: charge.lastDate, accountThrough: charge.accountThrough, currentAmount: charge.currentAmount }
+        ? {
+            lastDate: charge.lastDate,
+            accountThrough: charge.accountThrough,
+            currentAmount: charge.currentAmount,
+            previousAverageAmount: charge.previousAverageAmount,
+          }
         : {}),
     });
   }
 
-  return [...byKey.values()]
-    .map((c) => ({ ...c, tracked: tracked.includes(brandOf(c.merchant)) }))
+  // Every string a plan was folded from, so a decision about the plan reaches
+  // each of them (ui/recurringDecisions.ts) and not only the surviving name.
+  const membersByKey = new Map<string, string[]>();
+  for (const charge of detected) {
+    const key = dedupeKey(charge);
+    membersByKey.set(key, [...(membersByKey.get(key) ?? []), charge.merchant.trim().toLowerCase()]);
+  }
+
+  return [...byKey.entries()]
+    .map(([key, c]) => ({ ...c, tracked: tracked.includes(brandOf(c.merchant)), members: [...new Set(membersByKey.get(key))] }))
     // Price changes first — they're the reason to look — then by cost.
     .sort((a, b) =>
       Number(b.priceIncreased) - Number(a.priceIncreased) || b.averageAmount - a.averageAmount,

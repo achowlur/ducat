@@ -22,6 +22,7 @@ import {
   type Measure,
   type Span,
 } from "../../lib/ui/report";
+import { getCurrentPace } from "../../lib/ui/currentPace";
 import { getTrendsSource, type TrendsSource } from "../../lib/ui/trends";
 import { parseTrendsParams, targetParam, type RawSearch } from "../../lib/ui/trendsParams";
 
@@ -76,11 +77,11 @@ function resolveTarget(
 }
 
 async function renderTrends({ searchParams }: { searchParams: Promise<RawSearch> }) {
-  const [raw, jar, source] = await Promise.all([searchParams, cookies(), getTrendsSource()]);
-  const params = parseTrendsParams(raw, (name) => jar.get(name)?.value);
   // ONE `now` for every card, or a render straddling midnight UTC could put
   // two cards in different months.
   const now = new Date();
+  const [raw, jar, source, pace] = await Promise.all([searchParams, cookies(), getTrendsSource(), getCurrentPace(now)]);
+  const params = parseTrendsParams(raw, (name) => jar.get(name)?.value);
   const { entries } = source;
 
   if (entries.length === 0) {
@@ -148,7 +149,7 @@ async function renderTrends({ searchParams }: { searchParams: Promise<RawSearch>
   return (
     <div className="grid gap-10 py-5">
       <PageTitle>Trends</PageTitle>
-      <MonthSoFarCard data={monthSoFar(entries, now)} initialView={params.a.view} />
+      <MonthSoFarCard data={monthSoFar(entries, now)} pace={pace} initialView={params.a.view} />
       <ChangeCard
         comparison={comparison}
         span={params.b.span}

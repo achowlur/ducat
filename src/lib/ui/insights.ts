@@ -45,7 +45,10 @@ import {
 import { NEW_PAY_KEY, parseNewPay, payLevels } from "./payLevel";
 import { getAccountCoverage, getPeriodCoverage } from "./coverage";
 import { monthlyRows, ofType } from "./insightRows";
+import { priorPeriods } from "./currentPace";
 import { selectPeriod } from "./periodNav";
+import { isCancelled, livePlans, parseDecisions, riseKept, RECURRING_DECISIONS_KEY, type Decisions } from "./recurringDecisions";
+import { recurringAlerts, type RecurringAlert } from "./recurringAlerts";
 import { higherThan, money, monthLabel, shortDate, shortDateYear, titleCase } from "./format";
 
 export interface InsightRow {
@@ -86,6 +89,12 @@ export interface InsightsPageData {
    */
   groups: { title: string; note: string | null; rows: InsightRow[] }[];
   dismissedCount: number;
+  /**
+   * What on Recurring charges asks the reader to act (ui/recurringAlerts.ts):
+   * the first two in view, the rest folded. Empty for a past month and when
+   * nothing needs an answer, which is the usual state.
+   */
+  recurringAlerts: { shown: RecurringAlert[]; folded: RecurringAlert[] };
   /**
    * What is already committed over the next 30 days — the one forward-looking
    * figure on the page.
@@ -297,6 +306,7 @@ function toRow(
   row: { id: string; type: string; payload: unknown; dismissed: boolean },
   isRegistered: (merchant: string) => boolean,
   asOf: Date,
+  decisions: Decisions,
   year: number,
   /** Now, while the month on screen is the one being lived in; null for a past month. */
   now: Date | null,
@@ -306,7 +316,7 @@ function toRow(
     return { id: row.id, type: "ANOMALY", dismissed: row.dismissed, chip: null, tone: "neg", text: renderAnomaly(p), facts: [] };
   }
   const p = row.payload as RecurringChargePayload;
-  const lapsed = !isActive(p, asOf);
+  const lapsed = !isActive(p, asOf) || isCancelled(p, decisions);
   // A lapsed row has already moved under "No longer charging", which
   // says more than "missed" could.
   const missed = lapsed ? null : missedCharge(p, asOf);
@@ -343,7 +353,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     // statement — on Turso the count of round trips is the cost, so four
     // findUniques would pay for three reads nobody needs.
     prisma.setting.findMany({
-      where: { key: { in: [SAVINGS_GOALS_KEY, NET_WORTH_GOAL_KEY, HOUSE_READINESS_KEY, MORTGAGE_RATE_KEY, NEW_PAY_KEY] } },
+      where: { key: { in: [SAVINGS_GOALS_KEY, NET_WORTH_GOAL_KEY, HOUSE_READINESS_KEY, MORTGAGE_RATE_KEY, NEW_PAY_KEY, RECURRING_DECISIONS_KEY] } },
     }),
     // Balances for the goal funds. Unconditional rather than gated on the
     // setting existing: a gate costs about its own round trip anyway, and
@@ -364,6 +374,9 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     }),
   ]);
   const settingValue = (key: string) => settingRows.find((r) => r.key === key)?.value ?? null;
+  // What the operator answered on Recurring charges' alerts: a cancelled plan
+  // is treated as a lapsed one everywhere below.
+  const decisions = parseDecisions(settingValue(RECURRING_DECISIONS_KEY));
   const selection = selectPeriod(
     monthlyRows(insightRows).map((r) => r.period),
     requestedPeriod,
@@ -391,7 +404,8 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     Math.min(periodEndExclusive(period).getTime() - 1, Date.now()),
   );
   const lapsed = (row: { type: string; payload: unknown }) =>
-    row.type === "RECURRING_CHARGE" && !isActive(row.payload as RecurringChargePayload, asOf);
+    row.type === "RECURRING_CHARGE" &&
+    (!isActive(row.payload as RecurringChargePayload, asOf) || isCancelled(row.payload as RecurringChargePayload, decisions));
   // A day in this year prints without one (renderRecurring).
   const year = Number(period.slice(0, 4));
 
@@ -412,7 +426,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     note: null as string | null,
     rows: inPeriod
       .filter((r) => r.type === g.type && !lapsed(r))
-      .map((r) => toRow(r, isRegistered, asOf, year, viewingNow ? now : null))
+      .map((r) => toRow(r, isRegistered, asOf, decisions, year, viewingNow ? now : null))
       .sort((a, b) => Number(a.dismissed) - Number(b.dismissed)),
   }));
   groups.push({
@@ -420,7 +434,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     note: null,
     rows: inPeriod
       .filter(lapsed)
-      .map((r) => toRow(r, isRegistered, asOf, year, null))
+      .map((r) => toRow(r, isRegistered, asOf, decisions, year, null))
       .sort((a, b) => Number(a.dismissed) - Number(b.dismissed)),
   });
 
@@ -432,7 +446,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   const detected = mergeDetectedSubscriptions(ofType<DetectedCharge>(monthly, "RECURRING_CHARGE").map((r) => r.payload));
   const commitments =
     viewingCurrentPeriod && (detected.length > 0 || registered.length > 0)
-      ? upcomingCommitments(detected, registered, now)
+      ? upcomingCommitments(detected, registered, now, 30, (sub) => isCancelled(sub, decisions))
       : null;
 
   // What the live recurring set costs a year. It moved here when Overview
@@ -482,17 +496,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // period counts as incomplete and the pace call would go dark for months.
   const spendingRows = ofType<SpendingByCategoryPayload>(monthly, "SPENDING_BY_CATEGORY");
   const thisPeriod = spendingRows.find((r) => r.period === period);
-  const priors = spendingRows
-    .filter((r) => r.period < period)
-    .map((r) => {
-      const c = coverageOf(r.period);
-      return {
-        period: r.period,
-        total: r.payload.totalSpending,
-        coverage: c === null ? undefined : { covered: c.covered, total: c.total },
-        everydayAfterDay: r.payload.everydayAfterDay,
-      };
-    });
+  const priors = priorPeriods(spendingRows, period, coverageOf);
 
   // Same comparability gate as the pace call, from the same function: two
   // answers to "is this month comparable?" on one screen would be one too many.
@@ -504,6 +508,20 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     })
     .map((r) => r.payload);
 
+  const alerts = viewingCurrentPeriod
+    ? recurringAlerts(
+        livePlans(
+          inPeriod
+            .filter((r) => r.type === "RECURRING_CHARGE" && !r.dismissed)
+            .map((r) => r.payload as unknown as DetectedCharge),
+          decisions,
+          asOf,
+        ),
+        decisions,
+        now,
+      )
+    : { shown: [], folded: [] };
+
   const digestItems = computeDigest({
     spending: thisPeriod?.payload ?? null,
     priorSpending: comparablePriors,
@@ -511,7 +529,9 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     // statement that it does not need attention.
     recurring: inPeriod
       .filter((r) => r.type === "RECURRING_CHARGE" && !r.dismissed && !lapsed(r))
-      .map((r) => r.payload as unknown as RecurringChargePayload),
+      .map((r) => r.payload as unknown as RecurringChargePayload)
+      // A rise the operator kept is no longer news, here or in the alerts.
+      .map((p) => (riseKept(p, decisions) ? { ...p, priceIncreased: false } : p)),
     anomalies: inPeriod
       .filter((r) => r.type === "ANOMALY" && !r.dismissed)
       .map((r) => r.payload as unknown as AnomalyPayload),
@@ -575,7 +595,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     // rolling 30 days above — it is the floor under this month's projection,
     // not the same question.
     const daysLeft = Math.max(0, Math.ceil((periodEnd.getTime() - now.getTime()) / 86_400_000));
-    const dueBeforeMonthEnd = upcomingCommitments(detected, registered, now, daysLeft).total;
+    const dueBeforeMonthEnd = upcomingCommitments(detected, registered, now, daysLeft, (sub) => isCancelled(sub, decisions)).total;
     pace = computePace({
       period,
       now,
@@ -794,6 +814,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     isCurrentPeriod: viewingCurrentPeriod,
     groups: groups.filter((g) => g.rows.length > 0),
     dismissedCount: inPeriod.filter((r) => r.dismissed && SHOWN_TYPES.has(r.type)).length,
+    recurringAlerts: alerts,
     commitments,
     pace,
     coverage: shown !== null && !shown.complete ? shown : null,
