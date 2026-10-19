@@ -562,12 +562,12 @@ async function renderInsights({
         <section>
           <SectionTitle>Goals</SectionTitle>
           {data.netWorthGoal !== null && (
-            <div className="border-b border-rule pb-4">
+            <div id="net-worth-goal" className="border-b border-rule pb-4">
               <NetWorthGoalPanel g={data.netWorthGoal} />
             </div>
           )}
           {data.goals.map((g, i) => (
-            <div key={g.goal.id} className="border-b border-rule py-4 last:border-b-0">
+            <div key={g.goal.id} id={`goal-${g.goal.id}`} className="border-b border-rule py-4 last:border-b-0">
               <SavingsGoalCard
                 g={g}
                 history={data.goalHistory[g.goal.id] ?? []}
@@ -600,7 +600,7 @@ async function renderInsights({
           next 30 days are totalled at the top, and plans that stopped fold
           away at the foot. Three sections said this before. */}
       {(recurring.length > 0 || lapsed.length > 0 || declared.length > 0) && (
-        <section>
+        <section id="recurring-charges">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3">
             <SectionTitle>Recurring charges</SectionTitle>
             {recurringNote !== null && (

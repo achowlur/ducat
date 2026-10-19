@@ -8,7 +8,7 @@ import { wholePercents } from "../lib/ui/spendingBreakdown";
 import {
   ASSUMED_INFLATION_PCT,
   goalPath,
-  keepingUp,
+  keepingUpOf,
   NET_WORTH_HORIZON_MONTHS,
   NET_WORTH_PACE_MIN_MONTHS,
   NET_WORTH_PACE_MONTHS,
@@ -314,10 +314,7 @@ export function NetWorthGoalPanel({ g }: { g: NetWorthGoalAssessment }) {
     const then = projection.markets !== null ? moved.markets?.lands : moved.saving.lands;
     return now === null || then === null || then === undefined ? 0 : monthsBetween(then, now);
   })();
-  const keeping =
-    invest === null && g.contribution !== null && g.contribution > 0 && (g.contributionYearAgo ?? 0) > 0
-      ? keepingUp(g.contribution, g.contributionYearAgo!)
-      : null;
+  const keeping = keepingUpOf(g, invest);
 
   return (
     <div className="text-[0.85rem]">

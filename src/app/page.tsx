@@ -13,6 +13,8 @@ import { transactionsHref } from "../lib/ui/categoryFilter";
 import { StaleAlert } from "../components/StaleAlert";
 import { MonthRecap } from "../components/MonthRecap";
 import { withDatabaseNotice } from "../components/DatabaseNotice";
+import { DoThisNext } from "../components/DoThisNext";
+import { pollsForBalances } from "../lib/health/health";
 
 export const dynamic = "force-dynamic";
 // Server Actions run under their page's budget, and "Sync now" calls the same
@@ -93,9 +95,14 @@ async function renderOverview() {
   // Derived from fields the page already has — no extra query. Urgent first,
   // and uncategorized rows outrank a stale balance because they silently
   // understate every spending total while a stale balance is merely old.
-  const behind = data.accounts.filter((a) => a.stale || a.balanceLagDays >= STALE_DISPLAY_DAYS);
+  // What "Do this next" leads with is not printed again in the review panel
+  // or the accounts' stale alert: one finding, one place on the screen.
+  const leadKind = data.nextAction.lead?.kind ?? null;
+  const behind = data.accounts.filter(
+    (a) => (a.stale || a.balanceLagDays >= STALE_DISPLAY_DAYS) && !(leadKind === "stale" && pollsForBalances(a.connectorType)),
+  );
   const reviewItems: ReviewItem[] = [
-    ...(data.uncategorizedCount > 0
+    ...(data.uncategorizedCount > 0 && leadKind !== "uncategorized"
       ? [
           {
             text: `${data.uncategorizedCount} uncategorized transaction${data.uncategorizedCount === 1 ? "" : "s"}`,
@@ -110,7 +117,7 @@ async function renderOverview() {
     // P2P payments never categorize on their own, so this is a queue to work,
     // not a backlog a rule will clear — and the one kind of review that no
     // longer shrinks without a person, which is why it is stated here too.
-    ...(data.p2pToConfirmCount > 0
+    ...(data.p2pToConfirmCount > 0 && leadKind !== "p2p"
       ? [
           {
             text: `${data.p2pToConfirmCount} P2P payment${data.p2pToConfirmCount === 1 ? "" : "s"} to confirm`,
@@ -137,6 +144,12 @@ async function renderOverview() {
         ]
       : []),
   ];
+
+  const doThisNext = (
+    <div className="max-md:mt-3 md:col-start-2 md:row-span-3 md:row-start-1 md:self-start md:pt-1">
+      <DoThisNext next={data.nextAction} checked={data.accounts.length > 0} />
+    </div>
+  );
 
   return (
     <>
@@ -169,10 +182,20 @@ async function renderOverview() {
           ledger totals at the FOOT of the column it sums, and the band sitting
           between the headline and the accounts read as an interruption of the
           two things it belongs between. */}
-      <section className="pt-5">
-        <SectionTitle>Net worth</SectionTitle>
+      {/* Net worth on the left and "Do this next" on the right from md; below
+          md the slot sits directly under the headline figure, above the month's
+          context and everything else, because a phone's first screen is the
+          headline and whatever follows it. The DOM is in phone order, so it is
+          also the reading order; md places the slot by grid position. */}
+      <section className="pt-5 md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] md:gap-x-7">
+        <div className="md:col-start-1">
+          <SectionTitle>Net worth</SectionTitle>
+        </div>
         {data.accounts.length === 0 ? (
-          <p className="text-faint">No accounts yet. Run a sync or import a CSV, then generate insights.</p>
+          <>
+            <p className="text-faint md:col-start-1">No accounts yet. Run a sync or import a CSV, then generate insights.</p>
+            {doThisNext}
+          </>
         ) : (
           <>
             {/* LIVE: the plain signed sum of the balances below — the sign
@@ -180,12 +203,13 @@ async function renderOverview() {
                 month-over-month context below carries its own, because the two
                 are different instants: a July figure over today's balances
                 read as one state and drifted apart all month. */}
-            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 md:col-start-1">
               <span className="font-money text-[2.1rem] tabular">{money(data.liveNetWorth)}</span>
             </div>
+            {doThisNext}
             {ctx !== null &&
               (ctx.growthRate !== null || hasMarketLine || ctx.estimatedCount > 0 || ctx.leftOutCount > 0) && (
-                <div className="mt-1 text-[0.78rem] text-faint">
+                <div className="mt-1 text-[0.78rem] text-faint max-md:mt-3 md:col-start-1">
                   {/* The delta is the one line in view; what moved it, and what
                       the month estimates or leaves out, waits behind a tap. */}
                   <p>
@@ -260,6 +284,7 @@ async function renderOverview() {
         <section className="py-5 md:col-start-1 md:row-span-2 md:row-start-1 md:pr-7">
           <SectionTitle>Accounts</SectionTitle>
           <div className="mb-3 empty:hidden">
+            {leadKind !== "stale" && (
             <StaleAlert
               accounts={data.accounts.map((a) => ({
                 name: a.name,
@@ -268,6 +293,7 @@ async function renderOverview() {
                 behind: a.stale || a.balanceLagDays >= STALE_DISPLAY_DAYS,
               }))}
             />
+            )}
           </div>
           <table className="w-full border-collapse">
             <thead>
@@ -465,7 +491,9 @@ async function renderOverview() {
             <SectionTitle>Needs review</SectionTitle>
             {reviewItems.length === 0 ? (
               <p className="text-[0.85rem] text-faint">
-                Nothing needs review: every transaction is categorized and every balance is current.
+                {leadKind === "uncategorized" || leadKind === "p2p" || leadKind === "stale"
+                  ? "Nothing else needs review."
+                  : "Nothing needs review: every transaction is categorized and every balance is current."}
               </p>
             ) : (
               <ul className="grid gap-2">

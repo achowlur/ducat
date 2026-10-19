@@ -1430,6 +1430,33 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   insight payloads, so renaming one is an insight regeneration (npm run
   upgrade on the cloud), never a category migration.
 
+- DO THIS NEXT (2026-10-19). Every page had grown its own action lines (idle
+  cash and investing behind inflation on the net worth goal, BEHIND on a
+  savings goal, Recurring charges' alerts, the stale alert, the review queue),
+  and the front page named only the review queue. Overview's net worth row now
+  leads with ONE of them, the next two named in a "Then:" line. The ranking is
+  one table in lib/ui/nextAction.ts, because the order is the whole decision:
+  a price rise renewing within 7 days, then a goal set to land late (both have
+  a date that does not wait), then idle money (cash earning nothing, a deposit
+  losing to inflation: a little each month, nothing lost by a week), then
+  tidying in the review panel's own order and reason. Each candidate is the
+  figure its own page prints, through the same code: the /insights loader's
+  goal inputs moved into goalInputs.ts so both pages build them once, the
+  keeping-up and BEHIND conditions moved out of their components
+  (keepingUpOf, shortfallOf), and the alerts come from recurringAlertsFor. A
+  second derivation would have been a second answer on another screen.
+  Mark done needed a rule for when the nudge comes back. "The next sync" was
+  wrong for money: SimpleFIN's balances lag a day or two, so the first sync
+  after moving cash still carries the old balance and would show the nudge
+  again. It waits for the data the nudge stands on to be NEWER than the click
+  (an account's balanceDate, a plan's last charge, the newest import, the next
+  month-end for a monthly deposit); then the data decides, and an entry whose
+  nudge resolved is dropped on the next write. The slot never moves money and
+  no sentence says it could. Cost: no new round trip. The insight read widened
+  in the SAME statement (net worth and cash flow to 24 months, since the
+  keeping-up check compares a deposit with a year earlier, plus this month's
+  recurring charges) and one Settings read joined the concurrent group.
+
 - THE MONTHLY RECAP (2026-10-18). On days 1 to 7 Overview states the month
   that closed: Spent, Net worth and the goal, three figures under the net
   worth row and a tap for the category furthest over typical and the nudges

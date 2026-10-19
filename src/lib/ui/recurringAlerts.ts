@@ -1,6 +1,6 @@
-import { annualisedTotal, nextChargeOf, type DetectedSubscription } from "../health/detectedSubscriptions";
+import { annualisedTotal, nextChargeOf, type DetectedCharge, type DetectedSubscription } from "../health/detectedSubscriptions";
 import { priceNow } from "../insights/recurring";
-import { missedNews, riseKept, type Choice, type Decisions } from "./recurringDecisions";
+import { livePlans, missedNews, riseKept, type Choice, type Decisions } from "./recurringDecisions";
 import { money, shortDate, shortDateYear, titleCase } from "./format";
 
 /** How many alerts are in view; any more fold behind a tap. */
@@ -20,6 +20,10 @@ export interface RecurringAlert {
   actions: { label: string; choice: Choice }[];
   /** What the plan costs a year: the order the alerts rank by. */
   stake: number;
+  /** Days to the next charge, for a price rise; null for a missed charge, which has none due. */
+  daysAway: number | null;
+  /** The plan's last charge ("2026-10-03"): a newer one is new data about it. */
+  lastDate: string;
 }
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -60,6 +64,8 @@ export function recurringAlerts(
           { label: "Cancelled", choice: "cancel" },
         ],
         stake,
+        daysAway: null,
+        lastDate: plan.lastDate,
       });
     } else if (plan.priceIncreased && !riseKept(plan, d)) {
       const was = plan.previousAverageAmount ?? null;
@@ -77,9 +83,26 @@ export function recurringAlerts(
           { label: "Cancelled", choice: "cancel" },
         ],
         stake,
+        daysAway: next.daysAway,
+        lastDate: plan.lastDate,
       });
     }
   }
   all.sort((a, b) => b.stake - a.stake || (a.id < b.id ? -1 : 1));
   return { shown: all.slice(0, ALERTS_IN_VIEW), folded: all.slice(ALERTS_IN_VIEW) };
+}
+
+/**
+ * The alerts for a month's recurring rows, as Recurring charges opens with
+ * them: the live plans (cancelled and lapsed ones out, merged as the totals
+ * merge them) as of `asOf`, judged at `now`. Overview's "Do this next" reads
+ * the same list, so the two pages cannot disagree on what is news.
+ */
+export function recurringAlertsFor(
+  charges: DetectedCharge[],
+  d: Decisions,
+  asOf: Date,
+  now: Date,
+): { shown: RecurringAlert[]; folded: RecurringAlert[] } {
+  return recurringAlerts(livePlans(charges, d, asOf), d, now);
 }
