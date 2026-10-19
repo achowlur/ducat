@@ -3,10 +3,10 @@
 import { useRef, useState, useTransition } from "react";
 import { saveSavingsGoalPace } from "../../app/insights/actions";
 import {
-  extraToLand,
   GOAL_RATE_MIN_MONTHS,
   monthsAfterTarget,
   projectLanding,
+  shortfallOf,
   type GoalAssessment,
 } from "../../lib/insights/goals";
 import type { RecentMonths } from "../../lib/insights/recentMonths";
@@ -94,9 +94,7 @@ export function SavingsGoalCard({
       : [];
 
   // What the SAVED pace asks to land by the target month, when it lands after.
-  const shortfall = canSet
-    ? extraToLand({ remaining: g.remaining, rate: committed, targetMonth: g.goal.targetMonth, nowMs: g.nowMs })
-    : null;
+  const shortfall = shortfallOf(g, paceSet);
   const suggested = shortfall === null ? null : Math.round(committed + shortfall.extra);
   const fieldValue = paceSet ?? suggested ?? measured ?? 0;
 

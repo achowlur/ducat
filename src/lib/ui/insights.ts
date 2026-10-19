@@ -2,7 +2,6 @@ import type {
   AnomalyPayload,
   CashFlowTrendPayload,
   InsightType,
-  NetWorthGrowthPayload,
   RecurringChargePayload,
   SpendingByCategoryPayload,
 } from "../../types/contracts";
@@ -19,7 +18,7 @@ import { upcomingCommitments, type UpcomingCommitments } from "../health/commitm
 import { getSubscriptionStatuses, matchesSubscription } from "../health/subscriptions";
 import { computePace, isComparableBaseline, type Pace } from "../insights/pace";
 import { anomalyDedupeKey, computeDigest, explainedByOneOffs, type DigestItem } from "../insights/digest";
-import { assessGoals, GOAL_RATE_MONTHS, parseGoals, SAVINGS_GOALS_KEY, type GoalAssessment } from "../insights/goals";
+import { GOAL_RATE_MONTHS, parseGoals, SAVINGS_GOALS_KEY, type GoalAssessment } from "../insights/goals";
 import {
   assessReadiness,
   HOUSE_READINESS_KEY,
@@ -31,24 +30,24 @@ import {
 import { MORTGAGE_RATE_KEY, parseMortgageRate } from "../rates/mortgageRate";
 import { DEFAULT_RECURRING_OPTIONS, priceNow } from "../insights/recurring";
 import { periodCoverage, type PeriodCoverage } from "../insights/coverage";
-import { recentMonths, type RecentMonths } from "../insights/recentMonths";
+import type { RecentMonths } from "../insights/recentMonths";
 import { periodEndExclusive, periodKey, periodStart } from "../insights/periods";
 import { tripsForPeriod, type TripRow } from "./trips";
-import { countsAsCash, readCashAccountIds } from "./liquidity";
+import { readCashAccountIds } from "./liquidity";
 import { fundGrowthOver, fundHistory } from "./goalFunds";
 import {
-  assessNetWorthGoal,
   NET_WORTH_GOAL_KEY,
   parseNetWorthGoal,
   type NetWorthGoalAssessment,
 } from "./netWorthGoal";
-import { NEW_PAY_KEY, parseNewPay, payLevels } from "./payLevel";
+import { NEW_PAY_KEY, parseNewPay } from "./payLevel";
+import { goalInputs, netWorthGoalFrom, savingsGoalsFrom } from "./goalInputs";
 import { getAccountCoverage, getPeriodCoverage } from "./coverage";
 import { monthlyRows, ofType } from "./insightRows";
 import { priorPeriods } from "./currentPace";
 import { selectPeriod } from "./periodNav";
-import { isCancelled, livePlans, parseDecisions, riseKept, RECURRING_DECISIONS_KEY, type Decisions } from "./recurringDecisions";
-import { recurringAlerts, type RecurringAlert } from "./recurringAlerts";
+import { isCancelled, parseDecisions, riseKept, RECURRING_DECISIONS_KEY, type Decisions } from "./recurringDecisions";
+import { recurringAlertsFor, type RecurringAlert } from "./recurringAlerts";
 import { higherThan, money, monthLabel, shortDate, shortDateYear, titleCase } from "./format";
 
 export interface InsightRow {
@@ -509,15 +508,12 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     .map((r) => r.payload);
 
   const alerts = viewingCurrentPeriod
-    ? recurringAlerts(
-        livePlans(
-          inPeriod
-            .filter((r) => r.type === "RECURRING_CHARGE" && !r.dismissed)
-            .map((r) => r.payload as unknown as DetectedCharge),
-          decisions,
-          asOf,
-        ),
+    ? recurringAlertsFor(
+        inPeriod
+          .filter((r) => r.type === "RECURRING_CHARGE" && !r.dismissed)
+          .map((r) => r.payload as unknown as DetectedCharge),
         decisions,
+        asOf,
         now,
       )
     : { shown: [], folded: [] };
@@ -606,48 +602,18 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   }
 
   // Complete months only — the period on screen is the current one whenever
-  // this runs, so everything before it is complete. Same shape Overview feeds
-  // computeRunway, with `net` where runway takes `totalSpending`.
+  // this runs, so everything before it is complete. What the goals stand on
+  // is built once (goalInputs.ts), as Overview builds it for "Do this next".
   const declaredGoals = parseGoals(settingValue(SAVINGS_GOALS_KEY));
-  const goalAccounts = accountRows.map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) }));
-  const cashAccountRows = accountRows.filter((a) =>
-    countsAsCash({ id: a.id, type: a.type, balance: Number(a.balance) }, cashIds),
-  );
-  const completeCashFlow = ofType<CashFlowTrendPayload>(monthly, "CASH_FLOW_TREND").filter(
-    (r) => r.period < period,
-  );
-  // Pay as it is now (payLevel.ts): every paycheck on record, the month being
-  // lived in included, so a raise this month is seen; earlier paychecks are
-  // topped up to it, and one-off pay is left out, in every pace below.
-  const pay = payLevels(
-    ofType<CashFlowTrendPayload>(monthly, "CASH_FLOW_TREND").flatMap((r) => r.payload.paychecks ?? []),
-    parseNewPay(settingValue(NEW_PAY_KEY)),
-  );
-  const regular = (r: { period: string; payload: CashFlowTrendPayload }) =>
-    (pay.topUps[r.period] ?? 0) - (r.payload.oneOffIncome ?? 0);
-  // The months the paces and readiness average: the last six complete ones,
-  // less any from before too many of today's accounts' records begin.
-  const projectionWindow = recentMonths(
-    completeCashFlow.map((r) => r.period),
-    accountCoverage.map((a) => a.firstTransaction),
-  );
-  const windowFlow = completeCashFlow.filter((r) => projectionWindow.used.includes(r.period));
-
-  // Complete month-ends as the NET_WORTH_GROWTH rows record them, each
-  // account's value included: the net worth goal reads them, and so do the
-  // savings goals' charts and the cash reconciliation below.
-  const netWorthMonths = ofType<NetWorthGrowthPayload>(monthly, "NET_WORTH_GROWTH")
-    .filter((r) => r.period < period)
-    .map(({ period: p, payload }) => ({
-      period: p,
-      value: payload.netWorth,
-      estimated: payload.estimatedAccountIds.length > 0,
-      leftOut: payload.excludedAccountIds ?? [],
-      marketGains: payload.marketGains ?? null,
-      byAccount: payload.byAccount ?? null,
-      flowsByAccount: payload.investmentFlowsByAccount ?? null,
-      interestByAccount: payload.interestByAccount ?? null,
-    }));
+  const inputs = goalInputs({
+    monthly,
+    period,
+    accounts: accountRows,
+    cashIds,
+    firstTransactions: accountCoverage.map((a) => a.firstTransaction),
+    newPay: parseNewPay(settingValue(NEW_PAY_KEY)),
+  });
+  const { projectionWindow, windowFlow, regular, netWorthMonths, cashFundIds } = inputs;
 
   // The reconciliation a cash goal's projection owes: the rate assumes every
   // saved dollar stays in cash, and a standing transfer out makes the landing
@@ -660,10 +626,8 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // remains only for rows stored before per-account values existed.
   let observedCashGrowth: number | null = null;
   const basisKeys = projectionWindow.used;
-  // A cash goal's fund is cash AFTER the cards it pays: its balance, its
-  // record and its reconciliation all count the cards' balances against it.
-  const cardRows = accountRows.filter((a) => a.type === "CREDIT");
-  const cashFundIds = [...cashAccountRows, ...cardRows].map((a) => a.id);
+  // A cash goal's fund is cash AFTER the cards it pays (cashFundIds): its
+  // balance, its record and its reconciliation all count the cards against it.
   const fromBalances =
     viewingCurrentPeriod && declaredGoals.some((g) => g.cash === true)
       ? fundGrowthOver(netWorthMonths, cashFundIds, basisKeys)
@@ -683,21 +647,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
 
   const goals =
     viewingCurrentPeriod && declaredGoals.length > 0
-      ? assessGoals({
-          goals: declaredGoals,
-          accounts: goalAccounts,
-          // The same cash definition Overview's CASH figure uses — resolved
-          // here, at render, so a cash goal tracks whatever the operator's
-          // declaration says TODAY, not what it said at declaration time.
-          cashAccounts: cashAccountRows.map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) })),
-          cards: cardRows.map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) })),
-          // One-off pay (a bonus beside a paycheck) left out, paychecks at today's pay.
-          // Only the comparable months, so a month before a card's records
-          // began is not averaged in as a cheap one.
-          completeMonthlyNet: windowFlow.map((r) => r.payload.net + regular(r)),
-          observedCashGrowth,
-          now,
-        })
+      ? savingsGoalsFrom(inputs, declaredGoals, accountRows, now, observedCashGrowth)
       : [];
 
   // The net worth goal: live progress against the target, dates from the
@@ -706,26 +656,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   const declaredNetWorthGoal = parseNetWorthGoal(settingValue(NET_WORTH_GOAL_KEY));
   const netWorthGoal =
     viewingCurrentPeriod && declaredNetWorthGoal !== null
-      ? assessNetWorthGoal({
-          goal: declaredNetWorthGoal,
-          // Overview's headline, the signed sum of every balance.
-          liveNetWorth: accountRows.reduce((sum, a) => sum + Number(a.balance), 0),
-          months: netWorthMonths,
-          // Invested money is what a market return applies to: investment
-          // accounts OUTSIDE the cash definition, so an account the operator
-          // counts as cash is never credited with a stock return.
-          investedIds: new Set(
-            accountRows
-              .filter((a) => a.type === "INVESTMENT" && !countsAsCash({ id: a.id, type: a.type, balance: Number(a.balance) }, cashIds))
-              .map((a) => a.id),
-          ),
-          // What cash earns is measured per account in the same definition.
-          cashAccounts: cashAccountRows.map((a) => ({ id: a.id, name: a.name })),
-          liveCash: cashAccountRows.map((a) => ({ id: a.id, balance: Number(a.balance) })),
-          monthlySpending: completeCashFlow.map((r) => r.payload.spending),
-          oneOffs: Object.fromEntries(completeCashFlow.map((r) => [r.period, r.payload.oneOffPay ?? []])),
-          pay,
-        })
+      ? netWorthGoalFrom(inputs, declaredNetWorthGoal, accountRows)
       : null;
 
   // Each savings goal's fund, month-end by month-end, for its chart: the

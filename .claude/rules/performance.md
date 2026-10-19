@@ -41,6 +41,7 @@ anything, or claiming a speed-up: the `perf-measure` skill.
   whole history; sync, upgrade and scripts run in full, and a full MONTH run
   clears WEEK/QUARTER/YEAR strays. scopedRegeneration.test.ts holds a scoped
   run to a full one byte for byte.
-- A page reads only the insight types and months it draws (Overview: net worth
-  and spending, 12 months; /insights: not ANOMALY except its month); health
+- A page reads only the insight types and months it draws (Overview, in ONE
+  statement: spending 12 months, net worth and cash flow 24 for the goals, this
+  month's recurring charges; /insights: not ANOMALY except its month); health
   counts rows per account with aggregates, never one row per transaction.

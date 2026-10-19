@@ -260,6 +260,20 @@ export function extraToLand(input: {
 }
 
 /**
+ * What a goal's card asks for at the pace it projects at: the operator's
+ * `paceSet` (the saved one by default) or the measured pace. Null whenever
+ * the card shows no BEHIND alert: reached, no fund, no measured pace, or
+ * extraToLand has nothing to ask. Overview's "Do this next" reads the same.
+ */
+export function shortfallOf(
+  g: Pick<GoalAssessment, 'reached' | 'refusal' | 'measuredRate' | 'remaining' | 'nowMs' | 'goal'>,
+  paceSet: number | null,
+): { required: number; extra: number } | null {
+  if (g.reached || g.refusal === 'NO_ACCOUNTS' || g.measuredRate === null) return null;
+  return extraToLand({ remaining: g.remaining, rate: paceSet ?? g.measuredRate, targetMonth: g.goal.targetMonth, nowMs: g.nowMs });
+}
+
+/**
  * The stored goals with one goal's set pace changed or cleared (null), as the
  * text to write back, or why not. Works on the raw entries so every other
  * field of every entry, a malformed one or one from a newer shape included,

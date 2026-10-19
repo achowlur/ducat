@@ -10,6 +10,7 @@
  * emphasis. The full recurring roster and its annualised total live on
  * /insights now; nothing was dropped.
  */
+import type { DetectedCharge } from "../health/detectedSubscriptions";
 import type { NetWorthGrowthPayload, SpendingByCategoryPayload } from "../../types/contracts";
 import { isP2P } from "../p2p";
 import { prisma } from "../prisma";
@@ -30,6 +31,14 @@ import { accountCoverageFrom, firstRecords } from "./coverage";
 import { monthLabel, shortDate } from "./format";
 import { monthlyRows, ofType } from "./insightRows";
 import { OVERVIEW_SLICING, spendingBreakdown, type DonutSliceData } from "./spendingBreakdown";
+import { parseGoals, SAVINGS_GOALS_KEY } from "../insights/goals";
+import { goalInputs, netWorthGoalFrom, savingsGoalsFrom } from "./goalInputs";
+import { NET_WORTH_GOAL_KEY, parseNetWorthGoal } from "./netWorthGoal";
+import { NEW_PAY_KEY, parseNewPay } from "./payLevel";
+import { parseDecisions, RECURRING_DECISIONS_KEY } from "./recurringDecisions";
+import { recurringAlertsFor } from "./recurringAlerts";
+import { staleAction } from "./staleAction";
+import { nextAction, nudgeCandidates, NUDGES_DONE_KEY, parseDone, type DoneEntry, type NextAction, type Nudge } from "./nextAction";
 
 export interface AccountRow {
   id: string;
@@ -58,6 +67,8 @@ export interface AccountRow {
   stale: boolean;
   /** True when this balance is counted as spendable cash. */
   isCash: boolean;
+  /** The day the balance is as of: what Mark done waits on (nextAction.ts). */
+  balanceDate: Date;
 }
 
 /** Below this the lag is not worth printing; see AccountRow.balanceLagDays. */
@@ -140,6 +151,11 @@ export interface OverviewData {
    * nothing anywhere says so.
    */
   pendingPackRules: number;
+  /** "Do this next": the lead, the two after it, and how many wait on newer data. */
+  nextAction: NextAction;
+  /** Every candidate today, unranked, and what Mark done recorded: the action checks a click against them. */
+  nudges: Nudge[];
+  nudgesDone: DoneEntry[];
 }
 
 const TYPE_ORDER: Record<string, number> = { DEPOSITORY: 0, INVESTMENT: 1, CREDIT: 2, LOAN: 3 };
@@ -150,6 +166,14 @@ const TYPE_ORDER: Record<string, number> = { DEPOSITORY: 0, INVESTMENT: 1, CREDI
  * year back leaves room for a gap in the records.
  */
 const OVERVIEW_MONTHS_BACK = 12;
+
+/**
+ * Months of net worth and cash-flow rows "Do this next" reads for the goals:
+ * the keeping-up check compares the deposit (the middle of three month-ends)
+ * with the same a year earlier, fifteen complete months, and the pace window
+ * is six. Two years leaves room for a gap. One row a month of each type.
+ */
+const GOAL_MONTHS_BACK = 24;
 
 export async function getOverviewData(): Promise<OverviewData> {
   // ONE `now` for the whole page: the rows read, the spending block's month,
@@ -170,14 +194,20 @@ export async function getOverviewData(): Promise<OverviewData> {
     cashAccountIds,
     packDrift,
     firsts,
+    settingRows,
   ] = await Promise.all([
       // Only the two types this page draws, over the months it draws: the
       // table holds every type for every month of the history, and the
       // anomalies and recurring charges among them are the bulk of it.
+      // "Do this next" adds the goals' months of net worth and cash flow and
+      // this month's recurring charges, in the same statement.
       prisma.insight.findMany({
         where: {
-          type: { in: ["NET_WORTH_GROWTH", "SPENDING_BY_CATEGORY"] },
-          period: { gte: monthKeyBack(now, OVERVIEW_MONTHS_BACK) },
+          OR: [
+            { type: "SPENDING_BY_CATEGORY", period: { gte: monthKeyBack(now, OVERVIEW_MONTHS_BACK) } },
+            { type: { in: ["NET_WORTH_GROWTH", "CASH_FLOW_TREND"] }, period: { gte: monthKeyBack(now, GOAL_MONTHS_BACK) } },
+            { type: "RECURRING_CHARGE", period: periodKey(now, "MONTH") },
+          ],
         },
       }),
       prisma.account.findMany(),
@@ -187,7 +217,7 @@ export async function getOverviewData(): Promise<OverviewData> {
       // round trip, not a second one.
       prisma.transaction.findMany({
         where: { categoryId: null, flow: { not: "TRANSFER" }, reimbursesId: null },
-        select: { normalizedMerchant: true, description: true },
+        select: { normalizedMerchant: true, description: true, importedAt: true },
       }),
       prisma.syncLog.findFirst({ where: { ok: true }, orderBy: { finishedAt: "desc" } }),
       // Overview reads only per-account staleness from this — 'accounts'
@@ -198,9 +228,14 @@ export async function getOverviewData(): Promise<OverviewData> {
       // Where each account's records begin, for which months the runway can
       // average: joins the concurrent group, no round trip of its own.
       firstRecords(),
+      // Everything "Do this next" reads from Settings in ONE statement.
+      prisma.setting.findMany({
+        where: { key: { in: [SAVINGS_GOALS_KEY, NET_WORTH_GOAL_KEY, NEW_PAY_KEY, RECURRING_DECISIONS_KEY, NUDGES_DONE_KEY] } },
+      }),
     ]);
 
-  const p2pToConfirmCount = uncategorizedRows.filter(isP2P).length;
+  const p2pRows = uncategorizedRows.filter(isP2P);
+  const p2pToConfirmCount = p2pRows.length;
   const uncategorizedCount = uncategorizedRows.length - p2pToConfirmCount;
 
   const monthly = monthlyRows(insightRows);
@@ -240,6 +275,7 @@ export async function getOverviewData(): Promise<OverviewData> {
             : Math.max(0, Math.floor((syncedAt - a.balanceDate.getTime()) / 86_400_000)),
         stale: staleIds.has(a.id),
         isCash: countsAsCash({ id: a.id, type: a.type, balance }, cashAccountIds),
+        balanceDate: a.balanceDate,
       };
     })
     .sort((a, b) => (TYPE_ORDER[a.type] ?? 9) - (TYPE_ORDER[b.type] ?? 9) || b.balance - a.balance);
@@ -278,6 +314,52 @@ export async function getOverviewData(): Promise<OverviewData> {
   const currentYear = currentPeriod.slice(0, 4);
 
   const contextLabel = latestComplete === null ? null : monthLabel(latestComplete.period);
+
+  // "Do this next": each candidate from the code its own page runs, over rows
+  // this page already read (goalInputs, recurringAlertsFor, staleAction).
+  const settingValue = (key: string) => settingRows.find((r) => r.key === key)?.value ?? null;
+  const inputs = goalInputs({
+    monthly,
+    period: currentPeriod,
+    accounts: accountRows,
+    cashIds: cashAccountIds,
+    firstTransactions: accountCoverageFrom(accountRows, firsts).map((a) => a.firstTransaction),
+    newPay: parseNewPay(settingValue(NEW_PAY_KEY)),
+  });
+  const declaredGoals = parseGoals(settingValue(SAVINGS_GOALS_KEY));
+  const declaredNetWorthGoal = parseNetWorthGoal(settingValue(NET_WORTH_GOAL_KEY));
+  const decisions = parseDecisions(settingValue(RECURRING_DECISIONS_KEY));
+  const alerts = recurringAlertsFor(
+    monthly
+      .filter((r) => r.type === "RECURRING_CHARGE" && r.period === currentPeriod && !r.dismissed)
+      .map((r) => r.payload as unknown as DetectedCharge),
+    decisions,
+    now,
+    now,
+  );
+  const newestImport = (rows: { importedAt: Date }[]) =>
+    rows.reduce<Date | null>((top, t) => (top === null || t.importedAt > top ? t.importedAt : top), null);
+  const nudges = nudgeCandidates({
+    recurring: [...alerts.shown, ...alerts.folded],
+    savingsGoals: declaredGoals.length === 0 ? [] : savingsGoalsFrom(inputs, declaredGoals, accountRows, now),
+    netWorthGoal: declaredNetWorthGoal === null ? null : netWorthGoalFrom(inputs, declaredNetWorthGoal, accountRows),
+    stale: staleAction(
+      accounts.map((a) => ({
+        name: a.name,
+        connectorType: a.connectorType,
+        balanceLagDays: a.balanceLagDays,
+        behind: a.stale || a.balanceLagDays >= STALE_DISPLAY_DAYS,
+      })),
+    ),
+    uncategorized: {
+      count: uncategorizedCount,
+      newestImport: newestImport(uncategorizedRows.filter((t) => !isP2P(t))),
+    },
+    p2p: { count: p2pToConfirmCount, newestImport: newestImport(p2pRows) },
+    accounts: accounts.map((a) => ({ id: a.id, name: a.name, balanceDate: a.balanceDate })),
+    fundIds: (g) => (g.goal.cash === true ? inputs.cashFundIds : g.goal.accountIds),
+  });
+  const nudgesDone = parseDone(settingValue(NUDGES_DONE_KEY));
 
   return {
     liveNetWorth,
@@ -321,5 +403,8 @@ export async function getOverviewData(): Promise<OverviewData> {
     uncategorizedCount,
     p2pToConfirmCount,
     pendingPackRules: packDrift,
+    nextAction: nextAction(nudges, nudgesDone),
+    nudges,
+    nudgesDone,
   };
 }

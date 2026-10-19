@@ -52,6 +52,15 @@ Overview:
 - Overview's review panel renders in BOTH states — "all clear" must be
   stated, not implied by absence; the three-level staleness escalation is
   deliberate.
+- Overview's net worth row carries "Do this next" (ui/nextAction.ts): the ONE
+  most urgent action another page already asks for, ranked in one tested
+  table (a deadline or money at risk, then idle money, then tidying), each
+  candidate from its own page's code (goalInputs, recurringAlertsFor,
+  staleAction), never measured twice; the lead is not printed again in Needs
+  review or the stale alert, and with none the slot STATES all clear. Mark
+  done (Setting nudges.done, {key, at}) hides a nudge until data NEWER than
+  the click arrives for what it is about (an account's balanceDate, never
+  merely a sync), then the data decides again.
 - Overview's ring names every category at ≥3% (eight legend rows max, the
   last being Other, drawn NEUTRAL); /trends' pie names seven, folding the
   rest into a NEUTRAL `Other · N`.

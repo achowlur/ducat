@@ -10,6 +10,8 @@ import { runSync } from "../lib/sync/sync";
 import { dateTime } from "../lib/ui/format";
 import { simplefinRequestsToday, syncNowRefusal } from "../lib/usage/limits";
 import { requireSession } from "../lib/auth/requireSession";
+import { getOverviewData } from "../lib/ui/overview";
+import { markDone, NUDGES_DONE_KEY } from "../lib/ui/nextAction";
 
 export interface SyncNowResult {
   ok: boolean;
@@ -58,4 +60,35 @@ export async function syncNow(): Promise<SyncNowResult> {
     // runSync/connector errors are already credential-safe (Session 6 redaction).
     return databaseRefusal(e) ?? refuse(e instanceof Error ? e.message : "Sync failed.");
   }
+}
+
+/**
+ * Mark done on Overview's "Do this next". Records {key, at} in a Setting, so
+ * the nudge stays hidden until data newer than the click arrives for what it
+ * is about (nextAction.ts), and is then judged again. It moves nothing and
+ * touches no transaction. The nudge is checked against the list the page
+ * would show NOW, so a stale page is refused in a sentence, never trusted.
+ */
+export async function markNudgeDone(input: { key: string }): Promise<{ ok: true; message: string } | { ok: false; message: string }> {
+  await requireSession();
+  if (typeof input.key !== "string" || input.key === "" || input.key.length > 300) {
+    return refuse("That could not be read.");
+  }
+  try {
+    const data = await getOverviewData();
+    const next = markDone(data.nudgesDone, input.key, new Date(), data.nudges);
+    if (!next.ok) return next;
+    const value = JSON.stringify(next.done);
+    await prisma.setting.upsert({
+      where: { key: NUDGES_DONE_KEY },
+      create: { key: NUDGES_DONE_KEY, value },
+      update: { value },
+    });
+  } catch (e) {
+    const refusal = databaseRefusal(e);
+    if (refusal !== null) return refusal;
+    throw e;
+  }
+  revalidatePath("/");
+  return { ok: true, message: "Marked done." };
 }

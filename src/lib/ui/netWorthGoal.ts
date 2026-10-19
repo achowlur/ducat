@@ -183,6 +183,8 @@ export interface IdleCash {
   idle: number;
   /** The accounts it waits in. */
   from: string[];
+  /** Their ids, in the same order: what a newer balance is looked for on. */
+  fromIds: string[];
   /** The best-paying cash account, and its measured yearly yield before inflation. */
   to: { name: string; nominalPct: number };
   /** What `idle` would earn there in a year. */
@@ -224,6 +226,7 @@ export function idleCashAt(
     buffer,
     idle,
     from: idleAccounts.map((a) => a.name),
+    fromIds: idleAccounts.map((a) => a.id),
     to: { name: best.name, nominalPct: best.nominalPct },
     yearly: round2(idle * (best.nominalPct / 100)),
   };
@@ -587,6 +590,20 @@ export function keepingUp(
   const needed = round2(yearAgo * (1 + inflationPct / 100));
   const changePct = yearAgo === 0 ? 0 : Math.round(((now - yearAgo) / yearAgo) * 100);
   return { needed, changePct, behind: now < needed - 0.005 };
+}
+
+/**
+ * The keeping-up check the panel prints, or null when it has nothing to say:
+ * only while the deposit follows the data (`invest` null; a typed amount is
+ * the operator's own), and only with a deposit now and a year ago to compare.
+ */
+export function keepingUpOf(
+  g: Pick<NetWorthGoalAssessment, "contribution" | "contributionYearAgo">,
+  invest: number | null,
+): ReturnType<typeof keepingUp> | null {
+  return invest === null && g.contribution !== null && g.contribution > 0 && (g.contributionYearAgo ?? 0) > 0
+    ? keepingUp(g.contribution, g.contributionYearAgo!)
+    : null;
 }
 
 /** Months later (+) or sooner (−); null when either landing is missing. */
