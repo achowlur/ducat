@@ -219,3 +219,24 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   tagged rows in /insights; the ledger's own copy is a one-line change on a
   page file). SQLite does not use an index for IS NOT NULL without table
   statistics, and Turso has none.
+
+- FUNCTIONS STORAGE (2026-10-18). Vercel Hobby's Functions Storage reached about
+  10 GB of its 10 GB. It is a gauge, not a monthly counter: the server code of
+  every retained deployment. One deployment stored about 30 MB, and both
+  projects (the app and the demo) built a preview on every push to a pull
+  request, kept for 30 days, so a busy stretch of pushes filled it. The meter
+  could not warn: the app counts Turso, requests and SimpleFIN through its own
+  connection and calls no host's account API, so a quantity only Vercel knows is
+  invisible to it. The fix is retention, set on the dashboard by the operator:
+  previews 1 day, production 1 week, and the demo builds production only.
+  /providers now names the limit in its folded "How this is counted" text and
+  says plainly that it is not measured. What one function bundles, read from a
+  local build's .nft.json traces: about 7 MB each across 15 traces (9 MB unique
+  files in all), of which 4.3 MB is Prisma's SQLite query-compiler wasm, needed
+  by every route that touches the database, then react-dom, next and the
+  compiled chunks. No data/, docs/, scripts/, tests or better-sqlite3 is traced,
+  so there was nothing proven unused to exclude. libSQL's native binary is
+  loaded by a computed require the tracer cannot follow and is absent from a
+  Windows trace, so what Vercel adds for it cannot be seen locally: left alone,
+  because excluding it could break the database client in production. The
+  bound on this gauge is the number of retained deployments, not their size.
