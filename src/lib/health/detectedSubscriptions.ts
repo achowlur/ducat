@@ -1,5 +1,5 @@
-import type { RecurringCadence } from '../../types/contracts';
-import { longestGapDays, priceNow } from '../insights/recurring';
+import type { RecurringCadence, SharedPlanPayload } from '../../types/contracts';
+import { costNow, longestGapDays } from '../insights/recurring';
 import { projectNextPayment } from './subscriptions';
 
 /**
@@ -27,6 +27,8 @@ export interface DetectedCharge {
   priceIncreased: boolean;
   /** How far the charging account's records reach (RecurringChargePayload). */
   accountThrough?: string;
+  /** Set when the plan is split with others (RecurringChargePayload.shared). */
+  shared?: SharedPlanPayload;
 }
 
 export interface DetectedSubscription extends DetectedCharge {
@@ -113,7 +115,7 @@ export function missedCharge(charge: DetectedCharge, asOf: Date): Date | null {
  * last real charge, stepped past the start of today (so a date already gone
  * by is never offered), at the raised price when the last charge raised it.
  * The caller decides whether the plan is live: a lapsed or MISSED one has no
- * next charge to promise.
+ * next charge to promise. A shared plan's next charge is the operator's share.
  */
 export function nextChargeOf(charge: DetectedCharge, now: Date): { date: Date; daysAway: number; amount: number } {
   const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
@@ -122,7 +124,7 @@ export function nextChargeOf(charge: DetectedCharge, now: Date): { date: Date; d
   return {
     date,
     daysAway: Math.max(0, Math.round((dueDay - today) / 86_400_000)),
-    amount: Math.round(priceNow(charge) * 100) / 100,
+    amount: Math.round(costNow(charge) * 100) / 100,
   };
 }
 
@@ -154,6 +156,7 @@ export function mergeDetectedSubscriptions(
             accountThrough: charge.accountThrough,
             currentAmount: charge.currentAmount,
             previousAverageAmount: charge.previousAverageAmount,
+            shared: charge.shared,
           }
         : {}),
     });
@@ -179,6 +182,7 @@ export function mergeDetectedSubscriptions(
  * Annualised cost of everything detected, for the section header, at what
  * each plan bills NOW: the median of all its history kept a plan that rose a
  * year ago at its old price in the total until most of its charges were new.
+ * A shared plan counts the operator's share (costNow), never the whole bill.
  */
 export function annualisedTotal(subs: DetectedSubscription[]): number {
   const perYear: Record<RecurringCadence, number> = {
@@ -188,5 +192,5 @@ export function annualisedTotal(subs: DetectedSubscription[]): number {
     QUARTERLY: 4,
     YEARLY: 1,
   };
-  return Math.round(subs.reduce((sum, s) => sum + priceNow(s) * perYear[s.cadence], 0) * 100) / 100;
+  return Math.round(subs.reduce((sum, s) => sum + costNow(s) * perYear[s.cadence], 0) * 100) / 100;
 }

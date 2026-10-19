@@ -45,8 +45,11 @@ export const DUE_WITHIN_DAYS = 7;
  * The ranking, as one table, because it is the whole decision:
  *
  * 1. A DEADLINE or MONEY AT RISK: a price rise renewing within a week (the
- *    charge lands whether or not anyone looks), then a savings goal set to
- *    land after its target month (every month left makes the ask larger).
+ *    charge lands whether or not anyone looks), then a shared plan's bill
+ *    nobody has repaid yet (money owed back, easiest to ask for while the
+ *    bill is fresh, and counted in full until it is linked), then a savings
+ *    goal set to land after its target month (every month left makes the ask
+ *    larger).
  * 2. IDLE MONEY: cash beyond a month of spending earning nothing, then a
  *    monthly deposit that has fallen behind inflation. Both cost a little
  *    every month, and nothing is lost by doing them next week.
@@ -173,6 +176,19 @@ export function nudgeCandidates(s: NudgeSources): Nudge[] {
   const out: Nudge[] = [];
 
   for (const a of s.recurring) {
+    if (a.kind === "Not split") {
+      out.push({
+        key: `recurring:${a.id}`,
+        kind: "recurring",
+        text: `${a.text}: link the repayments, or mark it not shared`,
+        short: `${titleCase(a.plan)} not split`,
+        href: "/insights#recurring-charges",
+        asOf: Date.parse(`${a.lastDate}T12:00:00Z`),
+        // After every price rise due within the week, which cannot wait.
+        order: DUE_WITHIN_DAYS + 1,
+      });
+      continue;
+    }
     if (a.kind !== "Price up" || a.daysAway === null || a.daysAway > DUE_WITHIN_DAYS) continue;
     const name = titleCase(a.plan);
     const when = a.daysAway === 0 ? "today" : a.daysAway === 1 ? "tomorrow" : `in ${a.daysAway} days`;

@@ -36,6 +36,14 @@ anything below; several entries record "tried and failed, don't retry".
   declared twin silenced) until a charge newer than the one it was cancelled
   at. A decision never touches a transaction, and the action finds the plan
   in the SAME live list the page was built from, refusing a stale page.
+- A SHARED plan is read from repayments LINKED to its bills, never a typed
+  share (insights/sharedPlans.ts, one pure function in the detector, carried
+  as RecurringChargePayload.shared): two settled bills in a row repaid makes
+  it shared, its share the MIDDLE of recent settled nets, and every figure
+  reads it through costNow (priceNow stays the bill). Once the next bill
+  arrives a short one counts at bill less repaid and asks "Not split" (Link
+  repayments, Not shared this month: decision `unshared`, by bill day); two
+  short in a row end the sharing silently. Spending is never netted twice.
 - The detector follows ONE plan across a renamed descriptor (continues in
   recurring.ts): same account, no overlap, about the same price, a shared
   NAME word (payeeWords.ts, never a town), and a handover gap like any other

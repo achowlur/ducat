@@ -118,7 +118,7 @@ export async function decideRecurring(input: { plan: string; choice: Choice }): 
   if (typeof input.plan !== "string" || input.plan === "" || input.plan.length > 200) {
     return refuse("That plan could not be read.");
   }
-  if (input.choice !== "keep" && input.choice !== "still" && input.choice !== "cancel") {
+  if (input.choice !== "keep" && input.choice !== "still" && input.choice !== "cancel" && input.choice !== "unshared") {
     return refuse("That answer could not be read.");
   }
   const now = new Date();

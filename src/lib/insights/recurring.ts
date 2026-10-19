@@ -1,5 +1,6 @@
-import type { RecurringCadence, RecurringChargePayload } from '../../types/contracts';
+import type { RecurringCadence, RecurringChargePayload, SharedPlanPayload } from '../../types/contracts';
 import { nameWords } from '../payeeWords';
+import { billsOf, repaidByBill, sharedPlan } from './sharedPlans';
 import { median, round2 } from './stats';
 import type { TxnData } from './types';
 
@@ -53,6 +54,18 @@ export function priceRuns(amounts: readonly number[], threshold: number): { band
 export function priceNow(c: { currentAmount?: number; priceIncreased: boolean; lastAmount: number; averageAmount: number }): number {
   return c.currentAmount ?? (c.priceIncreased ? c.lastAmount : c.averageAmount);
 }
+
+/**
+ * What a bill costs the operator now: the share of a plan split with others
+ * (sharedPlans.ts), else the whole price. Every subscription FIGURE reads it
+ * (the /yr, the next charge, the commitments and with them the pace call's
+ * committed spend); the price itself, and any rise in it, stay priceNow.
+ */
+export function costNow(c: Parameters<typeof priceNow>[0] & { shared?: SharedPlanPayload }): number {
+  return c.shared?.share ?? priceNow(c);
+}
+
+const withShare = (shared: SharedPlanPayload | null) => (shared === null ? {} : { shared });
 
 /**
  * Recurring, but NOT subscriptions.
@@ -234,6 +247,8 @@ export function detectRecurringCharges(
     for (const word of run.words) byWord.set(word, [...(byWord.get(word) ?? []), joined]);
   }
 
+  // What is linked back to each charge, once, for every plan's share.
+  const repaid = repaidByBill(txns);
   const result = new Map<string, RecurringChargePayload>();
   for (const { runs: named, rows: sorted } of chains) {
     const shape = shapeOf(sorted, options);
@@ -265,6 +280,7 @@ export function detectRecurringCharges(
         runs.previous.length > 0 && runs.current.length <= PRICE_NEWS_CHARGES && current > previousAverage * (1 + runs.band),
       accountThrough: new Date(newestByAccount.get(last.accountId) ?? last.date.getTime()).toISOString().slice(0, 10),
       ...(named.length > 1 ? { aliases: named.slice(0, -1).map((r) => r.merchant) } : {}),
+      ...withShare(sharedPlan(billsOf(sorted, repaid))),
     });
   }
   return result;
