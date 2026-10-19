@@ -41,9 +41,11 @@ Charts:
 
 Overview:
 - Overview's net-worth HEADLINE is LIVE (the signed sum of account
-  balances) and carries NO month label; the MoM delta and market-movement
-  lines are context from the latest COMPLETE month's NET_WORTH_GROWTH row
-  and carry that month's name, surviving its absence. The spending block
+  balances) and carries NO month label; its context is ONE line from the
+  latest COMPLETE month's NET_WORTH_GROWTH row, carrying that month's name
+  and surviving its absence: the delta, then markets, saved, any accounts
+  joining and the net (growthBetween, adding up exactly), never behind a
+  tap. The spending block
   shows the month being LIVED IN; empty says "nothing recorded yet" plus a
   quiet prior-month link, and every printed total is spendingBreakdown's.
 - Overview is HEADLINE → DETAIL → TOTAL; the grouping figures are a
@@ -57,9 +59,8 @@ Overview:
   table (a deadline or money at risk, then idle money, then tidying), each
   candidate from its own page's code (goalInputs, recurringAlertsFor,
   staleAction), never measured twice; the lead is not printed again in Needs
-  review or the stale alert, and with none the slot STATES all clear with ONE
-  true line of good news (ui/goodNews.ts: under typical, a goal sooner, saved
-  above usual, else the main goal's progress), never an ActionAlert. Mark
+  review or the stale alert, and with none the slot is EMPTY (Needs review
+  states the all clear), net worth taking the row. Mark
   done (Setting nudges.done, {key, at}) hides a nudge until data NEWER than
   the click arrives for what it is about (an account's balanceDate, never
   merely a sync), then the data decides again.
@@ -100,8 +101,8 @@ Overview:
   same list), Goals (net worth first, house readiness under the goal that
   funds it), Recurring charges (ONE list: a live plan's next charge leads
   its facts, the next 30 days totalled on top, lapsed plans folded away).
-  Net worth, cash flow and spending rows belong to /trends, linked from
-  the foot, never printed here.
+  Net worth, cash flow and spending rows belong to /trends, never printed
+  here (the nav carries the way there).
 - A goal leads with WHEN: a date band that is its chart's legend, then its
   path (record solid in ink, each projection dashed in Trends' saved or
   markets colour, ending in a dot at the target), readable by tap or drag

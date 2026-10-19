@@ -25,7 +25,7 @@ describe("UsageLimits", () => {
     expect(html).toContain("41.2k of 10M");
     expect(html).toContain("1,234 of 1M");
     expect(html).toContain("1 of 24");
-    expect(html).toContain("unmetered on a public repository");
+    expect(html).not.toContain("GitHub");
     expect(html).toContain("this counts only this one");
   });
 

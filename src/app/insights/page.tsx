@@ -360,7 +360,7 @@ function MonthHeadline({
             <p className="mt-1 max-w-[760px] text-[0.78rem] leading-relaxed text-faint">
               <Fig>{money(pace.spentSoFar)}</Fig> spent so far,{" "}
               <Fig>~{money(pace.restIsEveryday ? (pace.typicalRest ?? 0) : Math.max(0, projected - pace.spentSoFar))}</Fig>{" "}
-              more in a typical rest of {month}
+              more if the rest of {month} runs like {recentLabel}
               {/* Visibly incomplete beats silently wrong: a baseline drawn
                   from before an account existed is understated. */}
               {pace.basisMissingAccounts > 0 && "; may run low, earlier months miss an account"}.
@@ -695,15 +695,6 @@ async function renderInsights({
           </p>
         </section>
       )}
-
-      {/* What used to close the page, one row a month each for net worth,
-          cash flow and spending, is drawn properly on Trends. */}
-      <p className="border-t border-rule pt-3 text-[0.78rem] text-faint">
-        Net worth, cash flow and spending, month by month:{" "}
-        <Link href="/trends" className="tap44 text-acc hover:underline">
-          Trends
-        </Link>
-      </p>
     </div>
   );
 }

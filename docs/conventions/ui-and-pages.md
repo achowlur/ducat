@@ -1498,3 +1498,23 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   the declared subscriptions (which floor the projection) joined the
   concurrent group; the pace is built by currentPaceFrom, the pure half of
   /trends' getCurrentPace, so the two cannot drift.
+
+- THE EMPTY SLOT AND THE QUIETER LEDGER (operator, 2026-10-19). Four calls
+  in one pass, each from looking at the live screens:
+  - "Do this next" with nothing to do is EMPTY, net worth taking the row. The
+    "All clear" box (and the good-news line above, which amended it the same
+    day) read as space spent saying nothing; ui/goodNews.ts went with it, and
+    the declared-subscriptions read it added left Overview's concurrent group.
+    Needs review still STATES its own all clear, so a quiet page is still told
+    from an unchecked one.
+  - Overview's net worth context is ONE line, no "What moved it" tap: the
+    delta, then markets, saved, any accounts joining and the net beside it
+    (growthBetween over the month before, the /trends split, adding up
+    exactly). An estimated or left-out month says so on the line under it.
+    The runway's "cash after cards" line moved inside its working-out.
+  - /transactions: the marks legend sits in the top band on the UNFILTERED
+    first page, in the transfer line's place. Across the whole ledger
+    transfers out and in are the same money moving, so that line (in both
+    bands) speaks only once a filter is on.
+  - /insights lost its foot pointer to /trends (the nav names Trends), and
+    every disclosure's summary ends in the same rotating chevron.

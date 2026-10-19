@@ -34,34 +34,9 @@ describe("DoThisNext", () => {
     expect(html).toContain("tap44");
   });
 
-  it("is PRESENT with nothing to do, and STATES all clear, not as an alert", () => {
-    const html = render({ lead: null, then: [], waiting: 0 });
-    expect(html).toContain("All clear.");
-    expect(html).toContain("border-pos");
-    expect(html).not.toContain('role="status"');
-    expect(html).not.toContain("border-warn");
-    expect(html).not.toContain("Mark done");
-  });
-
-  it("is PRESENT with good news: All clear and its one line, the figure in the money face", () => {
-    const html = renderToStaticMarkup(
-      createElement(DoThisNext, {
-        next: { lead: null, then: [], waiting: 0 },
-        checked: true,
-        news: { kind: "underTypical", before: "October is", figure: "$210", after: "under a typical month" },
-      }),
-    );
-    expect(html).toContain("All clear");
-    expect(html).toContain("October is");
-    expect(html).toContain('<span class="font-money">$210</span>');
-    expect(html).toContain("under a typical month");
-    expect(html).toContain("border-l-4 border-pos bg-chip");
-    expect(html).not.toContain('role="status"');
-    expect(html).not.toContain("—");
-  });
-
-  it("says how many marked done wait for newer data", () => {
-    expect(render({ lead: null, then: [], waiting: 2 })).toContain("2 marked done wait for newer data");
+  it("is EMPTY with nothing to do, marked-done nudges waiting or not", () => {
+    expect(render({ lead: null, then: [], waiting: 0 })).toBe("");
+    expect(render({ lead: null, then: [], waiting: 2 })).toBe("");
   });
 
   it("says nothing is checked yet before the first sync, never all clear", () => {

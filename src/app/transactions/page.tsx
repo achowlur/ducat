@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { Prisma } from "../../generated/prisma/client";
 import { AccountFilter } from "../../components/AccountFilter";
 import { CategoryButton, CategoryPickerProvider, RowRefusal } from "../../components/CategoryPicker";
@@ -164,8 +165,36 @@ function Pager({
  * view that the view does not list (ui/repaid.ts). Its count is said in words
  * on the second line, since it is the one figure made of rows not on screen.
  */
-function TotalsBand({ label, totals, foot }: { label: string; totals: LedgerTotals; foot?: boolean }) {
+function TotalsBand({
+  label,
+  totals,
+  foot,
+  transfers,
+  legend,
+}: {
+  label: string;
+  totals: LedgerTotals;
+  foot?: boolean;
+  /**
+   * The transfer line, said only on a FILTERED view (operator, 2026-10-19):
+   * across the whole ledger transfers out and in are the same money moving,
+   * and the line tells nothing until a filter cuts one side.
+   */
+  transfers: boolean;
+  /** What the list's marks mean, in the transfer line's place: the unfiltered first page only. */
+  legend?: ReactNode;
+}) {
   const t = totals.transfers;
+  const note = [
+    totals.repaid.count > 0 &&
+      `repaid: ${totals.repaid.count.toLocaleString("en-US")} linked repayment${
+        totals.repaid.count === 1 ? "" : "s"
+      } outside this view`,
+    transfers &&
+      (t.count === 0
+        ? "no transfers in this view"
+        : `${t.count.toLocaleString("en-US")} transfer${t.count === 1 ? "" : "s"}, not in the net`),
+  ].filter((s): s is string => typeof s === "string");
   const figure = "whitespace-nowrap font-money tabular";
   // The gap after each caption is a real SPACE and not a margin, so the band
   // reads "out $9.99" to a screen reader and to a paste, not "out$9.99".
@@ -201,17 +230,11 @@ function TotalsBand({ label, totals, foot }: { label: string; totals: LedgerTota
           <span className={caption}>Net</span> {money(totals.net)}
         </span>
       </span>{" "}
+      {(note.length > 0 || legend !== undefined) && (
       <span className="flex w-full flex-wrap items-baseline gap-x-5 gap-y-1">
-        <span className="text-[0.72rem] text-faint">
-          {totals.repaid.count > 0 &&
-            `repaid: ${totals.repaid.count.toLocaleString("en-US")} linked repayment${
-              totals.repaid.count === 1 ? "" : "s"
-            } outside this view · `}
-          {t.count === 0
-            ? "no transfers in this view"
-            : `${t.count.toLocaleString("en-US")} transfer${t.count === 1 ? "" : "s"}, not in the net`}
-        </span>{" "}
-        {t.count > 0 && (
+        {note.length > 0 && <span className="text-[0.72rem] text-faint">{note.join(" · ")}</span>}
+        {legend !== undefined && <span className="text-[0.72rem] text-faint">{legend}</span>}{" "}
+        {transfers && t.count > 0 && (
           <span className="ml-auto flex flex-wrap items-baseline justify-end gap-x-5 gap-y-1">
             <span className={figure}>
               <span className={caption}>Transfers out</span> {money(t.out)}
@@ -222,6 +245,7 @@ function TotalsBand({ label, totals, foot }: { label: string; totals: LedgerTota
           </span>
         )}
       </span>
+      )}
     </div>
   );
 }
@@ -355,6 +379,16 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
   }
   const isMerchant = (t: { normalizedMerchant: string; description: string }) =>
     merchant === null || merchantKey(t) === merchant;
+  // Any filter at all: only then do the bands say what transfers moved.
+  const filtered =
+    periodFilter !== null ||
+    flow !== null ||
+    selection !== null ||
+    accountIds !== null ||
+    (params.q !== undefined && params.q.trim() !== "") ||
+    tripLabel !== null ||
+    merchant !== null ||
+    params.review === "1";
 
   // Review mode narrows in SQL as far as Prisma can, then finishes in JS: the
   // P2P test is a regex across two columns, which Prisma cannot express. Its
@@ -1094,8 +1128,21 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
       {/* Below the trip band when there is one, and not instead of it: that
           band's net is the signed sum of every tagged row, transfers
           included, and this one states its transfers apart. */}
+      {/* The marks in the list, in words (a phone never shows a title=), at
+          the TOP of the first page so they are read before the rows they
+          explain, in the transfer line's place: that line speaks only once
+          a filter is on. */}
       {!groupMode && matchCount > 0 && (
-        <TotalsBand label={`All ${matchCount.toLocaleString("en-US")} matching`} totals={overallTotals} />
+        <TotalsBand
+          label={`All ${matchCount.toLocaleString("en-US")} matching`}
+          totals={overallTotals}
+          transfers={filtered}
+          legend={
+            page === 1 && !filtered
+              ? "✎ set by you, and rules never override it · ↻ tracked subscription · transfer: left out of spending, tap the word to tag it into a trip"
+              : undefined
+          }
+        />
       )}
 
       {groupMode ? (
@@ -1390,13 +1437,6 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
         </tbody>
       </table>
       </div>
-      {/* The marks in the list, in words: they carried it in title=, which a
-          phone never shows. */}
-      {visible.length > 0 && !groupMode && (
-        <p className="pt-2 text-[0.72rem] text-faint">
-          ✎ set by you, and rules never override it · ↻ tracked subscription · transfer: left out of spending, tap the word to tag it into a trip
-        </p>
-      )}
       {/* On a single page too, where it repeats the band above, so the page
           reads the same at one page as at ten. */}
       {visible.length > 0 && (
@@ -1404,6 +1444,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
           foot
           label={`This page, ${firstShown.toLocaleString("en-US")}–${lastShown.toLocaleString("en-US")}`}
           totals={pageTotals}
+          transfers={filtered}
         />
       )}
       {/* Where you actually are when you finish reading a page. */}

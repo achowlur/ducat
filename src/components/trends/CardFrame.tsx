@@ -68,9 +68,12 @@ export function Note({ children }: { children: ReactNode }) {
  */
 export function Fold({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <details className="mt-1">
-      <summary className="tap44 inline-flex cursor-pointer items-center text-[0.75rem] text-acc hover:underline">
+    <details className="group mt-1">
+      <summary className="tap44 inline-flex cursor-pointer list-none items-center gap-1.5 text-[0.75rem] text-acc hover:underline [&::-webkit-details-marker]:hidden">
         {label}
+        <span aria-hidden="true" className="text-[0.7rem] transition-transform group-open:rotate-90">
+          ›
+        </span>
       </summary>
       {children}
     </details>

@@ -15,7 +15,8 @@ headings, uncertainty) are in CLAUDE.md; page-wide ones in ui-reports.md.
   bug; every filter-changing link resets page.
 - /transactions prints TWO TOTALS of its filtered list (ui/ledgerTotals.ts),
   every page above and this page below: OUT, IN, NET, transfers as two
-  figures never in the net, and REPAID, the linked repayments of listed
+  figures never in the net (only once a FILTER is on; the unfiltered first
+  page carries the marks legend in their place), and REPAID, the linked repayments of listed
   bills that the list does not show (ui/repaid.ts), netted so a category
   view's net IS /trends' figure (repaid.test.ts pins it).
 - ?flow= is read only by ui/flowFilter.ts. SPENDING and INCOME are the two
