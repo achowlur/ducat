@@ -758,6 +758,24 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   history's live plans, all at one price; the operator asked for it built
   anyway. The demo's streaming plan still reads raised; its power bill is
   pinned as not.
+- ANSWERS TO THE RECURRING ALERTS (2026-10-18, enhancement E4). A price rise
+  and a missed charge were facts on a row; nothing asked what to DO. Two
+  alerts now lead Recurring charges and each button writes one decision. Three
+  choices were made on purpose. (1) A decision names the plan by every
+  merchant string it was folded from, because the surviving name is just the
+  shortest one and changes when a sibling string appears. (2) "Still active"
+  needs no date of its own: the next expected charge after a miss falls on
+  the very day the detector lapses a plan (two cycles after its last charge),
+  so a first draft that stored "until the next charge, plus the cadence's
+  slack" could never fire before the plan left the list anyway; the answer
+  now covers the last charge it was given for, and the lapse takes over from
+  there. (3) "Cancelled" is the lapsed treatment, not a delete: the plan
+  moves under "No longer charging", leaves the yearly total, the commitments
+  and the pace's committed spend, silences a hand-declared twin the way a
+  lapsed plan does, and returns on its own if a charge newer than the one it
+  was cancelled at arrives. Invented, from the demo: Streamflix at $17.99
+  cancelled takes $215.88 off the yearly total and $17.99 off the next 30
+  days.
 - SAVINGS GOAL BEHIND SCHEDULE (2026-10-19, enhancement E2). A savings goal
   could land after its target month and say only "6 months behind", with no
   way to ask what it would take. The card now does what the net worth goal

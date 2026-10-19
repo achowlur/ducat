@@ -1,5 +1,5 @@
-import { periodEndExclusive, periodStart } from './periods';
-import { round2 } from './stats';
+import { monthKeyBack, periodEndExclusive, periodStart } from './periods';
+import { quantile, round2 } from './stats';
 
 /**
  * Where the current month lands, from what has been spent so far.
@@ -37,6 +37,15 @@ const MIN_TRAILING = 2;
  * cannot be compared to one.
  */
 const MIN_BASELINE_COVERAGE = 2 / 3;
+
+/**
+ * The typical range is the middle half of the last BAND_MONTHS complete months'
+ * totals, drawn from at least BAND_MIN_MONTHS of them: the band /trends' This
+ * month so far draws, from the same constants, so the two cannot disagree on
+ * what a typical month is.
+ */
+export const BAND_MONTHS = 6;
+export const BAND_MIN_MONTHS = 3;
 
 export type PaceBasis = 'SAME_MONTH' | 'TRAILING';
 export type PaceRefusal = 'TOO_EARLY' | 'NO_BASELINE';
@@ -91,6 +100,12 @@ export interface Pace {
   typicalRest: number | null;
   /** True when `typicalRest` came from the everyday series, false when from a share of the total. */
   restIsEveryday: boolean;
+  /**
+   * The top of a typical month: the 75th percentile of the last BAND_MONTHS
+   * months' totals, the top of the band /trends draws. Null with a refusal
+   * or with fewer than BAND_MIN_MONTHS comparable months to draw it from.
+   */
+  typicalHigh: number | null;
   /** Null whenever `refusal` is set — the two are never both present. */
   projected: number | null;
   refusal: PaceRefusal | null;
@@ -143,7 +158,7 @@ export function computePace(input: {
 
   const base: Omit<
     Pace,
-    'typical' | 'basis' | 'basisCount' | 'basisMissingAccounts' | 'typicalRest' | 'restIsEveryday' | 'projected' | 'refusal'
+    'typical' | 'basis' | 'basisCount' | 'basisMissingAccounts' | 'typicalRest' | 'restIsEveryday' | 'typicalHigh' | 'projected' | 'refusal'
   > = {
     period,
     dayOfPeriod,
@@ -160,6 +175,7 @@ export function computePace(input: {
     basisMissingAccounts: 0,
     typicalRest: null,
     restIsEveryday: false,
+    typicalHigh: null,
     projected: null,
     refusal,
   });
@@ -208,6 +224,13 @@ export function computePace(input: {
   // should not talk over a fact.
   const remaining = Math.max(typicalRemaining, committedRemaining);
 
+  // The top of the typical range: from the recent months, which is a wider
+  // window than the sample the projection reads (the same month of the last
+  // few years), because it is what the chart's band is.
+  const recent = new Set(Array.from({ length: BAND_MONTHS }, (_, i) => monthKeyBack(start, i + 1)));
+  const banded = comparable.filter((p) => recent.has(p.period));
+  const typicalHigh = banded.length >= BAND_MIN_MONTHS ? round2(quantile(banded.map((p) => p.total), 0.75)) : null;
+
   return {
     ...base,
     typical,
@@ -219,7 +242,35 @@ export function computePace(input: {
     ),
     typicalRest: round2(typicalRemaining),
     restIsEveryday: series,
+    typicalHigh,
     projected: round2(spentSoFar + remaining),
     refusal: null,
   };
+}
+
+/**
+ * What to do about a month projected ABOVE the typical range, or null when it
+ * is not (or the pace call refused, or the period is not the month being
+ * lived in: only a current pace carries a projection).
+ *
+ * - `perDay`: the room left under the top of the range, spread over the days
+ *   left TODAY INCLUDED (today's spending is still coming in), so the last
+ *   day of the month has one day left, never zero.
+ * - `past`: spending so far is already beyond the top of the range.
+ * - `committed`: room is left, but less than the recurring charges still due,
+ *   which are not a daily amount to keep to.
+ */
+export type OverPace =
+  | { kind: 'perDay'; perDay: number; daysLeft: number }
+  | { kind: 'past'; over: number }
+  | { kind: 'committed'; over: number };
+
+export function overPace(pace: Pace): OverPace | null {
+  if (pace.refusal !== null || pace.projected === null || pace.typicalHigh === null) return null;
+  if (pace.projected <= pace.typicalHigh) return null;
+  if (pace.spentSoFar > pace.typicalHigh) return { kind: 'past', over: round2(pace.spentSoFar - pace.typicalHigh) };
+  const room = pace.typicalHigh - pace.spentSoFar;
+  if (pace.committedRemaining > room) return { kind: 'committed', over: round2(pace.committedRemaining - room) };
+  const daysLeft = Math.max(1, pace.daysInPeriod - pace.dayOfPeriod + 1);
+  return { kind: 'perDay', perDay: round2(room / daysLeft), daysLeft };
 }

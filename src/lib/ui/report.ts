@@ -1,5 +1,7 @@
+import { BAND_MIN_MONTHS, BAND_MONTHS } from "../insights/pace";
 import { periodKey } from "../insights/periods";
 import { isReimbursement, reimbursementSources } from "../insights/reimbursements";
+import { quantile } from "../insights/stats";
 import type { TxnData } from "../insights/types";
 import { isUnreviewedP2P, P2P_UNREVIEWED_ID, P2P_UNREVIEWED_NAME } from "../p2p";
 import { UNCATEGORIZED } from "./categoryFilter";
@@ -233,17 +235,8 @@ export interface MonthSoFar {
   newest: { month: string; day: number } | null;
 }
 
-/** How many complete months the typical band looks back over, and the fewest it is drawn from. */
-export const BAND_MONTHS = 6;
-export const BAND_MIN_MONTHS = 3;
-
-/** Linear-interpolated quantile of a sorted list (the common "type 7"). */
-function quantile(sorted: number[], q: number): number {
-  const pos = (sorted.length - 1) * q;
-  const lo = Math.floor(pos);
-  const hi = Math.ceil(pos);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
-}
+/** How many complete months the typical band looks back over, and the fewest it is drawn from (insights/pace.ts, shared with the over-pace alert). */
+export { BAND_MIN_MONTHS, BAND_MONTHS };
 
 export function monthSoFar(entries: Entry[], now: Date): MonthSoFar {
   const month = periodKey(now, "MONTH");

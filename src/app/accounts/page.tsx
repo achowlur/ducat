@@ -6,6 +6,7 @@ import { amount, dateTime, shortDate } from "../../lib/ui/format";
 import { accountsHref } from "../../lib/ui/accountFilter";
 import { getAccountsData } from "../../lib/ui/accounts";
 import { CHIP, COLUMN_HEADER, PageTitle } from "../../components/ui/headings";
+import { StaleAlert } from "../../components/StaleAlert";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
@@ -68,6 +69,18 @@ async function renderAccounts() {
           </>
         )}
       </p>
+      <div className="mb-3 empty:hidden">
+        <StaleAlert
+          accounts={data.groups.flatMap((g) =>
+            g.accounts.map((a) => ({
+              name: a.name,
+              connectorType: a.connectorType,
+              balanceLagDays: a.balanceLagDays,
+              behind: a.staleByAge,
+            })),
+          )}
+        />
+      </div>
       <details className="pb-3">
         <summary className="tap44 inline-flex cursor-pointer items-center text-[0.75rem] text-acc hover:underline">
           How ages and history are counted
