@@ -1472,3 +1472,22 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   extra reads join the page's existing concurrent group and run only inside
   it, so the round trips do not change (pagePlans plans the recap days too).
   The README screenshots are taken mid-month and cannot show it.
+
+- ALL CLEAR SAYS ONE TRUE THING (2026-10-19). "All clear." alone read as the
+  slot having nothing to report, on the screen where the reader looks first.
+  With no nudge it now carries one short line of good news, about eight words
+  and one figure, the strongest that is true now (ui/goodNews.ts): this month
+  under a typical one (the pace call /insights prints, never when it refuses
+  or its baseline misses an account, since an understated baseline is the
+  reassuring kind of wrong); the net worth goal landing sooner than from the
+  month-end before (its saving shift); last month's /trends "saved" above the
+  middle of up to six months before it (never across an estimated or
+  left-out month). Failing those, the main goal's progress, floored so 99.6%
+  never reads as there; with no goal, "All clear." alone. Never praise for
+  its own sake. It is not an ActionAlert: a positive rule on the chip paper,
+  at the one-line alert's height so the swap does not move the page. Cost:
+  the spending read widened to every month in the SAME statement (the pace
+  call's priors include the same month in earlier years, one row a month) and
+  the declared subscriptions (which floor the projection) joined the
+  concurrent group; the pace is built by currentPaceFrom, the pure half of
+  /trends' getCurrentPace, so the two cannot drift.

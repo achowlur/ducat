@@ -57,7 +57,9 @@ Overview:
   table (a deadline or money at risk, then idle money, then tidying), each
   candidate from its own page's code (goalInputs, recurringAlertsFor,
   staleAction), never measured twice; the lead is not printed again in Needs
-  review or the stale alert, and with none the slot STATES all clear. Mark
+  review or the stale alert, and with none the slot STATES all clear with ONE
+  true line of good news (ui/goodNews.ts: under typical, a goal sooner, saved
+  above usual, else the main goal's progress), never an ActionAlert. Mark
   done (Setting nudges.done, {key, at}) hides a nudge until data NEWER than
   the click arrives for what it is about (an account's balanceDate, never
   merely a sync), then the data decides again.
