@@ -11,7 +11,10 @@
  * /insights now; nothing was dropped.
  */
 import type { DetectedCharge } from "../health/detectedSubscriptions";
-import type { NetWorthGrowthPayload, SpendingByCategoryPayload } from "../../types/contracts";
+import type { NetWorthGrowthPayload, RecurringChargePayload, SpendingByCategoryPayload } from "../../types/contracts";
+import { getSubscriptionStatuses } from "../health/subscriptions";
+import { currentPaceFrom } from "./currentPace";
+import { goodNews, savedVsUsual, type GoodNews } from "./goodNews";
 import { isP2P } from "../p2p";
 import { prisma } from "../prisma";
 import { DEFAULT_HEALTH_OPTIONS, getProviderHealth, pollsForBalances } from "../health/health";
@@ -36,7 +39,7 @@ import { parseGoals, SAVINGS_GOALS_KEY } from "../insights/goals";
 import { goalInputs, netWorthGoalFrom, savingsGoalsFrom } from "./goalInputs";
 import { NET_WORTH_GOAL_KEY, parseNetWorthGoal } from "./netWorthGoal";
 import { NEW_PAY_KEY, parseNewPay } from "./payLevel";
-import { parseDecisions, RECURRING_DECISIONS_KEY } from "./recurringDecisions";
+import { isCancelled, parseDecisions, RECURRING_DECISIONS_KEY } from "./recurringDecisions";
 import { recurringAlertsFor } from "./recurringAlerts";
 import { staleAction } from "./staleAction";
 import { nextAction, nudgeCandidates, NUDGES_DONE_KEY, parseDone, type DoneEntry, type NextAction, type Nudge } from "./nextAction";
@@ -154,6 +157,8 @@ export interface OverviewData {
   pendingPackRules: number;
   /** "Do this next": the lead, the two after it, and how many wait on newer data. */
   nextAction: NextAction;
+  /** With no lead, the one line of true good news under "All clear" (goodNews.ts); null with a lead, or with nothing true to say. */
+  goodNews: GoodNews | null;
   /** Every candidate today, unranked, and what Mark done recorded: the action checks a click against them. */
   nudges: Nudge[];
   nudgesDone: DoneEntry[];
@@ -162,13 +167,6 @@ export interface OverviewData {
 }
 
 const TYPE_ORDER: Record<string, number> = { DEPOSITORY: 0, INVESTMENT: 1, CREDIT: 2, LOAN: 3 };
-
-/**
- * Months of insight rows Overview reads: the runway averages at most six
- * complete months and the context line wants the latest complete one, so a
- * year back leaves room for a gap in the records.
- */
-const OVERVIEW_MONTHS_BACK = 12;
 
 /**
  * Months of net worth and cash-flow rows "Do this next" reads for the goals:
@@ -198,6 +196,7 @@ export async function getOverviewData(now: Date = new Date()): Promise<OverviewD
     firsts,
     settingRows,
     recapReads,
+    registered,
   ] = await Promise.all([
       // Only the two types this page draws, over the months it draws: the
       // table holds every type for every month of the history, and the
@@ -207,7 +206,11 @@ export async function getOverviewData(now: Date = new Date()): Promise<OverviewD
       prisma.insight.findMany({
         where: {
           OR: [
-            { type: "SPENDING_BY_CATEGORY", period: { gte: monthKeyBack(now, OVERVIEW_MONTHS_BACK) } },
+            // Every month's spending, one row a month: the runway and the
+            // context line read the last year, and the all-clear line's pace
+            // call reads the same priors /insights does (same month in
+            // earlier years among them).
+            { type: "SPENDING_BY_CATEGORY" },
             { type: { in: ["NET_WORTH_GROWTH", "CASH_FLOW_TREND"] }, period: { gte: monthKeyBack(now, GOAL_MONTHS_BACK) } },
             { type: "RECURRING_CHARGE", period: periodKey(now, "MONTH") },
           ],
@@ -240,6 +243,9 @@ export async function getOverviewData(now: Date = new Date()): Promise<OverviewD
       // the goal's pace is projected from). Its goal settings come from the
       // Settings read above.
       recapPeriod(now) === null ? Promise.resolve(null) : prisma.insight.findMany({ where: { type: "CASH_FLOW_TREND" } }),
+      // The declared subscriptions, which floor the pace call's projection
+      // with what still falls due: inside the group, no round trip of its own.
+      getSubscriptionStatuses(prisma, now),
     ]);
 
   const p2pRows = uncategorizedRows.filter(isP2P);
@@ -363,10 +369,12 @@ export async function getOverviewData(now: Date = new Date()): Promise<OverviewD
   );
   const newestImport = (rows: { importedAt: Date }[]) =>
     rows.reduce<Date | null>((top, t) => (top === null || t.importedAt > top ? t.importedAt : top), null);
+  const savingsGoals = declaredGoals.length === 0 ? [] : savingsGoalsFrom(inputs, declaredGoals, accountRows, now);
+  const netWorthGoal = declaredNetWorthGoal === null ? null : netWorthGoalFrom(inputs, declaredNetWorthGoal, accountRows);
   const nudges = nudgeCandidates({
     recurring: [...alerts.shown, ...alerts.folded],
-    savingsGoals: declaredGoals.length === 0 ? [] : savingsGoalsFrom(inputs, declaredGoals, accountRows, now),
-    netWorthGoal: declaredNetWorthGoal === null ? null : netWorthGoalFrom(inputs, declaredNetWorthGoal, accountRows),
+    savingsGoals,
+    netWorthGoal,
     stale: staleAction(
       accounts.map((a) => ({
         name: a.name,
@@ -384,6 +392,28 @@ export async function getOverviewData(now: Date = new Date()): Promise<OverviewD
     fundIds: (g) => (g.goal.cash === true ? inputs.cashFundIds : g.goal.accountIds),
   });
   const nudgesDone = parseDone(settingValue(NUDGES_DONE_KEY));
+  const next = nextAction(nudges, nudgesDone);
+
+  // With nothing to do, one line of true good news (goodNews.ts), each
+  // candidate from the code its own screen runs: the pace call /insights
+  // prints, the goals as assessed above, and /trends' "saved".
+  const pace =
+    next.lead !== null
+      ? null
+      : currentPaceFrom({
+          now,
+          spending: spendingSeries,
+          recurring: monthly
+            .filter((r) => r.type === "RECURRING_CHARGE" && r.period === currentPeriod)
+            .map((r) => r.payload as unknown as DetectedCharge & RecurringChargePayload),
+          registered,
+          accountCoverage: accountCoverageFrom(accountRows, firsts),
+          stopped: (sub) => isCancelled(sub, decisions),
+        });
+  const allClear =
+    next.lead !== null
+      ? null
+      : goodNews({ pace, netWorthGoal, savingsGoals, saved: savedVsUsual(inputs.netWorthMonths, currentPeriod) });
 
   return {
     liveNetWorth,
@@ -427,7 +457,8 @@ export async function getOverviewData(now: Date = new Date()): Promise<OverviewD
     uncategorizedCount,
     p2pToConfirmCount,
     pendingPackRules: packDrift,
-    nextAction: nextAction(nudges, nudgesDone),
+    nextAction: next,
+    goodNews: allClear,
     nudges,
     nudgesDone,
     recap,

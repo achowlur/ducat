@@ -147,7 +147,7 @@ async function renderOverview() {
 
   const doThisNext = (
     <div className="max-md:mt-3 md:col-start-2 md:row-span-3 md:row-start-1 md:self-start md:pt-1">
-      <DoThisNext next={data.nextAction} checked={data.accounts.length > 0} />
+      <DoThisNext next={data.nextAction} checked={data.accounts.length > 0} news={data.goodNews} />
     </div>
   );
 
