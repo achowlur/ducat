@@ -81,6 +81,9 @@ export function upcomingCommitments(
   registered: SubscriptionStatus[],
   now: Date,
   windowDays = 30,
+  // Plans the operator marked cancelled (ui/recurringDecisions.ts): silenced
+  // like a lapsed one, so a declared twin cannot bill the window in their place.
+  stopped: (sub: DetectedSubscription) => boolean = () => false,
 ): UpcomingCommitments {
   const today = startOfUtcDay(now);
   const horizon = today.getTime() + windowDays * DAY_MS;
@@ -93,7 +96,7 @@ export function upcomingCommitments(
   // cannot bill the window in their place (below).
   const silenced: DetectedSubscription[] = [];
   for (const sub of subscriptions) {
-    if (!isActive(sub, now) || missedCharge(sub, now) !== null) {
+    if (!isActive(sub, now) || missedCharge(sub, now) !== null || stopped(sub)) {
       silenced.push(sub);
       continue;
     }
