@@ -1518,3 +1518,10 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
     bands) speaks only once a filter is on.
   - /insights lost its foot pointer to /trends (the nav names Trends), and
     every disclosure's summary ends in the same rotating chevron.
+  - /trends' By year: below md a year is a block (change and growth, the
+    bar, then saved and markets by their swatches), never five columns of
+    digits with the bar floating under them; from md a fixed-width table
+    whose headers share one baseline. A LOSS is HATCHED in its part's
+    colour and outlined (lossFill), named in the note: left of the zero line
+    alone, a solid bar read as one more gain. GrowthSplit prints a negative
+    part in the loss ink.
