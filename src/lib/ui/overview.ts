@@ -169,6 +169,14 @@ export interface OverviewData {
 const TYPE_ORDER: Record<string, number> = { DEPOSITORY: 0, INVESTMENT: 1, CREDIT: 2, LOAN: 3 };
 
 /**
+ * Months of insight rows Overview reads: the runway averages at most six
+ * complete months, the context line wants the latest complete one, and the
+ * pace call reads the six before this month, so a year back leaves room for a
+ * gap in the records.
+ */
+const OVERVIEW_MONTHS_BACK = 12;
+
+/**
  * Months of net worth and cash-flow rows "Do this next" reads for the goals:
  * the keeping-up check compares the deposit (the middle of three month-ends)
  * with the same a year earlier, fifteen complete months, and the pace window
@@ -206,11 +214,7 @@ export async function getOverviewData(now: Date = new Date()): Promise<OverviewD
       prisma.insight.findMany({
         where: {
           OR: [
-            // Every month's spending, one row a month: the runway and the
-            // context line read the last year, and the all-clear line's pace
-            // call reads the same priors /insights does (same month in
-            // earlier years among them).
-            { type: "SPENDING_BY_CATEGORY" },
+            { type: "SPENDING_BY_CATEGORY", period: { gte: monthKeyBack(now, OVERVIEW_MONTHS_BACK) } },
             { type: { in: ["NET_WORTH_GROWTH", "CASH_FLOW_TREND"] }, period: { gte: monthKeyBack(now, GOAL_MONTHS_BACK) } },
             { type: "RECURRING_CHARGE", period: periodKey(now, "MONTH") },
           ],

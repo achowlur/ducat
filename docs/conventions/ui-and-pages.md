@@ -1486,8 +1486,8 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   never reads as there; with no goal, "All clear." alone. Never praise for
   its own sake. It is not an ActionAlert: a positive rule on the chip paper,
   at the one-line alert's height so the swap does not move the page. Cost:
-  the spending read widened to every month in the SAME statement (the pace
-  call's priors include the same month in earlier years, one row a month) and
+  the spending read stays at 12 months in the SAME statement (the pace call
+  reads the last six, the same window as the runway) and
   the declared subscriptions (which floor the projection) joined the
   concurrent group; the pace is built by currentPaceFrom, the pure half of
   /trends' getCurrentPace, so the two cannot drift.
