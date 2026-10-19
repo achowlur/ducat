@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 import { computePace } from "../lib/insights/pace";
 import { OverPaceAlert, overPaceSentence } from "./OverPaceAlert";
 
-// Invented: Julys of 3000 and 4000 and April to June of 3000, 4000 and 3600, so the top of a typical month is 3800.
+// Invented: April to June of 3000, 4000 and 3600, so the top of a typical month is 3800; the
+// Julys before them sit outside the last six months and never reach the baseline.
 const pace = (spentSoFar: number, day = 16) =>
   computePace({
     period: "2026-07",

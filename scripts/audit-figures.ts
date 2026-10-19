@@ -177,7 +177,7 @@ async function report(copy: string): Promise<void> {
     if (p === null) console.log('   No pace call (not the month being lived in, or no spending row).');
     else
       console.log(
-        `   Day ${p.dayOfPeriod} of ${p.daysInPeriod}: spent ${usd(p.spentSoFar)}, the rest adds ${usd(p.typicalRest)} (${p.basis ?? 'refused'} over ${p.basisCount} months, ${p.basisMissingAccounts} missing accounts at most), projected ${usd(p.projected)}; refusal ${p.refusal ?? 'none'}.`,
+        `   Day ${p.dayOfPeriod} of ${p.daysInPeriod}: spent ${usd(p.spentSoFar)}, the rest adds ${usd(p.typicalRest)} (${p.basis ?? 'refused'} over ${p.basisCount} months, ${p.basisMissingAccounts} missing accounts at most), projected ${usd(p.projected)}, top of typical ${usd(p.typicalHigh)}, last year ${p.lastYear === null ? 'n/a' : `${p.lastYear.period} ${usd(p.lastYear.total)}`}; refusal ${p.refusal ?? 'none'}.`,
       );
     const recurring = insights.groups.find((g) => g.note !== null);
     console.log(`   Recurring charges: ${recurring?.note ?? 'no yearly total shown'}; next 30 days ${usd(insights.commitments?.total)}.`);

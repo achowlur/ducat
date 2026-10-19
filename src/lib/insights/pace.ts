@@ -19,18 +19,13 @@ import { quantile, round2 } from './stats';
 
 /** Below this, the month has not told us enough. Day 3 of 31 says nothing. */
 const MIN_ELAPSED = 0.25;
-/** A single prior year is an anecdote; two is the least that can average. */
-const MIN_SAME_MONTH = 2;
 /**
- * The most recent years of the same month the baseline reads. Every prior
- * year was a decade-old October on a long history, when rent and prices
- * were far lower: on eleven years of it "a typical October ran" half of what
- * October now costs, and an ordinary month read as double its norm.
+ * A single month is an anecdote; two is the least that can be called typical.
+ * The window itself is BAND_MONTHS (below): the last six months, the window
+ * the over-pace band, the goals and the runway read, so the headline and the
+ * OVER PACE alert agree on what "typical" is.
  */
-const SAME_MONTH_YEARS = 3;
-/** How far back the fallback reaches, and how much of it must be usable. */
-const TRAILING_WINDOW = 3;
-const MIN_TRAILING = 2;
+const MIN_RECENT = 2;
 /**
  * A period reaching back over fewer than two thirds of today's accounts is not
  * a smaller version of this month, it is a different portfolio, and its total
@@ -39,7 +34,7 @@ const MIN_TRAILING = 2;
 const MIN_BASELINE_COVERAGE = 2 / 3;
 
 /**
- * The typical range is the middle half of the last BAND_MONTHS complete months'
+ * The baseline, and the typical range: the middle half of the last BAND_MONTHS complete months'
  * totals, drawn from at least BAND_MIN_MONTHS of them: the band /trends' This
  * month so far draws, from the same constants, so the two cannot disagree on
  * what a typical month is.
@@ -47,7 +42,14 @@ const MIN_BASELINE_COVERAGE = 2 / 3;
 export const BAND_MONTHS = 6;
 export const BAND_MIN_MONTHS = 3;
 
-export type PaceBasis = 'SAME_MONTH' | 'TRAILING';
+/**
+ * The one baseline: the last BAND_MONTHS comparable months. It replaced the
+ * same month of the last three years (2026-10-19): when spending changes
+ * within a year, past years' months describe an older lifestyle, and the
+ * figure read (everyday spending AFTER the day) no longer carries the rent
+ * that once made a trailing window blind to the months that differ.
+ */
+export type PaceBasis = 'TRAILING';
 export type PaceRefusal = 'TOO_EARLY' | 'NO_BASELINE';
 
 export interface PriorPeriod {
@@ -106,6 +108,12 @@ export interface Pace {
    * or with fewer than BAND_MIN_MONTHS comparable months to draw it from.
    */
   typicalHigh: number | null;
+  /**
+   * The same month a year ago, when it is comparable: what it spent in all,
+   * for the working-out's seasonal aside. It is never part of the baseline.
+   * Null with a refusal, or when that month has no row or is not comparable.
+   */
+  lastYear: { period: string; total: number } | null;
   /** Null whenever `refusal` is set — the two are never both present. */
   projected: number | null;
   refusal: PaceRefusal | null;
@@ -128,11 +136,6 @@ function median(values: number[]): number {
   const s = [...values].sort((a, b) => a - b);
   const mid = Math.floor(s.length / 2);
   return s.length % 2 === 0 ? (s[mid - 1] + s[mid]) / 2 : s[mid];
-}
-
-/** "2026-07" → 7. Period keys are always YYYY-MM here. */
-function monthOf(period: string): number {
-  return Number(period.slice(5, 7));
 }
 
 /**
@@ -158,7 +161,16 @@ export function computePace(input: {
 
   const base: Omit<
     Pace,
-    'typical' | 'basis' | 'basisCount' | 'basisMissingAccounts' | 'typicalRest' | 'restIsEveryday' | 'typicalHigh' | 'projected' | 'refusal'
+    | 'typical'
+    | 'basis'
+    | 'basisCount'
+    | 'basisMissingAccounts'
+    | 'typicalRest'
+    | 'restIsEveryday'
+    | 'typicalHigh'
+    | 'lastYear'
+    | 'projected'
+    | 'refusal'
   > = {
     period,
     dayOfPeriod,
@@ -176,37 +188,23 @@ export function computePace(input: {
     typicalRest: null,
     restIsEveryday: false,
     typicalHigh: null,
+    lastYear: null,
     projected: null,
     refusal,
   });
 
   if (elapsedFraction < MIN_ELAPSED) return refuse('TOO_EARLY');
 
-  // Same calendar month in prior years first: a trailing average is stable
-  // exactly because rent dominates it, which is what makes it blind to the
-  // months that genuinely differ.
+  // The last BAND_MONTHS months, less any not comparable with today. A month
+  // left out is not replaced by an older one: older months miss more
+  // accounts and describe an older way of spending (recentMonths.ts, the
+  // goals' window, keeps the same rule).
   const comparable = priors.filter((p) => p.period < period && isComparableBaseline(p.coverage));
+  const recent = new Set(Array.from({ length: BAND_MONTHS }, (_, i) => monthKeyBack(start, i + 1)));
+  const sample = comparable.filter((p) => recent.has(p.period));
 
-  const month = monthOf(period);
-  const sameMonth = comparable
-    .filter((p) => monthOf(p.period) === month)
-    .sort((a, b) => (a.period < b.period ? 1 : -1))
-    .slice(0, SAME_MONTH_YEARS);
-  const trailing = [...comparable]
-    .sort((a, b) => (a.period < b.period ? 1 : -1))
-    .slice(0, TRAILING_WINDOW);
-
-  let basis: PaceBasis | null = null;
-  let sample: PriorPeriod[] = [];
-  if (sameMonth.length >= MIN_SAME_MONTH) {
-    basis = 'SAME_MONTH';
-    sample = sameMonth;
-  } else if (trailing.length >= MIN_TRAILING) {
-    basis = 'TRAILING';
-    sample = trailing;
-  }
-
-  if (basis === null) return refuse('NO_BASELINE');
+  if (sample.length < MIN_RECENT) return refuse('NO_BASELINE');
+  const basis: PaceBasis = 'TRAILING';
 
   const typical = round2(median(sample.map((p) => p.total)));
   // What a typical month still had left to spend after this day: from its
@@ -224,12 +222,13 @@ export function computePace(input: {
   // should not talk over a fact.
   const remaining = Math.max(typicalRemaining, committedRemaining);
 
-  // The top of the typical range: from the recent months, which is a wider
-  // window than the sample the projection reads (the same month of the last
-  // few years), because it is what the chart's band is.
-  const recent = new Set(Array.from({ length: BAND_MONTHS }, (_, i) => monthKeyBack(start, i + 1)));
-  const banded = comparable.filter((p) => recent.has(p.period));
-  const typicalHigh = banded.length >= BAND_MIN_MONTHS ? round2(quantile(banded.map((p) => p.total), 0.75)) : null;
+  // The top of the typical range, from the same months: what the chart's
+  // band is, so it needs the band's minimum.
+  const typicalHigh = sample.length >= BAND_MIN_MONTHS ? round2(quantile(sample.map((p) => p.total), 0.75)) : null;
+
+  // The same month a year ago, said beside the baseline and never in it.
+  const yearAgo = monthKeyBack(start, 12);
+  const lastYearRow = comparable.find((p) => p.period === yearAgo);
 
   return {
     ...base,
@@ -243,6 +242,7 @@ export function computePace(input: {
     typicalRest: round2(typicalRemaining),
     restIsEveryday: series,
     typicalHigh,
+    lastYear: lastYearRow === undefined ? null : { period: lastYearRow.period, total: round2(lastYearRow.total) },
     projected: round2(spentSoFar + remaining),
     refusal: null,
   };

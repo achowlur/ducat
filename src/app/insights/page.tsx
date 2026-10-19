@@ -12,7 +12,7 @@ import { RecurringAlerts } from "../../components/RecurringAlerts";
 import { NetWorthGoalPanel } from "../../components/NetWorthGoalPanel";
 import { SavingsGoalCard } from "../../components/goals/SavingsGoalCard";
 import { Fig, Lead } from "../../components/ui/figure";
-import type { Pace } from "../../lib/insights/pace";
+import { BAND_MONTHS, type Pace } from "../../lib/insights/pace";
 import { OverPaceAlert } from "../../components/OverPaceAlert";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
@@ -339,6 +339,10 @@ function MonthHeadline({
   if (pace !== null) {
     const projected = pace.projected;
     const due = pace.committedRemaining > 0 ? pace.committedRemaining : null;
+    // A month left out as not comparable is never replaced by an older one,
+    // so the count can fall short of the window: say which it is.
+    const recentLabel =
+      pace.basisCount === BAND_MONTHS ? `your last ${BAND_MONTHS} months` : `${pace.basisCount} of your last ${BAND_MONTHS} months`;
     return (
       <div>
         <div className={FIELD_LABEL}>Spending</div>
@@ -372,17 +376,19 @@ function MonthHeadline({
                 Day {pace.dayOfPeriod} of {pace.daysInPeriod}.{" "}
                 {pace.restIsEveryday ? (
                   <>
-                    The rest of the month is what{" "}
-                    {pace.basis === "SAME_MONTH" ? `the last ${pace.basisCount} ${month}s` : `your last ${pace.basisCount} months`}{" "}
-                    spent after day {pace.dayOfPeriod}, travel and one-off purchases left out; anything you spend this month
-                    counts.
+                    The rest of the month is the middle of what {recentLabel} spent after day {pace.dayOfPeriod}, travel
+                    and one-off purchases left out; anything you spend this month counts.
                   </>
                 ) : (
                   <>
-                    {pace.basis === "SAME_MONTH" ? `A typical ${month} ran ` : "The last few months ran "}
-                    <Fig>{money(pace.typical ?? 0)}</Fig>
-                    {pace.basis === "SAME_MONTH" ? ` (${pace.basisCount} prior years)` : ""}, and the rest of the month is
-                    its share.
+                    A typical month of {recentLabel} ran <Fig>{money(pace.typical ?? 0)}</Fig>, and the rest of the month
+                    is its share.
+                  </>
+                )}
+                {pace.lastYear !== null && (
+                  <>
+                    {" "}
+                    Last {month}: <Fig>{money(pace.lastYear.total)}</Fig>.
                   </>
                 )}
                 {due !== null && (

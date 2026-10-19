@@ -64,9 +64,15 @@ anything below; several entries record "tried and failed, don't retry".
 - Category DRIFT is measured NET of that period's one-offs in the category —
   a one-off is scored once, never annualised as a trend.
 - Baselines are RECENT, never all history: drift against a category's last
-  12 periods with spending, the pace call against the same month of the last
-  3 years (else the trailing 3 months). On a long history every price or pay
-  rise otherwise reads as a trend all the year after it.
+  12 periods with spending, the pace call against the LAST 6 COMPARABLE
+  MONTHS (BAND_MONTHS, isComparableBaseline, never back-filled from older
+  ones), the MIDDLE of their everydayAfterDay: the window the over-pace band,
+  the goals and the runway read, so the headline and OVER PACE agree on
+  "typical". Never the same month of past years (amended 2026-10-19): a
+  changed life makes them an older one; the same month a year ago, when
+  comparable, is only an aside in the working-out ("Last October: $X").
+  On a long history every price or pay rise otherwise reads as a trend all
+  the year after it.
 - The pace call projects the REST of the month from what typical months
   spent AFTER this day, EVERYDAY spending only
   (SpendingByCategoryPayload.everydayAfterDay: travel, by category name, and
