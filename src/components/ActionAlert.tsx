@@ -9,6 +9,9 @@ export const ALERT_ACTION = `${CONTROL} tap44 inline-flex items-center border-in
  * alert, the sentence in bold, an optional faint detail line, and the action
  * as a real control. `lead` is the larger form for "Do this next". A recap or a
  * fact is never an ActionAlert: only what asks for an action wears it.
+ *
+ * `wrapActions` keeps the sentence at least 14rem wide, so controls with long
+ * labels drop below it on a phone instead of squeezing it to a word a line.
  */
 export function ActionAlert({
   kind,
@@ -16,12 +19,14 @@ export function ActionAlert({
   detail,
   actions,
   lead = false,
+  wrapActions = false,
 }: {
   kind: string;
   children: React.ReactNode;
   detail?: React.ReactNode;
   actions?: React.ReactNode;
   lead?: boolean;
+  wrapActions?: boolean;
 }) {
   return (
     <div
@@ -30,7 +35,7 @@ export function ActionAlert({
         lead ? "px-4 py-3" : "px-3 py-2.5"
       }`}
     >
-      <div className="min-w-0 flex-1">
+      <div className={`min-w-0 ${wrapActions ? "flex-[1_1_14rem]" : "flex-1"}`}>
         <p className={`${lead ? "text-[0.98rem]" : "text-[0.88rem]"} font-semibold leading-snug`}>
           <span className={`${CHIP} mr-2 align-[2px] bg-warn text-on-warn`}>{kind}</span>
           {children}

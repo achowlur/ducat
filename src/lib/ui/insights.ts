@@ -47,7 +47,7 @@ import { monthlyRows, ofType } from "./insightRows";
 import { priorPeriods } from "./currentPace";
 import { selectPeriod } from "./periodNav";
 import { isCancelled, parseDecisions, riseKept, RECURRING_DECISIONS_KEY, type Decisions } from "./recurringDecisions";
-import { recurringAlertsFor, type RecurringAlert } from "./recurringAlerts";
+import { recurringAlertsFor, yourShare, type RecurringAlert } from "./recurringAlerts";
 import { higherThan, money, monthLabel, shortDate, shortDateYear, titleCase } from "./format";
 
 export interface InsightRow {
@@ -256,9 +256,13 @@ interface RecurringState {
 }
 
 function renderRecurring(p: RecurringChargePayload, tracked: boolean, state: RecurringState): RowBody {
+  // A plan split with others bills the operator's share in every figure
+  // (costNow), so the row says which share, of which bill.
+  const shared = p.shared !== undefined && !state.lapsed ? yourShare(p.shared.share, priceNow(p)) : null;
   const price = p.priceIncreased
     ? `raised to ${money(p.lastAmount)} (was ${money(p.previousAverageAmount ?? p.averageAmount)})`
-    : `${money(priceNow(p))} ${p.cadence.toLowerCase()}`;
+    : `${shared ?? money(priceNow(p))} ${p.cadence.toLowerCase()}`;
+  const share = shared !== null && p.priceIncreased ? [shared] : [];
   // shortDate, not the raw ISO string: this line sits among "Jul 9 – Jul 20",
   // "in 3d · Aug 6" and "~September 2028", so a bare 2026-07-06 was the only
   // machine-shaped date on the page. It carries its YEAR under "No longer
@@ -270,6 +274,7 @@ function renderRecurring(p: RecurringChargePayload, tracked: boolean, state: Rec
     text: titleCase(p.merchant),
     facts: [
       price,
+      ...share,
       `${p.occurrences} charges`,
       `last ${day(new Date(`${p.lastDate}T12:00:00Z`))}`,
       ...(state.missed !== null ? [`missed ${day(state.missed)}`] : []),

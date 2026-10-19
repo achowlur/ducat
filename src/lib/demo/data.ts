@@ -197,6 +197,25 @@ export function buildDemoData(now: Date): DemoPlan {
     checking(12, -round2(78 + 62 * season + between(-6, 6)), 'CITYLIGHT ELECTRIC', 'citylight electric', 'Utilities', 'OUTFLOW');
     checking(17, -65, 'BRIGHTWAVE INTERNET', 'brightwave internet', 'Utilities', 'OUTFLOW');
     checking(22, -45, 'PARCEL MOBILE', 'parcel mobile', 'Utilities', 'OUTFLOW');
+    // A family plan billed in full and split three ways: two people repay
+    // their thirds by Zelle days later, LINKED to the bill, for the last six
+    // complete months and this one, so Insights bills the operator's share (insights/sharedPlans.ts).
+    // Last month only one of them has repaid, so once this month's bill is in
+    // the plan asks about that one ("Not split"). Earlier months were never
+    // linked and stay at full price: nothing is backfilled.
+    const familyDay = on(mo, 4);
+    if (familyDay !== null) {
+      const bill = add({ accountKey: 'checking', date: familyDay, amount: -110, description: 'KESTREL WIRELESS FAMILY PLAN', merchant: 'kestrel wireless', flow: 'OUTFLOW', category: 'Utilities' });
+      if (mo.index >= DEMO_HISTORY_MONTHS - 6) {
+        for (const [who, day] of [['RILEY CHEN', 6], ['MORGAN DIAZ', 7]] as const) {
+          if (mo === lastComplete && who === 'MORGAN DIAZ') continue;
+          const r = on(mo, day);
+          if (r === null) continue;
+          const ref = `WFCT${String(mo.index * 2 + day).padStart(7, '0')}K`;
+          add({ accountKey: 'checking', date: r, amount: 36.5, description: `ZELLE FROM ${who} ON ${mmdd(r)} REF # ${ref}`, merchant: `zelle from ${who.toLowerCase()}`, flow: 'INFLOW', category: null, reimburses: bill });
+        }
+      }
+    }
     // Saving and investing grow with the pay; the loan payment does not.
     const toSavings = Math.min(475, 200 + 25 * yrs);
     const t3 = on(mo, 3);

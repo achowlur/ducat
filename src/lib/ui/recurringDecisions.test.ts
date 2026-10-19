@@ -241,7 +241,7 @@ describe("refusals", () => {
     for (const choice of ["keep", "still", "cancel"] as const) {
       const cs = [streamflix, gym, steady];
       for (const alert of recurringAlerts(plans(cs), NO_DECISIONS, NOW).shown) {
-        if (alert.actions.some((a) => a.choice === choice)) {
+        if (alert.actions.some((a) => "choice" in a && a.choice === choice)) {
           expect(decide(choice, alert.plan, plans(cs), NO_DECISIONS, NOW).ok).toBe(true);
         }
       }

@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { decideRecurring } from "../app/insights/actions";
 import { settleAction } from "../lib/actionResult";
 import type { RecurringAlert } from "../lib/ui/recurringAlerts";
+import type { Choice } from "../lib/ui/recurringDecisions";
 import { ActionAlert, ALERT_ACTION } from "./ActionAlert";
 
 /** What a button that never got an answer most likely was: nothing was saved. */
@@ -13,7 +15,7 @@ function AlertRow({ alert }: { alert: RecurringAlert }) {
   const [pending, startTransition] = useTransition();
   const [refusal, setRefusal] = useState<string | null>(null);
 
-  function choose(choice: RecurringAlert["actions"][number]["choice"]) {
+  function choose(choice: Choice) {
     setRefusal(null);
     startTransition(async () => {
       const result = await settleAction(() => decideRecurring({ plan: alert.plan, choice }), NO_ANSWER);
@@ -24,13 +26,19 @@ function AlertRow({ alert }: { alert: RecurringAlert }) {
   return (
     <ActionAlert
       kind={alert.kind}
+      wrapActions={alert.kind === "Not split"}
       detail={
         <>
           {alert.detail}
           {refusal !== null && <span className="mt-1 block text-warn-ink">{refusal}</span>}
         </>
       }
-      actions={alert.actions.map((a) => (
+      actions={alert.actions.map((a) =>
+        "href" in a ? (
+          <Link key={a.href} href={a.href} className={ALERT_ACTION}>
+            {a.label}
+          </Link>
+        ) : (
         <button
           key={a.choice}
           type="button"
@@ -40,7 +48,8 @@ function AlertRow({ alert }: { alert: RecurringAlert }) {
         >
           {a.label}
         </button>
-      ))}
+        ),
+      )}
     >
       {alert.text}
     </ActionAlert>

@@ -186,6 +186,24 @@ export interface RecurringChargePayload {
    * Absent when the plan only ever had one.
    */
   aliases?: string[];
+  /**
+   * Set when the plan is SPLIT with others, read from the repayments linked
+   * to its bills (insights/sharedPlans.ts). Every subscription figure bills
+   * `share` in its place (insights/recurring.ts, costNow). Absent when not
+   * shared, and on rows stored before 2026-10-18.
+   */
+  shared?: SharedPlanPayload;
+}
+
+export interface SharedPlanPayload {
+  /** What one bill costs the operator: the middle of the recent settled nets. */
+  share: number;
+  /**
+   * The bill before the newest, when the newest has arrived and that one was
+   * repaid less than the share expects: it counts at the bill less what WAS
+   * repaid, and the operator is asked about it. Null otherwise.
+   */
+  unsplit: { date: string; amount: number; repaid: number } | null;
 }
 
 export interface AnomalyPayload {

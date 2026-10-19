@@ -82,10 +82,15 @@ describe.each(NOWS)('buildDemoData at %s', (iso) => {
     }
   });
 
-  it('links its reimbursement to an outflow', () => {
+  it('links its reimbursements to outflows: the dinner, and the family plan split three ways', () => {
     const repay = plan.txns.filter((t) => t.reimburses !== undefined);
-    expect(repay).toHaveLength(1);
-    expect(plan.txns.find((t) => t.id === repay[0].reimburses)?.flow).toBe('OUTFLOW');
+    for (const r of repay) expect(plan.txns.find((t) => t.id === r.reimburses)?.flow).toBe('OUTFLOW');
+    expect(repay.filter((t) => t.merchant === 'zelle from jordan park')).toHaveLength(1);
+    // Two thirds a month for the six complete months and this one, less the
+    // one still owed last month and any of this month not yet arrived.
+    const family = repay.filter((t) => /^zelle from (riley chen|morgan diaz)$/.test(t.merchant));
+    expect(family.length).toBeGreaterThanOrEqual(11);
+    expect(family.length).toBeLessThanOrEqual(13);
   });
 
   it('keeps checking above zero every day', () => {
@@ -142,6 +147,8 @@ describe.each(NOWS)('buildDemoData at %s', (iso) => {
     expect(missedCharge(gym!, now)).not.toBeNull();
     // The rest of the subscriptions are still billing.
     for (const merchant of ['streamflix', 'tunebox premium']) expect(missedCharge(detected.get(merchant)!, now), merchant).toBeNull();
+    // The family plan is split three ways from its linked repayments alone.
+    expect(detected.get('kestrel wireless')?.shared?.share).toBe(37);
     // The music plan's renamed descriptor is followed: one plan, both names.
     expect(detected.get('tunebox premium')?.aliases).toEqual(['tunebox']);
     expect(detected.has('tunebox')).toBe(false);
@@ -202,7 +209,7 @@ describe('the demo through the real pipeline', () => {
   });
 
   // The links are written a few hundred rows per statement, not one per row.
-  it('writes every transfer pair and the repayment link', async () => {
+  it('writes every transfer pair and every repayment link', async () => {
     const [paired, transfers, repaid] = await Promise.all([
       prisma.transaction.count({ where: { transferPairId: { not: null } } }),
       prisma.transaction.count({ where: { flow: 'TRANSFER' } }),
@@ -210,7 +217,7 @@ describe('the demo through the real pipeline', () => {
     ]);
     expect(paired).toBe(transfers);
     expect(paired).toBeGreaterThan(1000);
-    expect(repaid).toBe(1);
+    expect(repaid).toBe(plan.txns.filter((t) => t.reimburses !== undefined).length);
   });
 
   it('leaves no rule-pack drift, so Overview does not ask for an upgrade', async () => {

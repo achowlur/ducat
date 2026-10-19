@@ -1,5 +1,5 @@
 import type { RecurringCadence } from '../../types/contracts';
-import { priceNow } from '../insights/recurring';
+import { costNow } from '../insights/recurring';
 import { round2 } from '../insights/stats';
 import { isActive, missedCharge, type DetectedSubscription } from './detectedSubscriptions';
 import { matchesSubscription, projectNextPayment } from './subscriptions';
@@ -114,8 +114,9 @@ export function upcomingCommitments(
       merchant: sub.merchant,
       cadence: sub.cadence,
       // What it bills now, never the median of its history: the next charge
-      // is today's price, not the average of the old ones.
-      amount: round2(priceNow(sub)),
+      // is today's price, not the average of the old ones. A shared plan's is
+      // the operator's share: the others pay theirs back.
+      amount: round2(costNow(sub)),
       dueDate,
       daysAway: daysAway(dueDate),
       priceIncreased: sub.priceIncreased,

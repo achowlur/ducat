@@ -799,3 +799,37 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   width; a variant that wraps is for the component's owner. Invented, from the
   tests: $24,000 of $60,000 at $2,000 a month lands January 2028, so a June
   2027 target asks for about $1,300 more.
+- SHARED PLANS (2026-10-18). A phone plan billed in full and split three
+  ways was linked to its repayments, so SPENDING already netted them, while
+  every subscription figure still counted the whole bill: the /yr, the next
+  charge, the 30-day commitments, the pace call's committed spend, and with
+  them the alerts' ranking and "Do this next". No share is typed anywhere:
+  insights/sharedPlans.ts reads it from the links, in the detector, onto
+  RecurringChargePayload.shared, and costNow is the one place a figure asks
+  for it (priceNow stays the price, so a rise is still judged on the bill).
+  The rules, all pinned by sharedPlans.test.ts: a bill's net is the bill
+  less what reimbursementSources files against it (the same resolution
+  spending uses, so the two cannot disagree on which repayments count); a
+  bill is settled once something is linked, or once the next bill arrives;
+  two settled bills in a row with links make a plan shared, one does not (a
+  one-off reimbursement); the share is the middle of the last three settled
+  nets, each as a PART of its own bill (the larger between two), times the
+  newest bill. Review found three holes, each now pinned: dollars fixed at
+  the old price read every bill after a rise as short (a $110 plan rising
+  to $129, repaid $43 + $43, raised a false alert, and two of them ended
+  the sharing); a newest bill linked only in part entered the sample, and
+  between two the larger set the share near two thirds of the bill until
+  the second repayment landed; and the reset after two short bills kept the
+  last bill's "repaid", so one repaid bill re-shared the plan. The wording
+  is literally true: only SPENDING counts an unsplit bill in full, while
+  the subscription figures keep the share. Fail safe: the newest bill counts at the share while it waits, and
+  once the next one is in, a bill repaid less than bill less share (within
+  $1 or 2%) leaves the sample, counts at the bill less what WAS repaid, and
+  raises "Not split" with Link repayments (the ledger's money in over that
+  month and the next, where each row's picker ranks the bill by amount)
+  and Not shared this month (recurring.decisions `unshared`, keyed by the
+  BILL's day, so the next unsplit bill asks again). Two unsplit bills in a
+  row end the sharing in the detector itself: full price, nothing to ask.
+  Nothing is backfilled. Spending is untouched, pinned byte-identical after
+  the detector runs. Invented, from the tests: a $110 bill with two $36.50
+  links a month bills $37, $444 a year instead of $1,320.
