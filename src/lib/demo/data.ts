@@ -448,7 +448,9 @@ export function buildDemoData(now: Date): DemoPlan {
     snapshots.push({ accountKey: key, date: today, balance: account.balance });
   }
 
-  const houseTargetMonth = new Date(Date.UTC(cy, cm + 36, 1));
+  // Ten months out: the demo's fund lands later than that at its saving pace, so the
+  // goal card shows its BEHIND alert (a screen feature the demo must be able to show).
+  const houseTargetMonth = new Date(Date.UTC(cy, cm + 10, 1));
   return {
     now,
     categories: [

@@ -140,6 +140,16 @@ anything below; several entries record "tried and failed, don't retry".
   (a COPY of the newest verified backup, regenerated with the branch's
   code, never DATABASE_URL) before it ships; its output is real figures and
   stays out of every public text.
+- A savings goal's "Saved per month" is the net worth goal's field on the
+  card: Setting goals.savings entries take an OPTIONAL `monthlyPace` (absent
+  follows the measured pace; typing the measured figure clears it; an
+  unreadable one is ignored, never a dropped goal), written only through
+  withGoalPace on the raw entries, and the card re-projects through
+  projectLanding, the server's arithmetic. A goal landing AFTER its target
+  month shows ONE ActionAlert (BEHIND) with the field inside it, "Save ~$X/mo
+  more", X from extraToLand (the inverse of projectLanding, rounded UP to
+  $10); on time, ahead, no target month, no pace or under a month left: no
+  alert, the field sits in the controls.
 - A cash goal prints its RECONCILIATION beside the projected landing —
   observed cash growth over the same window the rate averages — because the
   rate assumes every saved dollar stays in cash, and with a single goal
