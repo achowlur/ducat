@@ -3,7 +3,7 @@ paths:
   - "src/lib/insights/**"
   - "src/lib/health/**"
   - "src/lib/rates/**"
-  - "src/lib/ui/{liquidity,insights,insightRows,periodNav}*.ts"
+  - "src/lib/ui/{liquidity,insights,insightRows,periodNav,recurring}*.ts"
   - "src/app/insights/**"
   - "scripts/{set-goals,set-readiness,set-cash-accounts,audit-subscriptions,audit-figures}.ts"
 ---
@@ -26,6 +26,16 @@ anything below; several entries record "tried and failed, don't retry".
   (missedCharge), never by the clock alone: it stays listed, flagged, and
   leaves the commitments and the /yr, as does a registered twin with no newer
   charge of its own.
+- Recurring charges opens with at most TWO ActionAlerts (ui/recurringAlerts.ts;
+  the rest fold behind a tap), ranked by the plan's yearly cost: a price rise
+  still news (Keep, Cancelled) or a missed charge (Still active, Cancelled).
+  The answers are Setting recurring.decisions (ui/recurringDecisions.ts), keyed
+  by EVERY merchant string a plan folds from: Keep hides the rise until the
+  price changes, Still active hides the miss until the plan charges again or
+  lapses, Cancelled treats the plan as lapsed (yearly total, commitments, a
+  declared twin silenced) until a charge newer than the one it was cancelled
+  at. A decision never touches a transaction, and the action finds the plan
+  in the SAME live list the page was built from, refusing a stale page.
 - The detector follows ONE plan across a renamed descriptor (continues in
   recurring.ts): same account, no overlap, about the same price, a shared
   NAME word (payeeWords.ts, never a town), and a handover gap like any other

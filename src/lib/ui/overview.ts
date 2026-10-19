@@ -36,6 +36,7 @@ export interface AccountRow {
   name: string;
   institution: string;
   type: string;
+  connectorType: string;
   balance: number;
   snapshotBacked: boolean;
   snapshotDate: string | null;
@@ -228,6 +229,7 @@ export async function getOverviewData(): Promise<OverviewData> {
         name: a.name,
         institution: a.institution,
         type: a.type,
+        connectorType: a.connectorType,
         balance,
         snapshotBacked: snapDate !== null,
         snapshotDate: snapDate === null ? null : shortDate(snapDate),

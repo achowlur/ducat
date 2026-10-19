@@ -8,6 +8,7 @@ import { GOAL_RATE_MIN_MONTHS } from "../../lib/insights/goals";
 import { monthlyPiti, type ReadinessAssessment } from "../../lib/insights/readiness";
 import { money, monthLabel, shortDate, titleCase } from "../../lib/ui/format";
 import { ASSUMED_CHIP, CHIP, FIELD_LABEL, PageTitle, PROJECTED_CHIP, SectionTitle, SubsectionTitle } from "../../components/ui/headings";
+import { RecurringAlerts } from "../../components/RecurringAlerts";
 import { NetWorthGoalPanel } from "../../components/NetWorthGoalPanel";
 import { SavingsGoalCard } from "../../components/goals/SavingsGoalCard";
 import { Fig, Lead } from "../../components/ui/figure";
@@ -606,6 +607,7 @@ async function renderInsights({
               <span className="font-money text-[0.75rem] tabular text-faint">{recurringNote}</span>
             )}
           </div>
+          <RecurringAlerts shown={data.recurringAlerts.shown} folded={data.recurringAlerts.folded} />
           {data.commitments !== null && (
             <p className="flex flex-wrap items-baseline gap-x-2 pb-1 text-[0.85rem]">
               <span className="text-faint">Due in the next {data.commitments.windowDays} days</span>
