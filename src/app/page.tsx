@@ -10,6 +10,7 @@ import { droppedNote, shortNote, windowSpan } from "../lib/ui/recentMonthsNote";
 import { STATUS_DOT } from "../lib/ui/providers";
 import { CHIP, COLUMN_HEADER, FIELD_LABEL, PageTitle, SectionTitle } from "../components/ui/headings";
 import { transactionsHref } from "../lib/ui/categoryFilter";
+import { StaleAlert } from "../components/StaleAlert";
 import { withDatabaseNotice } from "../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
@@ -251,6 +252,16 @@ async function renderOverview() {
       <div className="grid grid-cols-1 md:grid-cols-[1.12fr_0.88fr]">
         <section className="py-5 md:col-start-1 md:row-span-2 md:row-start-1 md:pr-7">
           <SectionTitle>Accounts</SectionTitle>
+          <div className="mb-3 empty:hidden">
+            <StaleAlert
+              accounts={data.accounts.map((a) => ({
+                name: a.name,
+                connectorType: a.connectorType,
+                balanceLagDays: a.balanceLagDays,
+                behind: a.stale || a.balanceLagDays >= STALE_DISPLAY_DAYS,
+              }))}
+            />
+          </div>
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-ink">
