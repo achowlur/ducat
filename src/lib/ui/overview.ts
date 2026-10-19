@@ -137,6 +137,8 @@ export interface OverviewData {
    * in; the next sync regenerates every row with it.
    */
   runwayEveryday: boolean;
+  /** How many months the runway's travel and one-offs are averaged over (up to LUMPY_MONTHS). */
+  runwayLumpyMonths: number;
   health: ProviderHealth[];
   lastSyncAt: Date | null;
   /**
@@ -171,12 +173,14 @@ export interface OverviewData {
 const TYPE_ORDER: Record<string, number> = { DEPOSITORY: 0, INVESTMENT: 1, CREDIT: 2, LOAN: 3 };
 
 /**
- * Months of insight rows Overview reads: the runway averages at most six
- * complete months, the context line wants the latest complete one, and the
- * pace call reads the six before this month, so a year back leaves room for a
- * gap in the records.
+ * Months of insight rows Overview reads: the runway takes the middle of six
+ * complete months and spreads travel and one-offs over twelve (LUMPY_MONTHS),
+ * and the context line wants the latest complete one: twelve complete months
+ * and the one being lived in.
  */
-const OVERVIEW_MONTHS_BACK = 12;
+const OVERVIEW_MONTHS_BACK = 13;
+/** Months travel and one-off purchases are averaged over for the runway: a year, so a yearly trip counts once. */
+export const LUMPY_MONTHS = 12;
 
 /**
  * Months of net worth and cash-flow rows "Do this next" reads for the goals:
@@ -315,9 +319,27 @@ export async function getOverviewData(now: Date = new Date()): Promise<OverviewD
   // spending: a trip or a one-off purchase is not a month's burn.
   const runwayMonths = spendingSeries.filter((s) => runwayWindow.used.includes(s.period));
   const runwayEveryday = runwayMonths.every((s) => (s.payload.everydayAfterDay?.length ?? 0) > 0);
+  // Travel and one-off purchases are still spending, only in bulk: spread
+  // over the last LUMPY_MONTHS comparable months and added back, never
+  // dropped. Each month's share is what its total holds beyond its everyday
+  // spending, from the same payload, so no second definition appears.
+  const lumpyWindow = recentMonths(
+    spendingSeries.filter((s) => s.period < currentPeriod).map((s) => s.period),
+    accountCoverageFrom(accountRows, firsts).map((a) => a.firstTransaction),
+    LUMPY_MONTHS,
+  );
+  const lumpyMonths = spendingSeries.filter(
+    (s) => lumpyWindow.used.includes(s.period) && (s.payload.everydayAfterDay?.length ?? 0) > 0,
+  );
+  const lumpy =
+    runwayEveryday && lumpyMonths.length > 0
+      ? lumpyMonths.reduce((sum, s) => sum + Math.max(0, s.payload.totalSpending - s.payload.everydayAfterDay![0]), 0) /
+        lumpyMonths.length
+      : 0;
   const runway = computeRunway(
     balances.cash + balances.cards,
     runwayMonths.map((s) => (runwayEveryday ? s.payload.everydayAfterDay![0] : s.payload.totalSpending)),
+    lumpy,
   );
 
   // The spending block shows the month being LIVED IN — never a past month
@@ -440,6 +462,7 @@ export async function getOverviewData(now: Date = new Date()): Promise<OverviewD
     runway,
     runwayWindow,
     runwayEveryday,
+    runwayLumpyMonths: lumpyMonths.length,
     health,
     lastSyncAt: lastOk?.finishedAt ?? null,
     uncategorizedCount,

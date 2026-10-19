@@ -875,3 +875,16 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   names the window ("your last 6 months", or "5 of your last 6 months" when
   one was left out). Invented, from the tests: five quiet months whose rest
   ran near $500 and one at $3,000 project $505; a mean would say $917.
+
+- TRAVEL AND ONE-OFFS ARE SPREAD, NEVER DROPPED (operator, 2026-10-19).
+  The runway divided cash by a typical EVERYDAY month, travel (by category)
+  and one-off purchases (the anomaly pass) left out, so it assumed no trip
+  and no big purchase ever again, and a sofa was left out only if the pass
+  happened to flag it. Now a month is the middle of the everyday months
+  PLUS the window's travel and one-offs averaged over the last twelve
+  comparable months, said in the working-out, with the months counted (under
+  a year, one trip weighs more, and it says so). The month's own
+  projection is unchanged:
+  what is spent counts whatever it was, and a trip not yet taken is never
+  forecast into the days left. Also: the daily axis no longer labels the
+  29th at weekly and fortnightly steps, where it printed over the 1st.

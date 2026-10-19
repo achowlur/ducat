@@ -154,8 +154,13 @@ anything below; several entries record "tried and failed, don't retry".
 - The runway and a CASH goal count cash AFTER open card balances
   (BalanceSummary.cards; loans aside), said in their assumptions line; the
   runway divides by the MIDDLE of the window's EVERYDAY months
-  (everydayAfterDay[0]), never a mean of totals, and a credit against a
-  one-off leaves the everyday series with it.
+  (everydayAfterDay[0]), never a mean of totals, PLUS travel and one-off
+  purchases SPREAD over the last LUMPY_MONTHS (12) comparable months (each
+  month's total less its everyday; amended 2026-10-19: lumpy spending is
+  still spending, never dropped), and a credit against a one-off leaves the
+  everyday series with it. The month's pace call still projects only
+  everyday spending for the days left: a trip already taken counts, one not
+  yet taken is never predicted.
 - A change to any projection is read back with `npm run audit:figures`
   (a COPY of the newest verified backup, regenerated with the branch's
   code, never DATABASE_URL) before it ships; its output is real figures and

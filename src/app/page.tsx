@@ -5,7 +5,7 @@ import { debtNote } from "../lib/ui/liquidity";
 import { wholePercents } from "../lib/ui/spendingBreakdown";
 import { SyncNowButton } from "../components/SyncNowButton";
 import { amount, dateTime, money, pct } from "../lib/ui/format";
-import { getOverviewData, STALE_DISPLAY_DAYS } from "../lib/ui/overview";
+import { getOverviewData, LUMPY_MONTHS, STALE_DISPLAY_DAYS } from "../lib/ui/overview";
 import { droppedNote, shortNote, windowSpan } from "../lib/ui/recentMonthsNote";
 import { STATUS_DOT } from "../lib/ui/providers";
 import { CHIP, COLUMN_HEADER, FIELD_LABEL, PageTitle, SectionTitle } from "../components/ui/headings";
@@ -559,22 +559,37 @@ async function renderOverview() {
                     </span>
                   </summary>
                   {/* The assumptions first: the cash it divides is AFTER the
-                      cards it pays, and the month is an everyday one. */}
+                      cards it pays, and a month is its everyday spending plus
+                      travel and one-offs spread over a year, never dropped. */}
                   <span className="block leading-relaxed">
                     {data.balances.cards < 0
                       ? `Cash after ${money(-data.balances.cards)} on cards`
                       : "Cash, no card balance owed"}
-                    , at a typical month&apos;s {data.runwayEveryday ? "everyday " : ""}spending.
+                    {data.runwayEveryday ? (
+                      <>
+                        , at a typical month&apos;s everyday spending,{" "}
+                        <span className="font-money tabular">{money(data.runway.monthlySpending - data.runway.lumpy)}</span>,
+                        plus <span className="font-money tabular">{money(data.runway.lumpy)}</span> of travel and one-off
+                        purchases.
+                      </>
+                    ) : (
+                      <>, at a typical month&apos;s spending.</>
+                    )}
                   </span>
                   <span className="block pb-1 leading-relaxed">
-                    The middle of {windowSpan(data.runwayWindow)}
-                    {data.runwayEveryday
-                      ? ", travel and one-off purchases left out"
-                      : ", travel and one-off purchases still in until the next sync"}
-                    ; they ran{" "}
+                    {data.runwayEveryday ? "Everyday is the middle" : "The middle"} of {windowSpan(data.runwayWindow)}
+                    {data.runwayEveryday ? "" : ", travel and one-off purchases in until the next sync"}, which ran{" "}
                     <span className="font-money tabular">
                       {money(data.runway.low)} to {money(data.runway.high)}
                     </span>
+                    {data.runwayEveryday &&
+                      `; travel and one-offs are their average over the last ${data.runwayLumpyMonths} month${
+                        data.runwayLumpyMonths === 1 ? "" : "s"
+                      }${
+                        data.runwayLumpyMonths >= LUMPY_MONTHS
+                          ? ", so a yearly trip counts once"
+                          : ", under a year, so one trip weighs more until a year is on record"
+                      }`}
                     .{droppedNote(data.runwayWindow) !== null && ` ${droppedNote(data.runwayWindow)}`}
                   </span>
                 </details>

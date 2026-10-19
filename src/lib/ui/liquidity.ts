@@ -143,6 +143,8 @@ export interface Runway {
   /** Lowest and highest of those months: the middle hides how variable they are. */
   low: number;
   high: number;
+  /** Travel and one-off purchases a month, averaged over a longer window: part of monthlySpending. */
+  lumpy: number;
 }
 
 /**
@@ -158,24 +160,33 @@ export interface Runway {
  * a one-off with its refund left in), which a mean takes a sixth of and the
  * middle ignores, as the pace call and the idle-cash buffer already do.
  *
+ * Travel and one-off purchases are SPREAD, never dropped (operator,
+ * 2026-10-19): a trip or a sofa is still spending, only in bulk, and a runway
+ * that assumes none again runs long. They arrive as `lumpyMonthly`, their
+ * total over a longer window divided by its months, added to the middle.
+ *
  * Refuses rather than guessing when there is too little history, when a
  * typical month nets to zero or below, or when there is no cash to divide.
  */
 export function computeRunway(
   cash: number,
   completeMonthlySpending: readonly number[],
+  lumpyMonthly = 0,
 ): Runway | null {
   const recent = completeMonthlySpending.slice(-RUNWAY_MONTHS);
   if (recent.length < RUNWAY_MIN_MONTHS) return null;
   const sorted = [...recent].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  const typical = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
-  if (typical <= 0 || cash <= 0) return null;
+  const everyday = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  const lumpy = Math.max(0, lumpyMonthly);
+  const typical = everyday + lumpy;
+  if (everyday <= 0 || cash <= 0) return null;
   return {
     months: Math.round((cash / typical) * 10) / 10,
     monthlySpending: Math.round(typical * 100) / 100,
     basisMonths: recent.length,
     low: Math.round(sorted[0] * 100) / 100,
     high: Math.round(sorted[sorted.length - 1] * 100) / 100,
+    lumpy: Math.round(lumpy * 100) / 100,
   };
 }

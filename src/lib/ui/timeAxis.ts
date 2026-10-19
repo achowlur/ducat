@@ -35,11 +35,17 @@ export function dayStep(unitsPerDay: number, minLabelUnits: number): number {
   return DAY_STEPS.find((step) => unitsPerDay * step >= minLabelUnits) ?? 31;
 }
 
-/** Indices in [first, last] whose day falls on the step; `days` are "YYYY-MM-DD". */
+/**
+ * Indices in [first, last] whose day falls on the step; `days` are
+ * "YYYY-MM-DD". A step's last day of a month is skipped when the next 1st
+ * would follow it sooner than a step: weekly labels on the 29th printed over
+ * "Oct 1" two days later.
+ */
 export function dayTicks(days: string[], first: number, last: number, step: number): number[] {
   const out: number[] = [];
   for (let i = Math.max(0, first); i <= Math.min(days.length - 1, last); i++) {
-    if ((Number(days[i].slice(8, 10)) - 1) % step === 0) out.push(i);
+    const day = Number(days[i].slice(8, 10));
+    if (step === 1 || day === 1 || ((day - 1) % step === 0 && day + step <= 29)) out.push(i);
   }
   return out;
 }
