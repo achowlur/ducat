@@ -125,6 +125,9 @@ Overview:
   attention" — all clear cannot be told from not checked. ONE `now` drives
   both admission and the current-period gate, or a render straddling UTC
   midnight splits them.
+- /accounts LEADS with the table (operator, 2026-10-19): no net worth headline,
+  no last-sync line, no how-counted tap; net worth is the total row at the
+  foot, and freshness is each row's chip and age text plus the stale alert.
 - Per-account "Nd behind" measures against the LAST SYNC, never against now,
   and never labels a statement-only (CSV/PDF) account (pollsForBalances).
 - Net worth says in TEXT what a month estimates or leaves out (Trends names

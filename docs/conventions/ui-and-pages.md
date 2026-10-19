@@ -178,6 +178,13 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   here than on Overview; that gap is open (docs/backlog.md).
   CLOSED 2026-08-06: /accounts now leads with its own last-sync line
   (`getAccountsData` returns `lastSyncAt`); the entry is in docs/history.md.
+  REVERSED 2026-10-19 (the operator's call): /accounts leads with the TABLE.
+  The verdict-first pass (2026-10-18) had added a large net worth figure and
+  kept the last-sync line and the "How ages and history are counted" tap; all
+  three are gone, and so is the clock named once in text that the 2026-08-03
+  fix put here. Freshness is carried by each row (its "Nd behind" chip and
+  the balance's own age as text) and by the stale alert above the table when
+  an account is behind; net worth stays in the total row at the foot.
 - The POLISH pass (2026-08-03), the last of the five waves. Grouped by what
   each item actually was, because the list read as 38 unrelated things and was
   not:
@@ -1417,7 +1424,7 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   an action and one assumptions line; the pass that followed applied it to the
   other pages. /providers opens on one line built by providersVerdict (feeds,
   backup, free plan; a part with no signal is left out, never reassuring),
-  /accounts on net worth and freshness, the savings goal on WHEN, Overview
+  /accounts on net worth and freshness (REVERSED the next day, see below), the savings goal on WHEN, Overview
   keeps the net worth delta, and /trends folds each card's method behind a
   tap (Fold). What a reader must discount stays in view: an account left out,
   a line shorter than the history above it, no typical range yet. The same
