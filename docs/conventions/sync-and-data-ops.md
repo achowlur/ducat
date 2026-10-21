@@ -911,3 +911,7 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   before the cron, so each backup and mirror holds the previous night's
   sync, a day behind, accepted. DEPLOY.md registers new installs at 05:30.
   Re-score again whenever a balance reads late: publish times drift.
+  Also in that change: vercel.json sets `github.silent`, so Vercel no
+  longer posts a bot comment on every pull request (each one emailed the
+  operator, as the PR's author). Deploys, their commit statuses and the
+  `verify` check are untouched; the preview URL is on the PR's checks.
