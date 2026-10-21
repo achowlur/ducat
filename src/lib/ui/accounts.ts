@@ -1,7 +1,7 @@
 import { prisma } from "../prisma";
 import { DEFAULT_HEALTH_OPTIONS, pollsForBalances } from "../health/health";
 import { countsAsCash, readCashAccountIds } from "./liquidity";
-import { isoDate } from "./format";
+import { isoDate, localDayKey } from "./format";
 
 export interface AccountDetail {
   id: string;
@@ -104,7 +104,9 @@ export async function getAccountsData(now: Date = new Date()): Promise<AccountsP
       type: a.type,
       currency: a.currency,
       balance: Number(a.balance),
-      balanceDate: isoDate(a.balanceDate),
+      // The bank's instant, as the local day it fell on: a close stamped 9pm
+      // Eastern read "as of" the next day by its UTC date.
+      balanceDate: localDayKey(a.balanceDate),
       daysSinceBalance,
       balanceLagDays:
         syncedAt === null ? 0 : Math.max(0, Math.floor((syncedAt - a.balanceDate.getTime()) / DAY_MS)),

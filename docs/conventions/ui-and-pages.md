@@ -1546,3 +1546,15 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   demo shows it. In By year, a loss is at least 6px wide (a small loss
   beside a large year drew an invisible sliver), and the loss side keeps
   the same room on every row so the zero line stays put.
+
+- A BROKERAGE BALANCE IS THE CLOSE BEFORE IT (operator, 2026-10-20). After a
+  late manual sync left the brokerage "unchanged", the daily line showed why:
+  its Saturday update moved with Friday's market, Sunday's and Monday's not at
+  all, Tuesday's with Monday's. The feed's balance values the PREVIOUS
+  trading day's close. Dated as stamped, Saturdays averaged market moves like
+  a weekday and a transfer looked a day late (which the first cut patched by
+  counting transfers a day later, now removed); dated a day back
+  (`priorClose`, every INVESTMENT account a feed polls), Sundays fall to near
+  zero and a transfer lands on its own date with no lag rule. Also: a
+  balance's "as of" read its UTC date, so a close stamped 9pm Eastern said
+  tomorrow; it is now the local day.
