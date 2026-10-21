@@ -29,7 +29,7 @@ import {
 import { monthKeyBack, periodKey } from "../insights/periods";
 import { recentMonths, type RecentMonths } from "../insights/recentMonths";
 import { accountCoverageFrom, firstRecords } from "./coverage";
-import { monthLabel, shortDate } from "./format";
+import { monthLabel, shortLocalDay } from "./format";
 import { buildMonthRecap, recapPeriod, type MonthRecap } from "./monthRecap";
 import { monthlyRows, ofType } from "./insightRows";
 import { OVERVIEW_SLICING, spendingBreakdown, type DonutSliceData } from "./spendingBreakdown";
@@ -287,7 +287,7 @@ export async function getOverviewData(now: Date = new Date()): Promise<OverviewD
         connectorType: a.connectorType,
         balance,
         snapshotBacked: snapDate !== null,
-        snapshotDate: snapDate === null ? null : shortDate(snapDate),
+        snapshotDate: snapDate === null ? null : shortLocalDay(snapDate),
         // No sync keeps a statement-only balance current, so it is never behind one.
         balanceLagDays:
           syncedAt === null || !pollsForBalances(a.connectorType)

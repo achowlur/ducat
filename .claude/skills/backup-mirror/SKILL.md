@@ -12,10 +12,12 @@ docs/conventions/sync-and-data-ops.md before changing any of it.
 
 ## What runs, and when
 
-- The Windows scheduled task fires `backup:scheduled` at 00:30 UTC, AFTER
-  the whole `0 23 * * *` sync-cron hour (Vercel Hobby fires anywhere in the
-  hour, never early). Backing up before the sync permanently captures
-  yesterday.
+- The Windows scheduled task fires `backup:scheduled` nightly. DEPLOY.md
+  registers it at 05:30 UTC, AFTER the whole `0 4 * * *` sync-cron hour
+  (Vercel Hobby fires anywhere in the hour, never early). A task left at an
+  earlier slot (the operator's stays at 00:30 UTC by choice, 2026-10-20)
+  still works, but each backup and mirror then holds the PREVIOUS night's
+  sync: local runs a day behind.
 - The run copies the cloud onto a `.partial` file, verifies whole-database
   fingerprints against the cloud, renames to the canonical
   `ducat-YYYY-MM-DD-HHMM.db`, mirrors local ROWS from it in one transaction,
