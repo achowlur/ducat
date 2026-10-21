@@ -1546,3 +1546,42 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   demo shows it. In By year, a loss is at least 6px wide (a small loss
   beside a large year drew an invisible sliver), and the loss side keeps
   the same room on every row so the zero line stays put.
+
+- THE BUDGET, AND FIVE TABS (operator, 2026-10-20). /budget was designed
+  live in the pane, on a scratch copy of the data, over eight rounds; what
+  each rejected shape taught:
+  - Sentences in view ("$X spent of $Y budgeted, about $Z a day for the N
+    days left", a paragraph under each section) read as clutter on a phone.
+    The figures stay in view; income, how limits are suggested and what the
+    tick means live in ONE "How this works" fold, and only an action-worthy
+    warning (limits above a typical month's income) is ever a sentence.
+  - Four layouts were built and compared at phone width: bars per row, a
+    dense ledger, a ring over plain rows, rows grouped by status, and a
+    grid of tiles. None landed; tiles "did not feel like Ducat". What did
+    is Overview's own vocabulary: its ring (each category's spending a
+    slice, what is LEFT drawn empty in the rule colour, never as a
+    category) with the figures beside it as ledger lines, and a ruled table
+    whose swatch is the ring's legend, totalled at the foot.
+  - A ring alone hides where the limit is; the bar is what shows it. Each
+    row keeps an EQUAL-LENGTH bar (a bar shortened by its own label or a
+    chip made rows incomparable), filled in the category's ring colour,
+    stopping short of the figure column, with spent of limit over its END,
+    where the limit is. The status chip sits beside the name.
+  - Two bare number columns (Spent, Left) read as one number ("40 120").
+    Words on each figure ("left", "over", "spent") were rejected twice:
+    as text and as a fixed-width slot. A word that changes from row to row
+    is slower to scan than ONE wordless figure under one header: what is
+    left, below zero in the warning ink with a minus.
+  - The monthly table names the TEN largest limits and folds the rest into
+    one Other line that adds them up. A category new this month has no
+    history and a $0 suggested limit, so it folds there instead of reading
+    as "over" a limit nobody set.
+  - The pace tick needs WHEN in a month each category spends, so the
+    spending analyzer records it (CategorySpending.byDay, MONTH rows only,
+    a reimbursement credit on the day it lands); rent paid on the 1st is
+    all spent by the 2nd. Payloads stored before it pace in a straight
+    line until the next sync regenerates them.
+  Seven tabs left four off a phone's screen. The nav is five (Overview,
+  Budget, Insights, Trends, Transactions); Accounts is "Manage" on
+  Overview's table, Providers sits after the Accounts table and beside the
+  theme toggle, and Overview stays lit on both.

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import Link from "next/link";
 import "./globals.css";
 import { AppNav } from "../components/AppNav";
 import { ThemeToggle } from "../components/ThemeToggle";
@@ -46,6 +47,9 @@ export default async function RootLayout({
               <AppNav />
               <span className="hidden items-baseline gap-4 text-[0.75rem] text-faint sm:flex">
                 <span className="font-money">{modeBadge}</span>
+                <Link href="/providers" className="uppercase tracking-[0.1em] text-faint hover:text-ink">
+                  Providers
+                </Link>
                 <ThemeToggle />
                 {showLock ? (
                   <form action={logout}>
@@ -77,7 +81,12 @@ export default async function RootLayout({
               overlapping-targets failure the 44px pass was careful to avoid. */}
           {onLogin ? null : (
             <footer className="mt-10 flex items-center justify-between gap-4 border-t border-rule py-4 text-[0.75rem] text-faint sm:hidden">
-              <span className="font-money">{modeBadge}</span>
+              <span className="flex items-center gap-3">
+                <span className="font-money">{modeBadge}</span>
+                <Link href="/providers" className="tap44 inline-flex items-center uppercase tracking-[0.1em] text-faint hover:text-ink">
+                  Providers
+                </Link>
+              </span>
               <span className="flex items-center gap-4">
                 <ThemeToggle />
                 {showLock ? (

@@ -11,7 +11,7 @@
 /** Paths whose changes can alter what a pictured screen shows. */
 export const PICTURED: RegExp[] = [
   /^src\/app\/(page\.tsx|layout\.tsx|globals\.css)$/,
-  /^src\/app\/(trends|insights|transactions)\//,
+  /^src\/app\/(trends|insights|transactions|budget)\//,
   /^src\/components\//,
   /^src\/lib\/ui\//,
   /^src\/lib\/insights\//,

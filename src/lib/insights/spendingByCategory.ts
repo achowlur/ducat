@@ -5,31 +5,41 @@ import { reimbursementCredits, type ReimbursementCredit } from './reimbursements
 import { pctDelta, round2 } from './stats';
 import type { TxnData } from './types';
 
+interface CategoryEntry {
+  name: string | null;
+  spending: number;
+  /** Net spending per UTC day of the month. */
+  days: Map<number, number>;
+}
+
 interface CategoryTotals {
   total: number;
-  byCategory: Map<string | null, { name: string | null; spending: number }>;
+  byCategory: Map<string | null, CategoryEntry>;
 }
 
 function spendingFor(txns: TxnData[], credits: ReimbursementCredit[], key: string): CategoryTotals {
-  const byCategory = new Map<string | null, { name: string | null; spending: number }>();
+  const byCategory = new Map<string | null, CategoryEntry>();
+  const add = (id: string | null, name: string | null, date: Date, amount: number) => {
+    const entry = byCategory.get(id) ?? { name, spending: 0, days: new Map<number, number>() };
+    entry.spending += amount;
+    const day = date.getUTCDate();
+    entry.days.set(day, (entry.days.get(day) ?? 0) + amount);
+    byCategory.set(id, entry);
+  };
   let total = 0;
   for (const t of txns) {
     if (t.flow !== 'OUTFLOW') continue; // TRANSFER excluded from all spending analytics
     if (!inPeriod(t.date, key)) continue;
     const spent = -t.amount; // outflows are negative; report positive magnitude
     total += spent;
-    const entry = byCategory.get(t.categoryId) ?? { name: t.categoryName, spending: 0 };
-    entry.spending += spent;
-    byCategory.set(t.categoryId, entry);
+    add(t.categoryId, t.categoryName, t.date, spent);
   }
   // Reimbursements net against their category (a fronted dinner partly
   // Zelled back is spending you didn't ultimately do).
   for (const credit of credits) {
     if (!inPeriod(credit.date, key)) continue;
     total -= credit.amount;
-    const entry = byCategory.get(credit.categoryId) ?? { name: credit.categoryName, spending: 0 };
-    entry.spending -= credit.amount;
-    byCategory.set(credit.categoryId, entry);
+    add(credit.categoryId, credit.categoryName, credit.date, -credit.amount);
   }
   return { total, byCategory };
 }
@@ -102,7 +112,7 @@ export function computeSpendingByCategory(
     const previous = periods.includes(prevKey) ? spendingFor(txns, credits, prevKey) : null;
 
     const categories: CategorySpending[] = [...current.byCategory.entries()]
-      .map(([categoryId, { name, spending }]) => {
+      .map(([categoryId, { name, spending, days }]): CategorySpending => {
         const prev = previous?.byCategory.get(categoryId)?.spending ?? null;
         return {
           categoryId,
@@ -110,6 +120,9 @@ export function computeSpendingByCategory(
           spending: round2(spending),
           previousSpending: prev === null ? null : round2(prev),
           deltaPct: pctDelta(spending, prev),
+          ...(granularity === 'MONTH'
+            ? { byDay: [...days.entries()].sort((a, b) => a[0] - b[0]).map(([d, v]): [number, number] => [d, round2(v)]) }
+            : {}),
         };
       })
       .sort((a, b) => b.spending - a.spending);

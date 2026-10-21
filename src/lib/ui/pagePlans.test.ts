@@ -84,6 +84,7 @@ beforeAll(async () => {
   const { getTrendsSource } = await import('./trends');
   const { getAccountsData } = await import('./accounts');
   const { getProvidersData } = await import('./providers');
+  const { getBudgetData } = await import('./budgetPage');
   const { default: TransactionsPage } = await import('../../app/transactions/page');
 
   await load('overview', () => getOverviewData());
@@ -93,6 +94,7 @@ beforeAll(async () => {
   await load('insights (a past month)', () => getInsightsPageData('2025-06'));
   await load('trends', () => getTrendsSource());
   await load('accounts', () => getAccountsData());
+  await load('budget', () => getBudgetData());
   await load('providers', () => getProvidersData());
   await load('providers (history page)', () => getProvidersData({ connector: 'SIMPLEFIN', page: 2 }));
   // The ledger filters and pages on every control it has.

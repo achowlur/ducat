@@ -281,7 +281,14 @@ async function renderOverview() {
           state stays exactly where it was. */}
       <div className="grid grid-cols-1 md:grid-cols-[1.12fr_0.88fr]">
         <section className="py-5 md:col-start-1 md:row-span-2 md:row-start-1 md:pr-7">
-          <SectionTitle>Accounts</SectionTitle>
+          {/* Accounts left the nav (five tabs fit a phone); its page is one
+              tap from the table it details. */}
+          <div className="flex items-baseline justify-between gap-3">
+            <SectionTitle>Accounts</SectionTitle>
+            <Link href="/accounts" className="tap44 pb-2 text-[0.8rem] text-acc hover:underline">
+              Manage →
+            </Link>
+          </div>
           <div className="mb-3 empty:hidden">
             {leadKind !== "stale" && (
             <StaleAlert
@@ -435,6 +442,9 @@ async function renderOverview() {
                     </Link>
                   ));
                 })()}
+                <Link href="/budget" className="tap44 mt-1 justify-self-start font-ledger text-[0.8rem] text-acc hover:underline">
+                  Budget →
+                </Link>
               </div>
             </div>
           ) : data.spendingTotal !== null ? (

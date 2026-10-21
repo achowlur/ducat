@@ -4,13 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
+// Five tabs (operator, 2026-10-20): seven left four of them off a phone's
+// screen. Accounts and Providers are pages, not tabs: Accounts is one tap from
+// Overview's table, Providers from the Accounts page and the header, and
+// Overview stays lit on both, where they are reached from.
 const TABS = [
-  { label: "Overview", href: "/", built: true },
-  { label: "Trends", href: "/trends", built: true },
+  { label: "Overview", href: "/", built: true, also: ["/accounts", "/providers"] },
+  { label: "Budget", href: "/budget", built: true },
   { label: "Insights", href: "/insights", built: true },
+  { label: "Trends", href: "/trends", built: true },
   { label: "Transactions", href: "/transactions", built: true },
-  { label: "Accounts", href: "/accounts", built: true },
-  { label: "Providers", href: "/providers", built: true },
 ];
 
 export function AppNav() {
@@ -46,7 +49,7 @@ export function AppNav() {
   }, [pathname]);
 
   return (
-    // The rail scrolls itself at 375px, where six tabs need 526px. Its own
+    // The rail scrolls itself at 375px, where five tabs need about 460px. Its own
     // padding/margin pair reclaims the space the active tab's underline hangs
     // into — overflow-x also clips vertically, so without it the underline
     // (which sits on the header rule, 0.75rem+2px below the nav) disappears.
@@ -55,7 +58,7 @@ export function AppNav() {
       className="scroll-x -mt-[13px] -mb-[calc(0.75rem+2px)] flex min-w-0 gap-5 whitespace-nowrap pt-[13px] pb-[calc(0.75rem+2px)] text-[0.78rem] uppercase tracking-[0.08em]"
     >
       {TABS.map((tab) => {
-        const active = pathname === tab.href;
+        const active = pathname === tab.href || (tab.also?.includes(pathname) ?? false);
         if (!tab.built) {
           return (
             <span key={tab.href} className="shrink-0 cursor-default text-faint opacity-50" title="Coming in a later step">
