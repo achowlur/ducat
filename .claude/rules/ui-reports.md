@@ -99,8 +99,12 @@ Overview:
   a day is every account's balance by its LOCAL day (localDayKey), each
   bank's last one carried up to CARRY_DAYS (3), a day beyond that LEFT OUT
   and named; the record starts at the first full week every account
-  reported; a transfer counts against markets on the day AFTER it posts,
-  when the balance shows it. Never a balance reconstructed from trades.
+  reported; an aggregator-fed brokerage's balance values the PREVIOUS
+  trading day's close and is dated a day back (`priorClose`), so a point
+  follows its market day and a transfer counts on its own date. Never a
+  balance reconstructed from trades. A balance's "as of" anywhere is the
+  LOCAL day of the bank's instant (localDayKey, shortLocalDay), never its
+  UTC date.
 
 /insights, /accounts, /providers:
 - /insights is THREE questions, in order: This month (the spending figure,

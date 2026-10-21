@@ -13,6 +13,11 @@ import { crossingAmount } from "../insights/netWorth";
  *   feed that did not refresh) leaves its last one standing, so a balance
  *   counts for up to CARRY_DAYS days after its own. The monthly figures treat
  *   a balance that recent as current too (netWorth.ts).
+ * - a brokerage's balance from the feed values the PREVIOUS trading day's
+ *   close (its Saturday update moved with Friday's market, its Monday update
+ *   not at all): an account marked `priorClose` is dated a day back, so each
+ *   point lines up with its market day and a transfer with the balance that
+ *   shows it.
  * A day where any account's newest balance is older than that is LEFT OUT and
  * listed (`missing`), never guessed. An account whose last balance is zero with
  * nothing since is closed and counts as zero; one with no balance yet is not
@@ -20,13 +25,6 @@ import { crossingAmount } from "../insights/netWorth";
  */
 
 export const CARRY_DAYS = 3;
-/**
- * A transfer reaches an investment account's BALANCE the day after it posts:
- * a deposit dated the 28th was missing from that evening's close and in the
- * next one, so counted on its own date it read as a market loss that day and a
- * gain the next. It is counted on the day the balance shows it.
- */
-export const FLOW_LAG_DAYS = 1;
 /** The daily record begins with the first run this long of days every account reported. */
 export const DAILY_RUN = 7;
 
@@ -58,7 +56,8 @@ export function dayLabel(key: string): string {
 }
 
 export function dailyNetWorth(input: {
-  accounts: readonly { id: string; name: string; type: string }[];
+  /** `priorClose`: the feed's balance values the previous trading day's close (an aggregator-fed brokerage). */
+  accounts: readonly { id: string; name: string; type: string; priorClose?: boolean }[];
   snapshots: readonly { accountId: string; date: Date; balance: number }[];
   txns: readonly { accountId: string; date: Date; amount: number; description: string }[];
   /** The local day an instant falls on (localDayKey). */
@@ -68,12 +67,15 @@ export function dailyNetWorth(input: {
 }): DailyNetWorth {
   const { accounts, snapshots, txns, dayOf, today } = input;
 
-  // Each account's balance per local day: the latest instant that day.
+  // Each account's balance per local day: the latest instant that day, a
+  // day earlier for a balance that values the close before it.
+  const prior = new Set(accounts.filter((a) => a.priorClose === true).map((a) => a.id));
+  const dayFor = (id: string, d: Date) => (prior.has(id) ? addDays(dayOf(d), -1) : dayOf(d));
   const byAccount = new Map<string, Map<string, { at: number; balance: number }>>();
   const newest = new Map<string, { at: number; balance: number }>();
   for (const s of snapshots) {
     const at = s.date.getTime();
-    const day = dayOf(s.date);
+    const day = dayFor(s.accountId, s.date);
     let days = byAccount.get(s.accountId);
     if (days === undefined) byAccount.set(s.accountId, (days = new Map()));
     const seen = days.get(day);
@@ -90,7 +92,7 @@ export function dailyNetWorth(input: {
     const last = newest.get(a.id);
     // Closed: its last balance is zero and nothing has moved since.
     const closedFrom =
-      last !== undefined && last.balance === 0 && (lastTxn.get(a.id) ?? 0) <= last.at ? dayOf(new Date(last.at)) : null;
+      last !== undefined && last.balance === 0 && (lastTxn.get(a.id) ?? 0) <= last.at ? dayFor(a.id, new Date(last.at)) : null;
     const first = days.size === 0 ? null : [...days.keys()].sort()[0];
     return { ...a, days, closedFrom, first };
   });
@@ -121,14 +123,15 @@ export function dailyNetWorth(input: {
   if (start < 0) return { points: [], missing: [] };
 
   // Money crossing an investment account's boundary, by the transaction's own
-  // (UTC-pinned) date: what the markets' share leaves out.
+  // (UTC-pinned) date, the day its balance shows it: what the markets' share
+  // leaves out.
   const investment = new Set(accounts.filter((a) => a.type === "INVESTMENT").map((a) => a.id));
   const flowsOn = new Map<string, Map<string, number>>();
   for (const t of txns) {
     if (!investment.has(t.accountId)) continue;
     const crossing = crossingAmount(t);
     if (crossing === 0) continue;
-    const day = addDays(t.date.toISOString().slice(0, 10), FLOW_LAG_DAYS);
+    const day = t.date.toISOString().slice(0, 10);
     let m = flowsOn.get(day);
     if (m === undefined) flowsOn.set(day, (m = new Map()));
     m.set(t.accountId, (m.get(t.accountId) ?? 0) + crossing);

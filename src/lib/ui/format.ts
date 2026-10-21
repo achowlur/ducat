@@ -90,6 +90,11 @@ export function localDayKey(d: Date): string {
   return d.toLocaleDateString("en-CA", { timeZone: DISPLAY_TZ });
 }
 
+/** "Oct 20" for the local day an instant falls on: a balance's "as of", never its UTC date. */
+export function shortLocalDay(d: Date): string {
+  return shortDate(new Date(`${localDayKey(d)}T00:00:00Z`));
+}
+
 /**
  * An anomaly's magnitude as a RANK: "higher than 96% of your Dining".
  *

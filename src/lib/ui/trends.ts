@@ -6,6 +6,7 @@ import { monthlyRows, ofType } from "./insightRows";
 import { buildEntries, type Entry } from "./report";
 import { dailyNetWorth, type DailyNetWorth } from "./dailyNetWorth";
 import { localDayKey } from "./format";
+import { pollsForBalances } from "../health/health";
 
 export interface MonthPoint {
   period: string; // "2026-07"
@@ -60,7 +61,7 @@ export async function getTrendsSource(): Promise<TrendsSource> {
       },
     }),
     prisma.category.findMany({ select: { id: true, name: true, isIncome: true }, orderBy: { name: "asc" } }),
-    prisma.account.findMany({ select: { id: true, name: true, type: true }, orderBy: { name: "asc" } }),
+    prisma.account.findMany({ select: { id: true, name: true, type: true, connectorType: true }, orderBy: { name: "asc" } }),
     prisma.insight.findMany({ where: { type: "NET_WORTH_GROWTH" } }),
     // Every balance on record, three narrow columns: the daily line needs each
     // account's newest one too, to tell a closed account from a silent one.
@@ -110,7 +111,9 @@ export async function getTrendsSource(): Promise<TrendsSource> {
       }),
     ),
     daily: dailyNetWorth({
-      accounts,
+      // A brokerage fed by an aggregator reports the previous trading day's
+      // close: dated back a day so the daily line follows its market day.
+      accounts: accounts.map((a) => ({ ...a, priorClose: a.type === "INVESTMENT" && pollsForBalances(a.connectorType) })),
       snapshots: snapshots.map((s) => ({ accountId: s.accountId, date: s.date, balance: Number(s.balance) })),
       txns,
       dayOf: localDayKey,

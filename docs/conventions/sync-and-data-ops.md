@@ -889,3 +889,29 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
     (actionResult.ts `databaseRefusal`), and a call that never comes back
     (the function stopped at its limit) is caught in the button by
     `settleAction` instead of reaching the page's error boundary.
+
+- CRON HOUR RE-SCORED: 04:00 UTC (2026-10-20). The operator noticed the
+  brokerage balance was always a day behind. The feed's publish times had
+  moved since the 23:00 choice (the entry above): measured off the stored
+  balance-dates over the last thirty nights, the brokerage now publishes its
+  close in the EVENING, about 00:35-02:00 UTC (8:35-10pm Eastern), the card
+  issuer about 14:15 UTC and the bank about 19:45 UTC. The 23:00 sync (it
+  fires 23:08-23:43) ran before the brokerage's close every night, so every
+  sync carried the previous evening's. And that evening update values the
+  PREVIOUS trading day's close (a Saturday update moved with Friday's
+  market, Sunday's and Monday's not at all, Tuesday's with Monday's), the
+  one day of lag the entry above calls inherent; so the 23:00 cron showed a
+  close two trading days old, and 04:00 shows one. Scored the same way, by the oldest
+  institution's balance age when the cron fires: 23:00 averaged 21.3h; 03:00
+  14.5h; 04:00 14.7h; 02:00 rejected, firing minutes after the brokerage's
+  latest observed publish. 04:00 over 03:00 for the margin rule above: on
+  standard time (from November) the same 10pm Eastern publish is 03:00 UTC,
+  which a 03:08 firing could miss; 04:00 keeps an hour in both seasons.
+  The operator KEEPS the local backup at 00:30 UTC on purpose: it now runs
+  before the cron, so each backup and mirror holds the previous night's
+  sync, a day behind, accepted. DEPLOY.md registers new installs at 05:30.
+  Re-score again whenever a balance reads late: publish times drift.
+  Also in that change: vercel.json sets `github.silent`, so Vercel no
+  longer posts a bot comment on every pull request (each one emailed the
+  operator, as the PR's author). Deploys, their commit statuses and the
+  `verify` check are untouched; the preview URL is on the PR's checks.

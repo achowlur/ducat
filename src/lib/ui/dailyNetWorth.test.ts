@@ -74,11 +74,11 @@ describe("dailyNetWorth", () => {
     expect(out.points[0]).toMatchObject({ period: day(0), value: 100 });
   });
 
-  it("takes money moved into an investment account out of its market movement, on the day the balance shows it", () => {
-    // Posted on day 4, in the brokerage's balance from day 5.
+  it("takes money moved into an investment account out of its market movement, on its own day", () => {
+    // Posted on day 4; the brokerage's balance stamped on day 5 is day 4's close.
     const out = dailyNetWorth({
-      accounts: [checking, brokerage],
-      snapshots: [...daily(8, "chk", (i) => (i < 4 ? 3_000 : 2_000)), ...daily(8, "brk", (i) => (i < 5 ? 10_000 : 11_050))],
+      accounts: [checking, { ...brokerage, priorClose: true }],
+      snapshots: [...daily(9, "chk", (i) => (i < 4 ? 3_000 : 2_000)), ...daily(9, "brk", (i) => (i < 5 ? 10_000 : 11_050))],
       txns: [
         { accountId: "brk", date: new Date(`${day(4)}T00:00:00Z`), amount: 1_000, description: "Transferred from Everyday Checking" },
         { accountId: "brk", date: new Date(`${day(4)}T00:00:00Z`), amount: -900, description: "YOU BOUGHT INDEX FUND" },
@@ -86,8 +86,9 @@ describe("dailyNetWorth", () => {
       dayOf: utcDay,
       today: day(7),
     });
-    expect(out.points[4]).toMatchObject({ value: 12_000, marketGains: 0 });
-    expect(out.points[5]).toMatchObject({ value: 13_050, marketGains: 50 });
+    const on = (k: number) => out.points.find((p) => p.period === day(k));
+    expect(on(3)).toMatchObject({ value: 13_000, marketGains: 0 });
+    expect(on(4)).toMatchObject({ value: 13_050, marketGains: 50 });
   });
 
   it("counts a closed account as zero, and names one with no balance yet", () => {
@@ -113,6 +114,17 @@ describe("dailyNetWorth", () => {
     const out = dailyNetWorth({ accounts: [checking], snapshots: daily(8, "chk", () => 1), txns: [], dayOf: utcDay, today: day(14) });
     expect(out.missing).toEqual([]);
     expect(out.points.at(-1)?.period).toBe(day(10));
+  });
+
+  it("dates a prior-close balance a day back: an update on day 5 is day 4's close", () => {
+    const out = dailyNetWorth({
+      accounts: [{ ...brokerage, priorClose: true }],
+      snapshots: daily(10, "brk", (i) => 100 * i),
+      txns: [],
+      dayOf: utcDay,
+      today: day(8),
+    });
+    expect(out.points.find((p) => p.period === day(4))?.value).toBe(500);
   });
 
   it("labels a day as the axis prints it", () => {
