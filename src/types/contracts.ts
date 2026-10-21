@@ -97,6 +97,14 @@ export interface CategorySpending {
   previousSpending: number | null;
   /** (spending - previous) / previous; null when no previous period data. */
   deltaPct: number | null;
+  /**
+   * MONTH rows only: the category's spending by UTC day of the month, as
+   * [day, amount] pairs for the days that moved it (a reimbursement credit
+   * netted on the day it lands), in day order. What the budget's pace reads:
+   * WHEN in a month this category typically spends (ui/budget.ts). Absent on
+   * payloads stored before 2026-10-20.
+   */
+  byDay?: [number, number][];
 }
 
 export interface SpendingByCategoryPayload {

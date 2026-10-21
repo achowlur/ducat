@@ -188,6 +188,11 @@ async function renderAccounts() {
         </tbody>
       </table>
       </div>
+      {/* Providers left the nav with Accounts; where the connections are is
+          where they are run from, after the table this page leads with. */}
+      <Link href="/providers" className="tap44 mt-4 inline-flex items-center text-[0.8rem] text-acc hover:underline">
+        Providers and sync →
+      </Link>
     </div>
   );
 }

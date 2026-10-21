@@ -22,7 +22,7 @@ import { buildDemoData, writeDemoData } from '../src/lib/demo/data';
  * so it is safe beside a running dev server. Playwright drives its own
  * Chromium with a fresh profile.
  *
- * Output: docs/assets/screenshots/{overview,trends,insights,transactions}.png,
+ * Output: docs/assets/screenshots/{overview,budget,trends,insights,transactions}.png,
  * each the same size in the same browser frame, the banner
  * docs/assets/screenshots/hero.png (scripts/readmeArt.ts), and
  * docs/assets/walkthrough.png (an animated PNG, see scripts/apng.ts).
@@ -39,6 +39,7 @@ const WALKTHROUGH = join('docs', 'assets', 'walkthrough.png');
 // ragged. What sits below the fold is the live demo's to show.
 const PAGES: { name: string; path: string }[] = [
   { name: 'overview', path: '/' },
+  { name: 'budget', path: '/budget' },
   { name: 'trends', path: '/trends' },
   { name: 'insights', path: '/insights' },
   { name: 'transactions', path: '/transactions' },

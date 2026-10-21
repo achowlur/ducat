@@ -167,7 +167,7 @@ regeneration.
 | sync, CSV import, backups, mirror, schema, cron, FRED, health | sync-and-data-ops.md | sync-and-data-ops.md |
 | goals, readiness, subscriptions, the digest | goals-and-insights.md | goals-and-insights.md |
 | /transactions, its filters and popovers | ui-ledger.md | ui-and-pages.md |
-| Overview, /trends, /insights, /accounts, /providers, charts | ui-reports.md | ui-and-pages.md |
+| Overview, /budget, /trends, /insights, /accounts, /providers, charts | ui-reports.md | ui-and-pages.md |
 | page and query cost | performance.md | performance.md |
 | auth, middleware, CSP, demo mode, install scripts | security-and-auth.md | security-and-auth.md |
 | tests, fixtures, docs, README, demo data | publishing.md | publishing.md |

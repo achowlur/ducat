@@ -5,7 +5,7 @@ paths:
   - "src/lib/ui/**"
 ---
 
-# Rules: pages and charts (Overview, /trends, /insights, /accounts, /providers)
+# Rules: pages and charts (Overview, /budget, /trends, /insights, /accounts, /providers)
 
 Evidence: docs/conventions/ui-and-pages.md. Read it before changing anything
 below. The rules for every rendered surface (phone width, dates, em dash,
@@ -13,6 +13,9 @@ headings, uncertainty, SVG titles) are in CLAUDE.md; the ledger's own are in
 ui-ledger.md.
 
 Every page:
+- The nav is FIVE tabs (Overview, Budget, Insights, Trends, Transactions);
+  Accounts and Providers are pages, reached from Overview's table, the
+  Accounts page and the header, with Overview lit on both.
 - Close to a free limit (80% spent, or on pace to pass it), a warn-token
   BANNER sits above every page (UsageAlert in the root layout), read through
   a ten-minute per-instance cache, silent on any failure.
@@ -73,6 +76,16 @@ Overview:
 - Overview's ring names every category at ≥3% (eight legend rows max, the
   last being Other, drawn NEUTRAL); /trends' pie names seven, folding the
   rest into a NEUTRAL `Other · N`.
+
+/budget:
+- /budget is Overview's ring (spending as slices, what is LEFT drawn empty)
+  with ledger-line figures, then ONE ruled table: an equal-length bar per
+  row in the ring's colour, spent of limit over its END, ONE wordless Left
+  figure (below zero in the warning ink), the ten largest limits named and
+  the rest folded into Other; context only in the fold. Limits are
+  SUGGESTED from the category's comparable months (ui/budget.ts) and stored
+  only when typed (Setting budget.categories); the pace tick reads
+  CategorySpending.byDay.
 
 /trends:
 - /trends stacks its cards FULL WIDTH in the operator's order: This month so

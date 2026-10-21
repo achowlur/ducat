@@ -493,6 +493,10 @@ describe('computeSpendingByCategory', () => {
         spending: 80,
         previousSpending: 40,
         deltaPct: 1,
+        byDay: [
+          [2, 50],
+          [9, 30],
+        ],
       },
     ]);
   });
@@ -750,6 +754,17 @@ describe('reimbursements (fronted dinner, Zelled back)', () => {
     expect(cashFlow?.income).toBe(5000); // repayment is NOT income
     expect(cashFlow?.spending).toBe(50);
     expect(cashFlow?.net).toBe(4950);
+  });
+
+  it('records a category\'s spending by day, the credit netted on the day it lands, on MONTH rows only', () => {
+    const txns = [
+      txn({ date: utc(2026, 7, 3), amount: -200, ...dining }),
+      txn({ date: utc(2026, 7, 3), amount: -40, ...dining }),
+      txn({ date: utc(2026, 7, 5), amount: 150, ...dining, normalizedMerchant: 'zelle from friends' }),
+    ];
+    const july = computeSpendingByCategory(txns, ['2026-07'], 'MONTH').get('2026-07');
+    expect(july?.categories[0].byDay).toEqual([[3, 240], [5, -150]]);
+    expect(computeSpendingByCategory(txns, ['2026-Q3'], 'QUARTER').get('2026-Q3')?.categories[0].byDay).toBeUndefined();
   });
 
   it('attributes a LINKED repayment to the original expense period and category, cross-month', () => {

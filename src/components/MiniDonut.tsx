@@ -42,6 +42,7 @@ export function MiniDonut({
   centerBottom,
   className = "w-[170px]",
   hrefFor,
+  fillFor = sliceFill,
 }: {
   slices: DonutSliceData[];
   centerTop: string;
@@ -53,6 +54,8 @@ export function MiniDonut({
    */
   className?: string;
   hrefFor?: (slice: DonutSliceData) => string;
+  /** A slice's colour; the budget draws its unspent part in the rule colour, as empty. */
+  fillFor?: (slice: DonutSliceData, index: number) => string;
 }) {
   const cx = 110;
   const cy = 100;
@@ -63,7 +66,7 @@ export function MiniDonut({
     const a0 = angle;
     const a1 = Math.min(angle + sweep, 359.9);
     angle += sweep;
-    return { d: slicePath(cx, cy, 70, 40, a0, a1), color: sliceFill(s, i), slice: s };
+    return { d: slicePath(cx, cy, 70, 40, a0, a1), color: fillFor(s, i), slice: s };
   });
 
   const label = slices

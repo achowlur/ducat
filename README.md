@@ -42,6 +42,16 @@ Net worth is the plain sum of your balances. Below it, every account with the
 date its balance was last confirmed, this month's spending by category, and
 the things waiting for your review.
 
+### Budget
+
+<img src="docs/assets/screenshots/budget.png" alt="Budget: what is left this month in a ring, then each category's spending against its limit" width="100%">
+
+What is left to spend this month, and each category against a limit
+suggested from its own recent months: a bar to the limit, a tick where it
+usually is by today. Travel and other spending that comes in bulk get yearly
+funds instead, so one big month fits the year. Type your own limit on any
+row.
+
 ### Insights
 
 <img src="docs/assets/screenshots/insights.png" alt="Insights: where this month's spending lands and what is worth a look, then each goal with its date and path" width="100%">
