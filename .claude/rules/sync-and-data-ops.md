@@ -85,9 +85,12 @@ Import and sync:
   observation; health reads only the stored observation's age
   (RATE_STALE_DAYS: 7); Overview calls getProviderHealth at scope:
   'accounts' so the card costs it no round trip.
-- The cron hour (0 23 * * *) is TUNED to minimise the oldest institution's
-  balance age — re-score every candidate hour before moving it. Hobby fires
-  ANYWHERE in the hour, never early, so the backup slot sits AFTER the hour.
+- The cron hour (0 4 * * *, re-scored 2026-10-20) is TUNED to minimise the
+  oldest institution's balance age, with an hour of margin past the latest
+  publish in BOTH clock seasons — re-score every candidate hour before moving
+  it. Hobby fires ANYWHERE in the hour, never early, so a backup slot meant to
+  hold that night's sync sits AFTER the hour (05:30 UTC in DEPLOY.md); one
+  before it holds the night before's.
 
 Two databases (the one-line rule is in CLAUDE.md):
 - LOCAL MIRRORS CLOUD, always. Anything touching Turso DATA lands on the cloud

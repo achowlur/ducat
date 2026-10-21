@@ -11,8 +11,8 @@ describe('cronSummary', () => {
    * it, or this fails.
    */
   it('puts the SHIPPED schedule into words', () => {
-    expect(vercelConfig.crons[0].schedule).toBe('0 23 * * *');
-    expect(cronSummary(vercelConfig.crons[0].schedule)).toBe('once a day at 23:00 UTC');
+    expect(vercelConfig.crons[0].schedule).toBe('0 4 * * *');
+    expect(cronSummary(vercelConfig.crons[0].schedule)).toBe('once a day at 04:00 UTC');
   });
 
   it('pads a single-digit hour, so it reads as a clock time', () => {

@@ -278,7 +278,7 @@ generated Prisma client is gitignored, so this step is what creates it on Vercel
 ## 7 · Verify the deployment
 
 - **Auth:** open the URL → you should hit the login screen. Enter your password.
-- **Cron:** Vercel → Project → Cron Jobs lists `/api/cron/sync` (daily 23:00 UTC).
+- **Cron:** Vercel → Project → Cron Jobs lists `/api/cron/sync` (daily 04:00 UTC).
   Trigger it manually, or:
   ```bash
   curl -H "Authorization: Bearer <CRON_SECRET>" https://<your-deployment>.vercel.app/api/cron/sync
@@ -421,11 +421,11 @@ recent copy already on your disk.
    <?xml version="1.0" encoding="UTF-16"?>
    <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
      <RegistrationInfo>
-       <Description>Ducat: nightly verified local backup of the cloud database. 00:30 UTC — after the 23:00 sync cron's whole hour (Vercel Hobby fires anywhere in it); backing up earlier can capture yesterday.</Description>
+       <Description>Ducat: nightly verified local backup of the cloud database. 05:30 UTC, after the 04:00 sync cron's whole hour (Vercel Hobby fires anywhere in it); a backup before it holds the previous night's sync.</Description>
      </RegistrationInfo>
      <Triggers>
        <CalendarTrigger>
-         <StartBoundary>2026-08-05T00:30:00Z</StartBoundary>
+         <StartBoundary>2026-08-05T05:30:00Z</StartBoundary>
          <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>
          <Enabled>true</Enabled>
        </CalendarTrigger>
@@ -457,7 +457,7 @@ recent copy already on your disk.
    Two choices in there are the point. `LogonType S4U` is "run whether user is
    logged on or not" without a stored password — the task runs in session 0,
    so **no console window ever appears** while you're using the machine.
-   `StartWhenAvailable` means a machine that was asleep at 00:30 UTC runs the
+   `StartWhenAvailable` means a machine that was asleep at 05:30 UTC runs the
    backup on wake: late is always safe — only *early* (before the sync cron)
    captures yesterday.
 
@@ -537,14 +537,15 @@ mirror, that work exists only on this machine and replacing local loses it —
 redo it on the cloud first. After a confirmed run the nightly job carries on
 from the recorded state.
 
-Mirror AFTER the nightly cron, not before: `0 23 * * *` UTC, and Vercel Hobby
-fires it anywhere within that hour, so a backup taken before the hour ends can
-capture yesterday. The scheduled task runs at 00:30 UTC for that reason. An
-existing task registered at 23:50 UTC moves with, from an elevated PowerShell:
+Mirror AFTER the nightly cron to hold that night's sync: `0 4 * * *` UTC, and
+Vercel Hobby fires it anywhere within that hour, so the scheduled task runs at
+05:30 UTC. A task left at an earlier slot (the old 00:30 UTC, from the 23:00
+cron) still works, but each backup then holds the previous night's sync, so
+local runs a day behind. To move one, from an elevated PowerShell:
 
 ```powershell
 $t = Get-ScheduledTask -TaskName "Ducat nightly backup"
-$t.Triggers[0].StartBoundary = "2026-09-17T00:30:00Z"
+$t.Triggers[0].StartBoundary = "2026-10-21T05:30:00Z"
 Set-ScheduledTask -InputObject $t
 ```
 
