@@ -1,7 +1,8 @@
 ---
 paths:
   - "src/app/transactions/**"
-  - "src/components/{CategoryPicker,GroupedReview,ReimburseControl,GroupPicker,RenameGroup,AccountFilter,P2PSuggestion}.tsx"
+  - "src/components/{CategoryPicker,GroupedReview,ReimburseControl,GroupPicker,RenameGroup,AccountFilter,P2PSuggestion,NotTransfer}.tsx"
+  - "src/lib/sync/releaseTransfer*.ts"
   - "src/lib/ui/{flowFilter,periodSpan,categoryFilter,accountFilter,groupFilter,ledgerTotals,repaid,reimburseCandidates,merchantLabel,trips}*.ts"
 ---
 
@@ -48,6 +49,11 @@ headings, uncertainty) are in CLAUDE.md; page-wide ones in ui-reports.md.
   ONE value, and the checkbox control stages its ticks until submit.
 - A bill with linked repayments says so ON ITS ROW, at every width: what
   came back and the share left.
+- A transfer flagged by WORDING alone (no pair, outside the closed box)
+  carries "Not a transfer" (sync/releaseTransfer.ts): the row takes the flow
+  its amount has and becomes MANUAL with no category, so neither the rule
+  nor pairing takes it back; a paired or closed-box row is refused in words.
+  The way back is "No category", which hands it to the next sync's rules.
 - The ledger's category control is ONE picker in a PORTAL; drive the real
   page after any change to it, and LOOK at a portal's pixels, not only the
   DOM: an anchor rect is measured ONCE at open (a detached anchor measures

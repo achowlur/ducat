@@ -1597,3 +1597,26 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   Budget, Insights, Trends, Transactions); Accounts is "Manage" on
   Overview's table, Providers sits after the Accounts table and beside the
   theme toggle, and Overview stays lit on both.
+- A TRANSFER BY WORDING CAN BE RELEASED ONE ROW AT A TIME (2026-10-31). A
+  user TRANSFER rule names a payee whose Zelles are, as a rule, the
+  operator's own money moving (grouped review's "Transfer (exclude)" writes
+  one). One payment from that payee paid back cash withdrawn for them, and
+  the ledger offered the row nothing: a transfer renders the word in place
+  of the category control and the reimbursement picker is for INFLOW rows,
+  so the repayment could not be linked while a look-alike Zelle from
+  someone without such a rule linked in one tap. The fix is NOT a weaker
+  rule: the rule is right about the payee and wrong about one row.
+  `releaseTransfer` is the one decision, pure and tested: a transfer with
+  no pair outside an investment account takes the flow its amount has and
+  becomes MANUAL with its category still empty, the state the rules pass
+  (`categorySource: 'AGGREGATOR'`) and pairing (`not MANUAL`) both skip,
+  so a sync cannot take the decision back. A paired transfer is refused in
+  words (its other side is a real movement between the operator's
+  accounts) and so is a closed-box row (the account decides there, not a
+  rule anyone can disagree with). The control is the one CONTROL beside
+  the transfer word, phone-stacked below md; a paired untagged row keeps
+  the bare word at zero extra elements, as the trip trigger promised. The
+  way back is deliberately the existing one: "No category" hands the row
+  to the next sync, whose rules pass flags it again. Driven on a scratch
+  copy: released, the row showed the Link control with the withdrawal
+  ranked first as an exact amount, and linked.

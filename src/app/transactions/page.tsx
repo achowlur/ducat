@@ -7,6 +7,7 @@ import { GroupChip, GroupPickerProvider, GroupTrigger } from "../../components/G
 import { RenameGroup } from "../../components/RenameGroup";
 import { GroupedReview, type PayeeGroupView } from "../../components/GroupedReview";
 import { ReimburseControl } from "../../components/ReimburseControl";
+import { NotTransfer } from "../../components/NotTransfer";
 import { draftSubscription } from "../../lib/health/registerSubscription";
 import { prisma } from "../../lib/prisma";
 import { parsePeriodParam, spanLabel } from "../../lib/ui/periodSpan";
@@ -24,6 +25,7 @@ import { suggestGroupCategories } from "../../lib/sync/groupSuggest";
 import { suggestP2PCategories } from "../../lib/sync/p2pSuggest";
 import { groupReasonText } from "../../lib/ui/groupSuggestion";
 import { USER_PRIORITY_MAX } from "../../lib/sync/rules";
+import { isClosedBox } from "../../lib/sync/closedBox";
 import { amount, isoDate, money, monthLabel, shortDate, titleCase } from "../../lib/ui/format";
 import { periodKey } from "../../lib/insights/periods";
 import { encodeAccountParam, parseAccountParam } from "../../lib/ui/accountFilter";
@@ -427,6 +429,9 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
         categorySource: true,
         groupLabel: true,
         reimbursesId: true,
+        // Says whether a transfer has its other side (a pair) or was flagged
+        // by wording alone, which is the one kind a row can be released from.
+        transferPairId: true,
         reimburses: { select: { normalizedMerchant: true, description: true, date: true, flow: true } },
       },
       orderBy: { date: "desc" },
@@ -1269,17 +1274,13 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
                   {t.flow === "TRANSFER" ? (
                     // The word itself is the trip trigger — same text, same
                     // element count, so an untagged ledger page pays nothing.
-                    t.groupLabel === null ? (
-                      <GroupTrigger
-                        transactionId={t.id}
-                        groupLabel={null}
-                        rowLabel={merchantLabel(t).label || "this transfer"}
-                        className="text-[0.75rem] text-faint hover:text-ink"
-                      >
-                        transfer
-                      </GroupTrigger>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5">
+                    // A transfer flagged by WORDING alone (no pair, outside the
+                    // closed box) also carries the way out of it: a rule's
+                    // guess about a payee, which one payment can contradict.
+                    // A paired, untagged transfer keeps the bare word.
+                    (() => {
+                      const releasable = t.transferPairId === null && !isClosedBox(accountTypeById.get(t.accountId));
+                      const trigger = (
                         <GroupTrigger
                           transactionId={t.id}
                           groupLabel={t.groupLabel}
@@ -1288,13 +1289,23 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
                         >
                           transfer
                         </GroupTrigger>
-                        <GroupChip
-                          transactionId={t.id}
-                          groupLabel={t.groupLabel}
-                          rowLabel={merchantLabel(t).label || "this transfer"}
-                        />
-                      </span>
-                    )
+                      );
+                      return t.groupLabel === null && !releasable ? (
+                        trigger
+                      ) : (
+                        <span className="inline-flex flex-wrap items-center gap-1.5">
+                          {trigger}
+                          {t.groupLabel !== null && (
+                            <GroupChip
+                              transactionId={t.id}
+                              groupLabel={t.groupLabel}
+                              rowLabel={merchantLabel(t).label || "this transfer"}
+                            />
+                          )}
+                          {releasable && <NotTransfer transactionId={t.id} />}
+                        </span>
+                      );
+                    })()
                   ) : t.flow === "INFLOW" && t.reimburses !== null ? (
                     <span className="inline-flex items-center gap-1.5">
                     <ReimburseControl

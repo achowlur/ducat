@@ -11,6 +11,7 @@ import { requireSession } from "../../lib/auth/requireSession";
 import { refuse, type ActionResult } from "../../lib/actionResult";
 import { createUserCategory } from "../../lib/categories";
 import { whenCleared } from "../../lib/sync/closedBox";
+import { releaseTransfer } from "../../lib/sync/releaseTransfer";
 import { TRANSFER_TARGET } from "../../lib/sync/grouping";
 import { draftSubscription } from "../../lib/health/registerSubscription";
 import {
@@ -486,6 +487,33 @@ export async function linkReimbursement(inflowId: string, outflowId: string): Pr
     data: { reimbursesId: outflowId },
   });
   await regenerateForRows(prisma, { id: { in: [inflowId, outflowId] } });
+  revalidatePath("/transactions");
+  revalidateInsightPages();
+  return { ok: true };
+}
+
+/**
+ * Release a transfer a RULE flagged by wording, so the row gets the flow its
+ * amount has and the ledger's ordinary controls, the reimbursement picker
+ * among them. The decision and its refusals are releaseTransfer's
+ * (lib/sync/releaseTransfer.ts); the row is read fresh because the page that
+ * offered the control may be stale (a sync can pair it in between).
+ */
+export async function markNotTransfer(transactionId: string): Promise<ActionResult> {
+  await requireSession();
+  const row = await prisma.transaction.findUniqueOrThrow({
+    where: { id: transactionId },
+    select: { flow: true, amount: true, transferPairId: true, account: { select: { type: true } } },
+  });
+  const decision = releaseTransfer({
+    flow: row.flow,
+    amount: Number(row.amount),
+    transferPairId: row.transferPairId,
+    accountType: row.account.type,
+  });
+  if (!decision.ok) return refuse(decision.message);
+  await prisma.transaction.update({ where: { id: transactionId }, data: decision.data });
+  await regenerateForRows(prisma, { id: transactionId });
   revalidatePath("/transactions");
   revalidateInsightPages();
   return { ok: true };
