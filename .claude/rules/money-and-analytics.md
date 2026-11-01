@@ -30,7 +30,11 @@ anything below; several entries record "tried and failed, don't retry".
   nets against (reimbursementSources), and every month's totals are pinned to
   the analyzers to the cent (report.test.ts).
 - Net worth history requires SNAPSHOTS; never reconstruct an investment
-  balance from its TRADES, in either direction. Without a snapshot inside the
+  balance from its TRADES, in either direction. An aggregator-fed
+  brokerage's feed snapshot is dated to the MARKET DAY it values (the local
+  day before its stamp: marketDaySnapshots, in the engine), as the daily
+  line dates it, or every month end from the feed is a trading day behind;
+  a statement's noon-UTC snapshot is a day already and stays. Without a snapshot inside the
   period an investment value is CARRIED (last snapshot + money that crossed
   the account since, estimated), ZERO when its last snapshot is zero with
   nothing since, ZERO for ANY account before an opening-zero snapshot, else
