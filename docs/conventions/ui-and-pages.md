@@ -1636,3 +1636,32 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   DUCAT_TIMEZONE to UTC (vitest.config.ts) so a test's `now` means the same
   day on a laptop in Eastern time and in CI; format.test.ts stubs the zone
   where it is the subject.
+
+- A TRANSFER IS ONE MOVEMENT, AND TWO BANKS SHOW IT ON TWO DAYS (2026-10-31).
+  The operator's daily net worth line carried a one-day spike the size of a
+  transfer from checking to the brokerage, "obviously a transfer", and asked
+  for it gone without adjusting anything by hand. Read from the snapshots:
+  the brokerage's evening update held the money the day it arrived and, dated
+  back to its market day, counted it on the transfer's date; the bank's
+  afternoon balance (published around 15:45 Eastern) still held it, the
+  debit posting overnight into the next day's balance. For that one day the
+  money was in both accounts. The fix reads the bank's own figures: on a cash
+  account the balance moves by exactly its rows, so where the transfer's day
+  shows no move by it and a day within CARRY_DAYS does, the balance is read as if the transfer had
+  posted on its date; the same the other way round for a transfer the bank
+  posted early, and across a weekend's carried balance. Only a TRANSFER row
+  of at least LAG_MIN (a thousand: tried at a hundred, a card payment whose
+  two legs the feed dates a day apart, the card's the earlier, moved its
+  double count from one day to the day before, two hundred dollars no one
+  can see on the line and no reading of one account can place), and only a
+  depository or credit account: an investment
+  account moves with the market and its prior-close dating already puts a
+  deposit on its day. A day's residual (its balance change less its rows)
+  HOLDS the transfer when it lies within half of it, never exactly: this
+  bank's afternoon balance never holds the day's own rows, so every day's
+  residual carries the rows around it (hundreds, beside twenty thousand).
+  The first cut asked the residuals to cancel to the cent, and matched
+  nothing on the real series. Pinned on invented
+  balances: late, early, over a carry, and a late purchase left alone. The
+  monthly figures take month-end snapshots and can carry the same one-day
+  double count when a transfer lands on a month's last day; not done here.

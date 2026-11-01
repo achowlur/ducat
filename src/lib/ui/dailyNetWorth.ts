@@ -22,9 +22,31 @@ import { crossingAmount } from "../insights/netWorth";
  * listed (`missing`), never guessed. An account whose last balance is zero with
  * nothing since is closed and counts as zero; one with no balance yet is not
  * part of the total until it has one, and is named while it is not.
+ *
+ * A TRANSFER between two accounts is one movement, and the two banks show it
+ * on different days: the brokerage's evening update holds the money the day
+ * it arrives, the bank's afternoon balance still holds it until the debit
+ * posts overnight. For that day the money is in both accounts, a spike the
+ * size of the transfer, and the other way round a dip. On a cash account
+ * (depository or credit) the balance moves by exactly its rows, so the day a
+ * transfer took effect is readable: where the balance on the transfer's day
+ * does not move by it and a day within CARRY_DAYS does, the balance is read
+ * as if the transfer had posted on its date (postingLag). Only a transfer,
+ * and only a cash account: an investment account's balance moves with the
+ * market as well, and its prior-close dating already puts a deposit on its
+ * day. Nothing is adjusted by hand.
  */
 
 export const CARRY_DAYS = 3;
+/**
+ * A transfer smaller than this is left as the banks show it. Beside a line
+ * drawn in tens of thousands it is noise, and a small payment's two legs
+ * often carry two dates (a card dates the payment the day it asks, the bank
+ * the day it pays), which no reading of one account can reconcile.
+ */
+export const LAG_MIN = 1_000;
+/** A day's residual holds a transfer when it lies within half of it: the day's other rows still to post, small beside it. */
+const holds = (residual: number, amount: number) => Math.abs(residual - amount) <= Math.abs(amount) / 2;
 /** The daily record begins with the first run this long of days every account reported. */
 export const DAILY_RUN = 7;
 
@@ -50,6 +72,69 @@ const addDays = (key: string, n: number) => new Date(Date.parse(`${key}T00:00:00
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x) => b.includes(x));
 
+/**
+ * What each cash account's balance is read as on the days a transfer had
+ * posted late or early (the note at the top): account id, then day, then
+ * the amount to add. A transfer's own day shows no move by it (its residual,
+ * the day's balance change less the day's rows, holds the transfer back) and
+ * a day within CARRY_DAYS after holds it: the transfer counts from its own
+ * day to the day before. The other way round, a move before its day: it is
+ * taken out of those days. A bank whose afternoon balance never holds the
+ * day's own rows leaves every day a residual of the rows around it, so a
+ * residual HOLDS a transfer when it lies within half of it, never exactly.
+ */
+function postingLag(
+  plan: readonly { id: string; type: string }[],
+  days: readonly { day: string; readings: readonly ({ kind: "value"; balance: number } | { kind: string })[] }[],
+  txns: readonly { accountId: string; date: Date; amount: number; flow?: string }[],
+): Map<string, Map<string, number>> {
+  const lag = new Map<string, Map<string, number>>();
+  const add = (id: string, day: string, amount: number) => {
+    let m = lag.get(id);
+    if (m === undefined) lag.set(id, (m = new Map()));
+    m.set(day, round2((m.get(day) ?? 0) + amount));
+  };
+  plan.forEach((p, i) => {
+    if (p.type !== "DEPOSITORY" && p.type !== "CREDIT") return;
+    const balanceOn = new Map<string, number>();
+    for (const d of days) {
+      const r = d.readings[i];
+      if (r.kind === "value") balanceOn.set(d.day, (r as { balance: number }).balance);
+    }
+    const rowsOn = new Map<string, number>();
+    const transfers: { day: string; amount: number }[] = [];
+    for (const t of txns) {
+      if (t.accountId !== p.id) continue;
+      const day = t.date.toISOString().slice(0, 10);
+      rowsOn.set(day, (rowsOn.get(day) ?? 0) + t.amount);
+      if (t.flow === "TRANSFER" && Math.abs(t.amount) >= LAG_MIN) transfers.push({ day, amount: t.amount });
+    }
+    const residual = (day: string): number | null => {
+      const now = balanceOn.get(day);
+      const before = balanceOn.get(addDays(day, -1));
+      return now === undefined || before === undefined ? null : now - before - (rowsOn.get(day) ?? 0);
+    };
+    for (const t of transfers) {
+      const own = residual(t.day);
+      if (own === null || !holds(own, -t.amount)) continue;
+      let settled = false;
+      for (let k = 1; k <= CARRY_DAYS && !settled; k++) {
+        const later = residual(addDays(t.day, k));
+        if (later === null || !holds(later, t.amount)) continue;
+        for (let j = 0; j < k; j++) add(p.id, addDays(t.day, j), t.amount);
+        settled = true;
+      }
+      for (let k = 1; k <= CARRY_DAYS && !settled; k++) {
+        const earlier = residual(addDays(t.day, -k));
+        if (earlier === null || !holds(earlier, t.amount)) continue;
+        for (let j = 1; j <= k; j++) add(p.id, addDays(t.day, -j), -t.amount);
+        settled = true;
+      }
+    }
+  });
+  return lag;
+}
+
 /** "Oct 16" from "2026-10-16". */
 export function dayLabel(key: string): string {
   return new Date(`${key}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
@@ -59,7 +144,7 @@ export function dailyNetWorth(input: {
   /** `priorClose`: the feed's balance values the previous trading day's close (an aggregator-fed brokerage). */
   accounts: readonly { id: string; name: string; type: string; priorClose?: boolean }[];
   snapshots: readonly { accountId: string; date: Date; balance: number }[];
-  txns: readonly { accountId: string; date: Date; amount: number; description: string }[];
+  txns: readonly { accountId: string; date: Date; amount: number; description: string; flow?: string }[];
   /** The local day an instant falls on (localDayKey). */
   dayOf: (d: Date) => string;
   /** Today, as a local day key. */
@@ -122,6 +207,8 @@ export function dailyNetWorth(input: {
   const start = days.findIndex((_, i) => days.slice(i, i + DAILY_RUN).length === DAILY_RUN && days.slice(i, i + DAILY_RUN).every((d) => d.whole));
   if (start < 0) return { points: [], missing: [] };
 
+  const lag = postingLag(plan, days, txns);
+
   // Money crossing an investment account's boundary, by the transaction's own
   // (UTC-pinned) date, the day its balance shows it: what the markets' share
   // leaves out.
@@ -153,7 +240,7 @@ export function dailyNetWorth(input: {
         leftOut.push(plan[i].name);
         return;
       }
-      value += r.balance;
+      value += r.balance + (lag.get(plan[i].id)?.get(d.day) ?? 0);
       if (investment.has(plan[i].id)) invTotal += r.balance;
     });
     let marketGains: number | null = null;

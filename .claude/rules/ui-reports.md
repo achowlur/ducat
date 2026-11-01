@@ -114,8 +114,11 @@ Overview:
   and named; the record starts at the first full week every account
   reported; an aggregator-fed brokerage's balance values the PREVIOUS
   trading day's close and is dated a day back (`priorClose`), so a point
-  follows its market day and a transfer counts on its own date. Never a
-  balance reconstructed from trades. A balance's "as of" anywhere is the
+  follows its market day and a transfer counts on its own date. On a CASH
+  account a transfer the bank posted a day late or early counts on its own
+  date (postingLag: the day's balance moves by exactly its rows, so the day
+  it took effect is read, never adjusted by hand), or the money sits in two
+  accounts for a day. Never a balance reconstructed from trades. A balance's "as of" anywhere is the
   LOCAL day of the bank's instant (localDayKey, shortLocalDay), never its
   UTC date.
 
