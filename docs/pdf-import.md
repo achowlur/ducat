@@ -10,6 +10,7 @@ give you, the statements are the record.
 | Layout | Statements |
 | --- | --- |
 | `chase-card` | Chase credit card |
+| `wells-fargo-card` | Wells Fargo credit card, including statements scanned from paper (see [Scanned statements](#scanned-statements)) |
 | `wells-fargo-deposit` | Wells Fargo checking and savings |
 | `fidelity-report` | Fidelity Investment Report, every account in it (see [Investment accounts](#investment-accounts)) |
 
@@ -36,7 +37,8 @@ under it, since one id cannot say where each goes.
 
 A statement is imported **whole or not at all**. It is refused when:
 
-- it is a scan with no text layer (there is no OCR);
+- it is a scan with no text layer (there is no OCR inside the import;
+  [Scanned statements](#scanned-statements) is the way round);
 - its layout is not one listed above;
 - its rows do not add up: the opening balance plus every row must equal the
   closing balance to the cent (for an investment account, plus the market
@@ -165,6 +167,41 @@ it prints first:
 ```bash
 DATABASE_URL="libsql://…turso.io" TURSO_AUTH_TOKEN="…" npm run import:pdf -- <folder> --dry-run
 ```
+
+## Scanned statements
+
+A statement that only ever existed on paper (mailed, then scanned) is an
+image, and the import refuses it: there is no text to read positions from.
+`npm run pdf:ocr` makes PDFs it can read, with two programs installed on the
+machine first:
+
+```bash
+winget install --id UB-Mannheim.TesseractOCR -e
+winget install --id oschwartz10612.Poppler -e
+npm run pdf:ocr -- <scan.pdf> [more...] --out=<folder>
+npm run import:pdf -- <folder> --dry-run
+```
+
+Every page is rasterised, levelled (a fed sheet sits a few degrees off, and
+then the words of one row land on different lines), OCR'd by Tesseract into
+a searchable page, and placed by the header its own text now carries: the
+statement period and "Page N of M". Sheets can be fed in any order and split
+across several scans; each statement's pages are joined in printed order into
+`statement-<closing date>.pdf`. Pages whose header could not be read (the
+terms on the back of a sheet, inserts, blank backs, or a header OCR spoiled)
+are listed by position and left out. Nothing is run on the import's own
+path: it reads the files as it reads any other PDF.
+
+OCR is not exact, and the checks are what make it safe to use. The
+`wells-fargo-card` layout absorbs what a scan does to a page (a column set a
+few points off its rows, two dates read as one, a letter where a digit was),
+and the balance and section checks refuse a statement whose amounts came out
+wrong, whole, as they refuse any other. Expect a share of statements to be
+refused on a first pass, each with its reason; a cleaner scan of that
+statement, at 300 dpi, is the fix. The one error no check can see is a date
+misread as another date inside the same period: the money is right, the day
+can be off. The scan itself, with your name and address, never leaves the
+machine; the OCR runs locally.
 
 ## Adding a layout
 

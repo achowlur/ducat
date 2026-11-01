@@ -915,3 +915,58 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   longer posts a bot comment on every pull request (each one emailed the
   operator, as the PR's author). Deploys, their commit statuses and the
   `verify` check are untouched; the preview URL is on the PR's checks.
+
+- SCANNED STATEMENTS, OCR'D OUTSIDE THE IMPORT (2026-10-31). The operator's
+  card statements from one bank existed only on paper (mailed; the bank's
+  site did not have them), scanned into three image-only PDFs of about a
+  hundred pages each, sheets fed in no particular order and a statement's
+  pages split across the files. The import refused them as having no text
+  layer, by design. The route taken, and why:
+  - OCR stays OUTSIDE the import. `npm run pdf:ocr` drives Tesseract and
+    Poppler, which the operator installs (winget); the import never calls
+    them, never gains a dependency on them, and reads the result as it reads
+    any PDF. The parsers' "never OCR" rule is about what a PARSER does with
+    a page; the text layer's provenance is the operator's business, and the
+    gate is what makes OCR'd text safe to import at all.
+  - DESKEW FIRST. A fed sheet sits 1-4 degrees off. Tesseract reads a tilted
+    page fine, but it places each WORD at its own baseline, so the line
+    reader (SAME_LINE 2pt) split every row into one line per word. A
+    projection-profile deskew (the shear that makes the ink's row counts
+    peakiest, rotated with sharp) brought rows back onto one line. 300 dpi
+    grey beat 400 and 600, and beat every binarisation tried (thresholds,
+    normalise, gamma, sharpen): measured by well-formed rows, dates and
+    amounts on two row-heavy pages, not by eye.
+  - OCR MOVES COLUMNS, NOT JUST CELLS. The amount column is a block of its
+    own to Tesseract, with its own baselines: amounts sat 2-3 points off
+    their rows on most pages and a WHOLE ROW off on some, so nearest-line
+    matching paired them wrong without any sum failing by itself. The layout
+    now lifts every amount under the Credits/Charges columns into a stream
+    per section and pairs it to the rows by ORDER when the counts agree, by
+    nearness (4pt) otherwise; a row left without an amount refuses. The
+    payment coupon at the foot of page one prints under the Charges column,
+    so the page's table ends at the notice/"Continued"/"Account Number"
+    marks or it pollutes the stream.
+  - WHAT IS RESOLVED, AND WHAT IS NOT. Inside a cell that can only hold a
+    date or an amount, look-alike letters read as digits (O/0, l/1, S/5,
+    B/8, Z/2), a lost decimal point is put back (every amount prints cents),
+    and a post date with ONE digit wrong is read only where the statement's
+    own period leaves exactly one digit possible; a post date beyond that
+    gives way to the trans date printed beside it (as Chase's single-date
+    layout dates rows); a row between two rows posted the same day takes
+    that day (the table lists rows by post date). Nothing else is guessed,
+    and every one of these is pinned on invented lines. The residual, said
+    in docs/pdf-import.md: a date misread as another valid date inside the
+    period passes every check.
+  - THE HEADER WORDING CHANGED IN 2024 ("Statement Billing Period" and
+    "Account Number Ending in" before, "Statement Period" and "Account
+    ending in" after; the older rows print one date column). The first
+    grouping pass orphaned every older page-one; the regrouping reads both.
+  - OUTCOME on a first pass over a few dozen statements: about half pass
+    the gate (some on a card Ducat never had, which --create-account
+    answers), the rest are refused with a reason (amounts a scan lost or
+    misread, a date OCR could not read, one page with its whole amount
+    column illegible at any DPI or contrast, a first page in no scan). A
+    cleaner rescan of a refused statement is the fix; the gate makes a bad
+    one cost nothing. The masked trace (`parseWellsFargoCard(lines, trace)`) was
+    what made each refusal diagnosable without reading a statement: counts
+    of rows and amounts per section, the shape of a date it could not read.
