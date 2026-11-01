@@ -2,7 +2,9 @@ import type { InsightPayloadMap, InsightType, PeriodGranularity } from '../../ty
 import type { Prisma, PrismaClient } from '../../generated/prisma/client';
 import { detectCategoryTotalAnomalies, detectTransactionAnomalies, DEFAULT_ANOMALY_OPTIONS, type AnomalyOptions } from './anomalies';
 import { computeCashFlowTrend } from './cashFlow';
-import { computeNetWorthGrowth } from './netWorth';
+import { localDayKey } from '../displayZone';
+import { pollsForBalances } from '../health/health';
+import { computeNetWorthGrowth, marketDaySnapshots } from './netWorth';
 import { enumeratePeriods, monthKeyBack } from './periods';
 import { detectRecurringCharges, DEFAULT_RECURRING_OPTIONS, type RecurringOptions } from './recurring';
 import { computeSpendingByCategory } from './spendingByCategory';
@@ -80,12 +82,14 @@ export async function generateInsights(
     type: a.type,
     balance: Number(a.balance),
     balanceDate: a.balanceDate,
+    // The feed's balance of a brokerage values the previous trading day's close.
+    priorClose: a.type === 'INVESTMENT' && pollsForBalances(a.connectorType),
   }));
-  const snapshots: SnapshotData[] = snapshotRows.map((s) => ({
-    accountId: s.accountId,
-    date: s.date,
-    balance: Number(s.balance),
-  }));
+  const snapshots: SnapshotData[] = marketDaySnapshots(
+    snapshotRows.map((s) => ({ accountId: s.accountId, date: s.date, balance: Number(s.balance) })),
+    accounts,
+    localDayKey,
+  );
   const txns: TxnData[] = txnRows.map((t) => ({
     id: t.id,
     accountId: t.accountId,

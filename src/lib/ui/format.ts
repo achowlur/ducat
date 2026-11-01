@@ -1,3 +1,4 @@
+import { DISPLAY_TZ, localDayKey } from "../displayZone";
 import { lowercaseDomainSuffix } from "./domainCase";
 
 const usd = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -62,33 +63,11 @@ export function isoDate(d: Date): string {
 }
 
 /**
- * The zone WALL-CLOCK times are shown in. Transaction dates stay pinned to UTC
- * above — deliberately, because the feed mixes noon UTC, midnight Eastern and
- * true instants, so re-zoning them would move correct dates. An event that
- * happened at a real instant is different: "synced at 21:50" is useless if you
- * pressed the button at 5:50pm.
- *
- * `DUCAT_TIMEZONE` comes first because Vercel REFUSES `TZ` as a reserved
- * variable name, so the standard mechanism isn't available where it is most
- * needed. Falling back to the resolved zone means local development needs no
- * configuration at all (it picks up the machine's, honouring `TZ` if set), while
- * Vercel runs functions in UTC until told otherwise — see DEPLOY.md.
- *
- * `||`, not `??`: `.env.example` ships the variable EMPTY, and `??` kept the
- * empty string, which every Intl call then refused as a time zone. A fresh
- * install's first sync took down every page that prints an instant.
+ * The display zone and the local day an instant falls on live in
+ * lib/displayZone.ts (the insights engine reads them too); the names stay
+ * exported from here for every page that prints an instant.
  */
-const DISPLAY_TZ =
-  process.env.DUCAT_TIMEZONE?.trim() || Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-/**
- * The calendar day an INSTANT falls on in the display zone, as "2026-10-16": a
- * bank's balance stamped 9:45pm Eastern is that evening's close, though it is
- * already the next day in UTC.
- */
-export function localDayKey(d: Date): string {
-  return d.toLocaleDateString("en-CA", { timeZone: DISPLAY_TZ });
-}
+export { DISPLAY_TZ, localDayKey } from "../displayZone";
 
 /**
  * The calendar day an instant falls on in the display zone, as the DATE the

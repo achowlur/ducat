@@ -410,3 +410,25 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   By year table's saved column leaves it out with the years named under it.
   The demo gained a rollover IRA whose statements start two years back, so
   both show.
+
+- A BROKERAGE'S MONTH END WAS A TRADING DAY BEHIND (2026-10-31). The operator
+  proposed moving the sync to 11:50 PM so the month-end snapshot would stop
+  being a day behind. The cron hour is not the lever: a snapshot carries the
+  BANK's "as of" stamp, and the brokerage's evening update (about 10:30pm
+  Eastern, the next day in UTC) values the PREVIOUS trading day's close, so
+  the close of the 30th arrives only in the update of the 1st, stamped the
+  2nd in UTC. balanceAt took the latest snapshot at or before the period's
+  UTC end, so from the feed alone a month closed on its second-to-last
+  trading day; the Fidelity report imports had been hiding this, since each
+  writes the month end exactly at noon UTC and that snapshot won. Fix, in
+  the engine before the analyzer: a polled brokerage's feed snapshot is
+  dated to the end of the market day it values, the local day before its
+  stamp, the dating the daily line already used (priorClose); a statement's
+  noon-UTC snapshot is a day, not an instant, and is told apart by that
+  convention (pdf/statement.ts noonUtc), since BalanceSnapshot carries no
+  source. The month now closes with the sync that fetches the 1st's evening
+  update. The zone and localDayKey moved to lib/displayZone.ts (ui/format.ts
+  re-exports them) because the engine may not reach into the UI. Read back
+  on a copy of the mirror: every month's investment close moved to its true
+  last-day value where no statement snapshot existed, and audit:figures was
+  run before shipping.

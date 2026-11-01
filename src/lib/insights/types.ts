@@ -28,6 +28,12 @@ export interface AccountData {
   /** Signed: liabilities negative. */
   balance: number;
   balanceDate: Date;
+  /**
+   * An aggregator-fed brokerage: the feed's balance values the PREVIOUS
+   * trading day's close, so a snapshot of it belongs to the market day
+   * before the local day it was stamped on (netWorth.ts marketDaySnapshots).
+   */
+  priorClose?: boolean;
 }
 
 export interface SnapshotData {

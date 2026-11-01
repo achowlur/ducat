@@ -3,6 +3,48 @@ import { inPeriod, periodEndExclusive, periodStart, previousPeriodKey } from './
 import { round2, round4 } from './stats';
 import type { AccountData, SnapshotData, TxnData } from './types';
 
+const DAY_MS = 86_400_000;
+
+/**
+ * A snapshot at the date convention's noon UTC is a STATEMENT's closing day
+ * (pdf/statement.ts noonUtc), a date rather than an instant, already on the
+ * day it values. A feed stamps its balance at the bank's own instant, which
+ * is never that.
+ */
+function isStatementDay(d: Date): boolean {
+  return d.getUTCHours() === 12 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0;
+}
+
+/**
+ * The feed's snapshots of an aggregator-fed brokerage (`priorClose`), dated
+ * to the market day each one values. The feed stamps such a balance at the
+ * bank's evening update, which is already the next day in UTC and values
+ * the PREVIOUS trading day's close (its Saturday update moved with Friday's
+ * market, its Monday update not at all): the update published on the local
+ * day D holds the close of D - 1, and is dated the end of D - 1 here, the
+ * way the daily line dates it (ui/dailyNetWorth.ts). Read by the UTC
+ * instant alone, a month's closing value for such an account was the
+ * second-to-last day's close, a trading day behind, unless a statement
+ * import had written the month end exactly; now the update published on
+ * the first of the next month closes the month, and the month settles with
+ * the sync that fetches it. A statement's own snapshot (noon UTC, a day
+ * not an instant) is left where it is. `dayOf` is the display zone's
+ * calendar day of an instant (lib/displayZone.ts localDayKey).
+ */
+export function marketDaySnapshots(
+  snapshots: SnapshotData[],
+  accounts: AccountData[],
+  dayOf: (d: Date) => string,
+): SnapshotData[] {
+  const prior = new Set(accounts.filter((a) => a.priorClose === true).map((a) => a.id));
+  if (prior.size === 0) return snapshots;
+  return snapshots.map((s) => {
+    if (!prior.has(s.accountId) || isStatementDay(s.date)) return s;
+    const published = Date.parse(`${dayOf(s.date)}T00:00:00Z`);
+    return { ...s, date: new Date(published - 1) };
+  });
+}
+
 /**
  * Balance of one account at instant `at` (exclusive of transactions after it).
  *
