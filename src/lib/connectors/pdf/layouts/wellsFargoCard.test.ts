@@ -163,6 +163,36 @@ describe('wellsFargoCard', () => {
     expect(reconcile(parseOne(drifted))).toEqual([]);
   });
 
+  // The amount on the row's own line, the description two points below it:
+  // the description still belongs to the row, between its dates and its amount.
+  it('keeps a description that drifted below a row whose amount stayed on the line', () => {
+    const lines = statement().flatMap((l) =>
+      l.page === 1 && l.y === 316
+        ? [
+            line(1, 316, [109, 122, '1234'], [140, 154, '09/04'], [163, 177, '09/05'], [515, 526, '8.50']),
+            line(1, 314, [193, 252, 'F0000000000000002'], [265, 320, 'CORNER CAFE']),
+            line(1, 312, [322, 366, 'SPRINGFIELD IL']),
+          ]
+        : [l],
+    );
+    expect(parseOne(lines).rows).toEqual(parseOne(statement()).rows);
+  });
+
+  // The other way round: the dates alone on their line, the reference,
+  // description AND amount two points below. The text joins the row; the
+  // amount stays where the column reads it.
+  it('keeps a description that drifted below its dates together with the amount', () => {
+    const lines = statement().flatMap((l) =>
+      l.page === 1 && l.y === 316
+        ? [
+            line(1, 316, [109, 122, '1234'], [140, 154, '09/04'], [163, 177, '09/05']),
+            line(1, 314, [193, 252, 'F0000000000000002'], [265, 366, 'CORNER CAFE SPRINGFIELD IL'], [515, 526, '8.50']),
+          ]
+        : [l],
+    );
+    expect(parseOne(lines).rows).toEqual(parseOne(statement()).rows);
+  });
+
   it('reads a header whose Credits and Charges labels sit on a line of their own', () => {
     const lines = statement().flatMap((l) =>
       l.page === 1 && l.y === 396

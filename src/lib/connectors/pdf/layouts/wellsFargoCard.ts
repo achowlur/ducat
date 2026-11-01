@@ -413,9 +413,13 @@ function besideEachOther(row: TextCell[], piece: TextCell[]): boolean {
 /**
  * OCR gives each block of a page its own baseline, so the text after a row's
  * dates can land on a line of its own a few points off. Such a piece,
- * undated, carrying no amount and beside the row rather than over it, joins
- * the nearest dated line within NEAR_LINE. A heading, a total, an amount and
- * a wrapped description (further off, or under the row) pass through.
+ * undated, carrying no amount and beside the row's TEXT rather than over it,
+ * joins the nearest dated line within NEAR_LINE. The row's amount, when it
+ * sits on the row's own line, is not text: a description belongs between
+ * the dates and the amount, and that gap is where it drifts from. A piece
+ * carrying the row's amount as well gives up its text and keeps the amount,
+ * which the column reads later. A heading, a total, a bare amount and a
+ * wrapped description (further off, or under the row) pass through.
  */
 function joinDriftedPieces(lines: TextLine[], columns: Columns, window: DateWindow): TextLine[] {
   const out = lines.map((l) => ({ ...l, cells: [...l.cells] }));
@@ -423,18 +427,20 @@ function joinDriftedPieces(lines: TextLine[], columns: Columns, window: DateWind
   for (let s = 0; s < out.length; s++) {
     const piece = out[s];
     if (piece.cells.length === 0 || dated(piece) || /^TOTAL\b/i.test(piece.text)) continue;
-    if (liftAmounts(piece, columns).amounts.length > 0) continue;
+    const { text } = liftAmounts(piece, columns);
+    if (text.length === 0) continue;
     let best: number | null = null;
     for (const i of [s - 1, s + 1, s - 2, s + 2]) {
       const row = out[i];
       if (row === undefined || row.cells.length === 0 || Math.abs(row.y - piece.y) > NEAR_LINE || !dated(row)) continue;
-      if (!besideEachOther(row.cells, piece.cells)) continue;
+      if (!besideEachOther(liftAmounts(row, columns).text, text)) continue;
       if (best === null || Math.abs(row.y - piece.y) < Math.abs(out[best].y - piece.y)) best = i;
     }
     if (best === null) continue;
-    out[best].cells = [...out[best].cells, ...piece.cells].sort((a, b) => a.x - b.x);
+    out[best].cells = [...out[best].cells, ...text].sort((a, b) => a.x - b.x);
     out[best].text = out[best].cells.map((c) => c.text).join(' ');
-    piece.cells = [];
+    piece.cells = piece.cells.filter((c) => !text.includes(c));
+    piece.text = piece.cells.map((c) => c.text).join(' ');
   }
   return out.filter((l) => l.cells.length > 0);
 }
@@ -719,7 +725,9 @@ export function parseWellsFargoCard(lines: TextLine[], trace: Trace = () => unde
         }
         undated = [];
         lastPost = dates.post;
-        drafts.push({ y: line.y, page, post: dates.post, date, description: describe(dates.rest), section });
+        const description = describe(dates.rest);
+        if (description === '') trace(`page ${page} y ${Math.round(line.y)}: a row with no description, its cells ending at x ${line.cells.map((c) => Math.round(c.xEnd)).join(', ')}`);
+        drafts.push({ y: line.y, page, post: dates.post, date, description, section });
       }
       flush();
     }

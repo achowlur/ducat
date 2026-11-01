@@ -970,3 +970,18 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
     one cost nothing. The masked trace (`parseWellsFargoCard(lines, trace)`) was
     what made each refusal diagnosable without reading a statement: counts
     of rows and amounts per section, the shape of a date it could not read.
+  - THE TEXT DRIFTS TOO (found the same night, after the import). The first
+    pass stored 37 rows with an EMPTY description: on some pages the
+    description block sat two points off its row, and the join only took a
+    piece that carried no amount and sat beside the WHOLE row, so a
+    description between the dates and an amount on the row's own line, or
+    one that drifted together with its amount, was dropped while the row's
+    date and amount passed every check. The join now measures "beside"
+    against the row's text cells and takes the text out of a piece that
+    carries an amount, leaving the amount to the column. The 37 rows are
+    refilled by repair:statement-text (sync/statementText.ts), which
+    re-reads each file and names every nameless row of the batch that file
+    made, by date and amount as a multiset; two different texts for one date
+    and amount with fewer nameless rows than texts is left alone. Pinned on
+    invented lines, both drift shapes. The layout traces a nameless row as
+    it traces an unreadable date, so the next one is seen before it lands.
