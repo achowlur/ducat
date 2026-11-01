@@ -3,8 +3,6 @@ import { inPeriod, periodEndExclusive, periodStart, previousPeriodKey } from './
 import { round2, round4 } from './stats';
 import type { AccountData, SnapshotData, TxnData } from './types';
 
-const DAY_MS = 86_400_000;
-
 /**
  * A snapshot at the date convention's noon UTC is a STATEMENT's closing day
  * (pdf/statement.ts noonUtc), a date rather than an instant, already on the
