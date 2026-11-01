@@ -90,6 +90,21 @@ export function localDayKey(d: Date): string {
   return d.toLocaleDateString("en-CA", { timeZone: DISPLAY_TZ });
 }
 
+/**
+ * The calendar day an instant falls on in the display zone, as the DATE the
+ * app pins days to (noon UTC): what "today", and so the month being lived
+ * in, mean to the person reading. At 9pm Eastern on the 31st the UTC clock
+ * already says the 1st, and a page reading its month from it moved to the
+ * next month five hours early (Overview's spending block, Trends' "this
+ * month so far", /insights' default month, the budget, the recap). Every
+ * page takes its clock through this, once, and transaction dates stay as
+ * they are: this is about which day the READER is on, not about moving a
+ * stored date.
+ */
+export function localToday(d: Date): Date {
+  return new Date(`${localDayKey(d)}T12:00:00Z`);
+}
+
 /** "Oct 20" for the local day an instant falls on: a balance's "as of", never its UTC date. */
 export function shortLocalDay(d: Date): string {
   return shortDate(new Date(`${localDayKey(d)}T00:00:00Z`));

@@ -1,3 +1,4 @@
+import { localToday } from "./format";
 import type { SpendingByCategoryPayload } from "../../types/contracts";
 import { monthKeyBack, periodKey } from "../insights/periods";
 import { median } from "../insights/stats";
@@ -17,7 +18,9 @@ const PAY_MONTHS_BACK = 24;
  * accounts and where their records begin (which months are comparable), and
  * the two Settings.
  */
-export async function getBudgetData(now: Date = new Date()): Promise<Budget> {
+export async function getBudgetData(clock: Date = new Date()): Promise<Budget> {
+  // The day the reader is on, in the display zone (format.ts localToday).
+  const now = localToday(clock);
   const [insightRows, accounts, firsts, settings] = await Promise.all([
     prisma.insight.findMany({
       where: {

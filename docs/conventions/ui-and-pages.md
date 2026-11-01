@@ -1620,3 +1620,19 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   to the next sync, whose rules pass flags it again. Driven on a scratch
   copy: released, the row showed the Link control with the withdrawal
   ranked first as an exact amount, and linked.
+
+- THE MONTH BEING LIVED IN IS THE READER'S, NOT UTC'S (2026-10-31). At 9pm
+  Eastern on October 31st the operator opened Overview and found "November
+  spending: nothing recorded yet" and Trends on "Nov 1", while every instant
+  on the page said EDT. The pages took `new Date()` and read the month from
+  its UTC fields (periodKey), as every period bound in the app does, which is
+  right for a stored date and wrong for the clock: the reader was five hours
+  from November. Fix: `localToday` (lib/ui/format.ts) gives the calendar day
+  in DUCAT_TIMEZONE as a noon-UTC date, and the four page entries (Overview,
+  /insights, /budget, /trends) take their `now` through it ONCE, so the
+  period admission, the current-period gate, the pace's days, the recap's
+  window and "this month so far" all agree. Transaction dates are untouched:
+  the fix is about which day the READER is on. The suite pins
+  DUCAT_TIMEZONE to UTC (vitest.config.ts) so a test's `now` means the same
+  day on a laptop in Eastern time and in CI; format.test.ts stubs the zone
+  where it is the subject.

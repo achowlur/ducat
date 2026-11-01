@@ -1,3 +1,4 @@
+import { localToday } from "../../lib/ui/format";
 import { cookies } from "next/headers";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 import { ChangeCard, type LateAccount } from "../../components/trends/ChangeCard";
@@ -77,9 +78,10 @@ function resolveTarget(
 }
 
 async function renderTrends({ searchParams }: { searchParams: Promise<RawSearch> }) {
-  // ONE `now` for every card, or a render straddling midnight UTC could put
-  // two cards in different months.
-  const now = new Date();
+  // ONE `now` for every card, or a render straddling midnight could put two
+  // cards in different months; the day the reader is on, in the display zone
+  // (format.ts localToday), never the UTC date.
+  const now = localToday(new Date());
   const [raw, jar, source, pace] = await Promise.all([searchParams, cookies(), getTrendsSource(), getCurrentPace(now)]);
   const params = parseTrendsParams(raw, (name) => jar.get(name)?.value);
   const { entries } = source;

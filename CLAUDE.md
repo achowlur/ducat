@@ -133,10 +133,10 @@ regeneration.
   opens at the END the reader needs, not at scrollLeft 0; and the one figure
   a screen exists for never lives in a column that can be scrolled off — the
   ledger's amount moves into the merchant sub-line below md.
-- DATES pin to UTC; INSTANTS render local wall-clock plus zone name via
-  dateTime(); the zone comes from DUCAT_TIMEZONE (EMPTY falls back to the
-  machine's), never TZ. Never print a raw
-  ISO string in prose — shortDate/monthLabel exist.
+- DATES pin to UTC; INSTANTS render local wall-clock plus zone via dateTime();
+  the zone is DUCAT_TIMEZONE (EMPTY falls back to the machine's), never TZ.
+  TODAY, so the month lived in, is the reader's local day (localToday), taken
+  ONCE at a page's entry. No raw ISO string in prose — shortDate/monthLabel.
 - On-screen copy carries NO em dash (a refusal glyph and an empty cell's
   dash are glyphs, not prose).
 - Type comes from components/ui/headings.tsx and NOWHERE else: one h1 per

@@ -10,6 +10,7 @@
  * emphasis. The full recurring roster and its annualised total live on
  * /insights now; nothing was dropped.
  */
+import { localToday } from "./format";
 import type { DetectedCharge } from "../health/detectedSubscriptions";
 import type { NetWorthGrowthPayload, SpendingByCategoryPayload } from "../../types/contracts";
 import { growthBetween } from "./netWorthGrowth";
@@ -190,7 +191,9 @@ export const LUMPY_MONTHS = 12;
  */
 const GOAL_MONTHS_BACK = 24;
 
-export async function getOverviewData(now: Date = new Date()): Promise<OverviewData> {
+export async function getOverviewData(clock: Date = new Date()): Promise<OverviewData> {
+  // The day the reader is on, in the display zone (format.ts localToday).
+  const now = localToday(clock);
   // ONE `now` for the whole page: the rows read, the spending block's month,
   // the runway's complete-month cut and the context's "complete" boundary must
   // agree on which month is being lived in, or a render straddling UTC
