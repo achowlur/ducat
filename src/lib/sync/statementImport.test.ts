@@ -151,6 +151,34 @@ describe('planStatementImport', () => {
     expect(plan.skipped[0].reason).toMatch(/ending in 9999/);
   });
 
+  // A reissued card prints digits no account carries, and its name beside
+  // them. The name matches an account only when it matches ONE.
+  it('files a statement whose digits match nothing under the one account carrying its card name', async () => {
+    await prisma.account.create({
+      data: {
+        externalId: 'ext-card-plus',
+        connectorType: 'SIMPLEFIN',
+        institution: 'Example Bank',
+        name: 'Example Card Plus (0005)',
+        type: 'CREDIT',
+        currency: 'USD',
+        balance: -10,
+        balanceDate: utc(3, 20),
+        isStale: false,
+      },
+    });
+    const plus = await verdictOf([file('p.pdf', 'pp', statement({ accountLast4: '9999', cardName: 'EXAMPLE BANK EXAMPLE PLUS VISA SIGNATURE CARD' }))]);
+    expect(plus.plan.statements.map((p) => p.account.name)).toEqual(['Example Card Plus (0005)']);
+    expect(plus.plan.skipped).toEqual([]);
+
+    const either = await verdictOf([file('q.pdf', 'qq', statement({ accountLast4: '9999', cardName: 'EXAMPLE BANK EXAMPLE VISA CARD' }))]);
+    expect(either.plan.statements).toEqual([]);
+    expect(either.plan.skipped[0].reason).toMatch(/ending in 9999/);
+
+    const digits = await verdictOf([file('r.pdf', 'rr', statement({ cardName: 'EXAMPLE BANK EXAMPLE PLUS VISA SIGNATURE CARD' }))]);
+    expect(digits.plan.statements.map((p) => p.account.name)).toEqual(['Example Card (0001)']);
+  });
+
   it('skips the same file, and the same statement in another file, within one run', async () => {
     const { plan } = await verdictOf([file('a.pdf', 'aa'), file('a copy.pdf', 'aa'), file('redownload.pdf', 'cc')]);
     expect(plan.statements.map((p) => p.file.fileName)).toEqual(['a.pdf']);

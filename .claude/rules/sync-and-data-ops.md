@@ -49,6 +49,10 @@ Import and sync:
   to rows by order; one digit of a post date resolved only where the period
   leaves one possible) and the gate still refuses a misread amount. A date
   misread as another valid date is the one error no check sees: say so.
+- A statement finds its account by the printed LAST FOUR first, then by the
+  card's printed NAME (ParsedStatement.cardName, matchByCardName: exactly one
+  account of that type at the institution carrying every product word), for
+  a card reissued under a new number; two such accounts is no match.
 - A statement row stored under ANOTHER source's id matches on account +
   amount + date window as a MULTISET (an INVESTMENT account's on the
   amount's MAGNITUDE: feeds sign its transfers oppositely); a surplus among rows on different days

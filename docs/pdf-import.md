@@ -27,9 +27,12 @@ npm run import:pdf -- <statement.pdf | folder> [more...]
 ```
 
 Each statement lands in the account it belongs to, found by the last four
-digits the statement prints. The account must already exist (a live feed or an
-earlier import made it); a statement for an account the import cannot name is
-skipped and reported. `--external-id=<id>` files every statement in the run
+digits the statement prints, or, when those digits match no account, by the
+card's name printed on the statement: a card reissued under a new number
+keeps its name, and a Wells Fargo card statement whose digits Ducat has never
+seen goes to the one Wells Fargo credit account named for the same product.
+The account must already exist (a live feed or an earlier import made it); a
+statement for an account the import cannot name is skipped and reported. `--external-id=<id>` files every statement in the run
 under that one account instead; a file holding several accounts is skipped
 under it, since one id cannot say where each goes.
 
