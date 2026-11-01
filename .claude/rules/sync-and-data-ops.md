@@ -42,7 +42,13 @@ Import and sync:
   parsers read column
   POSITIONS (a deposit statement's amounts carry no sign), never OCR, never
   an LLM; a new layout starts from pdf:layout, masked by default, and is
-  tested on INVENTED lines in its shape, never a real date or cycle.
+  tested on INVENTED lines in its shape, never a real date or cycle. A SCAN
+  is OCR'd OUTSIDE the import (pdf:ocr: Tesseract and Poppler, installed by
+  the operator; one PDF per statement, pages regrouped by their own header);
+  wells-fargo-card reads that text (amounts as a column of their own, paired
+  to rows by order; one digit of a post date resolved only where the period
+  leaves one possible) and the gate still refuses a misread amount. A date
+  misread as another valid date is the one error no check sees: say so.
 - A statement row stored under ANOTHER source's id matches on account +
   amount + date window as a MULTISET (an INVESTMENT account's on the
   amount's MAGNITUDE: feeds sign its transfers oppositely); a surplus among rows on different days
