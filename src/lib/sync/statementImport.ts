@@ -126,6 +126,29 @@ function rowIds(rows: StatementRow[]): string[] {
   });
 }
 
+/** Words every card of a network carries; with the institution's own, what is left names the product. */
+const CARD_NAME_NOISE = new Set(['VISA', 'MASTERCARD', 'AMERICAN', 'EXPRESS', 'SIGNATURE', 'CARD', 'CREDIT', 'THE']);
+
+/**
+ * The account a card statement belongs to by the card's NAME, for a card
+ * reissued under a new number: the statement prints digits no account
+ * carries, and the product name it prints beside them ("EXAMPLE REWARDS")
+ * names the account, when exactly one account of that type at the
+ * institution carries every word of it. Two such accounts, or none, is no
+ * match; the digits are always tried first.
+ */
+function matchByCardName(cardName: string | undefined, institution: string, candidates: TargetAccount[]): TargetAccount | null {
+  if (cardName === undefined) return null;
+  const own = new Set(institution.toUpperCase().split(/[^A-Z]+/));
+  const product = cardName.split(' ').filter((w) => !CARD_NAME_NOISE.has(w) && !own.has(w));
+  if (product.length === 0) return null;
+  const named = candidates.filter((a) => {
+    const words = new Set(a.name.toUpperCase().replace(/[^A-Z ]+/g, ' ').split(/\s+/));
+    return product.every((w) => words.has(w));
+  });
+  return named.length === 1 ? named[0] : null;
+}
+
 function sameInstitution(statement: string, stored: string): boolean {
   const a = statement.toLowerCase();
   const b = stored.toLowerCase();
@@ -215,12 +238,11 @@ export async function planStatementImport(
       continue;
     }
 
+    const candidates = accounts.filter((a) => a.type === s.accountType && sameInstitution(s.institution, a.institution));
     const account =
       (forced as TargetAccount | null) ??
-      (matchAccount(
-        s.accountLast4,
-        accounts.filter((a) => a.type === s.accountType && sameInstitution(s.institution, a.institution)),
-      ) as TargetAccount | null) ??
+      (matchAccount(s.accountLast4, candidates) as TargetAccount | null) ??
+      matchByCardName(s.cardName, s.institution, candidates) ??
       toCreate(s);
     if (account === null) {
       skipped.push({

@@ -49,6 +49,13 @@ export interface ParsedStatement {
   accountType: AccountType;
   /** The last four digits the statement prints for the account. */
   accountLast4: string;
+  /**
+   * The card's product name as the statement prints it ("WELLS FARGO EXAMPLE
+   * REWARDS VISA SIGNATURE CARD"), where a card statement prints one. A
+   * reissued card changes its number and keeps its name, so the import
+   * matches an account by this when the digits match none.
+   */
+  cardName?: string;
   periodStart: Date;
   periodEnd: Date;
   openingBalance: number;

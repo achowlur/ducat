@@ -210,6 +210,32 @@ function previousBalanceByPlace(lines: TextLine[]): number | null {
 /** The account summary's height: the previous balance sits within this of "= New Balance". */
 const SUMMARY_HEIGHT = 90;
 
+/**
+ * The card's name, printed across the top of every page ("Wells Fargo
+ * Example Rewards® Card"), read from the summary page: the cells left of the
+ * page's right-hand block on the first line that ends in CARD and the lines
+ * within NEAR_LINE of it (OCR splits the name over two baselines), joined in
+ * reading order and cut at CARD. Letters only, upper case; null when no such
+ * line reads.
+ */
+function cardNameOf(pageLines: TextLine[]): string | null {
+  const index = pageLines.findIndex((l) => l.cells.some((c) => c.x < CARD_NAME_MAX_X && /\bCARD\b/i.test(c.text)));
+  if (index < 0) return null;
+  const anchor = pageLines[index];
+  const cells = pageLines
+    .filter((l) => Math.abs(l.y - anchor.y) <= NEAR_LINE)
+    .flatMap((l) => l.cells.filter((c) => c.x < CARD_NAME_MAX_X))
+    .sort((a, b) => a.x - b.x);
+  const text = cells.map((c) => c.text).join(' ');
+  const cut = /^(.*?\bCARD)\b/i.exec(text);
+  if (cut === null) return null;
+  const words = cut[1].toUpperCase().replace(/[^A-Z ]+/g, ' ').split(/\s+/).filter((w) => w.length > 1);
+  return words.length === 0 ? null : words.join(' ');
+}
+
+/** The card's name sits left of this; the right-hand block of the page top holds the page's own marks. */
+const CARD_NAME_MAX_X = 465;
+
 /** The value most pages agree on; OCR can spoil one page's header. */
 function mostCommon<T>(values: T[]): T | undefined {
   const counts = new Map<T, number>();
@@ -464,6 +490,12 @@ function settle(drafts: Draft[], amounts: Amount[], columns: Columns, out: State
   return amounts.filter((a) => !claimed.has(a));
 }
 
+function byPageOf(lines: TextLine[]): Map<number, TextLine[]> {
+  const byPage = new Map<number, TextLine[]>();
+  for (const line of lines) byPage.set(line.page, [...(byPage.get(line.page) ?? []), line]);
+  return byPage;
+}
+
 /** A page's place in the statement: its printed "Page N of M", read through the look-alikes; null when unreadable. */
 function printedPageNumber(pageLines: TextLine[]): number | null {
   return wellsFargoCardPageHeader(pageLines).pageNo;
@@ -564,6 +596,8 @@ export function parseWellsFargoCard(lines: TextLine[], trace: Trace = () => unde
     if (last4 === undefined) throw new Error('no account number');
 
     const latest = summaryValue(lines, /^[^A-Za-z]*New Balance$/i);
+    const summaryPage = inStatementOrder(byPageOf(lines))[0]?.[1] ?? [];
+    const cardName = cardNameOf(summaryPage);
     // "Previous Balance", the summary's first line; OCR can spoil the word, so
     // any "... Balance" label that is not the new balance stands for it, the
     // first in reading order, and failing that the line's place in the
@@ -578,10 +612,7 @@ export function parseWellsFargoCard(lines: TextLine[], trace: Trace = () => unde
     let section: Section | null = null;
     let done = false;
 
-    const byPage = new Map<number, TextLine[]>();
-    for (const line of lines) byPage.set(line.page, [...(byPage.get(line.page) ?? []), line]);
-
-    for (const [page, pageLines] of inStatementOrder(byPage)) {
+    for (const [page, pageLines] of inStatementOrder(byPageOf(lines))) {
       if (done) break;
       // Each page's table is read under that page's own header.
       const header = tableHeader(pageLines);
@@ -711,6 +742,7 @@ export function parseWellsFargoCard(lines: TextLine[], trace: Trace = () => unde
         institution: 'Wells Fargo',
         accountType: 'CREDIT',
         accountLast4: last4,
+        ...(cardName === null ? {} : { cardName }),
         periodStart,
         periodEnd,
         // A balance owed prints positive; the app stores it negative.

@@ -30,6 +30,9 @@ const parseOne = (lines: TextLine[]): ParsedStatement => {
 // header; page three: the table continued, its totals and the year-to-date
 // block. The pages arrive in printed order, as the grouped files hold them.
 const statement = (): TextLine[] => [
+  // The card's name, split over two baselines by OCR, beside the page's own marks.
+  line(1, 747, [365, 460, 'REWARDS® CARD'], [475, 503, 'Mark Here']),
+  line(1, 745, [255, 363, 'WELLS FARGO EXAMPLE']),
   line(1, 735, [379, 457, 'Account ending in 1234']),
   line(1, 724, [318, 457, 'Statement Period 09/03/2025 to 10/02/2025']),
   line(1, 715, [427, 457, 'Page 1 of 3']),
@@ -96,7 +99,7 @@ describe('wellsFargoCard', () => {
   it('reads the period, the account and the balances, owed balances negative', () => {
     const s = parseOne(statement());
     expect([s.periodStart, s.periodEnd]).toEqual([noonUtc(2025, 9, 3), noonUtc(2025, 10, 2)]);
-    expect([s.accountLast4, s.institution, s.accountType]).toEqual(['1234', 'Wells Fargo', 'CREDIT']);
+    expect([s.accountLast4, s.institution, s.accountType, s.cardName]).toEqual(['1234', 'Wells Fargo', 'CREDIT', 'WELLS FARGO EXAMPLE REWARDS CARD']);
     expect([s.openingBalance, s.closingBalance]).toEqual([-250, -524.34]);
   });
 
