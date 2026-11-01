@@ -127,6 +127,85 @@ describe("dailyNetWorth", () => {
     expect(out.points.find((p) => p.period === day(4))?.value).toBe(500);
   });
 
+  // The bank's afternoon balance still holds money the brokerage's evening
+  // balance already shows: for a day the transfer is in both accounts.
+  it("counts a transfer once when the bank posts it a day after its date", () => {
+    const transfer = [
+      { accountId: "chk", date: at(day(5), 12), amount: -2_000, description: "ONLINE TRANSFER TO BROKERAGE", flow: "TRANSFER" },
+      { accountId: "brk", date: at(day(5), 12), amount: 2_000, description: "Electronic Funds Transfer Received", flow: "TRANSFER" },
+    ];
+    const out = dailyNetWorth({
+      accounts: [checking, brokerage],
+      snapshots: [...daily(10, "chk", (i) => (i >= 6 ? 8_000 : 10_000)), ...daily(10, "brk", (i) => (i >= 5 ? 7_000 : 5_000))],
+      txns: transfer,
+      dayOf: utcDay,
+      today: day(9),
+    });
+    expect(out.points.map((p) => p.value)).toEqual(Array(10).fill(15_000));
+    expect(out.points[5].marketGains).toBe(0);
+  });
+
+  it("counts a transfer once when the bank posted it before its date, and over a weekend's carry", () => {
+    const transfer = [
+      { accountId: "chk", date: at(day(5), 12), amount: -2_000, description: "ONLINE TRANSFER TO BROKERAGE", flow: "TRANSFER" },
+      { accountId: "brk", date: at(day(5), 12), amount: 2_000, description: "Electronic Funds Transfer Received", flow: "TRANSFER" },
+    ];
+    const early = dailyNetWorth({
+      accounts: [checking, brokerage],
+      snapshots: [...daily(10, "chk", (i) => (i >= 4 ? 8_000 : 10_000)), ...daily(10, "brk", (i) => (i >= 5 ? 7_000 : 5_000))],
+      txns: transfer,
+      dayOf: utcDay,
+      today: day(9),
+    });
+    expect(early.points.map((p) => p.value)).toEqual(Array(10).fill(15_000));
+    // The bank posts nothing on days 5 and 6; day 7's balance shows the transfer.
+    const carried = dailyNetWorth({
+      accounts: [checking, brokerage],
+      snapshots: [...daily(10, "chk", (i) => (i >= 7 ? 8_000 : 10_000), [5, 6]), ...daily(10, "brk", (i) => (i >= 5 ? 7_000 : 5_000))],
+      txns: transfer,
+      dayOf: utcDay,
+      today: day(9),
+    });
+    expect(carried.points.map((p) => p.value)).toEqual(Array(10).fill(15_000));
+  });
+
+  it("leaves a transfer under LAG_MIN as the banks show it", () => {
+    const small = dailyNetWorth({
+      accounts: [checking, brokerage],
+      snapshots: [...daily(10, "chk", (i) => (i >= 6 ? 9_500 : 10_000)), ...daily(10, "brk", (i) => (i >= 5 ? 5_500 : 5_000))],
+      txns: [
+        { accountId: "chk", date: at(day(5), 12), amount: -500, description: "ONLINE TRANSFER TO BROKERAGE", flow: "TRANSFER" },
+        { accountId: "brk", date: at(day(5), 12), amount: 500, description: "Electronic Funds Transfer Received", flow: "TRANSFER" },
+      ],
+      dayOf: utcDay,
+      today: day(9),
+    });
+    expect(small.points[5].value).toBe(15_500);
+  });
+
+  it("leaves a purchase that posted late alone, and a transfer the day already shows", () => {
+    const out = dailyNetWorth({
+      accounts: [checking, brokerage],
+      snapshots: [...daily(10, "chk", (i) => (i >= 6 ? 8_000 : 10_000)), ...daily(10, "brk", () => 5_000)],
+      txns: [{ accountId: "chk", date: at(day(5), 12), amount: -2_000, description: "EXAMPLE APPLIANCE", flow: "OUTFLOW" }],
+      dayOf: utcDay,
+      today: day(9),
+    });
+    expect(out.points[5].value).toBe(15_000);
+    expect(out.points[6].value).toBe(13_000);
+    const shown = dailyNetWorth({
+      accounts: [checking, brokerage],
+      snapshots: [...daily(10, "chk", (i) => (i >= 5 ? 8_000 : 10_000)), ...daily(10, "brk", (i) => (i >= 5 ? 7_000 : 5_000))],
+      txns: [
+        { accountId: "chk", date: at(day(5), 12), amount: -2_000, description: "ONLINE TRANSFER TO BROKERAGE", flow: "TRANSFER" },
+        { accountId: "brk", date: at(day(5), 12), amount: 2_000, description: "Electronic Funds Transfer Received", flow: "TRANSFER" },
+      ],
+      dayOf: utcDay,
+      today: day(9),
+    });
+    expect(shown.points.map((p) => p.value)).toEqual(Array(10).fill(15_000));
+  });
+
   it("labels a day as the axis prints it", () => {
     expect(dayLabel("2026-10-05")).toBe("Oct 5");
   });
