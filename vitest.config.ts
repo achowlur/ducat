@@ -19,10 +19,17 @@ import { defineConfig } from "vitest/config";
  *    every test here had been a pure-function test. MiniDonut.test.ts needs the
  *    real server markup, because the bug it pins is only visible in the
  *    emitted string.
+ *
+ * 3. WHICH DAY IT IS. Pages take their clock through `localToday`
+ *    (lib/ui/format.ts), the calendar day in DUCAT_TIMEZONE. The suite pins
+ *    that zone to UTC so a test's `now` means the same day on every machine
+ *    and in CI; format.test.ts stubs the variable itself where the zone is
+ *    the subject.
  */
 export default defineConfig({
   oxc: { jsx: { runtime: "automatic", importSource: "react" } },
   test: {
+    env: { DUCAT_TIMEZONE: "UTC" },
     exclude: ["**/node_modules/**", "**/dist/**", "**/.next/**", "**/.next-capture/**", "**/.claude/**"],
   },
 });

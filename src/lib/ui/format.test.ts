@@ -78,6 +78,21 @@ describe("the display time zone", () => {
     }
   });
 
+  // 9pm Eastern on October 31st is already November 1st in UTC. The day the
+  // reader is on decides the month every page lives in.
+  it("reads the day the reader is on in the display zone, pinned to noon UTC", async () => {
+    vi.stubEnv("DUCAT_TIMEZONE", "America/New_York");
+    vi.resetModules();
+    try {
+      const { localToday } = await import("./format");
+      expect(localToday(new Date("2026-11-01T01:07:00Z")).toISOString()).toBe("2026-10-31T12:00:00.000Z");
+      expect(localToday(new Date("2026-11-01T05:30:00Z")).toISOString()).toBe("2026-11-01T12:00:00.000Z");
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
   it("uses the zone it is given", async () => {
     vi.stubEnv("DUCAT_TIMEZONE", "America/New_York");
     vi.resetModules();

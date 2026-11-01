@@ -1,3 +1,4 @@
+import { localToday } from "./format";
 import type {
   AnomalyPayload,
   CashFlowTrendPayload,
@@ -343,7 +344,9 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // One `now` for the whole request: the period admission, the current-period
   // gate and the commitment windows must agree on which month is being lived
   // in, or a render straddling midnight could admit one month and gate another.
-  const now = new Date();
+  // It is the day the reader is on in the display zone (format.ts localToday),
+  // or at 9pm Eastern on the 31st the page would already live in next month.
+  const now = localToday(new Date());
   // Anomalies are the bulk of the Insight table (one per category per month)
   // and the page shows one month of them, so it reads the month it expects to
   // land on and fetches another only when the selection lands elsewhere.

@@ -67,7 +67,7 @@ Overview:
   done (Setting nudges.done, {key, at}) hides a nudge until data NEWER than
   the click arrives for what it is about (an account's balanceDate, never
   merely a sync), then the data decides again.
-- Overview carries a RECAP on days 1 to 7 of a month (UTC) only, below the net
+- Overview carries a RECAP on days 1 to 7 of a month (the reader's day) only, below the net
   worth row: the closed month's spending against the middle of the comparable
   months before it, net worth's saved and markets (growthBetween, "joined"
   named when nonzero) and the net worth goal's date and shift, else the first
@@ -148,8 +148,8 @@ Overview:
   readiness, pace, commitments) lives there. Prior months stay one ‹ away.
   The empty month says "nothing recorded yet", never "nothing needs your
   attention" — all clear cannot be told from not checked. ONE `now` drives
-  both admission and the current-period gate, or a render straddling UTC
-  midnight splits them.
+  both admission and the current-period gate, or a render straddling
+  midnight splits them; it is localToday(new Date()), the reader's day.
 - /accounts LEADS with the table (operator, 2026-10-19): no net worth headline,
   no last-sync line, no how-counted tap; net worth is the total row at the
   foot, and freshness is each row's chip and age text plus the stale alert.
