@@ -51,6 +51,20 @@ describe('balanceAt', () => {
     expect(result.estimated).toBe(true);
   });
 
+  // A closed savings account: its one snapshot is the closing zero, its
+  // export every row. Every month before it is the zero rolled back, exact.
+  it('rolls a cash balance BACK from the nearest later snapshot before its first one, not estimated', () => {
+    const closed: AccountData = { id: 'acc1', type: 'DEPOSITORY', balance: 0, balanceDate: utc(2026, 7, 12) };
+    const snapshots: SnapshotData[] = [{ accountId: 'acc1', date: utc(2026, 7, 12), balance: 0 }];
+    const txns = [
+      txn({ date: utc(2026, 5, 3), amount: 1_000 }),
+      txn({ date: utc(2026, 6, 20), amount: 40 }),
+      txn({ date: utc(2026, 7, 12), amount: -1_040 }),
+    ];
+    expect(balanceAt(closed, snapshots, txns, utc(2026, 6, 30))).toEqual({ balance: 1_040, estimated: false, known: true });
+    expect(balanceAt(closed, snapshots, txns, utc(2026, 5, 31))).toEqual({ balance: 1_000, estimated: false, known: true });
+  });
+
   it('rolls a snapshot forward with subsequent transactions', () => {
     const snapshots: SnapshotData[] = [{ accountId: 'acc1', date: utc(2026, 6, 30), balance: 800 }];
     const txns = [

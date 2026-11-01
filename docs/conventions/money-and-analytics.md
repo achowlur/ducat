@@ -432,3 +432,25 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   on a copy of the mirror: every month's investment close moved to its true
   last-day value where no statement snapshot existed, and audit:figures was
   run before shipping.
+
+- "PARTLY ESTIMATED, 34 OF 95 MONTHS" AFTER EVERYTHING WAS IMPORTED
+  (2026-10-31). The operator asked why Trends still called months estimated.
+  Read from the payloads: 28 of the 34 came from a closed savings account
+  whose history is a complete CSV export (its rows sum to its closing zero
+  to the cent) and whose only snapshot is that closing zero. balanceAt had
+  two cash sources, a snapshot at or before the instant rolled forward, else
+  the account's LIVE balance rolled back and flagged estimated, so every
+  month before an account's first snapshot was "estimated" however complete
+  its rows. The flag was a precaution about the live balance (pending rows,
+  a feed's gap), not about the arithmetic: a statement's close and the rows
+  that led to it are one record read in either direction. Now a cash
+  balance before its first snapshot rolls back from the EARLIEST later one,
+  unflagged, and only an account with no snapshot at all stands on its live
+  balance, estimated. 29 of the 34 months cleared (the savings account's 28
+  and the first month of the checking history, before its first statement
+  closed); the 5 left are months the brokerage has no statement for, said
+  in text as carried, which only those statements can settle. The "one to
+  categorize" the operator saw at the same time was the one fare the
+  statement-text repair would not guess between two texts: nameless, so the
+  payee grouping could not offer it; the ledger's Uncategorized filter shows
+  it, the only outflow among linked repayments.

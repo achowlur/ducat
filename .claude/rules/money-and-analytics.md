@@ -34,7 +34,10 @@ anything below; several entries record "tried and failed, don't retry".
   brokerage's feed snapshot is dated to the MARKET DAY it values (the local
   day before its stamp: marketDaySnapshots, in the engine), as the daily
   line dates it, or every month end from the feed is a trading day behind;
-  a statement's noon-UTC snapshot is a day already and stays. Without a snapshot inside the
+  a statement's noon-UTC snapshot is a day already and stays. A CASH
+  balance before its first snapshot rolls BACK from the nearest later one
+  through the rows between, exact; only an account with no snapshot at all
+  reconstructs from its live balance, flagged estimated. Without a snapshot inside the
   period an investment value is CARRIED (last snapshot + money that crossed
   the account since, estimated), ZERO when its last snapshot is zero with
   nothing since, ZERO for ANY account before an opening-zero snapshot, else

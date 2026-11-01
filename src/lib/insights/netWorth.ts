@@ -48,9 +48,12 @@ export function marketDaySnapshots(
  *
  * Preferred source: the latest BalanceSnapshot at or before `at`, rolled
  * forward with the account's transactions between the snapshot and `at`.
- * Fallback: reconstruct from the account's current balance/balanceDate by
- * removing (or adding) transactions between `at` and balanceDate, flagged
- * `estimated`.
+ * Before a cash account's first snapshot, the EARLIEST one after `at` rolled
+ * back the same way: a statement's close and the rows that led to it are
+ * one record whichever way it is read (a closed account's closing zero and
+ * its complete export give every month before it exactly). Only with no
+ * snapshot at all does the account's current balance/balanceDate stand in,
+ * rolled back through its transactions and flagged `estimated`.
  *
  * `known: false` means the balance is NOT recoverable and callers must not
  * substitute a number. That happens for an INVESTMENT account with no usable
@@ -129,9 +132,15 @@ export function balanceAt(
     return { balance: 0, estimated: true, known: false };
   }
 
-  const anchor = own.length > 0
-    ? { balance: own[own.length - 1].balance, date: own[own.length - 1].date, estimated: false }
-    : { balance: account.balance, date: account.balanceDate, estimated: true };
+  const later = mine
+    .filter((s) => s.date.getTime() > at.getTime())
+    .reduce<SnapshotData | null>((earliest, s) => (earliest === null || s.date.getTime() < earliest.date.getTime() ? s : earliest), null);
+  const anchor =
+    own.length > 0
+      ? { balance: own[own.length - 1].balance, date: own[own.length - 1].date, estimated: false }
+      : later !== null
+        ? { balance: later.balance, date: later.date, estimated: false }
+        : { balance: account.balance, date: account.balanceDate, estimated: true };
 
   // A market-valued snapshot is the account's TOTAL worth, so its own trades
   // must not be applied to it: "YOU BOUGHT VTI -$51,834.59" moves cash into
