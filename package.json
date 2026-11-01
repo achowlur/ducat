@@ -44,7 +44,8 @@
     "readiness": "tsx scripts/set-readiness.ts",
     "goals": "tsx scripts/set-goals.ts",
     "upgrade": "tsx scripts/upgrade.ts",
-    "pdf:ocr": "tsx scripts/pdf-ocr.ts"
+    "pdf:ocr": "tsx scripts/pdf-ocr.ts",
+    "repair:statement-text": "tsx scripts/repair-statement-text.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

@@ -48,7 +48,10 @@ Import and sync:
   wells-fargo-card reads that text (amounts as a column of their own, paired
   to rows by order; one digit of a post date resolved only where the period
   leaves one possible) and the gate still refuses a misread amount. A date
-  misread as another valid date is the one error no check sees: say so.
+  misread as another valid date is the one error no check sees: say so. A
+  row stored with an EMPTY description (text the layout of the day lost) is
+  refilled by repair:statement-text from the same file, by import batch +
+  date + amount as a multiset, never a guess between two texts.
 - A statement finds its account by the printed LAST FOUR first, then by the
   card's printed NAME (ParsedStatement.cardName, matchByCardName: exactly one
   account of that type at the institution carrying every product word), for
