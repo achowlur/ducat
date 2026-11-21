@@ -912,6 +912,20 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
     rows, every balance and every setting as they were.
   - OPERATOR-RUN, NEVER OFFERED: a reconnect leaves evidence a page can read
     (the feed stopped listing an account), a move to a new number does not.
+  - THE ARRIVAL HAS NO DEPARTURE (found the same day, from the first real
+    combine). The feed reported the new account receiving the old one's
+    holdings ("TRANSFERRED FROM …") and never the old account sending them.
+    Combined into one account, that row read by its wording as a deposit
+    from outside the size of the whole account; the value barely moved, so
+    the month's market figure was charged the deposit and showed a loss
+    several times the real one. The combine now finds that row
+    from the old account's own balances (what it held the day before its
+    closing zeros, and when) and marks it on Setting netWorth.internalMoves,
+    which crossingAmount honours: an unpaired arrival in the kept account
+    within 3 days, within 10% of that amount (holdings moved in kind are
+    valued on their own day), and exactly one such row or none is marked.
+    The undo takes the mark back. A combine applied before this existed is
+    marked with --mark-move, which also teaches its undo record.
 
 - RECONNECT RE-LINK (2026-11-21, sync/relink.ts, relink.test.ts). A newly
   opened account at a brokerage never reached the feed, and the aggregator's

@@ -4,6 +4,8 @@ import { pollsForBalances } from '../health/health';
 import { earliestOfAccount, regenerateSince } from '../insights/scope';
 import { claimSyncLock, releaseSyncLock } from './lock';
 import { replaceId } from './relink';
+import { INTERNAL_MOVES_KEY, parseInternalMoves } from '../insights/internalMoves';
+import { crossingAmount } from '../insights/netWorth';
 
 /**
  * Combining two accounts that are ONE pot of money under two numbers: a
@@ -73,6 +75,61 @@ export interface CombinePlan {
   snapshotsMoved: number;
   /** Feed ids both accounts hold a row under: a combine would break the dedupe key, so it is refused. */
   clashingRowIds: number;
+  /** The kept account's arrival of the old account's money, marked as a move inside the pot (findCombinedMove). */
+  internalMove: CombinedMove | null;
+}
+
+/**
+ * The row in the kept account that RECEIVED the old account's money, when the
+ * feed never reported the old account's side of it. Read as worded it is a
+ * deposit from outside the size of the whole account, and the market is
+ * charged for it (insights/internalMoves.ts).
+ *
+ * Found from the old account's own balances: the day before its closing run
+ * of zeros is what left it and when. The row is an unpaired arrival
+ * (crossingAmount above zero) in the kept account within COMBINED_MOVE_DAYS of
+ * that, within COMBINED_MOVE_SHARE of that amount (holdings moved in kind are
+ * valued on their own day). Exactly one such row, or none is marked.
+ */
+export interface CombinedMove {
+  rowId: string;
+  date: Date;
+  amount: number;
+}
+
+export const COMBINED_MOVE_DAYS = 3;
+export const COMBINED_MOVE_SHARE = 0.1;
+
+export async function findCombinedMove(
+  prisma: PrismaClient,
+  intoId: string,
+  fromSnapshots: readonly { date: Date; balance: unknown }[],
+): Promise<CombinedMove | null> {
+  const ordered = [...fromSnapshots]
+    .map((s) => ({ date: new Date(s.date as Date), balance: Number(s.balance) }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+  let cut = ordered.length;
+  while (cut > 0 && ordered[cut - 1].balance === 0) cut--;
+  if (cut === 0 || cut === ordered.length) return null; // never funded, or never emptied
+  const left = ordered[cut - 1];
+  const emptied = ordered[cut];
+  const from = left.date.getTime() - COMBINED_MOVE_DAYS * DAY_MS;
+  const to = emptied.date.getTime() + COMBINED_MOVE_DAYS * DAY_MS;
+  const rows = await prisma.transaction.findMany({
+    where: { accountId: intoId, transferPairId: null, date: { gte: new Date(from), lte: new Date(to) } },
+    select: { id: true, date: true, amount: true, description: true },
+  });
+  const fits = rows.filter((t) => {
+    const crossing = crossingAmount({ amount: Number(t.amount), description: t.description });
+    return crossing > 0 && Math.abs(crossing - left.balance) <= left.balance * COMBINED_MOVE_SHARE;
+  });
+  return fits.length === 1 ? { rowId: fits[0].id, date: fits[0].date, amount: Math.abs(Number(fits[0].amount)) } : null;
+}
+
+const DAY_MS = 86_400_000;
+
+function withMove(raw: string | null, rowId: string): string {
+  return JSON.stringify([...new Set([...parseInternalMoves(raw), rowId])].sort());
 }
 
 type Snapshot = Awaited<ReturnType<PrismaClient['balanceSnapshot']['findMany']>>[number];
@@ -108,6 +165,7 @@ export async function planCombine(prisma: PrismaClient, fromId: string, intoId: 
     snapshotsSummed: summed.length,
     snapshotsMoved: moved.length,
     clashingRowIds: fromRows.filter((t) => intoIds.has(t.externalId)).length,
+    internalMove: await findCombinedMove(prisma, intoId, fromSnaps),
   };
 }
 
@@ -123,6 +181,8 @@ export interface CombineUndo {
   intoSnapshotsBefore: Snapshot[];
   movedBatchIds: string[];
   settingsBefore: { key: string; value: string | null }[];
+  /** The arrival marked as a move inside the pot, if one was. */
+  internalMoveId?: string;
 }
 
 export async function applyCombine(
@@ -198,7 +258,14 @@ export async function applyCombine(
       writes.push({ key: IGNORED_FEED_ACCOUNTS_KEY, value: JSON.stringify(ignored) });
     }
 
+    if (plan.internalMove !== null) {
+      const raw = byKey.get(INTERNAL_MOVES_KEY) ?? null;
+      settingsBefore.push({ key: INTERNAL_MOVES_KEY, value: raw });
+      writes.push({ key: INTERNAL_MOVES_KEY, value: withMove(raw, plan.internalMove.rowId) });
+    }
+
     const undo: CombineUndo = {
+      ...(plan.internalMove !== null ? { internalMoveId: plan.internalMove.rowId } : {}),
       at: new Date().toISOString(),
       fromAccount: from,
       movedRowIds: fromRows.map((t) => t.id),
@@ -268,6 +335,44 @@ export async function undoCombine(
     ]);
     await regenerateSince(prisma, await earliestOfAccount(prisma, from.id));
     return { ok: true };
+  } finally {
+    await releaseSyncLock(prisma, claim);
+  }
+}
+
+/**
+ * For a combine already applied before the arrival was marked: find the row
+ * from the undo record's balances of the old account and, with `apply`, mark
+ * it. The undo record learns it, so undoing the combine takes the mark back.
+ */
+export async function markCombinedMove(
+  prisma: PrismaClient,
+  intoId: string,
+  apply: boolean,
+): Promise<{ ok: true; move: CombinedMove | null; alreadyMarked: boolean } | { ok: false; message: string }> {
+  const claim = await claimSyncLock(prisma);
+  try {
+    const row = await prisma.setting.findUnique({ where: { key: COMBINE_UNDO_PREFIX + intoId } });
+    if (row === null) return { ok: false, message: 'No combine into that account is on record.' };
+    const undo = JSON.parse(row.value) as CombineUndo;
+    const move = await findCombinedMove(prisma, intoId, undo.fromSnapshots);
+    const current = await prisma.setting.findUnique({ where: { key: INTERNAL_MOVES_KEY } });
+    const alreadyMarked = move !== null && parseInternalMoves(current?.value ?? null).has(move.rowId);
+    if (!apply || move === null || alreadyMarked) return { ok: true, move, alreadyMarked };
+    const next: CombineUndo = {
+      ...undo,
+      internalMoveId: move.rowId,
+      settingsBefore: undo.settingsBefore.some((s) => s.key === INTERNAL_MOVES_KEY)
+        ? undo.settingsBefore
+        : [...undo.settingsBefore, { key: INTERNAL_MOVES_KEY, value: current?.value ?? null }],
+    };
+    const value = withMove(current?.value ?? null, move.rowId);
+    await prisma.$transaction([
+      prisma.setting.upsert({ where: { key: INTERNAL_MOVES_KEY }, create: { key: INTERNAL_MOVES_KEY, value }, update: { value } }),
+      prisma.setting.update({ where: { key: COMBINE_UNDO_PREFIX + intoId }, data: { value: JSON.stringify(next) } }),
+    ]);
+    await regenerateSince(prisma, move.date);
+    return { ok: true, move, alreadyMarked: false };
   } finally {
     await releaseSyncLock(prisma, claim);
   }

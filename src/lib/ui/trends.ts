@@ -2,6 +2,7 @@ import type { NetWorthGrowthPayload } from "../../types/contracts";
 import type { TxnData } from "../insights/types";
 import { prisma } from "../prisma";
 import { ACCOUNT_NAMES_KEY, parseAccountNames, withAccountLabels } from "../accountDisplay";
+import { INTERNAL_MOVES_KEY, parseInternalMoves } from "../insights/internalMoves";
 import { isClosedBox } from "../sync/closedBox";
 import { monthlyRows, ofType } from "./insightRows";
 import { buildEntries, type Entry } from "./report";
@@ -47,7 +48,7 @@ function shortMonth(period: string): string {
  * own on Turso, and category names join in memory from a table of a few dozen.
  */
 export async function getTrendsSource(): Promise<TrendsSource> {
-  const [txnRows, categories, feedAccounts, netWorthRows, snapshots, nameRow] = await Promise.all([
+  const [txnRows, categories, feedAccounts, netWorthRows, snapshots, settingRows] = await Promise.all([
     prisma.transaction.findMany({
       select: {
         id: true,
@@ -67,10 +68,14 @@ export async function getTrendsSource(): Promise<TrendsSource> {
     // Every balance on record, three narrow columns: the daily line needs each
     // account's newest one too, to tell a closed account from a silent one.
     prisma.balanceSnapshot.findMany({ select: { accountId: true, date: true, balance: true } }),
-    prisma.setting.findUnique({ where: { key: ACCOUNT_NAMES_KEY } }),
+    prisma.setting.findMany({ where: { key: { in: [ACCOUNT_NAMES_KEY, INTERNAL_MOVES_KEY] } } }),
   ]);
+  const settingAt = (key: string) => settingRows.find((s) => s.key === key)?.value ?? null;
+  // Moves inside one pot whose other side the feed never sent (internalMoves.ts):
+  // the daily line must not read them as money arriving, as the engine does not.
+  const internalMoves = parseInternalMoves(settingAt(INTERNAL_MOVES_KEY));
   // Printed names (accountDisplay.ts), ordered by what the reader sees.
-  const accounts = withAccountLabels(feedAccounts, parseAccountNames(nameRow?.value ?? null)).sort((a, b) =>
+  const accounts = withAccountLabels(feedAccounts, parseAccountNames(settingAt(ACCOUNT_NAMES_KEY))).sort((a, b) =>
     a.name.localeCompare(b.name),
   );
 
@@ -89,6 +94,7 @@ export async function getTrendsSource(): Promise<TrendsSource> {
       categoryName: category?.name ?? null,
       categoryIsIncome: category?.isIncome ?? false,
       reimbursesId: t.reimbursesId,
+      ...(internalMoves.has(t.id) ? { internalMove: true } : {}),
     };
   });
 

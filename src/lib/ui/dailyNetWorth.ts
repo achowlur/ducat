@@ -144,7 +144,7 @@ export function dailyNetWorth(input: {
   /** `priorClose`: the feed's balance values the previous trading day's close (an aggregator-fed brokerage). */
   accounts: readonly { id: string; name: string; type: string; priorClose?: boolean }[];
   snapshots: readonly { accountId: string; date: Date; balance: number }[];
-  txns: readonly { accountId: string; date: Date; amount: number; description: string; flow?: string }[];
+  txns: readonly { accountId: string; date: Date; amount: number; description: string; flow?: string; internalMove?: boolean }[];
   /** The local day an instant falls on (localDayKey). */
   dayOf: (d: Date) => string;
   /** Today, as a local day key. */

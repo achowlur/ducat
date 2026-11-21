@@ -1,4 +1,5 @@
 import type { InsightPayloadMap, InsightType, PeriodGranularity } from '../../types/contracts';
+import { INTERNAL_MOVES_KEY, parseInternalMoves } from './internalMoves';
 import type { Prisma, PrismaClient } from '../../generated/prisma/client';
 import { detectCategoryTotalAnomalies, detectTransactionAnomalies, DEFAULT_ANOMALY_OPTIONS, type AnomalyOptions } from './anomalies';
 import { computeCashFlowTrend } from './cashFlow';
@@ -71,11 +72,13 @@ export async function generateInsights(
 ): Promise<GenerateResult> {
   const granularity = options.granularity ?? 'MONTH';
 
-  const [accountRows, snapshotRows, txnRows] = await Promise.all([
+  const [accountRows, snapshotRows, txnRows, internalMovesRow] = await Promise.all([
     prisma.account.findMany(),
     prisma.balanceSnapshot.findMany(),
     prisma.transaction.findMany({ include: { category: true } }),
+    prisma.setting.findUnique({ where: { key: INTERNAL_MOVES_KEY } }),
   ]);
+  const internalMoves = parseInternalMoves(internalMovesRow?.value ?? null);
 
   const accounts: AccountData[] = accountRows.map((a) => ({
     id: a.id,
@@ -102,6 +105,7 @@ export async function generateInsights(
     categoryName: t.category?.name ?? null,
     categoryIsIncome: t.category?.isIncome ?? false,
     reimbursesId: t.reimbursesId,
+    ...(internalMoves.has(t.id) ? { internalMove: true } : {}),
   }));
 
   const emptyCounts: Record<InsightType, number> = {

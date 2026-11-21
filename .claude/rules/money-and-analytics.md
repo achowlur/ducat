@@ -45,7 +45,10 @@ anything below; several entries record "tried and failed, don't retry".
   growth and market gains compare only months over the same accounts.
 - investmentNetFlows counts only money CROSSING the account boundary;
   direction comes from wording, a stated "transferred to/from" first, and
-  only the magnitude is trusted.
+  only the magnitude is trusted. A row on Setting netWorth.internalMoves
+  (insights/internalMoves.ts, written only by accounts:combine) crosses
+  NOTHING: a move inside one combined pot whose other side the feed never
+  sent; the engine and the daily line both read it.
 - Never trust one connector's sign convention — investment-amount readers
   must be robust to Fidelity-CSV and SimpleFIN signing the same transfer
   oppositely.
