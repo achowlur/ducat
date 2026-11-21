@@ -7,7 +7,10 @@ import type { Connector, NormalizedAccount, NormalizedTransaction } from '../../
 import { PrismaClient } from '../../generated/prisma/client';
 import { ACCOUNT_NAMES_KEY } from '../accountDisplay';
 import { CASH_ACCOUNTS_KEY } from '../ui/liquidity';
-import { applyCombine, findAccount, IGNORED_FEED_ACCOUNTS_KEY, planCombine, undoCombine } from './combine';
+import { applyCombine, COMBINE_UNDO_PREFIX, findAccount, IGNORED_FEED_ACCOUNTS_KEY, markCombinedMove, planCombine, undoCombine } from './combine';
+import { generateInsights } from '../insights/engine';
+import { INTERNAL_MOVES_KEY } from '../insights/internalMoves';
+import { crossingAmount } from '../insights/netWorth';
 import { runSync } from './sync';
 
 /** An account moved into a managed one under a new number, left open and empty. Invented figures. */
@@ -124,7 +127,7 @@ describe('combining an account into the one that took over its money', () => {
       accounts: (await prisma.account.findMany({ orderBy: { id: 'asc' } })).map((a) => [a.id, a.externalId, Number(a.balance)]),
       rows: (await prisma.transaction.findMany({ orderBy: { id: 'asc' } })).map((t) => [t.id, t.accountId]),
       balances: (await prisma.balanceSnapshot.findMany({ orderBy: { id: 'asc' } })).map((s) => [s.id, s.accountId, Number(s.balance)]),
-      settings: (await prisma.setting.findMany({ where: { key: { in: [CASH_ACCOUNTS_KEY, ACCOUNT_NAMES_KEY, IGNORED_FEED_ACCOUNTS_KEY] } }, orderBy: { key: 'asc' } })).map((s) => [s.key, s.value]),
+      settings: (await prisma.setting.findMany({ where: { key: { in: [CASH_ACCOUNTS_KEY, ACCOUNT_NAMES_KEY, IGNORED_FEED_ACCOUNTS_KEY, INTERNAL_MOVES_KEY] } }, orderBy: { key: 'asc' } })).map((s) => [s.key, s.value]),
     });
     const before = await state();
     expect((await applyCombine(prisma, old.id, managed.id)).ok).toBe(true);
@@ -144,5 +147,86 @@ describe('combining an account into the one that took over its money', () => {
     const result = await applyCombine(prisma, old.id, managed.id);
     expect(result.ok).toBe(false);
     expect(await prisma.account.count()).toBe(2);
+  });
+});
+
+describe("the arrival of the old account's money when the feed never sent its departure", () => {
+  // The old side is missing: only the kept account's arrival is on record, worded as money from outside.
+  async function seedArrivalOnly(prisma: PrismaClient) {
+    const seeded = await seed(prisma);
+    await prisma.transaction.deleteMany({ where: { externalId: 'o2' } });
+    await prisma.transaction.updateMany({ where: { externalId: 'm1' }, data: { description: 'TRANSFERRED FROM VS 000-000000-1 INDEX FUND (Cash)' } });
+    return seeded;
+  }
+  const flowsInto = async (prisma: PrismaClient, accountId: string, period: string) => {
+    const row = await prisma.insight.findFirstOrThrow({ where: { type: 'NET_WORTH_GROWTH', period } });
+    return (row.payload as { investmentFlowsByAccount?: Record<string, number> }).investmentFlowsByAccount?.[accountId] ?? 0;
+  };
+
+  it('is a move inside the account once marked, crossing nothing', () => {
+    const row = { amount: 1200, description: 'TRANSFERRED FROM VS 000-000000-1 (Cash)' };
+    expect(crossingAmount(row)).toBe(1200);
+    expect(crossingAmount({ ...row, internalMove: true })).toBe(0);
+  });
+
+  it('is found and marked by the combine, so the month counts no new money for it', async () => {
+    const prisma = await freshDatabase();
+    const { old, managed } = await seedArrivalOnly(prisma);
+    const arrival = await prisma.transaction.findFirstOrThrow({ where: { externalId: 'm1' } });
+
+    const plan = await planCombine(prisma, old.id, managed.id);
+    expect(plan.internalMove?.rowId).toBe(arrival.id);
+    expect((await applyCombine(prisma, old.id, managed.id)).ok).toBe(true);
+    const marked = await prisma.setting.findUniqueOrThrow({ where: { key: INTERNAL_MOVES_KEY } });
+    expect(JSON.parse(marked.value)).toEqual([arrival.id]);
+
+    await generateInsights(prisma);
+    const period = arrival.date.toISOString().slice(0, 7);
+    // Only the month's real deposit (o1, +100) crosses; the arrival does not.
+    expect(await flowsInto(prisma, managed.id, period)).toBe(100);
+
+    // Undone, the mark goes with the combine.
+    expect((await undoCombine(prisma, managed.id)).ok).toBe(true);
+    expect(await prisma.setting.findUnique({ where: { key: INTERNAL_MOVES_KEY } })).toBeNull();
+  });
+
+  it('is found and marked afterwards for a combine applied before marks existed', async () => {
+    const prisma = await freshDatabase();
+    const { old, managed } = await seedArrivalOnly(prisma);
+    const arrival = await prisma.transaction.findFirstOrThrow({ where: { externalId: 'm1' } });
+    expect((await applyCombine(prisma, old.id, managed.id)).ok).toBe(true);
+    // As an earlier combine left it: no mark, and an undo record that knows of none.
+    await prisma.setting.deleteMany({ where: { key: INTERNAL_MOVES_KEY } });
+    const undoRow = await prisma.setting.findUniqueOrThrow({ where: { key: COMBINE_UNDO_PREFIX + managed.id } });
+    const record = JSON.parse(undoRow.value);
+    delete record.internalMoveId;
+    record.settingsBefore = record.settingsBefore.filter((s: { key: string }) => s.key !== INTERNAL_MOVES_KEY);
+    await prisma.setting.update({ where: { key: undoRow.key }, data: { value: JSON.stringify(record) } });
+    await generateInsights(prisma);
+    const period = arrival.date.toISOString().slice(0, 7);
+    expect(await flowsInto(prisma, managed.id, period)).toBe(1300);
+
+    const dry = await markCombinedMove(prisma, managed.id, false);
+    expect(dry).toMatchObject({ ok: true, alreadyMarked: false, move: { rowId: arrival.id } });
+    expect(await prisma.setting.findUnique({ where: { key: INTERNAL_MOVES_KEY } })).toBeNull();
+
+    expect(await markCombinedMove(prisma, managed.id, true)).toMatchObject({ ok: true, alreadyMarked: false });
+    expect(await flowsInto(prisma, managed.id, period)).toBe(100);
+    expect(await markCombinedMove(prisma, managed.id, true)).toMatchObject({ ok: true, alreadyMarked: true });
+    // The undo record learned it: undoing the combine takes the mark back too.
+    expect((await undoCombine(prisma, managed.id)).ok).toBe(true);
+    expect(await prisma.setting.findUnique({ where: { key: INTERNAL_MOVES_KEY } })).toBeNull();
+  });
+
+  it('marks nothing when two arrivals could be it', async () => {
+    const prisma = await freshDatabase();
+    const { old, managed } = await seedArrivalOnly(prisma);
+    await prisma.transaction.create({
+      data: {
+        accountId: managed.id, externalId: 'm2', date: day(3), amount: 1190, description: 'TRANSFERRED FROM VS 000-000000-2 (Cash)',
+        normalizedMerchant: 'transfer', flow: 'TRANSFER', categorySource: 'AGGREGATOR', source: 'SIMPLEFIN',
+      },
+    });
+    expect((await planCombine(prisma, old.id, managed.id)).internalMove).toBeNull();
   });
 });

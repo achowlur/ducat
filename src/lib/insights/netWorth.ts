@@ -213,7 +213,9 @@ const OUTBOUND_WORDING = /\b(withdrawal|transferred to|distribution|rollover out
  * for.
  */
 const STATED_DIRECTION = /\btransferred (to|from)\b/i;
-export function crossingAmount(t: Pick<TxnData, 'amount' | 'description'>): number {
+export function crossingAmount(t: Pick<TxnData, 'amount' | 'description' | 'internalMove'>): number {
+  // A move inside one pot whose other side the feed never reported (internalMoves.ts).
+  if (t.internalMove === true) return 0;
   if (INTERNAL_INVESTMENT_ACTIVITY.test(t.description)) return 0;
   const magnitude = Math.abs(t.amount);
   const stated = STATED_DIRECTION.exec(t.description);

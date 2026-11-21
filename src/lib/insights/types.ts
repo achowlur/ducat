@@ -20,6 +20,11 @@ export interface TxnData {
   categoryIsIncome: boolean;
   /** Inflow linked to the specific outflow it pays back. */
   reimbursesId: string | null;
+  /**
+   * A move between two of the reader's own investment accounts whose other
+   * side is not on record (insights/internalMoves.ts): it crosses nothing.
+   */
+  internalMove?: boolean;
 }
 
 export interface AccountData {

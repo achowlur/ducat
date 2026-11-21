@@ -93,7 +93,11 @@ Import and sync:
   every row moves (none is a copy; shared feed ids refuse), balances SUM by
   day, the old account's closing run of zeros is DROPPED so the gap carries
   its last real balance, settings repoint, and its feed id joins
-  sync.ignoredFeedAccounts, which the sync passes over whole.
+  sync.ignoredFeedAccounts, which the sync passes over whole. The kept
+  account's ARRIVAL of the old account's money (an unpaired inflow within 3
+  days of the old account emptying, within 10% of what left it, exactly one)
+  is marked an internal move; `--mark-move=<kept>` does it for a combine
+  applied before marks existed.
 - "Sync now" refuses from SIMPLEFIN_SYNC_NOW_CAP (20) requests counted today;
   the cron is never capped. Its failures return a sentence (databaseRefusal,
   settleAction), never driver text or the error boundary.
