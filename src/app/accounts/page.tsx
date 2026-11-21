@@ -7,6 +7,7 @@ import { accountsHref } from "../../lib/ui/accountFilter";
 import { getAccountsData } from "../../lib/ui/accounts";
 import { CHIP, COLUMN_HEADER, PageTitle } from "../../components/ui/headings";
 import { StaleAlert } from "../../components/StaleAlert";
+import { RelinkAlert } from "../../components/RelinkAlert";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +52,11 @@ async function renderAccounts() {
       {/* LEADS with the table: no headline figure, no freshness line (operator,
           2026-10-19). Net worth is the total row at the foot; each row carries its
           own age as text and StaleAlert names an account that is behind. */}
+      {/* Above the stale alert: a forked account is what that alert would
+          otherwise send the reader to SimpleFIN to "fix" a second time. */}
+      <div className="mb-3 empty:hidden">
+        <RelinkAlert offers={data.relinkOffers} />
+      </div>
       <div className="mb-3 empty:hidden">
         <StaleAlert
           accounts={data.groups.flatMap((g) =>

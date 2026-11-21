@@ -1,7 +1,8 @@
 import { prisma } from "../prisma";
 import { DEFAULT_HEALTH_OPTIONS, pollsForBalances } from "../health/health";
 import { countsAsCash, readCashAccountIds } from "./liquidity";
-import { isoDate, localDayKey } from "./format";
+import { isoDate, localDayKey, shortLocalDay } from "./format";
+import { FEED_ACCOUNTS_KEY, RELINK_DISMISSED_KEY, findRelinkPairs, parseDismissed, parseFeedAccounts } from "../sync/relink";
 
 export interface AccountDetail {
   id: string;
@@ -46,6 +47,17 @@ export interface AccountDetail {
   snapshotSeries: number[];
 }
 
+/** An account a reconnect forked, offered for re-linking (lib/sync/relink.ts). */
+export interface RelinkOffer {
+  oldId: string;
+  newId: string;
+  oldName: string;
+  newName: string;
+  institution: string;
+  /** The older account's last balance, as the local day, formatted here on the server. */
+  oldAsOf: string;
+}
+
 export interface AccountsPageData {
   groups: { type: string; label: string; accounts: AccountDetail[] }[];
   totalBalance: number;
@@ -56,6 +68,8 @@ export interface AccountsPageData {
    * an instant the reader could not see. Null until a sync has ever succeeded.
    */
   lastSyncAt: Date | null;
+  /** Accounts a reconnect forked, offered for re-linking (lib/sync/relink.ts). */
+  relinkOffers: RelinkOffer[];
 }
 
 const DAY_MS = 86_400_000;
@@ -67,7 +81,7 @@ const TYPE_LABELS: [type: string, label: string][] = [
 ];
 
 export async function getAccountsData(now: Date = new Date()): Promise<AccountsPageData> {
-  const [accounts, txnStats, snapshots, lastSync, cashAccountIds] = await Promise.all([
+  const [accounts, txnStats, snapshots, lastSync, cashAccountIds, relinkSettings] = await Promise.all([
     prisma.account.findMany(),
     prisma.transaction.groupBy({
       by: ["accountId"],
@@ -81,8 +95,23 @@ export async function getAccountsData(now: Date = new Date()): Promise<AccountsP
     // print the same fact and must not derive it from different clocks.
     prisma.syncLog.findFirst({ where: { ok: true }, orderBy: { finishedAt: "desc" } }),
     readCashAccountIds(prisma),
+    prisma.setting.findMany({ where: { key: { in: [FEED_ACCOUNTS_KEY, RELINK_DISMISSED_KEY] } } }),
   ]);
   const syncedAt = lastSync?.finishedAt?.getTime() ?? null;
+  const relinkSetting = (key: string) => relinkSettings.find((s) => s.key === key)?.value ?? null;
+  // The accounts already read decide the offers: no second read of the table.
+  const relinkOffers: RelinkOffer[] = findRelinkPairs(
+    accounts,
+    parseFeedAccounts(relinkSetting(FEED_ACCOUNTS_KEY)),
+    parseDismissed(relinkSetting(RELINK_DISMISSED_KEY)),
+  ).map((p) => ({
+    oldId: p.oldId,
+    newId: p.newId,
+    oldName: p.oldName,
+    newName: p.newName,
+    institution: p.institution,
+    oldAsOf: shortLocalDay(p.oldBalanceDate),
+  }));
 
   const statsByAccount = new Map(txnStats.map((s) => [s.accountId, s]));
   const snapshotsByAccount = new Map<string, { date: Date; balance: number }[]>();
@@ -134,5 +163,6 @@ export async function getAccountsData(now: Date = new Date()): Promise<AccountsP
     groups,
     totalBalance: details.reduce((sum, d) => sum + d.balance, 0),
     lastSyncAt: lastSync?.finishedAt ?? null,
+    relinkOffers,
   };
 }
