@@ -11,6 +11,13 @@
  * /insights now; nothing was dropped.
  */
 import { localToday } from "./format";
+import {
+  ACCOUNT_NAMES_KEY,
+  HIDDEN_ON_OVERVIEW_KEY,
+  parseAccountNames,
+  parseHiddenOnOverview,
+  withAccountLabels,
+} from "../accountDisplay";
 import type { DetectedCharge } from "../health/detectedSubscriptions";
 import type { NetWorthGrowthPayload, SpendingByCategoryPayload } from "../../types/contracts";
 import { growthBetween } from "./netWorthGrowth";
@@ -72,6 +79,8 @@ export interface AccountRow {
   isCash: boolean;
   /** The day the balance is as of: what Mark done waits on (nextAction.ts). */
   balanceDate: Date;
+  /** Left out of the account table by the reader's choice on /accounts; still in every total. */
+  hidden: boolean;
 }
 
 /** Below this the lag is not worth printing; see AccountRow.balanceLagDays. */
@@ -203,7 +212,7 @@ export async function getOverviewData(clock: Date = new Date()): Promise<Overvie
   // table, with RECURRING_CHARGE fetched twice over.
   const [
     insightRows,
-    accountRows,
+    feedAccountRows,
     snapshots,
     uncategorizedRows,
     lastOk,
@@ -248,7 +257,19 @@ export async function getOverviewData(clock: Date = new Date()): Promise<Overvie
       firstRecords(),
       // Everything "Do this next" reads from Settings in ONE statement.
       prisma.setting.findMany({
-        where: { key: { in: [SAVINGS_GOALS_KEY, NET_WORTH_GOAL_KEY, NEW_PAY_KEY, RECURRING_DECISIONS_KEY, NUDGES_DONE_KEY] } },
+        where: {
+          key: {
+            in: [
+              SAVINGS_GOALS_KEY,
+              NET_WORTH_GOAL_KEY,
+              NEW_PAY_KEY,
+              RECURRING_DECISIONS_KEY,
+              NUDGES_DONE_KEY,
+              ACCOUNT_NAMES_KEY,
+              HIDDEN_ON_OVERVIEW_KEY,
+            ],
+          },
+        },
       }),
       // The recap's own read, only on the days it speaks, INSIDE this group
       // so it costs no round trip of its own: every month's cash flow (the pay
@@ -257,6 +278,10 @@ export async function getOverviewData(clock: Date = new Date()): Promise<Overvie
       recapPeriod(now) === null ? Promise.resolve(null) : prisma.insight.findMany({ where: { type: "CASH_FLOW_TREND" } }),
     ]);
 
+  // Printed names and the reader's hidden rows (accountDisplay.ts), from the Settings read above.
+  const settingAt = (key: string) => settingRows.find((r) => r.key === key)?.value ?? null;
+  const accountRows = withAccountLabels(feedAccountRows, parseAccountNames(settingAt(ACCOUNT_NAMES_KEY)));
+  const hiddenIds = parseHiddenOnOverview(settingAt(HIDDEN_ON_OVERVIEW_KEY));
   const p2pRows = uncategorizedRows.filter(isP2P);
   const p2pToConfirmCount = p2pRows.length;
   const uncategorizedCount = uncategorizedRows.length - p2pToConfirmCount;
@@ -299,6 +324,7 @@ export async function getOverviewData(clock: Date = new Date()): Promise<Overvie
         stale: staleIds.has(a.id),
         isCash: countsAsCash({ id: a.id, type: a.type, balance }, cashAccountIds),
         balanceDate: a.balanceDate,
+        hidden: hiddenIds.has(a.id),
       };
     })
     .sort((a, b) => (TYPE_ORDER[a.type] ?? 9) - (TYPE_ORDER[b.type] ?? 9) || b.balance - a.balance);

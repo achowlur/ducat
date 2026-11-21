@@ -50,6 +50,7 @@ import { selectPeriod } from "./periodNav";
 import { isCancelled, parseDecisions, riseKept, RECURRING_DECISIONS_KEY, type Decisions } from "./recurringDecisions";
 import { recurringAlertsFor, yourShare, type RecurringAlert } from "./recurringAlerts";
 import { higherThan, money, monthLabel, shortDate, shortDateYear, titleCase } from "./format";
+import { ACCOUNT_NAMES_KEY, parseAccountNames, withAccountLabels } from "../accountDisplay";
 
 export interface InsightRow {
   id: string;
@@ -351,7 +352,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
   // and the page shows one month of them, so it reads the month it expects to
   // land on and fetches another only when the selection lands elsewhere.
   const expected = requestedPeriod !== undefined && /^d{4}-d{2}$/.test(requestedPeriod) ? requestedPeriod : periodKey(now, "MONTH");
-  const [insightRows, registered, settingRows, accountRows, cashIds, taggedRows] = await Promise.all([
+  const [insightRows, registered, settingRows, feedAccountRows, cashIds, taggedRows] = await Promise.all([
     prisma.insight.findMany({
       where: { OR: [{ type: { not: "ANOMALY" } }, { type: "ANOMALY", period: expected }] },
     }),
@@ -360,7 +361,7 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     // statement — on Turso the count of round trips is the cost, so four
     // findUniques would pay for three reads nobody needs.
     prisma.setting.findMany({
-      where: { key: { in: [SAVINGS_GOALS_KEY, NET_WORTH_GOAL_KEY, HOUSE_READINESS_KEY, MORTGAGE_RATE_KEY, NEW_PAY_KEY, RECURRING_DECISIONS_KEY] } },
+      where: { key: { in: [SAVINGS_GOALS_KEY, NET_WORTH_GOAL_KEY, HOUSE_READINESS_KEY, MORTGAGE_RATE_KEY, NEW_PAY_KEY, RECURRING_DECISIONS_KEY, ACCOUNT_NAMES_KEY] } },
     }),
     // Balances for the goal funds. Unconditional rather than gated on the
     // setting existing: a gate costs about its own round trip anyway, and
@@ -381,6 +382,8 @@ export async function getInsightsPageData(requestedPeriod?: string): Promise<Ins
     }),
   ]);
   const settingValue = (key: string) => settingRows.find((r) => r.key === key)?.value ?? null;
+  // Goal funds name their accounts as the reader named them (accountDisplay.ts).
+  const accountRows = withAccountLabels(feedAccountRows, parseAccountNames(settingValue(ACCOUNT_NAMES_KEY)));
   // What the operator answered on Recurring charges' alerts: a cancelled plan
   // is treated as a lapsed one everywhere below.
   const decisions = parseDecisions(settingValue(RECURRING_DECISIONS_KEY));

@@ -2,11 +2,25 @@ import { prisma } from "../prisma";
 import { DEFAULT_HEALTH_OPTIONS, pollsForBalances } from "../health/health";
 import { countsAsCash, readCashAccountIds } from "./liquidity";
 import { isoDate, localDayKey, shortLocalDay } from "./format";
+import {
+  ACCOUNT_NAMES_KEY,
+  HIDDEN_ON_OVERVIEW_KEY,
+  accountLabel,
+  parseAccountNames,
+  parseHiddenOnOverview,
+} from "../accountDisplay";
 import { FEED_ACCOUNTS_KEY, RELINK_DISMISSED_KEY, findRelinkPairs, parseDismissed, parseFeedAccounts } from "../sync/relink";
 
 export interface AccountDetail {
   id: string;
+  /** The PRINTED name: the reader's own with the account number, else the feed's (accountDisplay.ts). */
   name: string;
+  /** The name the feed gives it, which sync keeps current and the matching reads. */
+  feedName: string;
+  /** The name the reader typed, without the number; null when none. */
+  typedName: string | null;
+  /** Left out of Overview's account table, never out of a total. */
+  hiddenOnOverview: boolean;
   institution: string;
   connectorType: string;
   type: string;
@@ -95,10 +109,15 @@ export async function getAccountsData(now: Date = new Date()): Promise<AccountsP
     // print the same fact and must not derive it from different clocks.
     prisma.syncLog.findFirst({ where: { ok: true }, orderBy: { finishedAt: "desc" } }),
     readCashAccountIds(prisma),
-    prisma.setting.findMany({ where: { key: { in: [FEED_ACCOUNTS_KEY, RELINK_DISMISSED_KEY] } } }),
+    prisma.setting.findMany({
+      where: { key: { in: [FEED_ACCOUNTS_KEY, RELINK_DISMISSED_KEY, ACCOUNT_NAMES_KEY, HIDDEN_ON_OVERVIEW_KEY] } },
+    }),
   ]);
   const syncedAt = lastSync?.finishedAt?.getTime() ?? null;
   const relinkSetting = (key: string) => relinkSettings.find((s) => s.key === key)?.value ?? null;
+  const typedNames = parseAccountNames(relinkSetting(ACCOUNT_NAMES_KEY));
+  const hidden = parseHiddenOnOverview(relinkSetting(HIDDEN_ON_OVERVIEW_KEY));
+  const labelOf = (id: string, feedName: string) => accountLabel({ id, name: feedName }, typedNames);
   // The accounts already read decide the offers: no second read of the table.
   const relinkOffers: RelinkOffer[] = findRelinkPairs(
     accounts,
@@ -107,8 +126,8 @@ export async function getAccountsData(now: Date = new Date()): Promise<AccountsP
   ).map((p) => ({
     oldId: p.oldId,
     newId: p.newId,
-    oldName: p.oldName,
-    newName: p.newName,
+    oldName: labelOf(p.oldId, p.oldName),
+    newName: labelOf(p.newId, p.newName),
     institution: p.institution,
     oldAsOf: shortLocalDay(p.oldBalanceDate),
   }));
@@ -127,7 +146,10 @@ export async function getAccountsData(now: Date = new Date()): Promise<AccountsP
     const daysSinceBalance = Math.floor((now.getTime() - a.balanceDate.getTime()) / DAY_MS);
     return {
       id: a.id,
-      name: a.name,
+      name: labelOf(a.id, a.name),
+      feedName: a.name,
+      typedName: typedNames[a.id] ?? null,
+      hiddenOnOverview: hidden.has(a.id),
       institution: a.institution,
       connectorType: a.connectorType,
       type: a.type,

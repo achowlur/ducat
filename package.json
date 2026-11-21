@@ -42,6 +42,7 @@
     "rules:coverage": "tsx scripts/rules-coverage.ts",
     "accounts:cash": "tsx scripts/set-cash-accounts.ts",
     "accounts:relink": "tsx scripts/relink-accounts.ts",
+    "accounts:combine": "tsx scripts/combine-accounts.ts",
     "readiness": "tsx scripts/set-readiness.ts",
     "goals": "tsx scripts/set-goals.ts",
     "upgrade": "tsx scripts/upgrade.ts",

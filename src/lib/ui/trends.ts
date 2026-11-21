@@ -1,6 +1,7 @@
 import type { NetWorthGrowthPayload } from "../../types/contracts";
 import type { TxnData } from "../insights/types";
 import { prisma } from "../prisma";
+import { ACCOUNT_NAMES_KEY, parseAccountNames, withAccountLabels } from "../accountDisplay";
 import { isClosedBox } from "../sync/closedBox";
 import { monthlyRows, ofType } from "./insightRows";
 import { buildEntries, type Entry } from "./report";
@@ -46,7 +47,7 @@ function shortMonth(period: string): string {
  * own on Turso, and category names join in memory from a table of a few dozen.
  */
 export async function getTrendsSource(): Promise<TrendsSource> {
-  const [txnRows, categories, accounts, netWorthRows, snapshots] = await Promise.all([
+  const [txnRows, categories, feedAccounts, netWorthRows, snapshots, nameRow] = await Promise.all([
     prisma.transaction.findMany({
       select: {
         id: true,
@@ -66,7 +67,12 @@ export async function getTrendsSource(): Promise<TrendsSource> {
     // Every balance on record, three narrow columns: the daily line needs each
     // account's newest one too, to tell a closed account from a silent one.
     prisma.balanceSnapshot.findMany({ select: { accountId: true, date: true, balance: true } }),
+    prisma.setting.findUnique({ where: { key: ACCOUNT_NAMES_KEY } }),
   ]);
+  // Printed names (accountDisplay.ts), ordered by what the reader sees.
+  const accounts = withAccountLabels(feedAccounts, parseAccountNames(nameRow?.value ?? null)).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
 
   const categoryById = new Map(categories.map((c) => [c.id, c]));
   const txns: TxnData[] = txnRows.map((t) => {

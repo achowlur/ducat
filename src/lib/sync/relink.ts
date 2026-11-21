@@ -270,7 +270,7 @@ export interface RelinkResult {
 }
 
 /** Every string equal to `from` anywhere in a JSON value becomes `to`; string arrays then drop repeats. */
-function replaceId(value: unknown, from: string, to: string): unknown {
+export function replaceId(value: unknown, from: string, to: string): unknown {
   if (typeof value === 'string') return value === from ? to : value;
   if (Array.isArray(value)) {
     const mapped = value.map((v) => replaceId(v, from, to));

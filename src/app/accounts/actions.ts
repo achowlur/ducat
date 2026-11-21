@@ -10,6 +10,14 @@ import { requireSession } from "../../lib/auth/requireSession";
 import { databaseRefusal, refuse, type ActionResult } from "../../lib/actionResult";
 import { SyncAlreadyRunningError } from "../../lib/sync/lock";
 import { applyRelink, dismissRelinkPair } from "../../lib/sync/relink";
+import {
+  ACCOUNT_NAMES_KEY,
+  HIDDEN_ON_OVERVIEW_KEY,
+  MAX_ACCOUNT_NAME,
+  normalizeAccountName,
+  parseAccountNames,
+  parseHiddenOnOverview,
+} from "../../lib/accountDisplay";
 import { ACCOUNT_TYPES, type AccountType } from "../../types/contracts";
 
 /**
@@ -76,6 +84,60 @@ export async function mergeReconnectedAccount(
     if (refusal !== null) return refusal;
     throw e;
   }
+}
+
+/**
+ * Name an account as the reader knows it (lib/accountDisplay.ts). An empty
+ * name puts the feed's back. The feed's own name is never touched: sync
+ * rewrites it, ACCOUNT rules match it and the reconnect matching reads it.
+ */
+export async function renameAccount(accountId: string, raw: string): Promise<ActionResult> {
+  await requireSession();
+  const name = normalizeAccountName(raw);
+  if (name !== null && name.length > MAX_ACCOUNT_NAME) {
+    return refuse(`A name can be at most ${MAX_ACCOUNT_NAME} characters; the account number is added after it.`);
+  }
+  try {
+    const exists = await prisma.account.findUnique({ where: { id: accountId }, select: { id: true } });
+    if (exists === null) return refuse("That account is no longer here. Reload to see the current list.");
+    const row = await prisma.setting.findUnique({ where: { key: ACCOUNT_NAMES_KEY } });
+    const names = parseAccountNames(row?.value ?? null);
+    if (name === null) delete names[accountId];
+    else names[accountId] = name;
+    const value = JSON.stringify(names);
+    await prisma.setting.upsert({ where: { key: ACCOUNT_NAMES_KEY }, create: { key: ACCOUNT_NAMES_KEY, value }, update: { value } });
+  } catch (e) {
+    const refusal = databaseRefusal(e);
+    if (refusal !== null) return refusal;
+    throw e;
+  }
+  // Every page prints account names.
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Leave an account out of Overview's account table, or put it back. No total changes. */
+export async function setHiddenOnOverview(accountId: string, hidden: boolean): Promise<ActionResult> {
+  await requireSession();
+  try {
+    const row = await prisma.setting.findUnique({ where: { key: HIDDEN_ON_OVERVIEW_KEY } });
+    const ids = parseHiddenOnOverview(row?.value ?? null);
+    if (hidden) ids.add(accountId);
+    else ids.delete(accountId);
+    const value = JSON.stringify([...ids].sort());
+    await prisma.setting.upsert({
+      where: { key: HIDDEN_ON_OVERVIEW_KEY },
+      create: { key: HIDDEN_ON_OVERVIEW_KEY, value },
+      update: { value },
+    });
+  } catch (e) {
+    const refusal = databaseRefusal(e);
+    if (refusal !== null) return refusal;
+    throw e;
+  }
+  revalidatePath("/");
+  revalidatePath("/accounts");
+  return { ok: true };
 }
 
 /** "Not the same account": the pair is never offered again. */

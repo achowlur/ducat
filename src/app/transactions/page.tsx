@@ -36,6 +36,7 @@ import { ledgerTotals, type LedgerTotals } from "../../lib/ui/ledgerTotals";
 import { repaidByExpense, repaidFromOutside, repaidNote } from "../../lib/ui/repaid";
 import { merchantKey, merchantLabel } from "../../lib/ui/merchantLabel";
 import { CHIP, COLUMN_HEADER, CONTROL, FIELD_LABEL, PageTitle } from "../../components/ui/headings";
+import { ACCOUNT_NAMES_KEY, parseAccountNames, withAccountLabels } from "../../lib/accountDisplay";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
@@ -406,7 +407,7 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
     ? { ...where, categoryId: null, reimbursesId: null, flow: { not: "TRANSFER" } }
     : where;
 
-  const [rows, matching, categories, accounts, dateRange, reviewPool, trackedSubs, groupLabelRows, tripTotals, tripTransfers, tripGroupTotal, linkedRepayments] = await Promise.all([
+  const [rows, matching, categories, feedAccounts, dateRange, reviewPool, trackedSubs, groupLabelRows, tripTotals, tripTransfers, tripGroupTotal, linkedRepayments, accountNameRow] = await Promise.all([
     prisma.transaction.findMany({
       where: listWhere,
       // A relation `include` is a ROUND TRIP, and this query had three of them
@@ -498,10 +499,15 @@ async function renderTransactions({ searchParams }: { searchParams: Promise<RawP
       where: { reimbursesId: { not: null } },
       select: { id: true, reimbursesId: true, flow: true, amount: true },
     }),
+    // Printed account names (accountDisplay.ts): one Setting row, in the same group.
+    prisma.setting.findUnique({ where: { key: ACCOUNT_NAMES_KEY } }),
   ]);
 
   const total = matching === null ? rows.length : matching.length;
 
+  const accounts = withAccountLabels(feedAccounts, parseAccountNames(accountNameRow?.value ?? null)).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
   // The account column, without joining Account onto every row: `accounts` is
   // the whole table and `accountId` is a required FK, so this cannot miss.
   const accountNameById = new Map(accounts.map((a) => [a.id, a.name]));

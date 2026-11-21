@@ -88,6 +88,12 @@ Import and sync:
   keeps the older account, drops copies by overlap.ts (3 days, multiset;
   ambiguous rows kept), gives kept rows the copy's feed id, repoints settings,
   and stores an undo refused once a sync has run since.
+- An account whose money moved to a NEW number at the same brokerage is
+  COMBINED by the operator (accounts:combine, sync/combine.ts), never offered:
+  every row moves (none is a copy; shared feed ids refuse), balances SUM by
+  day, the old account's closing run of zeros is DROPPED so the gap carries
+  its last real balance, settings repoint, and its feed id joins
+  sync.ignoredFeedAccounts, which the sync passes over whole.
 - "Sync now" refuses from SIMPLEFIN_SYNC_NOW_CAP (20) requests counted today;
   the cron is never capped. Its failures return a sentence (databaseRefusal,
   settleAction), never driver text or the error boundary.
