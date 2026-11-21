@@ -104,6 +104,14 @@ describe('findRelinkPairs', () => {
     expect(findRelinkPairs(accounts, feed('new', 'chk'), new Set()).map((p) => [p.oldId, p.newId])).toEqual([['a1', 'a2']]);
   });
 
+  it('matches a renamed account by its account number, and a name without one by its words', () => {
+    const renamed = [acct('a1', 'old', 'Savings (0002)', 60), acct('a2', 'new', 'Rainy Day Fund (0002)', 0)];
+    expect(findRelinkPairs(renamed, feed('new'), new Set()).map((p) => [p.oldId, p.newId])).toEqual([['a1', 'a2']]);
+    const bare = [acct('a1', 'old', 'Brokerage', 60), acct('a2', 'new', 'Brokerage', 0)];
+    expect(findRelinkPairs(bare, feed('new'), new Set())).toHaveLength(1);
+    expect(findRelinkPairs([bare[0], acct('a2', 'new', 'Retirement', 0)], feed('new'), new Set())).toEqual([]);
+  });
+
   it('offers nothing it cannot be sure of', () => {
     const base = [acct('a1', 'old', 'Savings (0002)', 60), acct('a2', 'new', 'Savings (0002)', 0)];
     // The old account is still listed: two real accounts, not a fork.

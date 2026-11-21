@@ -20,8 +20,9 @@ import { reapplyRules, releaseClosedBox } from './rulePack';
  * This puts them back together, and only when asked. The sync records which
  * accounts the feed listed (FEED_ACCOUNTS_KEY); a pair is OFFERED when a
  * listed account and an unlisted one of the same connector sit at the same
- * institution under the same name (the same words and the same trailing
- * digits), the unlisted one older, and neither has any other candidate. Two
+ * institution under the same account number (the name's trailing digits; the
+ * same words for a name with none), the unlisted one older, and neither has
+ * any other candidate. Two
  * candidates is no offer: filing one account's history under another
  * corrupts both, invisibly, so a missed offer is the better failure, as
  * matchAccount decides for statements.
@@ -110,11 +111,17 @@ export interface RelinkPair {
   oldBalanceDate: Date;
 }
 
-/** The letters of a name as words, and its trailing digit run: what a reconnect keeps. */
+/**
+ * What a reconnect keeps of a name: its trailing account number when it has
+ * one, else its words. The number alone, because a person renames accounts
+ * at the bank and the feed may carry the new name on the reconnect while the
+ * old account still has the old one; the number does not change. It is often
+ * only the last four digits, so two accounts can share it: the caller offers
+ * a pair only when it is the ONE candidate either way, and the reader confirms.
+ */
 function identity(name: string): string {
-  const words = name.toLowerCase().replace(/[^a-z]+/g, ' ').trim();
-  const tail = /(\d{3,})\D*$/.exec(name)?.[1] ?? '';
-  return `${words}#${tail}`;
+  const tail = /(\d{3,})\D*$/.exec(name)?.[1];
+  return tail !== undefined ? `#${tail}` : name.toLowerCase().replace(/[^a-z]+/g, ' ').trim();
 }
 
 /** Pairs to offer: pure, so the page and the command decide alike. */
