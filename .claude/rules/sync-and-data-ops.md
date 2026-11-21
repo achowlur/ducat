@@ -82,7 +82,8 @@ Import and sync:
 - A RECONNECT's fork is RE-LINKED, never auto-merged (sync/relink.ts): the
   sync records which accounts a polled feed listed (Setting
   sync.feedAccounts); a listed account and an unlisted OLDER one at the same
-  institution with the same name words and trailing digits, with no other
+  institution with the same ACCOUNT NUMBER (the name's trailing digits, never
+  its words, which a rename changes; words only for a name with no number), no other
   candidate either way, are OFFERED on /accounts (and accounts:relink). Merge
   keeps the older account, drops copies by overlap.ts (3 days, multiset;
   ambiguous rows kept), gives kept rows the copy's feed id, repoints settings,

@@ -906,11 +906,20 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
     sync.feedAccounts, per polled connector; a statement import lists only
     its file's accounts and records nothing). The pair is offered only when
     it is the ONLY candidate in both directions: same connector, same
-    institution, the same name words and trailing digits, the unlisted one
-    older. Two "Individual" brokerage accounts differ by their digits, so
-    they are never offered for each other. Type is NOT compared: a type the
-    operator corrected by hand must not hide the old account, and the merge
-    keeps it.
+    institution, the same account number (the name's trailing digits), the
+    unlisted one older. Two "Individual" brokerage accounts differ by their
+    digits, so they are never offered for each other. Type is NOT compared: a
+    type the operator corrected by hand must not hide the old account, and the
+    merge keeps it.
+    NUMBER, NOT WORDS (amended the same day, before the first real
+    reconnect): the first rule also required the name's words to match, and
+    the operator had just renamed every account at the bank. The feed had not
+    carried the new names, but a fresh connection might, which would leave
+    the old accounts under the old names and offer nothing. The number does
+    not change with a rename, so it alone decides; a name carrying no number
+    still matches on its words. The number is often the last four digits and
+    can be shared, which the one-candidate-either-way rule and the reader's
+    confirmation already answer.
   - THE MERGE keeps the OLDER account, because it holds the history and
     every decision made on it. The newer account's rows go through the
     statement import's duplicate rule (overlap.ts): same amount to the cent,
