@@ -4,7 +4,9 @@ import { generateInsights, type GenerateResult } from '../insights/engine';
 import { refreshMortgageRate } from '../rates/mortgageRate';
 import { shortDateYear } from '../ui/format';
 import { CLOSED_BOX_RULE_ID, crossesTheBoundary } from './closedBox';
+import { pollsForBalances } from '../health/health';
 import { claimSyncLock, releaseSyncLock } from './lock';
+import { recordFeedAccounts } from './relink';
 import { applyRules, toRuleTxns } from './rules';
 import { sourceCategoryToApply } from './sourceCategory';
 import { detectTransferPairs } from './transfers';
@@ -246,6 +248,14 @@ async function runPipeline(
       });
       snapshotsWritten++;
     }
+  }
+
+  // Which accounts a polled feed listed this run: an account it no longer
+  // lists beside a new one of the same name is a reconnect's fork, offered
+  // for re-linking on /accounts (relink.ts). Statement imports list only the
+  // file's own accounts and say nothing about the rest.
+  if (pollsForBalances(connector.type)) {
+    await recordFeedAccounts(prisma, connector.type, normalizedAccounts.map((a) => a.externalId), new Date(now));
   }
 
   const fetched = await connector.fetchTransactions(since);

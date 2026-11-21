@@ -79,6 +79,14 @@ Import and sync:
   skipped, as reapplyRules skips it.
 - A connector's `maxHistoryDays` caps the window it is asked for, and the cut
   is a feed warning naming the dates and the CSV import that fills them.
+- A RECONNECT's fork is RE-LINKED, never auto-merged (sync/relink.ts): the
+  sync records which accounts a polled feed listed (Setting
+  sync.feedAccounts); a listed account and an unlisted OLDER one at the same
+  institution with the same name words and trailing digits, with no other
+  candidate either way, are OFFERED on /accounts (and accounts:relink). Merge
+  keeps the older account, drops copies by overlap.ts (3 days, multiset;
+  ambiguous rows kept), gives kept rows the copy's feed id, repoints settings,
+  and stores an undo refused once a sync has run since.
 - "Sync now" refuses from SIMPLEFIN_SYNC_NOW_CAP (20) requests counted today;
   the cron is never capped. Its failures return a sentence (databaseRefusal,
   settleAction), never driver text or the error boundary.

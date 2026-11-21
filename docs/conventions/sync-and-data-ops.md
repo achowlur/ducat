@@ -890,6 +890,49 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
     (the function stopped at its limit) is caught in the button by
     `settleAction` instead of reaching the page's error boundary.
 
+- RECONNECT RE-LINK (2026-11-21, sync/relink.ts, relink.test.ts). A newly
+  opened account at a brokerage never reached the feed, and the aggregator's
+  only lever was deleting the connection and adding it again. A feed account
+  is known by its feed id alone (findExistingAccount), so if a re-added
+  connection hands back new ids, the next sync forks every account at that
+  institution: a second copy beside each, holding up to 90 days the first
+  already holds, net worth counting each balance twice, every re-sent row a
+  copy without its category, links or tags. Whether the aggregator really
+  issues new ids was not known when this was built, so it was built for the
+  case where it does, and it costs nothing where it does not.
+  - OFFERED, NEVER AUTOMATIC (operator's call). Filing one account's history
+    under another corrupts both and nothing on any screen says so, so the
+    sync only records which accounts the feed listed (Setting
+    sync.feedAccounts, per polled connector; a statement import lists only
+    its file's accounts and records nothing). The pair is offered only when
+    it is the ONLY candidate in both directions: same connector, same
+    institution, the same name words and trailing digits, the unlisted one
+    older. Two "Individual" brokerage accounts differ by their digits, so
+    they are never offered for each other. Type is NOT compared: a type the
+    operator corrected by hand must not hide the old account, and the merge
+    keeps it.
+  - THE MERGE keeps the OLDER account, because it holds the history and
+    every decision made on it. The newer account's rows go through the
+    statement import's duplicate rule (overlap.ts): same amount to the cent,
+    dates within 3 days, a multiset, a row carrying the old row's own feed id
+    a duplicate outright. A copy is dropped and its old twin kept; an
+    ambiguous row is KEPT and counted, never guessed away. A pair the sync
+    made with a copy moves to the kept row unless that row is MANUAL or
+    already paired, in which case the partner is unpaired and counted.
+  - THE KEPT ROW TAKES THE COPY'S FEED ID. Found writing the test, not in
+    review: the next sync re-sends its last week under the new ids, and
+    dedupe knows a row only by (account, id), so without this every dropped
+    copy came straight back. Settings naming the new account by id (the
+    cash list, a savings goal's accounts) are rewritten to the kept one.
+  - UNDO is stored per merge (Setting accounts.relinkUndo:<id>, every row it
+    rewrote or deleted as it was) and is REFUSED once a sync has run since:
+    that sync wrote into the kept account under the feed id the merge gave
+    it, and splitting those rows back out would be a guess. Before a
+    deliberate reconnect, take a backup.
+  - The merge holds the SYNC LOCK, so the cron cannot write into either
+    account mid-merge, and a move across the closed box (a hand-corrected
+    type) runs the same release and reapply a retype does.
+
 - CRON HOUR RE-SCORED: 04:00 UTC (2026-10-20). The operator noticed the
   brokerage balance was always a day behind. The feed's publish times had
   moved since the 23:00 choice (the entry above): measured off the stored
