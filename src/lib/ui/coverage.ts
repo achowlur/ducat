@@ -1,4 +1,5 @@
 import { prisma } from "../prisma";
+import { ACCOUNT_NAMES_KEY, parseAccountNames, withAccountLabels } from "../accountDisplay";
 import { periodCoverage, type AccountCoverage, type PeriodCoverage } from "../insights/coverage";
 import { periodEndExclusive, periodStart } from "../insights/periods";
 import { isClosedBox } from "../sync/closedBox";
@@ -12,11 +13,12 @@ import { isClosedBox } from "../sync/closedBox";
  * describe money the totals do not hold.
  */
 export async function getAccountCoverage(): Promise<AccountCoverage[]> {
-  const [accounts, firsts] = await Promise.all([
+  const [accounts, firsts, names] = await Promise.all([
     prisma.account.findMany({ select: { id: true, name: true, type: true } }),
     firstRecords(),
+    prisma.setting.findUnique({ where: { key: ACCOUNT_NAMES_KEY } }),
   ]);
-  return accountCoverageFrom(accounts, firsts);
+  return accountCoverageFrom(withAccountLabels(accounts, parseAccountNames(names?.value ?? null)), firsts);
 }
 
 /** Each account's earliest transaction date, as getAccountCoverage reads it: for a page that already has its accounts. */

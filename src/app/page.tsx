@@ -156,6 +156,7 @@ async function renderOverview() {
 
   // Empty with nothing to do: net worth then has the row to itself.
   const slot = data.nextAction.lead !== null || data.accounts.length === 0;
+  const hiddenCount = data.accounts.filter((a) => a.hidden).length;
   const doThisNext = slot && (
     <div className="max-md:mt-3 md:col-start-2 md:row-span-3 md:row-start-1 md:self-start md:pt-1">
       <DoThisNext next={data.nextAction} checked={data.accounts.length > 0} />
@@ -316,7 +317,7 @@ async function renderOverview() {
               </tr>
             </thead>
             <tbody>
-              {data.accounts.map((a) => (
+              {data.accounts.filter((a) => !a.hidden).map((a) => (
                 <tr key={a.id} className="border-b border-rule">
                   <td className="py-1.5 text-[0.85rem]">
                     <span className="block leading-tight">{a.name}</span>
@@ -366,6 +367,17 @@ async function renderOverview() {
               ))}
             </tbody>
           </table>
+          {/* The headline still counts a hidden account, so the table says
+              what it leaves out: without this line the rows would not add up
+              to the figure above them, and nothing would say why. */}
+          {hiddenCount > 0 && (
+            <p className="mt-1.5 text-[0.72rem] text-faint">
+              {hiddenCount === 1 ? "1 account is" : `${hiddenCount} accounts are`} hidden here and still counted in net worth.{" "}
+              <Link href="/accounts" className="text-acc hover:underline">
+                Show on Accounts
+              </Link>
+            </p>
+          )}
         </section>
 
         <section className="border-rule py-5 md:col-start-2 md:row-start-1 md:border-l md:pl-7">

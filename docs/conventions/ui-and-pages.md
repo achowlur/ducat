@@ -789,6 +789,25 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
   only the joins around them changed.
 
 
+- ACCOUNTS NAMED AS THE READER KNOWS THEM, AND HIDDEN FROM OVERVIEW
+  (2026-11-21, lib/accountDisplay.ts). The feed names brokerage accounts by
+  their registration ("Individual - TOD", twice), so two accounts read the
+  same everywhere, and the nicknames given at the bank never reach the feed
+  (renamed there, nothing changed after a sync). The name a reader types on
+  /accounts lives in a Setting and is printed with the feed's account number
+  beside it, so which feed account it is never gets lost. It is applied in
+  each page LOADER (withAccountLabels), never in the database: the feed's
+  name is what the sync rewrites, what ACCOUNT rules match and what the
+  reconnect matcher reads, so it stays the account's identity and /accounts
+  shows it beside a renamed row. Insight payloads store account IDS, never
+  names, so a rename needs no regeneration. Health's warnings on /providers
+  still print the feed's name; its reads run per connector and the page they
+  serve names the connection, not the account.
+  Hiding is the same kind of choice: an emptied account stays on /accounts
+  and in every total, and only Overview's table drops it, saying beneath the
+  table how many it hides, because the headline above still counts them and
+  rows that do not add up to it with no word why read as a wrong figure.
+
 - THE LEDGER'S ACCOUNT FILTER TAKES ANY NUMBER OF ACCOUNTS (2026-09-27). It
   was a single-choice `<select>`, so reading two cards together meant two
   visits and no way to see them in one date order. It is now a checkbox

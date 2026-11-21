@@ -890,6 +890,29 @@ contract: rule line in CLAUDE.md, evidence here, never both in one place.
     (the function stopped at its limit) is caught in the button by
     `settleAction` instead of reaching the page's error boundary.
 
+- COMBINED ACCOUNTS (2026-11-21, sync/combine.ts, combine.test.ts). The
+  brokerage moved a retirement account into a managed one: a NEW account
+  number, the old one left open and empty, still listed by the feed. Ducat
+  showed two accounts, the old one's history stopping where the new one's
+  began a few days later, and the reader wanted one.
+  - NOT A RE-LINK. A reconnect's fork is a copy (the same rows under new
+    ids); this is two real accounts with different rows. So every row moves
+    and none is dropped, and a row sitting in both under one feed id refuses
+    the combine and names accounts:relink.
+  - BALANCES SUM, EXCEPT THE CLOSING ZEROS. On a day both hold a balance,
+    the pot is the two together. The old account's zeros after the money
+    left are the money in transit to an account with no balance on record
+    for those days yet; kept, they would read the pot as empty. Dropped, the
+    engine carries the last real balance across the gap, marked estimated,
+    as it does for any investment account missing a day.
+  - THE FEED KEEPS LISTING THE EMPTY ACCOUNT, so its feed id goes on
+    sync.ignoredFeedAccounts and the sync passes over it and its rows.
+    Settings naming the old account by id repoint to the kept one; its typed
+    name and hidden flag go with it. An undo restores the old account, its
+    rows, every balance and every setting as they were.
+  - OPERATOR-RUN, NEVER OFFERED: a reconnect leaves evidence a page can read
+    (the feed stopped listing an account), a move to a new number does not.
+
 - RECONNECT RE-LINK (2026-11-21, sync/relink.ts, relink.test.ts). A newly
   opened account at a brokerage never reached the feed, and the aggregator's
   only lever was deleting the connection and adding it again. A feed account

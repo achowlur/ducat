@@ -8,6 +8,7 @@ import { getAccountsData } from "../../lib/ui/accounts";
 import { CHIP, COLUMN_HEADER, PageTitle } from "../../components/ui/headings";
 import { StaleAlert } from "../../components/StaleAlert";
 import { RelinkAlert } from "../../components/RelinkAlert";
+import { AccountDisplayControls } from "../../components/AccountDisplayControls";
 import { withDatabaseNotice } from "../../components/DatabaseNotice";
 
 export const dynamic = "force-dynamic";
@@ -107,7 +108,14 @@ async function renderAccounts() {
                     <span className="block text-[0.72rem] text-faint md:inline">
                       {a.institution} · {a.connectorType.toLowerCase()}
                       {a.isCash && a.type !== "DEPOSITORY" ? " · counts as cash" : ""}
+                      {a.hiddenOnOverview ? " · hidden on Overview" : ""}
                     </span>
+                    <AccountDisplayControls
+                      accountId={a.id}
+                      feedName={a.feedName}
+                      typedName={a.typedName}
+                      hiddenOnOverview={a.hiddenOnOverview}
+                    />
                   </td>
                   <td className="py-2 pr-3 text-right">
                     <span

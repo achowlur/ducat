@@ -156,6 +156,13 @@ Overview:
 - /accounts LEADS with the table (operator, 2026-10-19): no net worth headline,
   no last-sync line, no how-counted tap; net worth is the total row at the
   foot, and freshness is each row's chip and age text plus the stale alert.
+- An account's PRINTED name is the reader's own (Setting accounts.displayNames,
+  lib/accountDisplay.ts, renamed on /accounts) with the feed's account number
+  beside it, applied by every page loader through withAccountLabels; the FEED
+  name stays the identity (sync rewrites it, ACCOUNT rules and the reconnect
+  matcher read it) and is shown beside a renamed row. "Hide on Overview"
+  (accounts.hiddenOnOverview) drops a row from Overview's table only, never
+  from a total, and the table says how many it hides; /accounts lists all.
 - Per-account "Nd behind" measures against the LAST SYNC, never against now,
   and never labels a statement-only (CSV/PDF) account (pollsForBalances).
 - Net worth says in TEXT what a month estimates or leaves out (Trends names

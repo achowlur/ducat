@@ -7,6 +7,7 @@ import { CLOSED_BOX_RULE_ID, crossesTheBoundary } from './closedBox';
 import { pollsForBalances } from '../health/health';
 import { claimSyncLock, releaseSyncLock } from './lock';
 import { recordFeedAccounts } from './relink';
+import { ignoredFeedAccounts } from './combine';
 import { applyRules, toRuleTxns } from './rules';
 import { sourceCategoryToApply } from './sourceCategory';
 import { detectTransferPairs } from './transfers';
@@ -194,8 +195,13 @@ async function runPipeline(
   let accountsUpdated = 0;
   let snapshotsWritten = 0;
   const accountIdByExternalId = new Map<string, string>();
+  // Accounts the operator combined into another (combine.ts): a brokerage
+  // that keeps listing the emptied one must not bring it back. Passed over
+  // whole, so its rows find no account and are not imported either.
+  const ignored = await ignoredFeedAccounts(prisma, connector.type);
 
   for (const a of normalizedAccounts) {
+    if (ignored.has(a.externalId)) continue;
     // Pass that account's externalId to the importer and a CSV backfill lands
     // IN it rather than beside it; see findExistingAccount for why the fallback
     // is deliberate.
